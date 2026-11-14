@@ -20,7 +20,7 @@ func rbRig(t *testing.T) *rig {
 	t.Helper()
 	r := agentRig(t)
 	r.tt.SetSize(1280, 2400) // the editor and the thread are long: every control is on screen
-	r.w.openPage("runbooks")
+	r.w.showPage("runbooks")
 	r.tt.Frame()
 	return r
 }
@@ -42,7 +42,7 @@ func TestTheRunbooksPageIsOpenedByThePaletteAndItsNewByCmdN(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if t2 := r.w.pageTab("runbooks"); t2 == nil || r.w.tab() != t2 {
+	if t2 := r.w.pageTab("runbooks"); t2 == nil || r.w.activeTab() != t2 {
 		t.Fatal("the palette's Runbooks does not open the page")
 	}
 	if miss := r.lacks("Runbooks", "No runbooks yet", "Select a runbook to edit it, or add one with New.", "0 runbooks · stored in the vault"); len(miss) > 0 {
@@ -97,22 +97,22 @@ func TestCreatingEditingAndDeletingARunbookSendsTheEditorsStateAndDeleteAsksFirs
 	if r.fb.mem.rbReqs[len(r.fb.mem.rbReqs)-1] != "pick rb1 false" || r.fb.mem.runbooks[0].AgentMayPick {
 		t.Fatalf("requests %v", r.fb.mem.rbReqs)
 	}
-	// Delete asks first, with the app's words.
+	// Delete asks first.
 	r.click(t, "Delete")
-	r.settleFrames()
-	cf := r.w.confirm
+	r.settle()
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Delete runbook?" || cf.action != "Delete" || cf.message != "“Disk usage” is deleted from the vault. Conversations that used it keep their copy of its steps." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.mem.runbooks) != 1 {
 		t.Fatal("Cancel deleted it")
 	}
 	r.click(t, "Delete")
-	r.settleFrames()
-	r.w.confirm.run()
-	r.settleFrames()
+	r.settle()
+	r.w.confirmDlg().run()
+	r.settle()
 	if len(r.fb.mem.runbooks) != 0 || !r.tt.HasText("No runbooks yet") || !r.tt.HasText("Runbook deleted") {
 		t.Fatal("confirming did not delete it")
 	}
@@ -141,13 +141,13 @@ func TestARunbookIsCheckedBeforeItIsSentAndAUnsavedEditorAsksBeforeItIsLeft(t *t
 	r.w.loadRunbooks()
 	r.tt.Frame()
 	r.click(t, "Open Marker check")
-	r.settleFrames()
-	cf := r.w.confirm
+	r.settle()
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Discard changes?" || cf.message != "Your changes to this runbook are not saved." || cf.action != "Discard" {
 		t.Fatalf("no confirm: %+v", cf)
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
+	r.settle()
 	if r.w.runbooksPage().ed.name != "x" {
 		t.Fatal("Cancel left the editor")
 	}
@@ -238,7 +238,7 @@ func TestADraftFromAConversationIsNotKeptUntilSaveAndStartsWithPickOff(t *testin
 	if in := r.fb.mem.rbSaved[0]; in.DraftID != "dr_1" || in.AgentMayPick {
 		t.Fatalf("sent %+v", in)
 	}
-	// Nothing to make steps from: 422, and a toast with the app's words.
+	// Nothing to make steps from: 422, and a toast says why.
 	r.fb.mem.draftErr = &keelclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
 	r.click(t, "From a conversation…")
 	r.click(t, "draft from nginx 502")
@@ -263,7 +263,7 @@ func (r *rig) answersBooks(bs ...keelclient.RunbookProposal) {
 func TestARunbookProposalIsKeptOnlyBySaveWithPickOffAndDismissKeepsNothing(t *testing.T) {
 	r := agentRig(t)
 	r.answersBooks(bookProposal())
-	r.tt.SetSize(1280, 900) // plan 030: the body text is 13 pt, so the card's footer needs a taller window to be in view
+	r.tt.SetSize(1280, 900) // the body text is 13 pt, so the card's footer needs a taller window to be in view
 	r.ask(t, "save this as a runbook")
 	if miss := r.lacks("Save as a runbook?", "keel-runbook-e2e proposed", "Use when: The marker needs checking", "After reading panes", "2 steps", "echo keel-runbook-proposed",
 		"This runbook was written after reading terminal output. Check every step before saving: a saved runbook can be offered to the agent, and text in a pane can be written to mislead it.",
@@ -300,7 +300,7 @@ func TestOpenRunbooksOnASavedProposalOpensThePage(t *testing.T) {
 	r.ask(t, "save this as a runbook")
 	r.click(t, "Save")
 	r.click(t, "Open Runbooks")
-	if t2 := r.w.pageTab("runbooks"); t2 == nil || r.w.tab() != t2 {
+	if t2 := r.w.pageTab("runbooks"); t2 == nil || r.w.activeTab() != t2 {
 		t.Fatal("Open Runbooks does not open the page")
 	}
 	if !r.has("Open proposed") {
@@ -362,7 +362,7 @@ func TestAWalkMovesOneStepAtATimeAndEveryStepIsTypedOnlyThroughApproveBeforeType
 	}
 	// Step 1's card is an ordinary proposal: Type opens Approve before type with the proposal's bytes.
 	r.click(t, "Type into pane…")
-	if r.w.approve == nil || len(r.typed()) != 0 {
+	if !r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Fatal("Type did not open the dialog, or typed")
 	}
 	r.click(t, "Type")
@@ -372,7 +372,7 @@ func TestAWalkMovesOneStepAtATimeAndEveryStepIsTypedOnlyThroughApproveBeforeType
 	if ref := r.fb.conns[0].agentRefs[0]; ref == nil || ref.ProposalID != "p1" {
 		t.Fatalf("reference %+v", ref)
 	}
-	if !r.w.agent.runs.pollForce {
+	if !r.w.agentState().runs.pollForce {
 		t.Fatal("a typed step does not make the window read its result")
 	}
 	// The pane's shell reports exit 0: the result is read, and a production-style confirm waits for the user.
@@ -429,7 +429,7 @@ func TestRetryResetsTheStepAndAsksForItAgain(t *testing.T) {
 	r.walkAnswers()
 	r.fb.mem.run.Steps[0].State, r.fb.mem.run.Steps[0].Result, r.fb.mem.run.Steps[0].Exit = "failed", "reported", func() *int { n := 3; return &n }()
 	r.w.setRun(r.fb.mem.run, nil)
-	r.w.agent.turns = []*agentTurn{{question: "q", done: true, runID: "ru1"}}
+	r.w.agentState().turns = []*agentTurn{{question: "q", done: true, runID: "ru1"}}
 	r.tt.Frame()
 	if miss := r.lacks("Step 1 failed · exit 3, reported by the shell. The runbook waits for you.", "✗", "exit 3 · reported"); len(miss) > 0 {
 		t.Fatalf("missing %q", miss)
@@ -463,7 +463,7 @@ func TestAStepWithAPlaceholderHasNoTypeButtonAndIsNeverTyped(t *testing.T) {
 		r.w.typeAgentProposal("p1", shift)
 		r.tt.Frame()
 	}
-	if r.w.approve != nil || len(r.typed()) != 0 || len(r.fb.conns[0].directs) != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 || len(r.fb.conns[0].directs) != 0 {
 		t.Fatal("a step with a placeholder was typed")
 	}
 }
@@ -473,7 +473,7 @@ func TestDontUseStopsTheRunAndUseAgainStartsItOver(t *testing.T) {
 	r.walkAnswers()
 	r.ask(t, "walk me through it")
 	r.click(t, "Don't use")
-	if r.fb.mem.stops != 1 || !r.w.agent.runs.none {
+	if r.fb.mem.stops != 1 || !r.w.agentState().runs.none {
 		t.Fatal("Don't use did not stop the run")
 	}
 	if miss := r.lacks("No runbook for this conversation. The agent answers from the panes in scope and your notes only.", "Use Marker check"); len(miss) > 0 {
@@ -495,7 +495,7 @@ func TestProposeStepNeedsAPaneInScopeAndUseADifferentRunbookSaysWhyOneIsNotOffer
 	fit.ID, fit.Name, fit.Hosts = "rb3", "Production check", []string{"production"}
 	r.fb.mem.runbooks = []keelclient.Runbook{markerBook(), other, fit}
 	r.fb.mem.run.Steps[0].State = "next"
-	r.w.agent.runs.run = r.fb.mem.run
+	r.w.agentState().runs.run = r.fb.mem.run
 	r.click(t, "Use a different runbook")
 	r.tt.Frame()
 	if miss := r.lacks("Not offered: no staging host in scope", "Production check"); len(miss) > 0 || r.tt.HasText("Marker check ·") {
@@ -509,7 +509,7 @@ func TestProposeStepNeedsAPaneInScopeAndUseADifferentRunbookSaysWhyOneIsNotOffer
 	r.w.setAgentScope(nil)
 	r.tt.Frame()
 	r.fb.mem.run.Steps[0].State = "next"
-	r.w.agent.runs.run = r.fb.mem.run
+	r.w.agentState().runs.run = r.fb.mem.run
 	r.w.proposeRunStep()
 	r.tt.Frame()
 	if len(r.fb.agent.asks) != 2 || !r.tt.HasText("Put a pane in scope first: a step is proposed only for a pane the agent reads.") {
@@ -568,8 +568,8 @@ func TestAResumedConversationShowsTheRunUnderTheTurnThatStartedIt(t *testing.T) 
 	run.Turn, run.Steps[0].State, run.Steps[0].Result = 2, "done", "user"
 	r.w.showTranscript(keelclient.Transcript{ID: "c-saved-2", Title: "Walk", Runbook: run, Turns: []keelclient.SavedTurn{{Question: "one", Answer: "a"}, {Question: "two", Answer: "b"}}})
 	r.tt.Frame()
-	if r.w.agent.turns[0].runID != "" || r.w.agent.turns[1].runID != "ru1" {
-		t.Fatalf("placed on %q / %q", r.w.agent.turns[0].runID, r.w.agent.turns[1].runID)
+	if r.w.agentState().turns[0].runID != "" || r.w.agentState().turns[1].runID != "ru1" {
+		t.Fatalf("placed on %q / %q", r.w.agentState().turns[0].runID, r.w.agentState().turns[1].runID)
 	}
 	if miss := r.lacks("Marker check", "marked done", "Next: step 2 · Print two", "Propose step 2"); len(miss) > 0 {
 		t.Errorf("missing %q", miss)

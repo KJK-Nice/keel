@@ -6,11 +6,8 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
-
-// The Group page drawn as GroupPage (internal/ui/groupspage.templ) with the k-gx-* rules of keel.css and groups.js: the head
-// (the folder's name, "Folder · N hosts · production", Run a runbook on this group, Export to Ansible), the role chips, the
-// hosts table (host, address, role, tags, agent), the group notes and the variables, and the export drawer beside the page.
 
 // memberCols are the table's columns as weights: Host, Address, Role, Tags, Agent.
 var memberCols = [5]float32{3, 3, 2.4, 2.4, 2.6}
@@ -60,7 +57,6 @@ func (w *workspace) groupHead(c *ui.Context, p *groupPage) {
 	}
 }
 
-// groupRunMenu is the list under "Run a runbook on this group": each runbook with its steps and roles.
 func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 	ui.Column(c).Width(sizeRail*1.6).Padding(space1).Gap(space0_5).Radius(radiusSm).Background(raised).Border(1, line).Label("group runbooks").Children(func() {
 		switch {
@@ -72,7 +68,7 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 			return
 		case len(p.run.books) == 0:
 			if emptySide(c, emptySentences("book", groupNoBooks, "Open Runbooks")) {
-				w.act(func() { w.openPage("runbooks") })
+				w.act(func() { w.openPage(pageRunbooks) })
 			}
 			return
 		}
@@ -94,7 +90,7 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 	})
 }
 
-// runbookGroupSub is "3 steps · Roles worker, control-plane" or "2 steps · Every host" (groups.js openMenu).
+// runbookGroupSub is "3 steps · Roles worker, control-plane" or "2 steps · Every host".
 func runbookGroupSub(b keelclient.Runbook) string {
 	var roles []string
 	seen := map[string]bool{}
@@ -170,12 +166,12 @@ func (w *workspace) groupHostsTable(c *ui.Context, p *groupPage) {
 					}
 				})
 				cell(4).Children(func() {
-					if h.AgentReadable != nil && !*h.AgentReadable {
+					if !h.AgentMayRead() {
 						pill(c, "Agent cannot read", hoverGround, inkMuted)
 					} else {
 						pill(c, "Can read", hazeSoft, haze)
 					}
-					if h.Production != nil && *h.Production {
+					if h.IsProduction() {
 						pill(c, "Production", signalSoft, signal)
 					}
 				})
@@ -192,7 +188,7 @@ func memberAddr(h keelclient.Host) string {
 			return h.Username + "@" + h.Address
 		}
 		return h.Address
-	case h.AuthType == "local":
+	case h.IsLocal():
 		return "this machine"
 	}
 	return ""
@@ -283,7 +279,6 @@ func (w *workspace) groupVarsBox(c *ui.Context, p *groupPage) {
 	})
 }
 
-// varRow is one variable: its name and value, Edit and Remove; or the field the value is edited in.
 func (w *workspace) varRow(c *ui.Context, p *groupPage, v keelclient.GroupVar) {
 	ui.Row(c).FillWidth().Gap(space2).Key(v.Name).AlignItems(ui.Center).Label("variable " + v.Name).Children(func() {
 		mono(c, v.Name, ink).Width(sizeRail / 2).Shrink(0)
@@ -313,7 +308,7 @@ func (w *workspace) varRow(c *ui.Context, p *groupPage, v keelclient.GroupVar) {
 			w.act(func() { w.startEditVar(p, v) })
 		}
 		if textBtn(c, "Remove "+v.Name, btnGhost) {
-			w.act(func() { w.removeVar(p, v.Name) })
+			w.act(func() { w.setVar(p, v.Name, "", nil) })
 		}
 	})
 }
@@ -333,7 +328,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Children(func() {
 			ui.Column(c).FillWidth().Padding(space4).Gap(space3).Children(func() {
 				help(c, groupExportHelp)
-				segControl(c, "Inventory format", ex.format, [][2]string{{"ini", "INI"}, {"yaml", "YAML"}}, func(v string) {
+				segControl(c, "Inventory format", ex.format, [][2]string{{wire.FormatINI, "INI"}, {wire.FormatYAML, "YAML"}}, func(v string) {
 					w.act(func() { ex.format, ex.file = v, 0; w.exportRefresh(p) })
 				})
 				entries := []pickEntry{{"", "Inventory only", ""}}
@@ -345,13 +340,13 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 						ex.runbook = v
 						ex.file = 0
 						if v != "" {
-							ex.file = 1 // the playbook, as the app shows it
+							ex.file = 1
 						}
 						w.exportRefresh(p)
 					})
 				})
 				if ex.runbook != "" {
-					segControl(c, "Playbook mode", ex.mode, [][2]string{{"rolling", "Rolling"}, {"parallel", "Parallel"}}, func(v string) {
+					segControl(c, "Playbook mode", ex.mode, [][2]string{{wire.ModeRolling, "Rolling"}, {wire.ModeParallel, "Parallel"}}, func(v string) {
 						w.act(func() { ex.mode = v; w.exportRefresh(p) })
 					})
 				}
@@ -407,12 +402,11 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 				w.act(func() {
 					if ex.file < len(ex.files) {
 						f := ex.files[ex.file]
-						c.WriteClipboard(f.Content)
-						w.say("Copied " + f.Name + ".")
+						w.copy(f.Content, f.Name+".")
 					}
 				})
 			}
-			// Download (groups.js): the shown file's text, saved where the system's save dialog says. Nothing is written by
+			// Download: the shown file's text, saved where the system's save dialog says. Nothing is written by
 			// keel serve and nothing runs.
 			if textBtnOff(c, "Download", btnPrimary, ex.file >= len(ex.files)) {
 				w.act(func() {

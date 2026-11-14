@@ -1,10 +1,10 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -13,10 +13,8 @@ import (
 )
 
 // First run (docs/ui-redesign.md §5.15): step 1 creates the vault (or shows the one that exists), step 2 brings
-// the hosts of the ssh config, step 3 says what the agent promises. The words and the order are firstRunScreen
-// and agentStep in internal/ui/gate.templ; the flow is cmd/keel/web/js/ui/gate.js (showVaultStep, submitVault,
-// showHostsStep, runImport, finish), and step 2 is also what the palette's "Import hosts from ~/.ssh/config"
-// opens on its own. Like the Unlock screen it replaces the window while it shows.
+// the hosts of the ssh config, step 3 says what the agent promises. Step 2 is also what the palette's
+// "Import hosts from ~/.ssh/config" opens on its own. Like the Unlock screen it replaces the window while it shows.
 //
 // Secrets. The passphrase of a new vault and the passphrase of a key to copy are typed into masked fields, go
 // only in the one request that needs them, are cleared when it is sent (and when the screen closes), and are in
@@ -30,33 +28,32 @@ const (
 
 const (
 	flowFirstRun = "first-run"
-	flowImport   = "import" // step 2 on its own, from the palette
+	flowImport   = "import"
 )
 
-// firstRun is the screen's state.
 type firstRun struct {
 	flow    string
 	step    int
 	vault   keelclient.Vault
-	created bool // this window made the vault in step 1
+	created bool
 	busy    bool
 
 	// Step 1.
 	pass, pass2 string
 	passErr     string
-	existing    bool // "I already have a keel.vault…" is open
+	existing    bool
 
 	// Step 2.
 	preview   *keelclient.SSHPreview
 	sel       *importSel
 	lead      string
-	keyErrs   map[string]string // by key path
+	keyErrs   map[string]string
 	notesOpen bool
-	notice    string // the import's result or refusal, shown under the step (the webview's toast)
+	notice    string
 	noticeBad bool
 	gen       int // the preview read in flight; a stale answer is dropped
 
-	// Step 3 (gate.js agentChoice): the provider chosen ("none" or "gemini"), the key typed (masked; emptied as it is sent),
+	// Step 3: the provider chosen ("none" or "gemini"), the key typed (masked; emptied as it is sent),
 	// the switch "Suggest commands when I type plain language", and the provider's own words (GET /api/agent/providers).
 	agentGemini  bool
 	agentKey     string
@@ -67,21 +64,19 @@ type firstRun struct {
 	agentProvGen int // the descriptor read in flight
 
 	wantTries int
-	footFn    func() // the step's buttons, drawn under the scrolling step
+	footFn    func()
 	want      string // the field that takes the keyboard in the next frame: "pass", "pass2" or "key:<path>"
 	passH     ui.Handle
 	pass2H    ui.Handle
 	keyH      map[string]*ui.Handle
 }
 
-// String prints the screen's state without a passphrase.
 func (f *firstRun) String() string {
 	return fmt.Sprintf("firstRun{%s step=%d created=%v busy=%v}", f.flow, f.step, f.created, f.busy)
 }
 
 func (f *firstRun) GoString() string { return f.String() }
 
-// clearSecrets forgets every passphrase this screen holds.
 func (f *firstRun) clearSecrets() {
 	f.pass, f.pass2, f.agentKey = "", "", ""
 	if f.sel != nil {
@@ -101,12 +96,12 @@ func (f *firstRun) handleFor(path string) *ui.Handle {
 	return h
 }
 
-// usesKeychain: the vault exists and keel serve opened it with the keychain (gate.js showVaultStep).
+// usesKeychain: the vault exists and keel serve opened it with the keychain.
 func (f *firstRun) usesKeychain() bool { return !f.vault.NeedsSetup && f.vault.Mode == "keychain" }
 
 // ---- opening and closing ----
 
-// showFirstRun puts step 1 over the window: gate.update for a vault that needs setup or whose first run is open.
+// showFirstRun puts step 1 over the window, for a vault that needs setup or whose first run is open.
 func (w *workspace) showFirstRun(v keelclient.Vault) {
 	w.blocked = ""
 	w.first = &firstRun{flow: flowFirstRun, step: stepVault, vault: v}
@@ -116,7 +111,6 @@ func (w *workspace) showFirstRun(v keelclient.Vault) {
 	}
 }
 
-// closeFirstRun takes the screen away and forgets its secrets.
 func (w *workspace) closeFirstRun() {
 	if f := w.first; f != nil {
 		f.clearSecrets()
@@ -131,18 +125,11 @@ func (w *workspace) openImport() {
 	}
 	f := &firstRun{flow: flowImport}
 	w.first = f
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		v, err := w.be.Vault(c)
-		w.post(func() {
-			if w.first == f && err == nil {
-				f.vault = v
-			}
-			if w.first == f {
-				w.showHostsStep(f)
-			}
-		})
+	callIf(w, func() bool { return w.first == f }, w.be.Vault, func(v keelclient.Vault, err error) {
+		if err == nil {
+			f.vault = v
+		}
+		w.showHostsStep(f)
 	})
 }
 
@@ -167,32 +154,26 @@ func (w *workspace) submitVault() {
 	}
 	pass := f.pass
 	f.pass, f.pass2, f.passErr, f.busy = "", "", "", true // the passphrase is only in this request from here on
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.SetupVault(c, pass)
+	callIf(w, func() bool { return w.first == f }, func(c context.Context) (v keelclient.Vault, err error) {
+		err = w.be.SetupVault(c, pass)
 		pass = ""
-		var v keelclient.Vault
 		if err == nil {
-			v, err = w.be.Vault(c) // gate.update: the first run goes on only while it is open
+			v, err = w.be.Vault(c) // the first run goes on only while it is open
 		}
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			f.busy = false
-			if err != nil {
-				f.passErr, f.want = vaultError(err), "pass"
-				return
-			}
-			f.created, f.vault = true, v
-			if v.FirstRun {
-				w.showHostsStep(f)
-				return
-			}
-			w.closeFirstRun() // nothing to set up: the webview's gate hides itself
-			w.start()
-		})
+		return v, err
+	}, func(v keelclient.Vault, err error) {
+		f.busy = false
+		if err != nil {
+			f.passErr, f.want = vaultError(err), "pass"
+			return
+		}
+		f.created, f.vault = true, v
+		if v.FirstRun {
+			w.showHostsStep(f)
+			return
+		}
+		w.closeFirstRun()
+		w.start()
 	})
 }
 
@@ -210,7 +191,6 @@ func vaultError(err error) string {
 
 var vaultFileSuffix = regexp.MustCompile(`[\\/]keel\.vault$`)
 
-// dataFolder is the folder of the vault file (gate.js onb-data-dir).
 func dataFolder(path string) string {
 	if d := vaultFileSuffix.ReplaceAllString(path, ""); d != "" {
 		return d
@@ -218,7 +198,6 @@ func dataFolder(path string) string {
 	return "the Keel data folder"
 }
 
-// keychainDesc is the Keychain card's text (gate.js showVaultStep).
 func keychainDesc(f *firstRun, keychain string) string {
 	switch {
 	case f.usesKeychain():
@@ -252,30 +231,21 @@ func nextLabel(f *firstRun) string {
 	return "Continue"
 }
 
-func firstRunKeychain() string { return keychainName(runtime.GOOS) }
+func firstRunKeychain() string { return keychainName() }
 
 // ---- step 2 ----
 
-// showHostsStep is gate.js showHostsStep: it reads the preview and shows the table.
 func (w *workspace) showHostsStep(f *firstRun) {
 	f.step, f.preview, f.sel, f.notice, f.keyErrs, f.notesOpen = stepHosts, nil, nil, "", nil, false
 	f.gen++
 	gen := f.gen
 	f.lead = "Reading " + f.sshConfig() + "…"
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		p, err := w.be.SSHConfigPreview(c)
-		w.post(func() {
-			if w.first != f || f.gen != gen || f.step != stepHosts {
-				return
-			}
-			if err != nil {
-				f.lead = "Keel could not read " + f.sshConfig() + ": " + vaultError(err)
-				return
-			}
-			f.preview, f.sel, f.lead = &p, defaultSelection(p), leadText(p)
-		})
+	callIf(w, func() bool { return w.first == f && f.gen == gen && f.step == stepHosts }, w.be.SSHConfigPreview, func(p keelclient.SSHPreview, err error) {
+		if err != nil {
+			f.lead = "Keel could not read " + f.sshConfig() + ": " + vaultError(err)
+			return
+		}
+		f.preview, f.sel, f.lead = &p, defaultSelection(p), leadText(p)
 	})
 }
 
@@ -293,7 +263,6 @@ func (f *firstRun) addCount() int {
 	return selectedCount(*f.preview, f.sel)
 }
 
-// toggleHost ticks or unticks one host.
 func (f *firstRun) toggleHost(alias string) {
 	if f.sel == nil {
 		return
@@ -331,7 +300,6 @@ func (f *firstRun) toggleNoJump(alias string) {
 	}
 }
 
-// toggleKey turns one key's copy switch.
 func (f *firstRun) toggleKey(k keelclient.ConfigKey) {
 	if f.sel == nil || !copyable(k) {
 		return
@@ -344,7 +312,7 @@ func (f *firstRun) toggleKey(k keelclient.ConfigKey) {
 	}
 }
 
-// runImport is Add hosts and ↵ in a key's passphrase field (gate.js runImport).
+// runImport is Add hosts and ↵ in a key's passphrase field.
 func (w *workspace) runImport() {
 	f := w.first
 	if f == nil || f.step != stepHosts || f.busy || f.preview == nil || f.sel == nil {
@@ -367,26 +335,21 @@ func (w *workspace) runImport() {
 	}
 	f.busy, f.notice, f.keyErrs = true, "", nil
 	sel.clearSecrets() // the passphrases are in req now, and req only goes in this request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	callIf(w, func() bool { return w.first == f }, func(c context.Context) (keelclient.ImportResult, error) {
 		res, err := w.be.SSHConfigImport(c, req)
 		req = keelclient.ImportRequest{}
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			f.busy = false
-			if err != nil {
-				w.importRefused(f, p, err)
-				return
-			}
-			f.notice, f.noticeBad = importedText(res), len(res.Failed) > 0
-			w.afterHosts(f)
-			if w.live {
-				w.reloadHosts()
-			}
-		})
+		return res, err
+	}, func(res keelclient.ImportResult, err error) {
+		f.busy = false
+		if err != nil {
+			w.importRefused(f, p, err)
+			return
+		}
+		f.notice, f.noticeBad = importedText(res), len(res.Failed) > 0
+		w.afterHosts(f)
+		if w.live {
+			w.reloadHosts()
+		}
 	})
 }
 
@@ -432,8 +395,8 @@ func (w *workspace) afterHosts(f *firstRun) {
 
 // ---- step 3 ----
 
-// showAgentStep is gate.js showAgentStep: Not now is chosen, the key is empty, the switch is on, and the provider's own
-// words are read once (the descriptor of Google Gemini; a failed read leaves the card's defaults, as the webview does).
+// showAgentStep chooses Not now, empties the key, turns the switch on, and reads the provider's own
+// words once (the descriptor of Google Gemini; a failed read leaves the card's defaults).
 func (w *workspace) showAgentStep(f *firstRun) {
 	f.step = stepAgent
 	f.agentGemini, f.agentKey, f.agentErr, f.agentOff = false, "", "", false
@@ -442,24 +405,19 @@ func (w *workspace) showAgentStep(f *firstRun) {
 	}
 	f.agentProvGen++
 	gen := f.agentProvGen
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		list, err := w.be.AgentProviders(c)
-		w.post(func() {
-			if w.first != f || f.agentProvGen != gen || err != nil {
-				return
+	callIf(w, func() bool { return w.first == f && f.agentProvGen == gen }, w.be.AgentProviders, func(list []keelclient.AgentProvider, err error) {
+		if err != nil {
+			return
+		}
+		for i := range list {
+			if list[i].ID == "gemini" {
+				f.agentProv = &list[i]
 			}
-			for i := range list {
-				if list[i].ID == "gemini" {
-					f.agentProv = &list[i]
-				}
-			}
-		})
+		}
 	})
 }
 
-// pickAgentProvider is gate.js pickAgent: choosing Gemini shows the key field and gives it the keyboard.
+// pickAgentProvider: choosing Gemini shows the key field and gives it the keyboard.
 func (f *firstRun) pickAgentProvider(gemini bool) {
 	f.agentGemini, f.agentErr = gemini, ""
 	if gemini {
@@ -467,7 +425,7 @@ func (f *firstRun) pickAgentProvider(gemini bool) {
 	}
 }
 
-// openKeel is Open Keel (gate.js openKeel): a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
+// openKeel is Open Keel: a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
 // against the provider, so nothing is sent anywhere), the switch is saved either way, and then the first run ends. A
 // failed save keeps the step open with the reason. The key is emptied the moment it is sent and is in no log or error.
 func (w *workspace) openKeel(f *firstRun) {
@@ -490,10 +448,7 @@ func (w *workspace) openKeel(f *firstRun) {
 	}
 	gemini := f.agentGemini
 	f.busy, f.agentErr = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var err error
+	callErrIf(w, func() bool { return w.first == f }, func(c context.Context) (err error) {
 		if gemini {
 			err = w.be.SetAgentKey(c, in)
 			in = keelclient.AgentKeyInput{}
@@ -501,40 +456,28 @@ func (w *workspace) openKeel(f *firstRun) {
 		if err == nil {
 			_, err = w.be.SaveAgentSettings(c, keelclient.AgentSettingsPatch{Suggestions: &on})
 		}
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			f.busy = false
-			if err != nil {
-				f.agentErr = keyError(err)
-				return
-			}
-			w.refreshSuggestSettings() // the switch just saved (suggestions on or off)
-			w.finishFirstRun(f)
-		})
+		return err
+	}, func(err error) {
+		f.busy = false
+		if err != nil {
+			f.agentErr = keyError(err)
+			return
+		}
+		w.refreshSuggestSettings()
+		w.finishFirstRun(f)
 	})
 }
 
-// finishFirstRun is Open Keel and Set up later: it ends the first run and opens the window.
 func (w *workspace) finishFirstRun(f *firstRun) {
 	if w.first != f || f.busy {
 		return
 	}
 	f.busy = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.FirstRunDone(c)
-		w.post(func() {
-			if w.first != f {
-				return
-			}
-			w.closeFirstRun()
-			if err != nil { // the webview hides the screen anyway
-				w.fail("finish first run", err)
-			}
-			w.start()
-		})
+	callErrIf(w, func() bool { return w.first == f }, w.be.FirstRunDone, func(err error) {
+		w.closeFirstRun()
+		if err != nil {
+			w.fail("finish first run", err)
+		}
+		w.start()
 	})
 }

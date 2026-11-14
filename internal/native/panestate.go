@@ -7,12 +7,11 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // What a pane's session is doing, as the user sees it (docs/ui-redesign.md §5.1): a failure or
-// connecting banner, a follower banner, a role chip, and the host key dialog. The words are the
-// webview's: term.js failHeadline/failEndpoint, hostKeyDialog in internal/ui/dialogs.templ,
-// lib/share.js ROLE_LABEL.
+// connecting banner, a follower banner, a role chip, and the host key dialog.
 
 type btnKind int
 
@@ -23,7 +22,7 @@ const (
 	btnDanger
 )
 
-// textBtn is a small k-btn; it reports a click.
+// textBtn is a small button; it reports a click.
 func textBtn(c *ui.Context, name string, kind btnKind) bool { return textBtnAs(c, name, name, kind) }
 
 // textBtnAs is textBtn with a name of its own: several of a kind on one page (a Disconnect on each provider card) need names
@@ -32,10 +31,10 @@ func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
 	return ctlButton(c, name, shown, kind).Clicked()
 }
 
-// failHeadline is term.js failHeadline for a session that is down.
+// failHeadline is the banner's headline for a session that is down.
 func failHeadline(st keelclient.State) string {
 	switch {
-	case st.Status == "exited":
+	case st.Status == wire.StatusExited:
 		return "Session ended"
 	case st.WasReady:
 		return "Connection lost"
@@ -43,33 +42,24 @@ func failHeadline(st keelclient.State) string {
 	return "Connection failed"
 }
 
-// failEndpoint is term.js failEndpoint.
 func failEndpoint(h keelclient.Host, st keelclient.State) string {
-	if h.AuthType == "" || h.AuthType == "local" {
+	if h.IsLocal() {
 		if st.Subtitle != "" {
 			return st.Subtitle
 		}
 		return "Local shell"
 	}
-	port := h.Port
-	if port == 0 {
-		port = 22
-	}
-	return "SSH " + h.Address + ":" + strconv.Itoa(port)
+	return "SSH " + h.Address + ":" + strconv.Itoa(h.SSHPort())
 }
 
-// connectLog is term.js seedConnectLog followed by what keel serve reported (State.Log): the lines a failed or connecting
+// connectLog is the connecting lines followed by what keel serve reported (State.Log): the lines a failed or connecting
 // pane lists and Copy logs copies.
 func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 	var seed []keelclient.LogLine
-	if h.AuthType == "" || h.AuthType == "local" {
+	if h.IsLocal() {
 		seed = []keelclient.LogLine{{Kind: "user", Text: "Starting a local shell"}}
 	} else {
-		port := h.Port
-		if port == 0 {
-			port = 22
-		}
-		addr, p := `"`+h.Address+`"`, `"`+strconv.Itoa(port)+`"`
+		addr, p := `"`+h.Address+`"`, `"`+strconv.Itoa(h.SSHPort())+`"`
 		seed = []keelclient.LogLine{
 			{Kind: "user", Text: "Starting a new connection to: " + addr + " port " + p},
 			{Kind: "work", Text: "Starting address resolution of " + addr},
@@ -80,7 +70,7 @@ func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 	return append(seed, st.Log...)
 }
 
-// logText is term.js copyPaneFailLog's text: the lines, one to a line.
+// logText is the text Copy logs copies: the lines, one to a line.
 func logText(lines []keelclient.LogLine) string {
 	var out []string
 	for _, l := range lines {
@@ -97,7 +87,7 @@ func logText(lines []keelclient.LogLine) string {
 // connectLogView is .pane-fail-log: over the pane's body while the session is down or connecting, a row per line with its
 // glyph (person for what the user asked, gear for a step, a frown for a failure; a failure is in the flare colour).
 func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) {
-	if p.remote || !(st.Status == "error" || st.Status == "exited" || (st.Status == "connecting" && p.host.AuthType != "local")) {
+	if p.remote || !(st.Status == wire.StatusError || st.Status == wire.StatusExited || (st.Status == wire.StatusConnecting && !p.host.IsLocal())) {
 		return
 	}
 	ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Background(w.ground(stage)).Padding(space3).Gap(space2).Label("connection log " + p.id).Children(func() {
@@ -117,8 +107,8 @@ func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) 
 	})
 }
 
-// bannerRow is a k-pane-banner: a soft ground with its text colour, a headline with the endpoint (and a
-// message under it) on the left, the buttons on the right. The soft ground sits on stage, as in the webview.
+// bannerRow is a pane banner: a soft ground with its text colour, a headline with the endpoint (and a
+// message under it) on the left, the buttons on the right. The soft ground sits on stage.
 func (w *workspace) bannerRow(c *ui.Context, name string, soft, fg ui.Color, head, endpoint, msg string, buttons func()) {
 	ui.Box(c).FillWidth().Shrink(0).Background(w.ground(stage)).Children(func() {
 		hairline(ui.Row(c).FillWidth().Padding(space1_5, space3).Gap(space2).Background(soft).Label(name), 0, 0, 1, 0).Children(func() {
@@ -144,12 +134,12 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		w.joinBanner(c, t, p, st)
 		return
 	}
-	// The buttons the failure and the connecting banners share, in the app's order (term.js pane-fail-banner): Copy logs,
+	// The buttons the failure and the connecting banners share, in order: Copy logs,
 	// Close and Edit host; Reconnect follows on a failure only.
 	common := func() {
 		if textBtn(c, "Copy logs", btnGhost) {
 			text := logText(connectLog(p.host, st))
-			w.act(func() { c.WriteClipboard(text); w.say("Copied connection log") })
+			w.act(func() { w.copy(text, "connection log") })
 		}
 		if textBtn(c, "Close", btnGhost) {
 			w.act(func() { w.closePane(t, p.id) })
@@ -159,23 +149,23 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		}
 	}
 	switch {
-	case st.Status == "error" || st.Status == "exited":
+	case st.Status == wire.StatusError || st.Status == wire.StatusExited:
 		w.bannerRow(c, "banner failed", flareSoft, flare, failHeadline(st), failEndpoint(p.host, st), st.Message, func() {
 			common()
 			if textBtn(c, "Reconnect", btnPrimary) {
 				w.act(func() { w.reconnect(p) })
 			}
 		})
-	case st.Status == "connecting" && p.host.AuthType != "local":
+	case st.Status == wire.StatusConnecting && !p.host.IsLocal():
 		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", common)
-	case st.Role == "follower" || st.Role == "owner": // anyone who is not driving
+	case st.Role == wire.RoleFollower || st.Role == wire.RoleOwner:
 		who := "Nobody is driving"
 		for _, a := range st.Attached {
 			if st.DriverID != 0 && a.ID == st.DriverID && a.Name != "" {
 				who = a.Name + " is driving"
 			}
 		}
-		owner := st.OwnerID != 0 && st.OwnerID == st.YouID // only the owner may take control (term.js syncFollowBanner)
+		owner := st.OwnerID != 0 && st.OwnerID == st.YouID // only the owner may take control
 		w.bannerRow(c, "banner following", hazeSoft, haze, "Following · "+who+" · read-only", "", "", func() {
 			switch {
 			case owner && textBtn(c, "Take control", btnDefault):
@@ -187,7 +177,7 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 	}
 }
 
-// chip is a k-role chip with its own words: the driving one, or the quiet one with a ring (the owner's).
+// chip is a role chip with its own words: the driving one, or the quiet one with a ring (the owner's).
 func chip(c *ui.Context, text string, driving bool) {
 	bg, fg := ui.Transparent, inkMuted
 	if driving {
@@ -200,39 +190,39 @@ func chip(c *ui.Context, text string, driving bool) {
 	r.Children(func() { roleChipFace(c, "steering", text, fg) })
 }
 
-// roleChipBox is the k-role pill: 0 8 0 6 padding, a gap of 4 between the glyph and the words (keel.css .k-role).
+// roleChipBox is the role pill: 0 8 0 6 padding, a gap of 4 between the glyph and the words.
 func roleChipBox(c *ui.Context, name string, bg ui.Color) ui.Element {
 	return ui.Row(c).Height(roleChipHeight).Padding(0, space2, 0, space1_5).Gap(space1).Radius(radiusFull).Justify(ui.Center).
 		AlignItems(ui.Center).Shrink(0).Background(bg).Label(name)
 }
 
-// roleChipFace is the glyph and the words of a role chip: steering for who drives and owns, eye for a follower
-// (lib/share.js ROLE_GLYPH), at 0.923rem.
+// roleChipFace is the glyph and the words of a role chip: steering for who drives and owns, eye for a follower,
+// at 0.923rem.
 func roleChipFace(c *ui.Context, glyph, words string, fg ui.Color) {
 	iconSized(c, glyph, fg, iconSizeSm).Label("role glyph " + glyph)
 	ui.Text(c, words).TextColor(fg).FontSize(roleChipSize).FontWeight(weightMedium).MaxLines(1)
 }
 
-// chipFollow is the k-role--follower chip.
+// chipFollow is the follower's chip.
 func chipFollow(c *ui.Context, text string) {
 	roleChipBox(c, "role "+text, hazeSoft).Children(func() { roleChipFace(c, "eye", text, haze) })
 }
 
-// roleChip is the k-role chip of a shared session's pane bar; it never shrinks.
-func roleChip(c *ui.Context, role string) {
+// roleChip is the chip of a shared session's pane bar; it never shrinks.
+func roleChip(c *ui.Context, role wire.Role) {
 	text, glyph, bg, fg := "", "steering", ui.Transparent, inkMuted
 	switch role {
-	case "driver":
+	case wire.RoleDriver:
 		text, bg, fg = "Driving", accentSoft, accentInk
-	case "owner":
+	case wire.RoleOwner:
 		text = "Owner"
-	case "follower":
+	case wire.RoleFollower:
 		text, glyph, bg, fg = "Following", "eye", hazeSoft, haze
 	default:
 		return
 	}
 	r := roleChipBox(c, "role "+text, bg)
-	if role == "owner" {
+	if role == wire.RoleOwner {
 		r.Border(1, lineStrong)
 	}
 	r.Children(func() { roleChipFace(c, glyph, text, fg) })
@@ -272,7 +262,7 @@ func (w *workspace) hostKeyDialog(c *ui.Context) {
 // reports that the dialog went away; onTrust runs when Trust and connect was clicked, and only then.
 func hostKeyModal(c *ui.Context, k keelclient.HostKey, onTrust func()) (closed bool) {
 	open := true
-	mismatch := k.Kind == "host-key-mismatch"
+	mismatch := k.Kind == keelclient.HostKeyMismatch
 	title, hint := "Unknown host key", "Trust this key once to connect. Keel will reject a different key later."
 	trust := btnPrimary
 	if mismatch {

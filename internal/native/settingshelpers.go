@@ -8,10 +8,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The pure helpers of Settings, ported from cmd/keel/web/js/lib/settingspages.js and lib/shortcutmap.js (their tests are
-// ported in settingshelpers_test.go). No UI here.
+// The pure helpers of Settings (tested in settingshelpers_test.go). No UI here.
 
-// uptimeText is settingspages.js uptimeText: "45 s", "12 min", "3 h 05 min", "2 d 4 h".
+// uptimeText formats a runtime's uptime: "45 s", "12 min", "3 h 05 min", "2 d 4 h".
 func uptimeText(sec int64) string {
 	s := max(sec, 0)
 	if s < 60 {
@@ -28,7 +27,7 @@ func uptimeText(sec int64) string {
 	return fmt.Sprintf("%d d %d h", h/24, h%24)
 }
 
-// versionOf is settingspages.js versionOf: the revision part of a build id "<revision>-<web hash>", shortened to 7
+// versionOf is the revision part of a build id "<revision>-<web hash>", shortened to 7
 // characters ("dev" when the binary has no VCS info).
 func versionOf(build string) string {
 	rev, _, _ := strings.Cut(build, "-")
@@ -45,7 +44,7 @@ func versionOf(build string) string {
 	return base
 }
 
-// displayName is settingspages.js displayName: the custom name when set, else the default, else "guest".
+// displayName is the custom name when set, else the default, else "guest".
 func displayName(custom, fallback string) string {
 	if s := strings.TrimSpace(custom); s != "" {
 		return s
@@ -56,10 +55,10 @@ func displayName(custom, fallback string) string {
 	return "guest"
 }
 
-// nameMax is the display name's length (term.js setDisplayName: slice(0, 40); the field's maxlength).
+// nameMax is the display name's length.
 const nameMax = 40
 
-// vaultMode is settingspages.js vaultModeText: how the vault is unlocked, from GET /api/vault.
+// vaultMode is how the vault is unlocked, from GET /api/vault.
 func vaultMode(v keelclient.Vault) (label, help string) {
 	switch v.Mode {
 	case "keychain":
@@ -73,7 +72,7 @@ func vaultMode(v keelclient.Vault) (label, help string) {
 	return "Not set up", "The vault is created on first run."
 }
 
-// signalFields is settingspages.js signalText: the Signal server field from /api/runtime or PUT /api/share/signal: the
+// signalFields is the Signal server field from /api/runtime or PUT /api/share/signal: the
 // input's value (the saved server), its placeholder and the help line.
 func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
 	url, saved := strings.TrimSpace(info.SignalURL), strings.TrimSpace(info.SignalSaved)
@@ -90,7 +89,7 @@ func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
 	return saved, placeholder, "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you."
 }
 
-// stopMessage is settingspages.js stopMessage: the alertdialog text for Stop runtime.
+// stopMessage is the alertdialog text for Stop runtime.
 func stopMessage(sessions int) string {
 	what := "every running session"
 	switch {
@@ -102,38 +101,10 @@ func stopMessage(sessions int) string {
 	return "This ends " + what + " and every port forward, then closes keel serve. Reopen Keel to start it again."
 }
 
-// shortcut is a row of lib/shortcutmap.js SHORTCUTS, with the macOS label. later names the phase that gives this client
-// the key; "" means it has it now, and only those are listed on the Keyboard page.
-type shortcut struct{ group, title, keys, later string }
+// shortcut is a row of the Keyboard page: made from the command table, with the key cap text of this platform.
+type shortcut struct{ group, title, keys string }
 
 var shortcutGroupNames = []string{"General", "Tabs", "Vault", "Panes", "Terminal", "Agent"}
-
-var shortcuts = []shortcut{
-	{"Tabs", "New tab", "⌘T", ""},
-	{"Tabs", "Close pane or tab", "⌘W", ""},
-	{"Tabs", "Reopen last tab", "⌘⇧T", ""},
-	{"Tabs", "Previous tab", "⌘<", ""},
-	{"Tabs", "Next tab", "⌘>", ""},
-	{"Tabs", "First tab", "⌘1", ""},
-	{"Tabs", "Last tab", "⌘9", ""},
-	{"General", "Command palette", "⌘K", ""},
-	{"Vault", "Toggle vault sidebar", "⌘B", ""},
-	{"Vault", "New host", "⌘N", ""},
-	{"Vault", "Quick connect", "⌘⇧O", ""},
-	{"Vault", "Join session", "⌘J", ""},
-	{"Vault", "Settings", "⌘,", ""},
-	{"Panes", "Split right", "⌘⇧D", ""},
-	{"Panes", "Split down", "⌘⇧E", ""},
-	{"Panes", "Focus view (zoom pane)", "⌘⇧↵", ""},
-	{"Panes", "Find in terminal", "⌘F", ""},
-	{"Terminal", "Larger text", "⌘+", ""},
-	{"Terminal", "Smaller text", "⌘-", ""},
-	{"Terminal", "Reset text size", "⌘0", ""},
-	{"Agent", "Toggle agent panel", "⌘I", ""},
-	{"Agent", "Ask the agent (from the palette)", "⌘↵", ""},
-	{"Agent", "Suggest a command for the prompt line", "⌘Y", ""},
-	{"Agent", "Put back your words after an inserted suggestion", "⌘Z", ""},
-}
 
 // shortcutGroup is a group of the Keyboard page.
 type shortcutGroup struct {
@@ -141,14 +112,14 @@ type shortcutGroup struct {
 	items []shortcut
 }
 
-// shortcutGroups is shortcutmap.js shortcutGroups for the keys this client has, in group order; a group with none (Agent
-// for now) is left out.
+// shortcutGroups are the commands that have a row on the Keyboard page, in group order and the table's order inside a
+// group; a group with none is left out.
 func shortcutGroups() (out []shortcutGroup) {
 	for _, g := range shortcutGroupNames {
 		var items []shortcut
-		for _, s := range shortcuts {
-			if s.group == g && s.later == "" {
-				items = append(items, s)
+		for i := range commands {
+			if h := commands[i].help; h != nil && h.group == g {
+				items = append(items, shortcut{g, h.title, commands[i].keyLabel()})
 			}
 		}
 		if len(items) > 0 {
@@ -158,7 +129,7 @@ func shortcutGroups() (out []shortcutGroup) {
 	return out
 }
 
-// splitKeyCaps is shortcutmap.js keyCaps: a label split into the caps to draw: "Ctrl+Shift+I" is Ctrl, Shift, I; "⌘⇧T" is
+// splitKeyCaps splits a label split into the caps to draw: "Ctrl+Shift+I" is Ctrl, Shift, I; "⌘⇧T" is
 // ⌘, ⇧, T; "Ctrl++" is Ctrl, +.
 func splitKeyCaps(label string) (caps []string) {
 	rest := label

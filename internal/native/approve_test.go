@@ -33,7 +33,7 @@ func fixed(s string) func() (string, bool) { return func() (string, bool) { retu
 
 func (r *rig) typed() []string { return r.fb.conns[0].injected }
 
-func TestOpeningTheDialogSendsNothingAndShowsTheWebviewsWords(t *testing.T) {
+func TestOpeningTheDialogSendsNothingAndShowsItsWords(t *testing.T) {
 	r := approveRig(t)
 	r.w.askType(fixed("echo hi"))
 	r.tt.Frame()
@@ -43,13 +43,13 @@ func TestOpeningTheDialogSendsNothingAndShowsTheWebviewsWords(t *testing.T) {
 		}
 	}
 	if approveTitle != "Type into the terminal?" || !strings.Contains(approveHint, "The current line is cleared first. Nothing is typed until you approve.") {
-		t.Fatal("the title or sentence is not the webview's")
+		t.Fatal("the title or sentence changed")
 	}
 	if len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
 		t.Fatalf("opening the dialog typed %v / wrote %d", r.typed(), r.fb.conns[0].wrote)
 	}
 	if !r.tt.Focused("Cancel") {
-		t.Error("the keyboard does not start on Cancel, as the webview's dialog does")
+		t.Error("the keyboard does not start on Cancel")
 	}
 }
 
@@ -57,7 +57,7 @@ func TestTypeSendsCtrlUThenExactlyWhatTheDialogShowed(t *testing.T) {
 	r := approveRig(t)
 	r.w.askType(fixed("echo hi"))
 	r.tt.Frame()
-	shown := r.w.approve.shown()
+	shown := r.w.approveDlg().shown()
 	if shown != "echo hi\n" { // a trailing newline is added when there is none
 		t.Fatalf("shown %q", shown)
 	}
@@ -65,7 +65,7 @@ func TestTypeSendsCtrlUThenExactlyWhatTheDialogShowed(t *testing.T) {
 	if got := r.typed(); !slices.Equal(got, []string{"\x15" + shown}) {
 		t.Fatalf("sent %q, want Ctrl-U + %q", got, shown)
 	}
-	if r.w.approve != nil {
+	if r.w.approveOpen() {
 		t.Error("the dialog stays open after a Type that went through")
 	}
 	if !r.tt.Focused("body 1") {
@@ -103,13 +103,13 @@ func TestPreviewFollowsTheSourceAndNothingIsCached(t *testing.T) {
 }
 
 func TestControlCharactersAreShownAsTheyAreSent(t *testing.T) {
-	// The webview puts the text in a <pre> as it is; so does this dialog, and the same string is sent.
+	// The dialog shows the text as it is, and the same string is sent.
 	r := approveRig(t)
 	cmd := "printf 'a\tb'\x1b[2J\r"
 	r.w.askType(fixed(cmd))
 	r.tt.Frame()
-	if r.w.approve.shown() != cmd+"\n" {
-		t.Fatalf("shown %q", r.w.approve.shown())
+	if r.w.approveDlg().shown() != cmd+"\n" {
+		t.Fatalf("shown %q", r.w.approveDlg().shown())
 	}
 	r.click(t, "Type")
 	if got := r.typed(); !slices.Equal(got, []string{"\x15" + cmd + "\n"}) {
@@ -131,7 +131,7 @@ func TestEscapeCancelAndClickingOutsideSendNothing(t *testing.T) {
 			r.tt.ClickAt(2, 2)
 			r.tt.Frame()
 		}
-		if r.w.approve != nil {
+		if r.w.approveOpen() {
 			t.Errorf("%s: the dialog is still open", how)
 		}
 		if len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
@@ -165,12 +165,12 @@ func TestAFollowerOrASessionNotReadyCannotType(t *testing.T) {
 		if len(r.typed()) != 0 {
 			t.Errorf("%s typed %v", c.name, r.typed())
 		}
-		if r.w.approve == nil || r.w.approve.err != c.msg {
-			t.Errorf("%s: dialog gone or error %q", c.name, r.w.approve.err)
+		if !r.w.approveOpen() || r.w.approveDlg().err != c.msg {
+			t.Errorf("%s: dialog gone or error %q", c.name, r.w.approveDlg().err)
 		}
 	}
 	if msgFollowing != "You are following — take or request control to type" || msgNotConnected != "Session is not connected" || msgNoSession != "Open a session first" {
-		t.Fatal("not the webview's toasts")
+		t.Fatal("the toast words changed")
 	}
 }
 
@@ -180,8 +180,8 @@ func TestAServerRefusalShowsItsMessageAndStaysOpenWithoutRetry(t *testing.T) {
 	r.w.askType(fixed("ls"))
 	r.tt.Frame()
 	r.click(t, "Type")
-	if r.w.approve == nil || r.w.approve.err != "Session is not connected" {
-		t.Fatalf("dialog %v", r.w.approve)
+	if !r.w.approveOpen() || r.w.approveDlg().err != "Session is not connected" {
+		t.Fatalf("dialog %v", r.w.approveDlg())
 	}
 	if !r.tt.HasText("Session is not connected") {
 		t.Error("the refusal is not shown")
@@ -218,8 +218,8 @@ func TestNoSessionPaneMeansNoDialog(t *testing.T) {
 	r.tt.Frame()
 	r.w.askType(fixed("ls"))
 	r.tt.Frame()
-	if r.w.approve != nil || !r.tt.HasText("Open a session first") {
-		t.Fatalf("dialog %v, toast shown %v", r.w.approve, r.tt.HasText("Open a session first"))
+	if r.w.approveOpen() || !r.tt.HasText("Open a session first") {
+		t.Fatalf("dialog %v, toast shown %v", r.w.approveDlg(), r.tt.HasText("Open a session first"))
 	}
 }
 
@@ -227,7 +227,7 @@ func TestAPaneClosedUnderTheDialogCannotBeTypedInto(t *testing.T) {
 	r := approveRig(t)
 	r.w.askType(fixed("ls"))
 	r.tt.Frame()
-	t0 := r.w.tab()
+	t0 := r.w.activeTab()
 	r.w.closePane(t0, t0.focused)
 	r.tt.Frame()
 	r.w.approveType(false)

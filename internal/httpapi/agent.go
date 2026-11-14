@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -10,13 +9,12 @@ import (
 
 	"keel/internal/agent/provider"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
-// Agent settings and provider keys (phase 6a). These routes store choices
+// Agent settings and provider keys. These routes store choices
 // and keys; none of them calls a provider. Keys go into the vault and are
 // never returned: responses only say whether one is configured.
-
-const maxAgentBody = 16 * 1024
 
 type agentKeyState struct {
 	Configured bool `json:"configured"`
@@ -47,7 +45,7 @@ func (s *Server) agentKeyStates() (map[string]agentKeyState, error) {
 func (s *Server) writeAgentSettings(w http.ResponseWriter, status int, set store.AgentSettings) {
 	keys, err := s.agentKeyStates()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, status, agentSettingsResp{Settings: set, Keys: keys})
@@ -56,7 +54,7 @@ func (s *Server) writeAgentSettings(w http.ResponseWriter, status int, set store
 func (s *Server) getAgentSettings(w http.ResponseWriter, _ *http.Request) {
 	set, err := s.store.AgentSettings()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.writeAgentSettings(w, http.StatusOK, set)
@@ -67,10 +65,10 @@ func (s *Server) getAgentSettings(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 	cur, err := s.store.AgentSettings()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxAgentBody))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, bodyAgent))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid settings payload")
 		return
@@ -93,14 +91,10 @@ func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := s.store.SetAgentSettings(cur)
 	if err != nil {
-		if errors.Is(err, store.ErrAgentSettings) {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	s.note("agent", "agent settings saved", "", "", "")
+	s.note(wire.LogAgent, "agent settings saved", "", "", "")
 	// A shorter Keep conversations (or Only while open) applies now, not
 	// at the next hourly prune.
 	if s.agent != nil {
@@ -114,7 +108,7 @@ func (s *Server) listAgentProviders(w http.ResponseWriter, _ *http.Request) {
 	for _, d := range provider.Descriptors() {
 		ok, err := s.store.AgentKeyConfigured(d.ID)
 		if err != nil {
-			writeStoreErr(w, err)
+			writeErr(w, err)
 			return
 		}
 		out = append(out, agentProviderResp{Descriptor: d, Configured: ok})
@@ -133,19 +127,15 @@ func (s *Server) putAgentKey(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Key string `json:"key"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, maxAgentBody)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyAgent, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid key payload")
 		return
 	}
 	if err := s.store.SetAgentKey(d.ID, req.Key); err != nil {
-		if errors.Is(err, store.ErrAgentKey) {
-			writeError(w, http.StatusBadRequest, "the key is empty, too long, or has spaces")
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	s.note("agent", "agent key saved for "+d.Name, "", "", "")
+	s.note(wire.LogAgent, "agent key saved for "+d.Name, "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"provider": d.ID, "configured": true})
 }
 
@@ -156,9 +146,9 @@ func (s *Server) deleteAgentKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.ClearAgentKey(d.ID); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	s.note("agent", "agent key removed for "+d.Name, "", "", "")
+	s.note(wire.LogAgent, "agent key removed for "+d.Name, "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"provider": d.ID, "configured": false})
 }

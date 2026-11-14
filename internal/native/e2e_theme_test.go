@@ -43,6 +43,7 @@ func (e *win) paneBodyPix(id string) [3]uint8 {
 func TestE2EThemeSwitch(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
+	e.w.prefs.Theme = themeDark // the default is System, which is light under the tester
 	e.openPanes(2)
 	e.settle(500 * time.Millisecond)
 	e.wantPix("dark title bar", 900, 10, darkHex.chrome)
@@ -68,7 +69,7 @@ func TestE2EThemeSwitch(t *testing.T) {
 	p2, _ := e.tt.Find("pane 2")
 	e.wantPix("light pane bar", p2.X+p2.W/2, p2.Y+3, lightHex.surface) // above the text
 	e.shot("TestE2EThemeSwitch-light")
-	// A dialog in the light theme: MyGo's Modal chrome, the check boxes and the badges of the form (plan 031 step 2).
+	// A dialog in the light theme: MyGo's Modal chrome, the check boxes and the badges of the form.
 	e.click("New host")
 	e.pump(func() bool { return e.hasLabel("dialog New host") }, "the New host dialog")
 	e.shot("TestE2EThemeSwitch-light-dialog")
@@ -97,8 +98,8 @@ func TestE2EThemeSwitch(t *testing.T) {
 	e2.useSavedWindowPrefs()
 	e2.pump(func() bool { return e2.hasLabel("host Local Shell") }, "the host tree")
 	e2.settle(300 * time.Millisecond)
-	if e2.w.dark || e2.w.win.Theme != themeLight {
-		t.Fatalf("the second window is dark=%v with choice %q", e2.w.dark, e2.w.win.Theme)
+	if e2.w.dark || e2.w.prefs.Theme != themeLight {
+		t.Fatalf("the second window is dark=%v with choice %q", e2.w.dark, e2.w.prefs.Theme)
 	}
 	img := e2.tt.Image() // the window is translucent (opacity 66 is the default): the ground is the token at that alpha
 	s := float32(img.Bounds().Dx()) / 1280
@@ -140,11 +141,11 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	paneBefore, _ := e.tt.Find("pane 1")
 	e.shot("TestE2EUISizeAndFont-default")
 
-	// UI size to its maximum (16): the app's setting scales what is written in rem (text), not the px sizes (a row, the
+	// UI size to its maximum (16): the setting scales what is written in rem (text), not the px sizes (a row, the
 	// title bar, the sidebar), and not the terminal, so the session keeps its columns.
 	e.openSettings()
 	e.click("UI size slider")
-	for e.w.win.UISize < uiSizeMax {
+	for e.w.prefs.UISize < uiSizeMax {
 		e.key(0, ui.KeyRight)
 	}
 	e.key(ui.Cmd, ui.Key1)
@@ -157,10 +158,10 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	if got, want := status2.H/status.H, float32(16)/12; got < want*0.93 || got > want*1.07 {
 		t.Errorf("the status text grew %vx, want about %v (16 over the default 12)", got, want)
 	}
-	if want := float32(13 * 16.0 / 12); uiFontSize < want-0.01 || uiFontSize > want+0.01 { // plan 030: MyGo's 13 at the default size, scaled
+	if want := float32(13 * 16.0 / 12); uiFontSize < want-0.01 || uiFontSize > want+0.01 { // MyGo's 13 at the default size, scaled
 		t.Errorf("body text is %v px at UI size 16, want %v", uiFontSize, want)
 	}
-	// Plan 031: the sidebar is wider at size 16 (its labels scale), so the stage is narrower by that much and no more:
+	// The sidebar is wider at size 16 (its labels scale), so the stage is narrower by that much and no more:
 	// the cell is the same size, the columns lost are the sidebar's growth over the cell width.
 	cell := paneBefore.W / float32(colsBefore)
 	lost := (sidebarWidth() - sizeSidebar) / cell
@@ -170,7 +171,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.shot("TestE2EUISizeAndFont-ui16")
 	e.openSettings()
 	e.click("UI size slider")
-	for e.w.win.UISize > uiSizeDefault {
+	for e.w.prefs.UISize > uiSizeDefault {
 		e.key(0, ui.KeyLeft)
 	}
 
@@ -189,7 +190,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.step()
-	e.pump(func() bool { return e.w.win.TermFont == fontPlex }, "the font choice")
+	e.pump(func() bool { return e.w.prefs.TermFont == fontPlex }, "the font choice")
 	e.key(ui.Cmd, ui.Key1)
 	e.settle(800 * time.Millisecond)
 	plex := e.crop(area)

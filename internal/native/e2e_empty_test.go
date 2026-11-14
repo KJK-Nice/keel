@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 4 against a real daemon: the vault is emptied of its seeded snippets, then each list that can be empty is
+// Against a real daemon: the vault is emptied of its seeded snippets, then each list that can be empty is
 // shot in both themes: the sidebar's segments, Keychain, Snippets, Notebooks, Runbooks, Logs, Port forwarding and the agent
 // panel.
 func TestE2EEmptyStates(t *testing.T) {
@@ -49,11 +49,11 @@ func TestE2EEmptyStates(t *testing.T) {
 		// The pages.
 		for _, p := range []struct{ page, wait string }{{"keychain", "No identities yet"}, {"snippets", "No snippets yet"}, {"notebooks", "No notebooks yet"},
 			{"runbooks", "No runbooks yet"}, {"forwards", "No forwards yet"}} {
-			e.w.openPage(p.page)
+			e.w.showPage(p.page)
 			e.pump(func() bool { return e.tt.HasText(p.wait) }, p.wait)
 			shot("page-" + p.page)
 		}
-		e.w.openPage("logs")
+		e.w.showPage("logs")
 		e.pump(func() bool { return e.hasLabel("Search events") }, "the Logs page")
 		e.fillField("Search events", "zzzqqq")
 		shot("page-logs")
@@ -63,6 +63,6 @@ func TestE2EEmptyStates(t *testing.T) {
 		e.openAgent()
 		shot("agent-panel")
 		e.key(agentMods(), ui.KeyI)
-		e.pump(func() bool { return !e.w.agent.open }, "the agent panel to close")
+		e.pump(func() bool { return !e.w.prefs.AgentPanel }, "the agent panel to close")
 	}
 }

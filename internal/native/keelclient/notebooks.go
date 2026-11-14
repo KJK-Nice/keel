@@ -36,7 +36,7 @@ type Notebook struct {
 	UpdatedAt       time.Time      `json:"updatedAt"`
 }
 
-// Markdown is the document: the cells' bodies joined with a blank line (term.js notebookMarkdown, without its trim).
+// Markdown is the document: the cells' bodies joined with a blank line.
 func (n Notebook) Markdown() string {
 	parts := make([]string, len(n.Cells))
 	for i, c := range n.Cells {
@@ -45,7 +45,7 @@ func (n Notebook) Markdown() string {
 	return strings.Join(parts, "\n\n")
 }
 
-// WithMarkdown is n with its text set to md in one cell, keeping the first cell's id (term.js setNotebookMarkdown).
+// WithMarkdown is n with its text set to md in one cell, keeping the first cell's id.
 func (n Notebook) WithMarkdown(md string) Notebook {
 	id := ""
 	if len(n.Cells) > 0 {

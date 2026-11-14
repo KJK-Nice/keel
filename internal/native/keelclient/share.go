@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+
+	"keel/internal/wire"
 )
 
 // Share is POST /api/share: keel serve shares the session (or returns the live link of a session already shared)
@@ -31,11 +33,11 @@ func (c *Client) StopShare(ctx context.Context, sessionID string) error {
 
 // What the share hub and the runtime announce on a session's socket, for the window to show.
 const (
-	EventJoinRequest    = "join-request"    // PeerID asks to watch; Message is the name they typed
-	EventJoinResolved   = "join-resolved"   // that request was answered (allowed, denied, expired, left, ended)
-	EventJoinFailed     = "join-failed"     // a viewer could not be connected; Message says why
-	EventControlRequest = "control-request" // FromID asks the driver for control
-	EventControlNote    = "control-note"    // the runtime's words for a hand-over or a take-back
+	EventJoinRequest    = wire.TypeJoinRequest  // PeerID asks to watch; Message is the name they typed
+	EventJoinResolved   = wire.TypeJoinResolved // that request was answered (allowed, denied, expired, left, ended)
+	EventJoinFailed     = wire.TypeJoinFailed   // a viewer could not be connected; Message says why
+	EventControlRequest = "control-request"     // FromID asks the driver for control
+	EventControlNote    = "control-note"        // the runtime's words for a hand-over or a take-back
 )
 
 // Event is one announcement. It holds no secret: a join request carries the name the joiner typed.
@@ -63,13 +65,6 @@ func (c *Conn) Events() []Event {
 	out := c.events
 	c.events = nil
 	return out
-}
-
-// following reports whether keel serve has said this client does not drive (it drops such a client's keystrokes).
-func (c *Conn) following() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.state.Role == "follower" || c.state.Role == "owner"
 }
 
 func (c *Conn) block() {

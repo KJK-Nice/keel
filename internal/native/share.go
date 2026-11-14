@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -8,11 +9,10 @@ import (
 	"unicode/utf8"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// Share (docs/ui-redesign.md §5.6), as the app has it: features/share.md. The rules are the pure functions of
-// lib/share.js; the Share popover is ui/sharepop.js, the Allow / Deny prompt ui/joinprompt.js, the control request
-// ui/sharecontrol.js. Nothing here decides who may watch or type: admission is keel serve's (internal/share), and
+// Share (docs/ui-redesign.md §5.6, docs/sharing.md). Nothing here decides who may watch or type: admission is keel serve's (internal/share), and
 // the only calls that answer a join request are the Allow and Deny buttons (answerJoin); the only call that hands
 // control over is the Hand over button and the Pass control buttons (sendControl with GrantControl).
 
@@ -24,7 +24,6 @@ type shareLink struct{ url string }
 func (shareLink) String() string     { return "{share link}" }
 func (l shareLink) GoString() string { return l.String() }
 
-// sharePop is the open Share popover: the pane it shares and what keel serve answered.
 type sharePop struct {
 	open     bool
 	p        *pane
@@ -57,40 +56,34 @@ func (s *sharePrompt) key() string {
 	return "join\n" + s.peerID
 }
 
-// ---- the pure rules of lib/share.js ----
+// ---- the pure rules ----
 
 // roleOf is a client's role in a session as the share hub reports it: the driver drives, the owner may take control
-// back, everyone else follows.
-func roleOf(id, ownerID, driverID uint64) string {
-	switch {
-	case id != 0 && id == driverID:
-		return "driver"
-	case id != 0 && id == ownerID:
-		return "owner"
+// back, everyone else follows. It is wire.RoleOf, except that id 0 (no client) is a follower and never matches an unset
+// driver or owner id.
+func roleOf(id, ownerID, driverID uint64) wire.Role {
+	if id == 0 {
+		return wire.RoleFollower
 	}
-	return "follower"
+	return wire.RoleOf(id, driverID, ownerID)
 }
 
-// kindLabel is lib/share.js KIND_LABEL: how a client came.
 func kindLabel(kind string) string {
 	switch kind {
-	case "webrtc":
+	case keelclient.KindJoined:
 		return "joined by link"
-	case "web":
+	case keelclient.KindWindow:
 		return "Keel window"
-	case "tui":
-		return "terminal"
 	}
 	return ""
 }
 
-// person is a row of the people list.
 type person struct {
 	id       uint64
 	name     string
 	initials string
 	you      bool
-	role     string
+	role     wire.Role
 	sub      string
 	viaLink  bool
 	at       time.Time
@@ -112,7 +105,7 @@ func initials(name string) string {
 	return strings.ToUpper(string(out))
 }
 
-// sharePeople lists who is attached, you first, then whoever drives, then by arrival (lib/share.js sharePeople).
+// sharePeople lists who is attached, you first, then whoever drives, then by arrival.
 func sharePeople(st keelclient.State, now time.Time) []person {
 	rows := make([]person, 0, len(st.Attached))
 	for _, c := range st.Attached {
@@ -139,7 +132,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 		if name == "" {
 			name = "guest"
 		}
-		row := person{id: c.ID, name: name, initials: initials(name), you: isYou, role: roleOf(c.ID, st.OwnerID, st.DriverID), sub: sub, viaLink: c.Kind == "webrtc", at: at}
+		row := person{id: c.ID, name: name, initials: initials(name), you: isYou, role: roleOf(c.ID, st.OwnerID, st.DriverID), sub: sub, viaLink: c.Kind == keelclient.KindJoined, at: at}
 		if isYou {
 			row.name = "You"
 		}
@@ -149,7 +142,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 		switch {
 		case r.you:
 			return 0
-		case r.role == "driver":
+		case r.role == wire.RoleDriver:
 			return 1
 		}
 		return 2
@@ -163,10 +156,9 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 	return rows
 }
 
-// watchingCount is how many people watch through a share link.
 func watchingCount(attached []keelclient.Peer) (n int) {
 	for _, c := range attached {
-		if c.Kind == "webrtc" {
+		if c.Kind == keelclient.KindJoined {
 			n++
 		}
 	}
@@ -183,14 +175,13 @@ func clientName(attached []keelclient.Peer, id uint64) string {
 	return "Someone"
 }
 
-// seat is what the pane's session says about this client's seat: it owns, drives or follows.
 type seat struct{ owner, driving bool }
 
 func seatOf(st keelclient.State) seat {
-	return seat{owner: st.OwnerID != 0 && st.OwnerID == st.YouID, driving: st.Role == "driver"}
+	return seat{owner: st.OwnerID != 0 && st.OwnerID == st.YouID, driving: st.Driving()}
 }
 
-// followState is lib/share.js followState: who owns and who drives, by name, and whether that is you.
+// followState says who owns and who drives, by name, and whether that is you.
 func followState(st keelclient.State) (owner, driver string, driving bool, host string) {
 	owner = "the host"
 	if st.OwnerID != 0 {
@@ -210,12 +201,12 @@ func followState(st keelclient.State) (owner, driver string, driving bool, host 
 	return owner, driver, driving, host
 }
 
-// popoverAction is the one button at the foot of the popover (lib/share.js sharePopoverHTML): Pass control to the one
+// popoverAction is the one button at the foot of the popover: Pass control to the one
 // person who can be handed it, else Take control for the owner, else Ask for control. who is the grantee for pass.
 func popoverAction(rows []person, s seat) (kind string, who person) {
 	var grantable []person
 	for _, p := range rows {
-		if (s.driving || s.owner) && !p.you && p.role != "driver" {
+		if (s.driving || s.owner) && !p.you && p.role != wire.RoleDriver {
 			grantable = append(grantable, p)
 		}
 	}
@@ -235,7 +226,7 @@ func popoverAction(rows []person, s seat) (kind string, who person) {
 // shareTarget is the pane Share acts on: the focused pane of a session tab, when it is a live local session.
 func (w *workspace) shareTarget() *pane {
 	t := w.tab()
-	if t == nil || t.isNew() || t.isPage() || t.remote {
+	if t == nil || t.mode() == modeRemote || !t.mode().hasPanes() {
 		return nil
 	}
 	if p := t.panes[t.focused]; p != nil && !p.remote && p.sessionID() != "" {
@@ -267,33 +258,28 @@ func (w *workspace) startShare(s *sharePop) {
 	s.seq++
 	seq, p := s.seq, s.p
 	sid := p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		url, err := w.be.Share(c, sid)
-		w.post(func() {
-			current := w.share == s && s.seq == seq && s.open
-			switch {
-			case err != nil:
-				if current {
-					s.status, s.err = "error", errText("share", err)
-				} else {
-					w.fail("share", err)
-				}
-			case url == "":
-				if current {
-					s.status, s.err = "error", "The share started but returned no link."
-				}
-			default:
-				if w.shareLinks == nil {
-					w.shareLinks = map[string]shareLink{}
-				}
-				w.shareLinks[sid] = shareLink{url}
-				if current {
-					s.status, s.link, s.err, s.wantCopy = "ready", shareLink{url}, "", true
-				}
+	call(w, func(c context.Context) (string, error) { return w.be.Share(c, sid) }, func(url string, err error) {
+		current := w.share == s && s.seq == seq && s.open
+		switch {
+		case err != nil:
+			if current {
+				s.status, s.err = "error", errText("share", err)
+			} else {
+				w.fail("share", err)
 			}
-		})
+		case url == "":
+			if current {
+				s.status, s.err = "error", "The share started but returned no link."
+			}
+		default:
+			if w.shareLinks == nil {
+				w.shareLinks = map[string]shareLink{}
+			}
+			w.shareLinks[sid] = shareLink{url}
+			if current {
+				s.status, s.link, s.err, s.wantCopy = "ready", shareLink{url}, "", true
+			}
+		}
 	})
 }
 
@@ -306,7 +292,6 @@ func (w *workspace) closeShare() {
 	}
 }
 
-// toggleShare is the titlebar button and the badge.
 func (w *workspace) toggleShare() {
 	if w.share != nil && w.share.open {
 		w.closeShare()
@@ -326,24 +311,18 @@ func (w *workspace) stopShare() {
 		return
 	}
 	sid := p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.StopShare(c, sid)
-		w.post(func() {
-			if err != nil {
-				w.fail("stop sharing", err)
-				return
-			}
-			delete(w.shareLinks, sid)
-			w.forgetPrompts(p)
-			w.closeShare()
-			w.say("Sharing stopped. The join link no longer works.")
-		})
+	callErr(w, func(c context.Context) error { return w.be.StopShare(c, sid) }, func(err error) {
+		if err != nil {
+			w.fail("stop sharing", err)
+			return
+		}
+		delete(w.shareLinks, sid)
+		w.forgetPrompts(p)
+		w.closeShare()
+		w.say("Sharing stopped. The join link no longer works.")
 	})
 }
 
-// syncShare closes the popover when focus moved to another pane or to a joined one (sharepop.js follow).
 func (w *workspace) syncShare() {
 	if s := w.share; s != nil && (w.tabOf(s.p) == nil || w.shareTarget() != s.p) {
 		w.share = nil
@@ -353,7 +332,7 @@ func (w *workspace) syncShare() {
 // ---- announcements: the prompts ----
 
 // drainEvents reads what the share hub and the runtime announced on every pane's socket: a join request becomes a
-// prompt, a control request becomes a prompt for whoever may hand over, everything else is the app's toast.
+// prompt, a control request becomes a prompt for whoever may hand over, everything else is a toast.
 func (w *workspace) drainEvents() {
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
@@ -414,7 +393,6 @@ func (w *workspace) dropControlPrompts(p *pane) {
 	w.prompts = slices.DeleteFunc(w.prompts, func(s *sharePrompt) bool { return s.p == p && s.control })
 }
 
-// forgetPrompts drops every prompt of a pane (the share stopped, or the pane closed).
 func (w *workspace) forgetPrompts(p *pane) {
 	w.prompts = slices.DeleteFunc(w.prompts, func(s *sharePrompt) bool { return s.p == p })
 }
@@ -428,16 +406,11 @@ func (w *workspace) answerJoin(s *sharePrompt, allow bool) {
 	}
 	s.busy = true
 	sid := s.p.sessionID()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.AdmitShare(c, sid, s.peerID, allow)
-		w.post(func() {
-			w.dropPrompt(s.p, s.key())
-			if err != nil {
-				w.fail("answer the request", err)
-			}
-		})
+	callErr(w, func(c context.Context) error { return w.be.AdmitShare(c, sid, s.peerID, allow) }, func(err error) {
+		w.dropPrompt(s.p, s.key())
+		if err != nil {
+			w.fail("answer the request", err)
+		}
 	})
 }
 
@@ -447,12 +420,10 @@ func (w *workspace) handOver(s *sharePrompt) {
 	w.sendControl(func() error { return s.p.conn.GrantControl(s.fromID) }, "hand over control")
 }
 
-// passControl is the popover's Pass control to <name>.
 func (w *workspace) passControl(p *pane, to uint64) {
 	w.sendControl(func() error { return p.conn.GrantControl(to) }, "pass control")
 }
 
-// The words of ui/sharecontrol.js and ui/joinprompt.js.
 func controlDesc(p *pane, owner bool) string {
 	title := p.host.Name
 	if title == "" {

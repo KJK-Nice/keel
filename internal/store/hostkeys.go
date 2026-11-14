@@ -1,14 +1,14 @@
 package store
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"keel/internal/randid"
 )
 
 // KnownHosts holds one SHA256 fingerprint (ssh.FingerprintSHA256, the
@@ -36,7 +36,6 @@ func HostKeyName(h Host) string {
 	return net.JoinHostPort(strings.TrimSpace(h.Address), strconv.Itoa(port))
 }
 
-// KnownHost returns the saved key for hostname, if any.
 func (s *Store) KnownHost(hostname string) (KnownHostKey, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -91,11 +90,8 @@ type hostKeyOffer struct {
 	expires     time.Time
 }
 
-// offerNow is the clock for offers (tests replace it).
-var offerNow = time.Now
-
 func (s *Store) offerLocked(o hostKeyOffer) string {
-	now := offerNow()
+	now := s.now()
 	if s.offers == nil {
 		s.offers = map[string]hostKeyOffer{}
 	}
@@ -113,11 +109,7 @@ func (s *Store) offerLocked(o hostKeyOffer) string {
 		}
 		delete(s.offers, oldest)
 	}
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return ""
-	}
-	tok := hex.EncodeToString(b)
+	tok := randid.Hex(16)
 	o.expires = now.Add(OfferTTL)
 	s.offers[tok] = o
 	return tok
@@ -134,7 +126,7 @@ func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) 
 		return KnownHostKey{}, ErrLocked
 	}
 	o, ok := s.offers[token]
-	if !ok || token == "" || offerNow().After(o.expires) || o.hostname != hostname || o.fingerprint != fingerprint {
+	if !ok || token == "" || s.now().After(o.expires) || o.hostname != hostname || o.fingerprint != fingerprint {
 		return KnownHostKey{}, ErrNoOffer
 	}
 	if o.mismatch != replace {

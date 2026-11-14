@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+
+	"keel/internal/wire"
 )
 
 // Groups (docs/ui-redesign.md §17; internal/httpapi/agentgroups.go, groupvars.go): a folder's members with their roles,
@@ -53,7 +55,7 @@ type ExportFile struct {
 	Lines   int    `json:"lines"`
 }
 
-// AnsibleQuery is the export route's query string (lib/groupvars.js exportQuery).
+// AnsibleQuery is the export route's query string.
 type AnsibleQuery struct {
 	Format    string // "ini" or "yaml"
 	RunbookID string // a runbook for a playbook; "" for the inventory only
@@ -62,17 +64,17 @@ type AnsibleQuery struct {
 	Jump      bool   // the jump host as ansible_ssh_common_args
 }
 
-// Values is the query string in the order lib/groupvars.js exportQuery builds it (format, runbookId, mode, user, jump).
+// Values is the query string in this order (format, runbookId, mode, user, jump).
 func (q AnsibleQuery) Values() string {
-	format := "ini"
-	if q.Format == "yaml" {
-		format = "yaml"
+	format := wire.FormatINI
+	if q.Format == wire.FormatYAML {
+		format = wire.FormatYAML
 	}
 	out := "format=" + format
 	if q.RunbookID != "" {
-		mode := "rolling"
-		if q.Mode == "parallel" {
-			mode = "parallel"
+		mode := wire.ModeRolling
+		if q.Mode == wire.ModeParallel {
+			mode = wire.ModeParallel
 		}
 		out += "&runbookId=" + url.QueryEscape(q.RunbookID) + "&mode=" + mode
 	}

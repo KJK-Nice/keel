@@ -7,18 +7,18 @@ import (
 	"testing"
 )
 
-// UI size scales what the app writes in rem (text, icons, the kbd cap, the tab's widest, the palette) and nothing in px
-// (the title bar, a control, the sidebar, the spacing): keel.css and tokens.css.
+// UI size scales what is written in rem (text, icons, the kbd cap, the tab's widest, the palette) and nothing in px
+// (the title bar, a control, the sidebar, the spacing).
 func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
-	p := r.w.pageTab("settings").pg.settings
+	p := r.w.settingsPage()
 	type measure struct{ tab, newHost, sidebarEdge, status, kbdH, text float32 }
 	read := func(size int) measure {
-		p.uiV = float64(size)
+		p.sliders[keyUISize].v = float64(size)
 		r.tt.Frame()
 		r.tt.Frame()
-		if r.w.win.UISize != size {
-			t.Fatalf("UI size %d after moving the slider to %d", r.w.win.UISize, size)
+		if r.w.prefs.UISize != size {
+			t.Fatalf("UI size %d after moving the slider to %d", r.w.prefs.UISize, size)
 		}
 		tab, _ := r.tt.Find("tab Settings")
 		nh, _ := r.tt.Find("More host actions") // the last control of the sidebar's head, 8 px from its edge
@@ -34,12 +34,12 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 	if small.newHost != sizeControlSm || large.newHost != sizeControlSm {
 		t.Errorf("control height %v and %v, want %v", small.newHost, large.newHost, float32(sizeControlSm))
 	}
-	// Plan 031: the sidebar is size-sidebar at the default size and below, and grows with the UI size above it, so the four
+	// The sidebar is size-sidebar at the default size and below, and grows with the UI size above it, so the four
 	// section labels fit.
 	if small.sidebarEdge != sizeSidebar || math.Abs(float64(large.sidebarEdge-sizeSidebar*16/12.0)) > 0.01 {
 		t.Errorf("sidebar width %v and %v, want %v and %v", small.sidebarEdge, large.sidebarEdge, float32(sizeSidebar), sizeSidebar*16/12.0)
 	}
-	// In rem: value × scale. Plan 030: the body is MyGo's 13 at the default size (12) and 13 × size ÷ 12 elsewhere; a caption is 12/13 of it.
+	// In rem: value × scale. The body is MyGo's 13 at the default size (12) and 13 × size ÷ 12 elsewhere; a caption is 12/13 of it.
 	for _, c := range []struct {
 		n    int
 		got  float32
@@ -86,12 +86,12 @@ func TestUISizeLabelsAndWordsAreTheApps(t *testing.T) {
 func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.w.openHost(testHosts[1]) // a pane to change live
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")
 	var sizes []float32
 	var fams []string
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		for _, p := range tb.panes {
 			p.setFont = func(s float32) { sizes = append(sizes, s); fams = append(fams, p.fontFamily) }
 		}
@@ -106,8 +106,8 @@ func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if r.w.win.TermFont != fontPlex || len(sizes) != 1 || !strings.HasPrefix(fams[0], plexFamily) {
-		t.Fatalf("font %q, pane calls %v %v", r.w.win.TermFont, sizes, fams)
+	if r.w.prefs.TermFont != fontPlex || len(sizes) != 1 || !strings.HasPrefix(fams[0], plexFamily) {
+		t.Fatalf("font %q, pane calls %v %v", r.w.prefs.TermFont, sizes, fams)
 	}
 	if string(r.prefsFile(t)["termFont"]) != `"ibmplex"` || loadPrefs(r.w.dataDir).TermFont != fontPlex {
 		t.Errorf("file %v", r.prefsFile(t))

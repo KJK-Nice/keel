@@ -1,7 +1,6 @@
 package native
 
 import (
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +27,7 @@ func newSugRig(t *testing.T) *sugRig {
 	t.Helper()
 	r := &sugRig{rig: snippetRig(t, snippetBackend())}
 	r.p, r.c = r.w.focusedPane(), r.fb.conns[0]
-	r.line = "sh-3.2$ # show the files here" // a # line: its notice takes ⇥ (plan 036)
+	r.line = "sh-3.2$ # show the files here" // a # line: its notice takes ⇥
 	r.p.sg.cursor = func() (int, string, bool) { return 2, r.line, !r.alt }
 	r.tt.Frame()
 	return r
@@ -67,7 +66,7 @@ func (r *sugRig) noticed(t *testing.T) {
 
 // The keys and their labels of this platform, as the product writes them (keyLabels, undoKey, the suggest key): the tests never
 // assume macOS's (issue #140: ⌘Z and ⌘Y are Ctrl+Shift+Z and Ctrl+Shift+Y elsewhere, ⇥ is "Tab").
-func platLabels() keyLabelSet { return keyLabels(runtime.GOOS == "darwin") }
+func platLabels() keyLabelSet { return keyLabels() }
 
 func card(options ...keelclient.SuggestOption) *keelclient.Suggestion {
 	return &keelclient.Suggestion{ID: "s_1", Options: options}
@@ -108,7 +107,7 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 		t.Fatalf("asks %v", got)
 	}
 	r.texts(t, "Suggesting a command…", "keep my words")
-	if !r.has("Suggesting a command") { // plan 030: loading.Blocks, named, while the model works
+	if !r.has("Suggesting a command") { // loading.Blocks, named, while the model works
 		t.Error("no Blocks while the suggestion is asked")
 	}
 	a := r.c.asks[0]
@@ -161,7 +160,7 @@ func TestPlainTabNeverInsertsAnOptionThatNeedsShiftAndShiftTabSendsShiftAsPresse
 	}
 	r.key(0, ui.KeyTab)
 	r.tt.Frame()
-	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press "+shiftTab(k, runtime.GOOS == "darwin")+" to insert this command.") {
+	if len(r.c.sugInserts) != 0 || !r.tt.HasText("Press "+shiftTab(k)+" to insert this command.") {
 		t.Fatalf("plain ⇥ on a destructive command: inserts %v texts %v", r.c.sugInserts, r.tt.Texts())
 	}
 	r.key(ui.Shift, ui.KeyTab)
@@ -221,7 +220,7 @@ func TestNothingIsAskedOrTakenWhereAGuardApplies(t *testing.T) {
 	}
 }
 
-// Plan 036. With the default ("Only lines starting with #") a typed line without # reaches nobody; ⌘Y asks for it, once,
+// With the default ("Only lines starting with #") a typed line without # reaches nobody; ⌘Y asks for it, once,
 // and writes nothing; the card's ⇥ is what inserts.
 func TestTheSuggestKeyAsksForAPlainLineThatWasNeverSent(t *testing.T) {
 	r := newSugRig(t)
@@ -248,7 +247,7 @@ func TestTheSuggestKeyAsksForAPlainLineThatWasNeverSent(t *testing.T) {
 	}
 }
 
-// Plan 036, Notice automatically: the notice names the key, leaves ⇥ to the shell, and sends only after the pause.
+// Notice automatically: the notice names the key, leaves ⇥ to the shell, and sends only after the pause.
 func TestAutoNoticeNamesTheKeyAndLeavesTab(t *testing.T) {
 	r := newSugRig(t)
 	r.w.noteSuggestSettings(autoSettings())
@@ -268,7 +267,7 @@ func autoSettings() (s keelclient.AgentSettings) {
 	return s
 }
 
-// Plan 036, off means off at once: saving the switch in Settings · Agent drops the notice and the card, nothing is sent
+// Off means off at once: saving the switch in Settings · Agent drops the notice and the card, nothing is sent
 // from then on, and ⌘Y says why. The save does not wait for keel serve's answer.
 func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
 	r := newSugRig(t)
@@ -276,7 +275,7 @@ func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
 	r.line = "sh-3.2$ show the files here"
 	r.noticed(t)
 	cur := r.w.agentVal()
-	r.w.agent.settings = &cur
+	r.w.agentState().settings = &cur
 	r.w.putAgent(keelclient.AgentSettingsPatch{Suggestions: ptr("off")}, nil)
 	r.tt.Frame()
 	if r.state() != sugIdle || r.has("suggestion notice") {

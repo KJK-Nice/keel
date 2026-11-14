@@ -18,12 +18,18 @@ import (
 type memLog struct {
 	mu      sync.Mutex
 	entries []applog.Entry
+	// fail, when set, is what Append returns instead of keeping the entry.
+	fail error
 }
 
-func (m *memLog) Append(e applog.Entry) {
+func (m *memLog) Append(e applog.Entry) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.fail != nil {
+		return m.fail
+	}
 	m.entries = append(m.entries, e)
+	return nil
 }
 
 func (m *memLog) all() []applog.Entry {
@@ -73,7 +79,14 @@ func TestScopeExcludesUnreadableHosts(t *testing.T) {
 		{SessionID: "s4", HostID: "deleted-host"},
 		{SessionID: "s5"},
 	}
-	in, out := scope.Filter(panes)
+	var in, out []Pane
+	for _, p := range panes {
+		if scope.Allows(p) {
+			in = append(in, p)
+		} else {
+			out = append(out, p)
+		}
+	}
 	if len(in) != 2 || in[0].SessionID != "s1" || in[1].SessionID != "s3" {
 		t.Fatalf("in = %+v", in)
 	}
@@ -86,7 +99,7 @@ func TestReadPaneRefusesOutOfScopeWithoutReading(t *testing.T) {
 	log := &memLog{}
 	a, _ := NewAuditor(log)
 	src := &countingSource{}
-	_, err := a.ReadPane(src, NewScope(testHosts()), Pane{SessionID: "s2", HostID: "db"}, 200, redact.New(redact.Options{}))
+	_, err := a.ReadPane(src, NewScope(testHosts()), Pane{SessionID: "s2", HostID: "db"}, 200, redact.New(redact.Options{}), "")
 	if !errors.Is(err, ErrNotReadable) {
 		t.Fatalf("err = %v", err)
 	}
@@ -125,7 +138,7 @@ func TestReadPaneRedactsAndLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ex, err := a.ReadPane(src, NewScope(hosts), Pane{SessionID: "s1", HostID: "web", HostName: "web-1", Role: RoleDriver}, 120, r)
+	ex, err := a.ReadPane(src, NewScope(hosts), Pane{SessionID: "s1", HostID: "web", HostName: "web-1", Role: RoleDriver}, 120, r, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +178,7 @@ func TestReadPaneClampsLines(t *testing.T) {
 	a, _ := NewAuditor(log)
 	src := fakeScrollback{"s1": strings.Repeat("l\n", 2000)}
 	for _, c := range []struct{ ask, want int }{{5, 50}, {0, 200}, {5000, 1000}} {
-		ex, err := a.ReadPane(src, NewScope(testHosts()), Pane{SessionID: "s1", HostID: "web"}, c.ask, redact.New(redact.Options{}))
+		ex, err := a.ReadPane(src, NewScope(testHosts()), Pane{SessionID: "s1", HostID: "web"}, c.ask, redact.New(redact.Options{}), "")
 		if err != nil || ex.Lines != c.want {
 			t.Fatalf("ask %d → %d (%v), want %d", c.ask, ex.Lines, err, c.want)
 		}
@@ -184,10 +197,10 @@ func TestInsertAndTypeRequireDriverAndLog(t *testing.T) {
 	a, _ := NewAuditor(log)
 	for _, role := range []Role{RoleFollower, RoleOwner, ""} {
 		p := Pane{SessionID: "s1", HostID: "web", Role: role}
-		if err := a.Insert(p, "ls\n"); err == nil {
+		if err := a.InsertFrom(p, "ls\n", ""); err == nil {
 			t.Fatalf("insert allowed for role %q", role)
 		}
-		if err := a.Type(p, "ls\n"); err == nil {
+		if err := a.TypeFrom(p, "ls\n", TypeApproved); err == nil {
 			t.Fatalf("type allowed for role %q", role)
 		}
 	}
@@ -198,13 +211,13 @@ func TestInsertAndTypeRequireDriverAndLog(t *testing.T) {
 		t.Fatal("refused inserts wrote nothing to a pane and log nothing")
 	}
 	p := Pane{SessionID: "s1", HostID: "web", HostName: "web-1", Role: RoleDriver}
-	if err := a.Insert(p, "rm -rf ./build"); err != nil {
+	if err := a.InsertFrom(p, "rm -rf ./build", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Type(p, "cd /srv\nmake deploy\n"); err != nil {
+	if err := a.TypeFrom(p, "cd /srv\nmake deploy\n", TypeApproved); err != nil {
 		t.Fatal(err)
 	}
-	a.Suggest(p, redact.Report{Counts: map[redact.Kind]int{redact.KindIP: 2}}, "Destructive")
+	a.Suggest(p, redact.Report{Counts: map[redact.Kind]int{redact.KindIP: 2}}, "Destructive", "", Timing{})
 	got := log.all()
 	if len(got) != 3 {
 		t.Fatalf("want 3 entries, got %d", len(got))
@@ -269,14 +282,14 @@ func TestEveryHelperWritesKeelLog(t *testing.T) {
 	hosts := testHosts()
 	p := Pane{SessionID: "s1", HostID: "web", HostName: "web-1", Role: RoleDriver}
 	r, _ := NewRedactor(fakeSecrets{"topsecret-1"}, store.AgentRedaction{Secrets: true}, hosts)
-	if _, err := a.ReadPane(fakeScrollback{"s1": "cat .env\nAPI_TOKEN=topsecret-1\n"}, NewScope(hosts), p, 50, r); err != nil {
+	if _, err := a.ReadPane(fakeScrollback{"s1": "cat .env\nAPI_TOKEN=topsecret-1\n"}, NewScope(hosts), p, 50, r, ""); err != nil {
 		t.Fatal(err)
 	}
-	a.Suggest(p, r.Report(), "Read-only")
-	if err := a.Insert(p, "grep -r TODO ."); err != nil {
+	a.Suggest(p, r.Report(), "Read-only", "", Timing{})
+	if err := a.InsertFrom(p, "grep -r TODO .", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Type(p, "ls -la\n"); err != nil {
+	if err := a.TypeFrom(p, "ls -la\n", TypeApproved); err != nil {
 		t.Fatal(err)
 	}
 	b, err := os.ReadFile(path)

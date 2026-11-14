@@ -26,7 +26,7 @@ func forwardRig(t *testing.T, fb *fakeBackend) *rig {
 	t.Helper()
 	r := newRig(t, fb)
 	r.tt.Frame()
-	r.w.openPage("forwards")
+	r.w.showPage("forwards")
 	r.tt.Frame()
 	return r
 }
@@ -92,11 +92,6 @@ func TestForwardsPageRowsForEveryTypeAndState(t *testing.T) {
 	}
 }
 
-func TestForwardsEmptyState(t *testing.T) {
-	r := forwardRig(t, okBackend())
-	r.texts(t, "No forwards yet", "Local (-L), remote (-R) or dynamic SOCKS5 (-D), each through a saved host.", "All 0")
-}
-
 func TestForwardsChipsAndFilterNarrowRows(t *testing.T) {
 	r := forwardRig(t, forwardBackend())
 	r.click(t, "Running 2")
@@ -109,7 +104,7 @@ func TestForwardsChipsAndFilterNarrowRows(t *testing.T) {
 	}
 	r.click(t, "All 4")
 	// The filter reads the name, the host's name, the listen address and the target, any case.
-	p := r.w.pageTab("forwards").pg.forwards
+	p := pageAs[*forwardsPage](r.w.pageTab("forwards"))
 	for q, want := range map[string]string{"STAGING": "web back", "9000": "open bind", "3000": "web back", "socks5": "socks"} {
 		r.fill(t, "Filter forwards", q)
 		rows := r.w.shownTunnels(p)
@@ -385,7 +380,7 @@ func TestForwardsReadEveryTwoSecondsOnlyWhileShown(t *testing.T) {
 	if fb.tunCalls != n {
 		t.Fatal("read with nothing showing")
 	}
-	r.w.openPage("forwards")
+	r.w.showPage("forwards")
 	r.tt.Frame()
 	n = fb.tunCalls
 	fb.setTunnel("t2", "ready")

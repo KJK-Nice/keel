@@ -31,7 +31,6 @@ func TestPanesSegmentExistsOnlyWhileTheTabHasTwoPanesAndFallsBack(t *testing.T) 
 	}
 	r.click(t, "Split right")
 	r.texts(t, "Hosts", "Panes 2", "Snippets", "Forwards")
-	// The segments are in the app's order.
 	segs := r.w.panesTab() != nil
 	if !segs {
 		t.Fatal("no panes tab")
@@ -56,8 +55,8 @@ func TestPanesSegmentExistsOnlyWhileTheTabHasTwoPanesAndFallsBack(t *testing.T) 
 	}
 	// Closing down to one pane hides it and falls back.
 	r.click(t, "Panes 3")
-	r.w.closePane(r.w.tab(), "3")
-	r.w.closePane(r.w.tab(), "2")
+	r.w.closePane(r.w.activeTab(), "3")
+	r.w.closePane(r.w.activeTab(), "2")
 	r.tt.Frame()
 	if r.has("Panes 1") || r.w.sideSeg != "hosts" {
 		t.Errorf("seg %q after closing to one pane", r.w.sideSeg)
@@ -67,7 +66,7 @@ func TestPanesSegmentExistsOnlyWhileTheTabHasTwoPanesAndFallsBack(t *testing.T) 
 func TestPanesMapMirrorsTheSplitTreeAndMarksTheFocusedCell(t *testing.T) {
 	r := paneSplitRig(t)
 	r.click(t, "Panes 3")
-	t0 := r.w.tab()
+	t0 := r.w.activeTab()
 	for i, name := range []string{"api-1", "api-1", "api-1"} {
 		if _, ok := r.tt.Find("Focus pane " + string(rune('1'+i)) + ", " + name); !ok {
 			t.Errorf("no map cell %d", i+1)
@@ -94,7 +93,7 @@ func TestPanesRowsFocusTheirPaneAndLeaveFocusView(t *testing.T) {
 	r := paneSplitRig(t)
 	r.click(t, "Panes 3")
 	r.texts(t, "This tab", "3", "Connected")
-	t0 := r.w.tab()
+	t0 := r.w.activeTab()
 	r.w.toggleZoom(t0, "3")
 	r.tt.Frame()
 	if t0.zoomed != "3" {
@@ -152,8 +151,8 @@ func TestClickingIntoAPaneOfASplitTabShowsPanesWithoutTakingTheKeyboard(t *testi
 	// The bar is a click into the pane too.
 	r.click(t, "Hosts")
 	r.click(t, "pane bar 2")
-	if r.w.sideSeg != "panes" || r.w.tab().focused != "2" {
-		t.Errorf("seg %q focused %q", r.w.sideSeg, r.w.tab().focused)
+	if r.w.sideSeg != "panes" || r.w.activeTab().focused != "2" {
+		t.Errorf("seg %q focused %q", r.w.sideSeg, r.w.activeTab().focused)
 	}
 	// A one-pane tab never switches.
 	r2 := newRig(t, okBackend())
@@ -217,8 +216,8 @@ func TestPaneRowMenuAndMetaIcons(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if r.w.tab().focused != "1" {
-		t.Errorf("Focus left %q focused", r.w.tab().focused)
+	if r.w.activeTab().focused != "1" {
+		t.Errorf("Focus left %q focused", r.w.activeTab().focused)
 	}
 	// The bar's menu keeps Focus view and has no Focus.
 	if err := r.tt.RightClick("pane bar 1"); err != nil {

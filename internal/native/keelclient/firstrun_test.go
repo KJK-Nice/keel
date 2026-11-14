@@ -96,7 +96,7 @@ func TestSSHConfigImportSendsOnlyTheTicksAndKeepsPassphrasesOut(t *testing.T) {
 			t.Fatalf("a formatted request shows the passphrase: %s", f)
 		}
 	}
-	// No ticks still sends empty lists, as the webview does.
+	// No ticks still sends empty lists.
 	if _, err := r.c.SSHConfigImport(context.Background(), ImportRequest{}); err != nil {
 		t.Fatal(err)
 	}

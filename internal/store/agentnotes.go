@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+
+	"keel/internal/limits"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15): host notes, about one
@@ -40,7 +42,7 @@ const (
 	memoryFile        = "keel.memory"
 
 	// MaxAgentNoteBytes is the longest note, in bytes, on one line.
-	MaxAgentNoteBytes = 1000
+	MaxAgentNoteBytes = limits.MaxAgentNoteBytes
 	// MaxAgentNotesPerHost bounds a host's notes, and MaxUserNotes the
 	// user's own.
 	MaxAgentNotesPerHost = 50
@@ -310,7 +312,6 @@ func (s *Store) AddAgentNote(n AgentNote) (AgentNote, error) {
 	return n, nil
 }
 
-// UpdateAgentNote replaces a note's text.
 func (s *Store) UpdateAgentNote(id, text string) (AgentNote, error) {
 	text, ok := CleanAgentNote(text)
 	if !ok {

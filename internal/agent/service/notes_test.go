@@ -79,7 +79,6 @@ func (f *fakeNotes) put(n store.AgentNote) {
 	f.notes = append(f.notes, n)
 }
 
-// notesFixture is newFixture with a NoteStore.
 func notesFixture(t *testing.T, reply string) (*fixture, *fakeNotes) {
 	t.Helper()
 	f := newFixture(t, reply)

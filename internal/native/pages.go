@@ -6,91 +6,105 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Tab pages (docs/ui-redesign.md §4): Keychain, Logs, and later Forwards, Snippets and Settings each open as their
-// own tab, one instance each. A page tab has no panes: it carries a tabPage, which holds the page's state in one
-// type per page. The mechanism is term.js openPage; the page tabs are saved in the workspace file under "pages"
-// and come back after the session tabs, in the order they had (lib/savedworkspace.js).
+// Tab pages (docs/ui-redesign.md §4): Keychain, Logs, Port forwarding, Snippets, Settings and the others each open as
+// their own tab, one instance each. A page tab has no panes: it carries a tabPage. The page tabs are saved in the
+// workspace file under "pages" and come back after the session tabs, in the order they had.
 //
-// To add a page: give it a pageDefs entry, a state type and a view, and set it in newTabPage, loadPage and
-// pageView.
+// To add a page: write its state type with load and view (and whichever of the optional interfaces below it needs) in
+// its own file, and give it a pageKinds entry.
 
-// pageDef is what the strip, the palette and the saved workspace know about a page.
-type pageDef struct {
-	title      string // the tab's name (term.js PAGES)
-	tabIcon    string // the glyph in the tab (PAGES glyph)
-	paletteTag string // the palette's "Open now" glyph (PALETTE_PAGE_ICONS); "" is the action glyph
+// page is the state of one page tab and what a tab asks of it.
+type page interface {
+	load(w *workspace) // reads what the page shows: it was selected, or the vault changed
+	view(w *workspace, c *ui.Context)
 }
 
-var pageDefs = map[string]pageDef{
-	"keychain": {title: "Keychain", tabIcon: "key-01", paletteTag: "key-01"},
-	"forwards": {title: "Port forwarding", tabIcon: "forwards"},
-	"snippets": {title: "Snippets", tabIcon: "snippet", paletteTag: "snippet"},
-	// The Notebooks page (§18) comes before Logs in the palette (term.js PAGES.notebooks); its sidebar section is the
-	// Snippets segment's second half.
-	"notebooks": {title: "Notebooks", tabIcon: "notebook-pen", paletteTag: "notebook-pen"},
-	"logs":      {title: "Logs", tabIcon: "logs-tab"},
-	"settings":  {title: "Settings", tabIcon: "settings-01"},
-	// The Agent page is opened from the palette's Agent conversations and the panel's Open all in a tab, so it is not in
-	// pageNames (term.js PAGES.agent).
-	pageAgent: {title: "Agent", tabIcon: "ai-magic", paletteTag: "ai-magic"},
-	// The Runbooks page (§16) is opened from the palette's Runbooks and the "Open Runbooks" of a saved runbook proposal, so it
-	// is not in pageNames (term.js PAGES.runbooks).
-	"runbooks": {title: "Runbooks", tabIcon: "book", paletteTag: "book"},
-	// The Group page and the group run page (§17) are opened from a folder's menu, the palette and "Run a runbook on this
-	// group", so they are not in pageNames (term.js PAGES.group, PAGES.grouprun). One instance each, named after the folder
-	// or the run (tab.name).
-	"group":    {title: "Group", tabIcon: "group", paletteTag: "group"},
-	"grouprun": {title: "Group run", tabIcon: "group-run", paletteTag: "group-run"},
+// pageNewItem is a page with its own New for ⌘N.
+type pageNewItem interface{ newItem(w *workspace) }
+
+// pageTitled is a page whose tab is named after what it shows ("" is the kind's title).
+type pageTitled interface{ tabTitle() string }
+
+// pageSaved is a page that keeps something of its own in the saved workspace.
+type pageSaved interface {
+	snapshot(d *savedDoc)
+	restore(w *workspace, d *savedDoc)
 }
 
-// pageAgent is the Agent page's name (a constant, so that no source line holds the quoted key that guard_test.go keeps
-// for keelclient/inject.go).
-const pageAgent = "agent"
+// pageKind is what the strip, the palette, the sidebar and the saved workspace know about a page.
+type pageKind struct {
+	name        string // the name in the saved workspace
+	title       string // the tab's name
+	tabIcon     string // the glyph in the tab
+	openNowIcon bool   // the palette's Open now row shows tabIcon; else the action glyph
+	listed      bool   // the palette's Vault section lists it
+	footIcon    string // the sidebar footer has a button for it, with this glyph
+	// cmd is the command that opens it, for a page with a key: its palette row shows the key, and the sidebar footer has
+	// an icon button for it at the right, with the key's cap.
+	cmd  string
+	make func(w *workspace) page
+}
 
-// pageNames is every page this client has, in the order the sidebar and the palette list them.
-var pageNames = []string{"keychain", "forwards", "snippets", "notebooks", "logs", "settings"}
+// The pages' names, as the saved workspace keeps them. pageAgent is a constant also so that no source line holds the
+// quoted key that guard_test.go keeps for keelclient/inject.go.
+const (
+	pageKeychain  = "keychain"
+	pageForwards  = "forwards"
+	pageSnippets  = "snippets"
+	pageNotebooks = "notebooks"
+	pageLogs      = "logs"
+	pageSettings  = "settings"
+	pageAgent     = "agent"
+	pageRunbooks  = "runbooks"
+	pageGroup     = "group"
+	pageGroupRun  = "grouprun"
+)
 
-// footPages are the sidebar footer's page buttons (the webview's footer is Keychain · Logs).
-var footPages = []string{"keychain", "logs"}
+// pageKinds is every page this client has, in the order the palette and the sidebar footer list them.
+var pageKinds = []pageKind{
+	{name: pageKeychain, title: "Keychain", tabIcon: "key-01", openNowIcon: true, listed: true, footIcon: "key-01",
+		make: func(*workspace) page { return &keychainPage{} }},
+	{name: pageForwards, title: "Port forwarding", tabIcon: "forwards", listed: true,
+		make: func(*workspace) page { return &forwardsPage{show: tunnelAll} }},
+	{name: pageSnippets, title: "Snippets", tabIcon: "snippet", openNowIcon: true, listed: true,
+		make: func(*workspace) page { return &snippetsPage{} }},
+	{name: pageNotebooks, title: "Notebooks", tabIcon: "notebook-pen", openNowIcon: true, listed: true,
+		make: func(*workspace) page { return &notebooksPage{} }},
+	{name: pageLogs, title: "Logs", tabIcon: "logs-tab", listed: true, footIcon: "logs",
+		make: func(*workspace) page { return &logsPage{kind: "all"} }},
+	{name: pageSettings, title: "Settings", tabIcon: "settings-01", listed: true, cmd: "settings",
+		make: func(w *workspace) page { p := newSettingsPage(); w.initSliders(p); return p }},
+	// The rest are opened from where they belong (the agent panel, a runbook proposal, a folder's menu, the palette's
+	// own rows), so they are not listed.
+	{name: pageAgent, title: "Agent", tabIcon: "ai-magic", openNowIcon: true,
+		make: func(*workspace) page { return &agentPage{} }},
+	{name: pageRunbooks, title: "Runbooks", tabIcon: "book", openNowIcon: true,
+		make: func(*workspace) page { return &runbooksPage{} }},
+	{name: pageGroup, title: "Group", tabIcon: "group", openNowIcon: true,
+		make: func(*workspace) page { return newGroupPage() }},
+	{name: pageGroupRun, title: "Group run", tabIcon: "group-run", openNowIcon: true,
+		make: func(*workspace) page { return &groupRunPage{} }},
+}
 
-// tabPage is the state of a page tab: the name and the page's own state (only the one for that name is set).
+func pageKindOf(name string) *pageKind {
+	for i := range pageKinds {
+		if pageKinds[i].name == name {
+			return &pageKinds[i]
+		}
+	}
+	return nil
+}
+
+// tabPage is the page of a page tab: its kind and its state.
 type tabPage struct {
-	name     string
-	keychain *keychainPage
-	logs     *logsPage
-	snippets *snippetsPage
-	notebook *notebooksPage
-	forwards *forwardsPage
-	settings *settingsPage
-	agent    *agentPage
-	runbooks *runbooksPage
-	group    *groupPage
-	grouprun *groupRunPage
+	*pageKind
+	page
 }
 
-func newTabPage(name string) *tabPage {
-	p := &tabPage{name: name}
-	switch name {
-	case "keychain":
-		p.keychain = &keychainPage{}
-	case "logs":
-		p.logs = &logsPage{kind: "all"}
-	case "snippets":
-		p.snippets = &snippetsPage{}
-	case "notebooks":
-		p.notebook = &notebooksPage{}
-	case "forwards":
-		p.forwards = &forwardsPage{show: tunnelAll}
-	case "settings":
-		p.settings = newSettingsPage()
-	case pageAgent:
-		p.agent = &agentPage{}
-	case "runbooks":
-		p.runbooks = &runbooksPage{}
-	case "group":
-		p.group = newGroupPage()
-	case "grouprun":
-		p.grouprun = &groupRunPage{}
+// pageAs is the tab's page when the tab holds a T, or nil: the one way to the concrete page.
+func pageAs[T page](t *tab) (p T) {
+	if t != nil && t.pg != nil {
+		p, _ = t.pg.page.(T)
 	}
 	return p
 }
@@ -111,13 +125,11 @@ func (w *workspace) pageTab(name string) *tab {
 // addPageTab appends a page's tab without showing or reading it. It does nothing for a name this client does not
 // have, or a page that is already open.
 func (w *workspace) addPageTab(name string) *tab {
-	if _, ok := pageDefs[name]; !ok || w.pageTab(name) != nil {
+	k := pageKindOf(name)
+	if k == nil || w.pageTab(name) != nil {
 		return nil
 	}
-	t := &tab{panes: map[string]*pane{}, pg: newTabPage(name)}
-	if t.pg.settings != nil {
-		w.initSliders(t.pg.settings)
-	}
+	t := &tab{panes: map[string]*pane{}, pg: &tabPage{k, k.make(w)}}
 	w.tabs = append(w.tabs, t)
 	return t
 }
@@ -133,93 +145,27 @@ func (w *workspace) openPage(name string) {
 	}
 }
 
-// loadPage reads what the page shows.
+// loadPage reads what the tab's page shows; it does nothing for a tab that is not a page.
 func (w *workspace) loadPage(t *tab) {
-	switch {
-	case t.pg == nil:
-	case t.pg.keychain != nil:
-		w.loadIdentities()
-	case t.pg.logs != nil:
-		w.loadLogs()
-	case t.pg.snippets != nil:
-		w.reloadSnippets()
-	case t.pg.notebook != nil:
-		w.reloadNotebooks()
-	case t.pg.forwards != nil:
-		w.reloadTunnels()
-	case t.pg.settings != nil:
-		w.loadSettings()
-		if t.pg.settings.section == "agent" {
-			w.loadAgentSettings()
-		}
-	case t.pg.agent != nil:
-		w.loadAgent()
-		w.loadConversations()
-	case t.pg.runbooks != nil:
-		w.loadRunbooks()
-	case t.pg.group != nil:
-		w.loadGroupPage()
-	case t.pg.grouprun != nil:
-		w.loadGroupRunPage()
+	if t.pg != nil {
+		t.pg.load(w)
 	}
 }
 
-// refreshPages reads every open page again: the vault changed, or a page was selected.
+// refreshPages reads every open page again: the vault changed.
 func (w *workspace) refreshPages() {
 	for _, t := range w.tabs {
 		w.loadPage(t)
 	}
 }
 
-// newItem is ⌘N: the page's own New on a tab page, New host elsewhere (term.js newItem).
+// newItem is ⌘N: the page's own New on a tab page that has one, New host elsewhere.
 func (w *workspace) newItem() {
 	if t := w.tab(); t != nil && t.pg != nil {
-		switch {
-		case t.pg.keychain != nil:
-			w.newIdentity()
-			return
-		case t.pg.snippets != nil:
-			w.newSnippet()
-			return
-		case t.pg.notebook != nil: // ⌘N on the Notebooks page is its New notebook (term.js newItem)
-			w.newNotebook()
-			return
-		case t.pg.forwards != nil:
-			w.newForward()
-			return
-		case t.pg.agent != nil: // ⌘N on the Agent page is New conversation (agentpage.js newConversation)
-			w.newAgentConversation()
-			return
-		case t.pg.runbooks != nil: // ⌘N on the Runbooks page is its New (term.js newItem)
-			w.newRunbook()
+		if p, ok := t.pg.page.(pageNewItem); ok {
+			p.newItem(w)
 			return
 		}
 	}
 	w.newHost()
-}
-
-// pageView is the stage for a page tab.
-func (w *workspace) pageView(c *ui.Context, t *tab) {
-	switch {
-	case t.pg.keychain != nil:
-		w.keychainView(c, t.pg.keychain)
-	case t.pg.logs != nil:
-		w.logsView(c, t.pg.logs)
-	case t.pg.snippets != nil:
-		w.snippetsView(c, t.pg.snippets)
-	case t.pg.notebook != nil:
-		w.notebooksView(c, t.pg.notebook)
-	case t.pg.forwards != nil:
-		w.forwardsView(c, t.pg.forwards)
-	case t.pg.settings != nil:
-		w.settingsView(c, t.pg.settings)
-	case t.pg.agent != nil:
-		w.agentPageView(c, t.pg.agent)
-	case t.pg.runbooks != nil:
-		w.runbooksView(c, t.pg.runbooks)
-	case t.pg.group != nil:
-		w.groupPageView(c, t.pg.group)
-	case t.pg.grouprun != nil:
-		w.groupRunView(c, t.pg.grouprun)
-	}
 }

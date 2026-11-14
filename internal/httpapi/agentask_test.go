@@ -35,6 +35,7 @@ const (
 
 type askFixture struct {
 	srv     *httptest.Server
+	server  *Server
 	st      *store.Store
 	rt      *runtime.Runtime
 	logPath string
@@ -48,15 +49,17 @@ type askFixture struct {
 	offID   string
 }
 
+// askSuggestTimeout is the suggestion model bound the next newAskFixture gives its server (0: the default).
+var askSuggestTimeout time.Duration
+
 func bp(b bool) *bool { return &b }
 
 func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	t.Helper()
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
-	st, err := store.New(filepath.Join(dir, "keel.json"))
+	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +98,9 @@ func newAskFixture(t *testing.T, withKey bool) *askFixture {
 		return f.fake, nil
 	}
 	server := New(st, f.rt, nil).WithLogs(f.logs).WithAgentProvider(factory, true).WithAgentJudge(func(string) (provider.Judge, error) { return f.judge, nil }).WithMCPAuth(askMCPToken)
-	f.srv = httptest.NewServer(server.Handler())
+	f.server = server
+	server.agentSuggestTimeout = askSuggestTimeout
+	f.srv = httptest.NewServer(server.openHandler())
 	// Registered after t.TempDir, so it runs before the temp dir goes.
 	t.Cleanup(func() {
 		f.srv.Close()
@@ -132,7 +137,6 @@ func (f *askFixture) bridge(t *testing.T, hostID string) *fakeBridge {
 	return nil
 }
 
-// open spawns a session on host and prints text into it.
 func (f *askFixture) open(t *testing.T, hostID, text string) runtime.Info {
 	t.Helper()
 	info := spawn(t, f.srv.URL, hostID)
@@ -224,7 +228,13 @@ func TestAgentAskRoute(t *testing.T) {
 	if len(trace) != 2 || trace[0].(map[string]any)["status"] != "read" || trace[1].(map[string]any)["reason"] != "not-readable" {
 		t.Fatalf("trace = %v", trace)
 	}
+	// Newest first: the request sent to the provider (logged by the
+	// service's one sender), then the pane read.
 	reads := f.logEntries(agent.EventRead)
+	if len(reads) != 2 || !strings.Contains(reads[0].Message, "to answer it") || reads[0].SessionID != "" {
+		t.Fatalf("agent.read entries = %+v", reads)
+	}
+	reads = reads[1:]
 	if len(reads) != 1 || reads[0].SessionID != web.ID || len(reads[0].Redactions) == 0 {
 		t.Fatalf("agent.read entries = %+v", reads)
 	}
@@ -414,12 +424,14 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 }
 
 // §6.1 at the source: the agent routes cannot write to a session. The
-// files that hold them (the ask, the runbooks of §16, and keel mcp's
-// routes) call no write, inject, spawn or resize method, and touch the
-// runtime only through Get, List, ReadScrollback, LastCommand,
-// CommandsAfter and CommandOutput (reads).
+// files that hold them (the ask, the settings and conversations, notes,
+// runbooks, groups and notebooks, and keel mcp's routes) call no write,
+// inject, spawn or resize method, and touch the runtime only through Get,
+// List, ReadScrollback, LastCommand, CommandsAfter and CommandOutput
+// (reads). TestAgentAndMCPRoutesReachNoWriter follows every handler, in
+// any file, by type.
 func TestAgentRoutesHaveNoWritePath(t *testing.T) {
-	for _, file := range []string{"agentask.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go", "mcp.go"} {
+	for _, file := range []string{"agent.go", "agentask.go", "agentnotes.go", "agentrunbooks.go", "agentgroups.go", "groupvars.go", "agentnotebooks.go", "mcp.go"} {
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, file, nil, 0)
 		if err != nil {

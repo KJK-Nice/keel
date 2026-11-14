@@ -11,7 +11,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Plan 030 step 4: loading.Blocks means "the model is working". It shows while an ask is in flight and stops on an answer, an
+// loading.Blocks means "the model is working". It shows while an ask is in flight and stops on an answer, an
 // error, Stop and a timeout; it is named for assistive technology; it never takes the input, so Stop stays clickable.
 
 const workingLabel = "Agent is working"
@@ -68,7 +68,7 @@ func TestBlocksShowWhileTheModelWorksAndStopOnAnswerErrorAndTimeout(t *testing.T
 		}
 		release()
 		finish()
-		if r.has(workingLabel) || r.w.agent.busy != nil {
+		if r.has(workingLabel) || r.w.agentState().busy != nil {
 			t.Errorf("%s: Blocks still shows after the ask ended", c.name)
 		}
 	}

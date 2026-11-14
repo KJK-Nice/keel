@@ -1,7 +1,6 @@
 package session
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 
@@ -30,7 +29,7 @@ func BridgeExit(br Bridge) ExitKind {
 }
 
 func Open(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
-	if host.AuthType == "local" {
+	if host.IsLocal() {
 		return openLocal(cols, rows)
 	}
 	return openSSH(host, cols, rows, checkKey)
@@ -39,18 +38,19 @@ func Open(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
 func ParseSize(colsQ, rowsQ string) (int, int) {
 	cols, _ := strconv.Atoi(colsQ)
 	rows, _ := strconv.Atoi(rowsQ)
+	return ClampSize(cols, rows)
+}
+
+const maxTerminalDim = 1000
+
+// ClampSize defaults a non-positive size to 80x24 and caps each side so it
+// fits the uint16 the PTY and SSH window-change calls take.
+func ClampSize(cols, rows int) (int, int) {
 	if cols < 1 {
 		cols = 80
 	}
 	if rows < 1 {
 		rows = 24
 	}
-	return cols, rows
-}
-
-func ConnectingMessage(h store.Host) string {
-	if h.AuthType == "local" {
-		return "Opening local shell…"
-	}
-	return fmt.Sprintf("Connecting to %s@%s…", h.Username, h.Address)
+	return min(cols, maxTerminalDim), min(rows, maxTerminalDim)
 }

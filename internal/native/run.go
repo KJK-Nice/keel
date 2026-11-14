@@ -4,10 +4,8 @@ import (
 	"embed"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
@@ -15,7 +13,6 @@ import (
 
 	"keel/internal/authtoken"
 	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
 	"keel/internal/paths"
 )
 
@@ -30,11 +27,8 @@ var fontFiles embed.FS
 // registerFonts adds the embedded JetBrains Mono and IBM Plex Mono (woff2) as their families. fonts/ holds the
 // eight woff2 files and the two OFL licences (TestEmbeddedFontsAreTheShippedSet).
 func registerFonts() {
-	if runtime.GOOS == "linux" {
-		// Not on Linux (issue #140, plan 037 round 2): on Ubuntu a registered family measured about 1.8 times too wide (29
-		// characters of JetBrains Mono at 13 px came out 399 px, the system monospace 232 and the font's own advance gives
-		// about 226), which made the terminal's cells about twice as wide as its glyphs, and JetBrains Mono and IBM Plex Mono
-		// rendered alike. The stacks fall back to the system monospace until MyGo's Linux registration is understood.
+	if platform == "linux" {
+		// Not on Linux until MyGo's registration there is understood (issue #140; docs/native.md, Linux).
 		return
 	}
 	files, _ := fontFiles.ReadDir("fonts")
@@ -117,9 +111,15 @@ func liveBodyT(p *pane, transparent bool) {
 
 // Options say which keel serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
 // what keel app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
+// Name is the display name keel app was started with (--name, else KEEL_NAME, else the user name); "" leaves it to
+// the environment (keel-native parses no flags).
 type Options struct {
 	Addr, DataDir, AppBuild string
+	Name                    string
 }
+
+// launchName is Options.Name. RunWith sets it once, before any window; defaultName reads it.
+var launchName string
 
 // Run opens the window on a running keel serve (the address and data directory of internal/paths) and blocks
 // until the app quits. It does not start keel serve.
@@ -134,15 +134,12 @@ func RunWith(o Options) error {
 		return fmt.Errorf("read the keel serve token (is keel serve running?): %w", err)
 	}
 	cl := keelclient.NewAt(o.Addr, tok)
-	pr, err := loadPrefs(o.DataDir).withEnv()
-	if err != nil {
-		return err
-	}
+	cl.Name, launchName = o.Name, o.Name
+	pr := loadPrefs(o.DataDir)
 	registerFonts()
 	w := newWorkspace(clientBackend{cl})
 	w.appBuild = o.AppBuild
-	w.dataDir, w.termSize = o.DataDir, pr.TermSize
-	w.win, w.term = pr, loadTermPrefs(o.DataDir)
+	w.dataDir, w.prefs = o.DataDir, pr
 	// Transparent cannot change on an open window: Window opacity applies live only when it starts below 100
 	// (settings.go).
 	translucent := pr.Opacity < opacityMax
@@ -172,7 +169,7 @@ func RunWith(o Options) error {
 			return mygo.Dialog.Save(mygo.SaveDialogOptions{Parent: win, Title: "Save " + name, DefaultPath: name, CreateDirectories: true})
 		}
 		w.cornerR = windowCornerRadius()
-		// The window has no shadow (plan 037 part C).
+		// The window has no shadow.
 		win.OnShow(func() { setWindowHasShadow(win, false) })
 		if translucent { // the blur is set when the window shows, and again whenever Settings changes it
 			blur := func(radius int) { blurOnce(win, radius)() }
@@ -183,9 +180,6 @@ func RunWith(o Options) error {
 		(&shell{w: w, win: win}).start()
 		w.start()
 		w.startPoll(pollEvery)
-		if path := os.Getenv("KEEL_NATIVE_CAPTURE"); path != "" {
-			capture(win, w, path)
-		}
 	})
 	return mygo.App.Run()
 }
@@ -201,34 +195,4 @@ func blurOnce(win *mygo.Window, radius int) func() {
 			}
 		}()
 	}
-}
-
-// capture is for looking at the screen: it opens a local host split to the right, waits, writes
-// a PNG of the page to path and quits.
-func capture(win *mygo.Window, w *workspace, path string) {
-	var once sync.Once
-	win.OnShow(func() {
-		once.Do(func() {
-			time.AfterFunc(2*time.Second, func() {
-				win.Update(func() {
-					if len(w.tabs) == 0 {
-						w.newTab()
-					}
-				})
-				time.AfterFunc(3*time.Second, func() {
-					win.Update(func() { w.splitFocused(layout.Row) })
-					time.AfterFunc(4*time.Second, func() {
-						png, err := win.CapturePage()
-						if err == nil {
-							err = os.WriteFile(path, png, 0o644)
-						}
-						if err != nil {
-							fmt.Fprintln(os.Stderr, "capture:", err)
-						}
-						mygo.App.Quit()
-					})
-				})
-			})
-		})
-	})
 }

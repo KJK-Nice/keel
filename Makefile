@@ -1,10 +1,10 @@
-.PHONY: app build package native-e2e native-automation native-automation-build test signal macos-icon lint fmt vet staticcheck vulncheck
+.PHONY: app build keel-binary helpers package native-e2e native-automation native-automation-build test bench signal macos-icon lint fmt vet staticcheck vulncheck
 
 ADDR ?= 127.0.0.1:47241
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
 # Release builds stamp the version into `keel version`:
-#   make package KEEL_VERSION=v0.2.0
+#   make package KEEL_VERSION=vX.Y.Z
 # (the packages carry the version of mygo.json; scripts/release.sh checks the two agree)
 KEEL_VERSION ?= dev
 KEEL_X := -X main.version=$(KEEL_VERSION)
@@ -20,13 +20,22 @@ KEEL_LDFLAGS := -ldflags "$(KEEL_X)"
 app:
 	CGO_ENABLED=0 KEEL_ADDR=$(ADDR) go run $(KEEL_LDFLAGS) ./cmd/keel app
 
-# bin/keel is the plain binary for development (no bundle: libghostty-vt downloads into the user cache on first run).
-# make package builds the shipped app next to it.
-build:
-	rm -f bin/keel
-	CGO_ENABLED=0 go build $(KEEL_LDFLAGS) -o bin/keel ./cmd/keel
+# The one recipe that builds ./cmd/keel into KEEL_OUT, with the build tags in KEEL_TAGS (none for a normal build; the
+# test builds below set them for their own target only). bin/keel is the plain binary for development (no bundle:
+# libghostty-vt downloads into the user cache on first run).
+KEEL_TAGS ?=
+KEEL_OUT ?= bin/keel
+keel-binary:
+	rm -f $(KEEL_OUT)
+	CGO_ENABLED=0 go build $(KEEL_LDFLAGS) $(if $(KEEL_TAGS),-tags $(KEEL_TAGS)) -o $(KEEL_OUT) ./cmd/keel
+
+# The helper binaries next to bin/keel: the signaling server and the test SSH server.
+helpers:
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
+
+# make package builds the shipped app next to bin/keel.
+build: keel-binary helpers
 	$(MAKE) package
 
 # THIRD_PARTY_NOTICES goes into every package (mygo.json resources). It needs the network, so it is made once;
@@ -52,24 +61,31 @@ signal:
 
 # The native client end to end: the real view and terminal under MyGo's
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
-native-e2e:
-	rm -f bin/keel
-	CGO_ENABLED=0 go build -o bin/keel ./cmd/keel
-	go build -o bin/keel-sshtest ./cmd/keel-sshtest
-	go build -o bin/keel-signal ./cmd/keel-signal
+# The tag keelfake links the agent's test provider (KEEL_AGENT_PROVIDER=fake), which no other build has: this
+# bin/keel is a test binary, and make build replaces it.
+native-e2e: KEEL_TAGS = keelfake
+native-e2e: keel-binary helpers
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
-native-automation-build:
-	rm -f bin/keel-e2e
-	CGO_ENABLED=0 go build -tags keelautomation -o bin/keel-e2e ./cmd/keel
+# bin/keel-e2e is the test build the automation suite drives: its first tag opens MyGo's automation socket
+# (internal/native.CheckAutomationEnv guards it) and the second links the fake agent provider. No release path passes
+# either tag.
+native-automation-build: KEEL_TAGS = keelautomation,keelfake
+native-automation-build: KEEL_OUT = bin/keel-e2e
+native-automation-build: keel-binary
 
-# Drives the built app from outside through MyGo's automation socket (plan 029). Opens real windows briefly.
+# Drives the built app from outside through MyGo's automation socket. Opens real windows briefly.
 # Scratch data only; not part of make test or make native-e2e.
 native-automation: native-automation-build
 	go test -tags nativeautomation -count=1 -timeout 10m ./tests/native-automation/
 
 test:
 	go test ./...
+
+# The store's save and lock contention and the scrollback ring (not part of make test).
+bench:
+	go test ./internal/store -run '^$$' -bench 'NotebookAutosave|ReadIdle|ReadDuringSaves' -benchmem -count 3
+	go test ./internal/runtime -run '^$$' -bench RingWrite -benchmem -count 3
 
 fmt:
 	@out=$$(gofmt -l $$(git ls-files '*.go')); \

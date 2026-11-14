@@ -18,8 +18,7 @@ import (
 
 func settingsBackend() *fakeBackend {
 	fb := okBackend()
-	yes := true
-	fb.runtime = keelclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: &yes}
+	fb.runtime = keelclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: true}
 	fb.vault = keelclient.Vault{Mode: "passphrase", KeyringOff: true, Path: "/scratch/data/keel.vault"}
 	return fb
 }
@@ -28,7 +27,7 @@ func settingsRig(t *testing.T, fb *fakeBackend) *rig {
 	t.Helper()
 	dir := t.TempDir()
 	r := newRigIn(t, fb, dir)
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	return r
 }
@@ -61,7 +60,6 @@ func TestSettingsNavIsTheApps(t *testing.T) {
 		t.Error("the tab is not named Settings")
 	}
 	r.texts(t, "Display", "Theme", "Light, dark, or follow the system.", "Window opacity")
-	// What is in the app and not here is not drawn.
 	for _, s := range []string{"Font smoothing"} {
 		if r.has("setting " + s) {
 			t.Errorf("%q is drawn; this client has no counterpart", s)
@@ -70,6 +68,7 @@ func TestSettingsNavIsTheApps(t *testing.T) {
 }
 
 func TestSettingsOpensFromTheKeyTheFooterAndThePalette(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := newRig(t, settingsBackend())
 	r.tt.Frame()
 	r.tt.Key(ui.Cmd, ui.KeyComma)
@@ -96,9 +95,9 @@ func TestSettingsOpensFromTheKeyTheFooterAndThePalette(t *testing.T) {
 	if r.w.pageTab("settings") == nil {
 		t.Error("the palette did not open Settings")
 	}
-	r.w.openPage("settings") // one instance
+	r.w.showPage("settings") // one instance
 	n := 0
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		if tb.isPage() && tb.pg.name == "settings" {
 			n++
 		}
@@ -117,8 +116,8 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	r := &rig{fb: fb}
 	r.w = newWorkspace(fb)
 	r.w.useDataDir(t, dir)
-	r.w.win = loadPrefs(dir)
-	r.w.translucentWin, r.w.alpha = true, r.w.win.alpha() // the window started translucent
+	r.w.prefs = loadPrefs(dir)
+	r.w.translucentWin, r.w.alpha = true, r.w.prefs.alpha() // the window started translucent
 	r.w.work = func(fn func()) { fn() }
 	r.w.post = func(fn func()) { fn() }
 	r.w.mkBody = placeholder(&r.released)
@@ -129,14 +128,14 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	wantPixel(t, "title bar at 66", r.tt.Image(), 900, 10, chrome, 0.66)
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
-	p := r.w.pageTab("settings").pg.settings
-	if p.opacityV != 66 || p.blurV != 20 || p.sizeV != 12 {
-		t.Fatalf("the sliders start at %v %v %v", p.opacityV, p.blurV, p.sizeV)
+	p := r.w.settingsPage()
+	if p.sliders[keyOpacity].v != 66 || p.sliders[keyBlur].v != 20 || p.sliders[keyTermSize].v != 12 {
+		t.Fatalf("the sliders start at %v %v %v", p.sliders[keyOpacity].v, p.sliders[keyBlur].v, p.sliders[keyTermSize].v)
 	}
 	// Window opacity 80: the grounds repaint at 0.8 at once, the file has opacity 80 and every other field.
-	p.opacityV = 80
+	p.sliders[keyOpacity].v = 80
 	r.tt.Frame()
 	wantPixel(t, "title bar at 80", r.tt.Image(), 900, 10, chrome, 0.8)
 	f := r.prefsFile(t)
@@ -148,20 +147,20 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	}
 	// Blur 40: saved, applied.
 	if hasBlur() {
-		p.blurV = 40
+		p.sliders[keyBlur].v = 40
 		r.tt.Frame()
 		if string(r.prefsFile(t)["blur"]) != "40" || blurs[len(blurs)-1] != 40 {
 			t.Errorf("blur %v %v", r.prefsFile(t)["blur"], blurs)
 		}
 	}
 	// Crossing 100 paints the grounds opaque and clears the blur; going back brings both again.
-	p.opacityV = 100
+	p.sliders[keyOpacity].v = 100
 	r.tt.Frame()
 	wantPixel(t, "title bar at 100", r.tt.Image(), 900, 10, chrome, 1)
 	if blurs[len(blurs)-1] != 0 || r.w.alpha != 1 {
 		t.Errorf("at 100: alpha %v blurs %v", r.w.alpha, blurs)
 	}
-	p.opacityV = 50
+	p.sliders[keyOpacity].v = 50
 	r.tt.Frame()
 	wantPixel(t, "title bar at 50", r.tt.Image(), 900, 10, chrome, 0.5)
 	if r.w.alpha != 0.5 || blurs[len(blurs)-1] == 0 {
@@ -170,17 +169,17 @@ func TestSettingsAppearanceSlidersWriteTheFileKeepUnknownFieldsAndRepaint(t *tes
 	// Text size is shared with ⌘+ and ⌘-: the slider follows them and they follow it.
 	r.tt.Key(ui.Cmd, ui.KeyEqual)
 	r.tt.Frame()
-	if p.sizeV != 13 || string(r.prefsFile(t)["termSize"]) != "13" {
-		t.Errorf("after ⌘+: slider %v file %s", p.sizeV, r.prefsFile(t)["termSize"])
+	if p.sliders[keyTermSize].v != 13 || string(r.prefsFile(t)["termSize"]) != "13" {
+		t.Errorf("after ⌘+: slider %v file %s", p.sliders[keyTermSize].v, r.prefsFile(t)["termSize"])
 	}
-	p.sizeV = 18
+	p.sliders[keyTermSize].v = 18
 	r.tt.Frame()
-	if r.w.termSize != 18 || r.w.tabs[0].panes["1"].fontSize != 18 {
-		t.Errorf("the slider left the text size at %d (pane %v)", r.w.termSize, r.w.tabs[0].panes["1"].fontSize)
+	if r.w.prefs.TermSize != 18 || r.w.tabAt(0).panes["1"].fontSize != 18 {
+		t.Errorf("the slider left the text size at %d (pane %v)", r.w.prefs.TermSize, r.w.tabAt(0).panes["1"].fontSize)
 	}
 }
 
-// Plan 037 part C: the Window shadow setting is gone. An old file that has it still loads, the page has no such row, and the
+// There is no Window shadow setting. An old file that has it still loads, the page has no such row, and the
 // next save leaves the key out.
 func TestAnOldWindowShadowKeyIsIgnoredAndDropped(t *testing.T) {
 	dir := t.TempDir()
@@ -211,16 +210,16 @@ func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
 	r.tt.Key(0, ui.KeyRight)
 	r.tt.Frame()
 	// The click set the middle of 10–22 (16) and → stepped to 17.
-	if r.w.termSize != 17 || string(r.prefsFile(t)["termSize"]) != "17" {
-		t.Errorf("→ on the Text size slider left %d", r.w.termSize)
+	if r.w.prefs.TermSize != 17 || string(r.prefsFile(t)["termSize"]) != "17" {
+		t.Errorf("→ on the Text size slider left %d", r.w.prefs.TermSize)
 	}
 }
 
 func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 	r := settingsRig(t, settingsBackend()) // translucentWin is false: the window started opaque
-	r.w.win.Opacity = 100
-	p := r.w.pageTab("settings").pg.settings
-	p.opacityV = 70
+	r.w.prefs.Opacity = 100
+	p := r.w.settingsPage()
+	p.sliders[keyOpacity].v = 70
 	r.tt.Frame()
 	if r.w.alpha != 1 {
 		t.Errorf("an opaque window painted translucent grounds: alpha %v", r.w.alpha)
@@ -237,57 +236,58 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	r.texts(t, "Session", "Text size", "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", "Input", "Copy on select", "Copy terminal selection to the clipboard.",
 		"Right-click in the terminal", "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
 		"Paste", "Menu", "Nothing", "guest@keel:~ $ ssh prod-api")
-	if !r.w.term.CopyOnSelect || r.w.term.RightClick != "menu" {
-		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.term)
+	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
+		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
-	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the app's five, chosen by default
+	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the five, chosen by default
 	r.w.openHost(testHosts[1])                                                 // a pane to change live
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")
 	var offs []bool
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		for _, p := range tb.panes {
 			p.setCopy = func(on bool) { offs = append(offs, on) }
 		}
 	}
 	r.click(t, "Copy on select switch")
-	if r.w.term.CopyOnSelect || !slices.Equal(offs, []bool{false}) || string(r.prefsFile(t)["copyOnSelect"]) != "false" {
-		t.Errorf("copy on select: %+v calls %v file %v", r.w.term, offs, r.prefsFile(t))
+	if r.w.prefs.CopyOnSelect || !slices.Equal(offs, []bool{false}) || string(r.prefsFile(t)["copyOnSelect"]) != "false" {
+		t.Errorf("copy on select: %+v calls %v file %v", r.w.prefs, offs, r.prefsFile(t))
 	}
 	r.click(t, "Paste")
-	if r.w.term.RightClick != "paste" || string(r.prefsFile(t)["rightClick"]) != `"paste"` {
-		t.Errorf("right click %q file %v", r.w.term.RightClick, r.prefsFile(t))
+	if r.w.prefs.RightClick != "paste" || string(r.prefsFile(t)["rightClick"]) != `"paste"` {
+		t.Errorf("right click %q file %v", r.w.prefs.RightClick, r.prefsFile(t))
 	}
 	// A pane opened now takes it; the file is read back as written.
 	r.w.openHost(testHosts[1])
 	if got := r.w.focusedPane(); got.rightClick != "paste" || got.copyOnSelect {
 		t.Errorf("a new pane has %q %v", got.rightClick, got.copyOnSelect)
 	}
-	if got := loadTermPrefs(r.w.dataDir); got.RightClick != "paste" || got.CopyOnSelect {
+	if got := loadPrefs(r.w.dataDir); got.RightClick != "paste" || got.CopyOnSelect {
 		t.Errorf("read back %+v", got)
 	}
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.click(t, "Nothing")
-	if r.w.term.RightClick != "nothing" {
-		t.Errorf("right click %q", r.w.term.RightClick)
+	if r.w.prefs.RightClick != "nothing" {
+		t.Errorf("right click %q", r.w.prefs.RightClick)
 	}
 }
 
 func TestLoadTermPrefs(t *testing.T) {
 	dir := t.TempDir()
-	if got := loadTermPrefs(dir); got != (termPrefs{CopyOnSelect: true, RightClick: "menu"}) {
+	if got := loadPrefs(dir); !got.CopyOnSelect || got.RightClick != "menu" || got.Name != "" {
 		t.Errorf("missing file: %+v", got)
 	}
 	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(`{"copyOnSelect":false,"rightClick":"sideways","name":"  `+strings.Repeat("é", 50)+` "}`), 0o600)
-	got := loadTermPrefs(dir)
+	got := loadPrefs(dir)
 	if got.CopyOnSelect || got.RightClick != "menu" || len([]rune(got.Name)) != nameMax {
 		t.Errorf("got %+v", got)
 	}
 }
 
 func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Keyboard")
 	r.texts(t, "The keys Keel handles. They are fixed; the command palette shows the same keys beside each action.",
@@ -301,7 +301,7 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	if !r.has("Toggle agent panel") || !r.has("keys ⌘I") {
 		t.Error("Toggle agent panel ⌘I is not listed")
 	}
-	if !r.has("Ask the agent (from the palette)") || !r.has("keys ⌘↵") { // the palette's ⌘↵ row is built (plan 025)
+	if !r.has("Ask the agent (from the palette)") || !r.has("keys ⌘↵") { // the palette's ⌘↵ row is built
 		t.Error("Ask the agent (from the palette) ⌘↵ is not listed")
 	}
 	if !r.has("Put back your words after an inserted suggestion") || !r.has("keys ⌘Z") {
@@ -322,13 +322,13 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	r.fill(t, "Display name input", "  Ann  ")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.term.Name != "Ann" {
-		t.Errorf("the name is trimmed: %q", r.w.term.Name)
+	if r.w.prefs.Name != "Ann" {
+		t.Errorf("the name is trimmed: %q", r.w.prefs.Name)
 	}
 	r.fill(t, "Display name input", strings.Repeat("n", 50))
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if got := r.w.term.Name; got != strings.Repeat("n", 40) || string(r.prefsFile(t)["name"]) != `"`+strings.Repeat("n", 40)+`"` {
+	if got := r.w.prefs.Name; got != strings.Repeat("n", 40) || string(r.prefsFile(t)["name"]) != `"`+strings.Repeat("n", 40)+`"` {
 		t.Errorf("name %q file %v", got, r.prefsFile(t)["name"])
 	}
 	// The signal server goes to keel serve as typed (trimmed); keel serve validates it.
@@ -392,7 +392,7 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	fb := settingsBackend()
 	r := settingsRig(t, fb)
 	r.w.openHost(testHosts[1])
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Runtime")
 	r.texts(t, "keel serve owns your sessions and serves this window. It keeps running when the window closes.",
@@ -407,12 +407,12 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 		t.Fatal("stopped before the confirm")
 	}
 	r.click(t, "Cancel")
-	if fb.runtimeStops != 0 || r.w.confirm != nil {
+	if fb.runtimeStops != 0 || r.w.confirmOpen() {
 		t.Fatalf("Cancel stopped: %d", fb.runtimeStops)
 	}
 	r.click(t, "Stop runtime…")
 	r.click(t, "alertdialog Stop the Keel runtime?")
-	r.w.confirm.run()
+	r.w.confirmDlg().run()
 	r.tt.Frame()
 	if fb.runtimeStops != 1 || !r.tt.HasText("Keel runtime stopped") {
 		t.Errorf("stops %d", fb.runtimeStops)
@@ -421,15 +421,14 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	fb.stopErr = errors.New("nope")
 	r.w.askStopRuntime()
 	r.tt.Frame()
-	r.w.confirm.run()
+	r.w.confirmDlg().run()
 	r.tt.Frame()
 	r.texts(t, "stop runtime: nope")
 	// A runtime that cannot be stopped says no.
-	no := false
-	fb.runtime.CanStop = &no
+	fb.runtime.CanStop = false
 	r.w.loadSettings()
 	r.tt.Frame()
-	if err := r.tt.Click("Stop runtime…"); err == nil && r.w.confirm != nil {
+	if err := r.tt.Click("Stop runtime…"); err == nil && r.w.confirmOpen() {
 		t.Error("Stop opened its confirm for a runtime that cannot stop")
 	}
 }
@@ -447,13 +446,14 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 	rows[0].run(false)
 	r.w.closePalette()
 	r.tt.Frame()
-	if fb.runtimeStops != 0 || r.w.confirm == nil {
+	if fb.runtimeStops != 0 || !r.w.confirmOpen() {
 		t.Fatalf("the palette stopped the runtime without asking: stops %d", fb.runtimeStops)
 	}
 	r.texts(t, "Stop the Keel runtime?")
 }
 
 func TestSettingsAboutAndSearch(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "About Keel")
 	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/keel", "README", "Copy link")
@@ -479,7 +479,7 @@ func TestSettingsPageIsSavedWithTheTabs(t *testing.T) {
 	fb := settingsBackend()
 	dir := t.TempDir()
 	r := newRigIn(t, fb, dir)
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.w.closeWindow()
 	r2 := newRigIn(t, settingsBackend(), dir)
 	if r2.w.pageTab("settings") == nil {

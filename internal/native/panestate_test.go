@@ -14,19 +14,20 @@ import (
 func failedRig(t *testing.T, st keelclient.State, hostID string) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.sessions = []keelclient.Session{{ID: "s-x", HostID: hostID, Status: st.Status}}
+	fb.sessions = []keelclient.Session{{ID: "s-x", HostID: hostID, Status: string(st.Status)}}
 	r := newRig(t, fb)
 	r.fb.conns[0].st = &st
 	r.tt.Frame()
 	return r
 }
 
+// has reports whether an element is labelled label; r.tt.HasText is for what is drawn as text.
 func (r *rig) has(label string) bool { _, ok := r.tt.Find(label); return ok }
 
 func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
 	r := failedRig(t, keelclient.State{Status: "error", Message: "dial tcp: connection refused"}, "h-api")
-	if len(r.w.tabs) != 1 {
-		t.Fatalf("tabs %d: a failed session is hidden", len(r.w.tabs))
+	if r.w.tabCount() != 1 {
+		t.Fatalf("tabs %d: a failed session is hidden", r.w.tabCount())
 	}
 	for _, s := range []string{"Connection failed", "SSH 10.0.0.1:22", "dial tcp: connection refused"} {
 		if !r.tt.HasText(s) {
@@ -41,12 +42,12 @@ func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
 		t.Fatalf("reconnected %v killed %v", r.fb.reconnected, r.fb.killed)
 	}
 	r.click(t, "Close")
-	if !slices.Equal(r.fb.killed, []string{"s-x"}) || len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() {
-		t.Fatalf("killed %v tabs %d: closing the last tab leaves a New tab", r.fb.killed, len(r.w.tabs))
+	if !slices.Equal(r.fb.killed, []string{"s-x"}) || r.w.tabCount() != 1 || !r.w.tabAt(0).isNew() {
+		t.Fatalf("killed %v tabs %d: closing the last tab leaves a New tab", r.fb.killed, r.w.tabCount())
 	}
 }
 
-// term.js seedConnectLog, the log rows of renderFail and copyPaneFailLog: the failure banner has Copy logs between nothing and
+// The failure banner has Copy logs between nothing and
 // Close, the pane lists the connection log under it, and Copy logs puts exactly those lines on the clipboard.
 func TestAFailedPaneListsItsConnectionLogAndCopyLogsCopiesIt(t *testing.T) {
 	st := keelclient.State{Status: "error", Message: "dial tcp: connection refused", Log: []keelclient.LogLine{
@@ -240,10 +241,10 @@ func TestChangedHostKeyDialogReplaces(t *testing.T) {
 	}
 }
 
-// lib/share.js roleChipHTML: a role chip has a glyph before its words, steering for who drives and the owner, an eye for a
+// A role chip has a glyph before its words, steering for who drives and the owner, an eye for a
 // follower. The glyph is 0.923rem, before the words, inside the pill.
 func TestARoleChipHasItsGlyph(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
+	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
 	for _, tc := range []struct {
 		label, glyph string
 		st           keelclient.State
@@ -266,7 +267,7 @@ func TestARoleChipHasItsGlyph(t *testing.T) {
 }
 
 func TestRoleChipAndFollowerBannerOnlyWhenShared(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: "web", Role: "driver"}, {ID: 2, Name: "me", Kind: "web", Role: "follower"}}
+	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
 	for _, tc := range []struct {
 		name      string
 		st        keelclient.State

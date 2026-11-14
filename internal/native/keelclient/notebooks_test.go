@@ -162,7 +162,7 @@ func TestNotebookHistoryAndTrashCalls(t *testing.T) {
 	}
 }
 
-// A notebook's fence goes out as a direct type with Kind "notebook" and the notebook's id (pty.js typeDirect), and as an
+// A notebook's fence goes out as a direct type with Kind "notebook" and the notebook's id, and as an
 // approved inject with notebook:true and nothing added to the bytes.
 func TestANotebookFenceFramesAreTheAppsFrames(t *testing.T) {
 	c, s := dialDirect(t, answerWith("type-direct", map[string]any{"ok": true}))

@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -102,11 +103,11 @@ func TestACopyPutsExactlyTheFencesCodeOnTheClipboard(t *testing.T) {
 	}
 }
 
-// The app's fence bar always has the Type button on a shell fence (notebook-editor.mjs: "Type into pane" with no terminal);
-// pressing it with no terminal beside the notebook says so and sends nothing (plan 025 changed this from "no button").
+// The fence bar always has the Type button on a shell fence ("Type into pane" with no terminal);
+// pressing it with no terminal beside the notebook says so and sends nothing.
 func TestWithNoTerminalBesideItAShellFenceHasATypeButtonThatSaysSplitATerminalFirst(t *testing.T) {
 	r := nbRig(t, twoFences)
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(2)
 	r.click(t, "notebook Deploy")
 	r.frames(3)
@@ -121,10 +122,10 @@ func TestWithNoTerminalBesideItAShellFenceHasATypeButtonThatSaysSplitATerminalFi
 	if len(r.copyBtns()) != 3 {
 		t.Errorf("Copy buttons %q: Copy stays", r.copyBtns())
 	}
-	// Pressing it says what the app says and sends nothing.
+	// Pressing it says to split a terminal first and sends nothing.
 	r.click(t, fenceName("Type into pane", fs[0].Index))
 	r.frames(1)
-	if !r.tt.HasText("Split a terminal beside this notebook first") || len(r.directs()) != 0 || len(r.typed()) != 0 || r.w.approve != nil {
+	if !r.tt.HasText("Split a terminal beside this notebook first") || len(r.directs()) != 0 || len(r.typed()) != 0 || r.w.approveOpen() {
 		t.Errorf("no toast, or something was sent")
 	}
 }
@@ -250,12 +251,21 @@ func TestAOneLineShellFenceGoesThroughTypeNowAsANotebookFence(t *testing.T) {
 	if strings.ContainsAny(got[0].command, "\x15\r\n") {
 		t.Errorf("command %q: the line alone", got[0].command)
 	}
-	if r.w.approve != nil || len(r.typed()) != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 {
 		t.Error("a dialog opened, or the approved writer ran")
 	}
 	if !r.tt.HasText(typedNote("api-1")) {
 		t.Errorf("no 'Typed into…' toast: %q", r.tt.Texts())
 	}
+}
+
+// fenceDialog is the open Approve dialog's notebook source; false when no dialog is open or it is not a fence's.
+func (r *rig) fenceDialog() (approveNotebook, bool) {
+	if !r.w.approveOpen() {
+		return approveNotebook{}, false
+	}
+	s, ok := r.w.approveDlg().src.(approveNotebook)
+	return s, ok
 }
 
 func TestATwoLineShellFenceOpensTheDialogWithExactlyTheBytesAndTypesOnlyOnType(t *testing.T) {
@@ -264,10 +274,10 @@ func TestATwoLineShellFenceOpensTheDialogWithExactlyTheBytesAndTypesOnlyOnType(t
 	fs := fences(np.nb.md)
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
-	if len(r.directs()) != 0 || r.w.approve == nil || !r.w.approve.notebook {
-		t.Fatalf("directs %d approve %+v: a two-line fence is never a direct type", len(r.directs()), r.w.approve)
+	if _, fence := r.fenceDialog(); len(r.directs()) != 0 || !fence {
+		t.Fatalf("directs %d approve %+v: a two-line fence is never a direct type", len(r.directs()), r.w.approveDlg())
 	}
-	if got := r.w.approve.shown(); got != "echo one\necho two\n" {
+	if got := r.w.approveDlg().shown(); got != "echo one\necho two\n" {
 		t.Fatalf("the dialog shows %q", got)
 	}
 	r.frames(2)
@@ -278,7 +288,7 @@ func TestATwoLineShellFenceOpensTheDialogWithExactlyTheBytesAndTypesOnlyOnType(t
 	// Cancel types nothing.
 	r.click(t, "Cancel")
 	r.frames(2)
-	if r.w.approve != nil || len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
+	if r.w.approveOpen() || len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
 		t.Fatal("Cancel typed, or the dialog stayed")
 	}
 	// Type sends the bytes behind notebook:true, with no Ctrl-U.
@@ -304,8 +314,8 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "unreviewed"}
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
-	if len(r.directs()) != 1 || r.w.approve == nil || r.w.approve.note != unreviewedNote {
-		t.Fatalf("directs %d approve %+v", len(r.directs()), r.w.approve)
+	if s, _ := r.fenceDialog(); len(r.directs()) != 1 || s.note != unreviewedNote {
+		t.Fatalf("directs %d approve %+v", len(r.directs()), r.w.approveDlg())
 	}
 	if !r.tt.HasText(unreviewedNote) {
 		t.Errorf("the note is not on screen: %q", r.tt.Texts())
@@ -315,7 +325,7 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	}
 	r.click(t, "Cancel")
 	r.frames(2)
-	// The banner is there, with View changes, Undo and Mark reviewed (plan 024).
+	// The banner is there, with View changes, Undo and Mark reviewed.
 	if miss := r.lacks("Edited by the agent", agentEditReview, "Mark reviewed", "badge Edited by agent", "View changes", "Undo"); len(miss) > 0 {
 		t.Fatalf("banner lacks %q", miss)
 	}
@@ -342,15 +352,15 @@ func TestAFenceWithAPlaceholderIsRefusedWithTheAppsSentenceAndNothingIsSent(t *t
 		if !r.tt.HasText(placeholderRefused) {
 			t.Errorf("no refusal for %q: %q", f.Code, r.tt.Texts())
 		}
-		if len(r.directs()) != 0 || r.w.approve != nil || len(r.typed()) != 0 {
+		if len(r.directs()) != 0 || r.w.approveOpen() || len(r.typed()) != 0 {
 			t.Errorf("something was sent for %q", f.Code)
 		}
 	}
 	// The dialog's own check, if a placeholder ever reaches it.
-	r.w.askNotebookType(r.w.tab().firstTerm(), np, "echo [ip:1]")
+	r.w.askNotebookType(r.w.activeTab().firstTerm(), np, "echo [ip:1]")
 	r.w.approveType(false)
-	if r.w.approve == nil || r.w.approve.err != placeholderRefused || len(r.typed()) != 0 {
-		t.Errorf("the dialog sent a placeholder: %+v", r.w.approve)
+	if !r.w.approveOpen() || r.w.approveDlg().err != placeholderRefused || len(r.typed()) != 0 {
+		t.Errorf("the dialog sent a placeholder: %+v", r.w.approveDlg())
 	}
 }
 
@@ -373,8 +383,8 @@ func TestAFollowedPaneCannotBeTypedIntoFromANotebook(t *testing.T) {
 	fs := fences(np.nb.md)
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
-	if len(r.directs()) != 0 || r.w.approve == nil {
-		t.Fatalf("directs %d approve %v: a follower gets the dialog's refusal", len(r.directs()), r.w.approve)
+	if len(r.directs()) != 0 || !r.w.approveOpen() {
+		t.Fatalf("directs %d approve %v: a follower gets the dialog's refusal", len(r.directs()), r.w.approveDlg())
 	}
 	if !r.tt.HasText("You are following — take or request control to type") {
 		t.Errorf("no refusal: %q", r.tt.Texts())
@@ -444,6 +454,18 @@ func TestAChangeOnTheServerWhileTypingKeepsTheTypingAndSaysSoWhenTheAgentMadeIt(
 	}
 }
 
+func TestASaveThatFailsAtCloseIsReported(t *testing.T) {
+	r := nbRig(t, "text\n")
+	np := r.openNB(t, "nb1")
+	np.nb.auto.edit(time.Now())
+	np.nb.md += "typed\n"
+	r.fb.nb.saveErr = &keelclient.StatusError{Code: 500, Status: "500"}
+	r.w.closeWindow()
+	if r.fb.nb.reqsWith("put") != 1 || !np.nb.failed || !slices.ContainsFunc(r.w.queued, func(t ui.Toast) bool { return t.Title == "Could not save notebook" }) {
+		t.Errorf("reqs %v failed %v toasts %+v", r.fb.nb.reqs, np.nb.failed, r.w.queued)
+	}
+}
+
 func TestAFailedSaveKeepsTheTypingAndTheNextEditTriesAgain(t *testing.T) {
 	r := nbRig(t, "text\n")
 	np := r.openNB(t, "nb1")
@@ -487,7 +509,7 @@ func TestTheFocusedAndZoomedNotebookPaneAreRestoredWithTheWorkspace(t *testing.T
 		r := newRigIn(t, fb, dir)
 		r.w.openNotebook("nb1")
 		r.tt.Frame()
-		tb := r.w.tab()
+		tb := r.w.activeTab()
 		var nbPane *pane
 		for _, p := range tb.panes {
 			if p.nb != nil {
@@ -510,7 +532,7 @@ func TestTheFocusedAndZoomedNotebookPaneAreRestoredWithTheWorkspace(t *testing.T
 		fb2.nbf().list, fb2.nbf().seq = fb.nb.list, 1
 		fb2.sessions = fb.sessions
 		r2 := newRigIn(t, fb2, dir)
-		t2 := r2.w.tab()
+		t2 := r2.w.activeTab()
 		got := t2.panes[t2.focused]
 		if got == nil || got.nb == nil || got.nb.id != "nb1" {
 			t.Fatalf("zoomed %v: the focused pane is %+v, want the notebook", zoomed, got)
@@ -529,8 +551,8 @@ func TestANotebookPaneComesBackWithTheWorkspaceAndTheFileHoldsNoText(t *testing.
 	r := newRigIn(t, fb, dir)
 	r.w.openNotebook("nb1")
 	r.tt.Frame()
-	if len(r.w.tab().panes) != 2 {
-		t.Fatalf("panes %d", len(r.w.tab().panes))
+	if len(r.w.activeTab().panes) != 2 {
+		t.Fatalf("panes %d", len(r.w.activeTab().panes))
 	}
 	r.w.closeWindow()
 	b, err := os.ReadFile(filepath.Join(dir, savedFile))
@@ -549,20 +571,20 @@ func TestANotebookPaneComesBackWithTheWorkspaceAndTheFileHoldsNoText(t *testing.
 	fb2.sessions = fb.sessions
 	r2 := newRigIn(t, fb2, dir)
 	var found *pane
-	for _, p := range r2.w.tab().panes {
+	for _, p := range r2.w.activeTab().panes {
 		if p.nb != nil {
 			found = p
 		}
 	}
 	if found == nil || found.nb.id != "nb1" || !strings.Contains(found.nb.md, "SECRET-LOOKING") {
-		t.Fatalf("not restored: %+v", r2.w.tab().panes)
+		t.Fatalf("not restored: %+v", r2.w.activeTab().panes)
 	}
 	// A notebook deleted meanwhile is dropped, not an error.
 	r2.w.closeWindow()
 	fb3 := okBackend()
 	fb3.sessions = fb.sessions
 	r3 := newRigIn(t, fb3, dir)
-	for _, p := range r3.w.tab().panes {
+	for _, p := range r3.w.activeTab().panes {
 		if p.nb != nil {
 			t.Error("a notebook that is gone came back")
 		}
@@ -614,10 +636,10 @@ func TestTheViewsCodeIsTheFencesCodeForTheSameBlock(t *testing.T) {
 	}
 }
 
-// A 256 KiB notebook in the text area: typing a character must not take more than 100 ms (plan 023 STOP 4).
+// A 256 KiB notebook in the text area: typing a character must not take more than 100 ms.
 func TestAHugeDocumentIsUsableInTheTextArea(t *testing.T) {
 	var sb strings.Builder
-	for sb.Len() < notebookLimitText-64 {
+	for sb.Len() < limits.MaxNotebookBytes-64 {
 		sb.WriteString("echo a line of the notebook, long enough to be a real line of a runbook step\n")
 	}
 	r := nbRig(t, sb.String())
@@ -655,7 +677,7 @@ func TestTheNotebookDialogDoesNotSayTheLineIsClearedAndASnippetsStillDoes(t *tes
 	np := r.openNB(t, "nb1")
 	r.tt.Click(fenceName("Type into api-1", fences(np.nb.md)[0].Index))
 	r.frames(3)
-	if r.w.approve == nil || !r.tt.HasText(approveHintNotebook) || r.onScreen("cleared first") {
+	if !r.w.approveOpen() || !r.tt.HasText(approveHintNotebook) || r.onScreen("cleared first") {
 		t.Fatalf("notebook dialog: %q", r.tt.Texts())
 	}
 	r.click(t, "Cancel")

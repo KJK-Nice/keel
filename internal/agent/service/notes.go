@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15).
@@ -20,7 +19,7 @@ import (
 // (store, keel.memory). The service is their only way in and out:
 //
 //   - The user adds, edits and deletes them (AddNote, EditNote, DeleteNote).
-//     Every text is redacted for secrets before it is kept (saveRedactor:
+//     Every text is redacted for secrets before it is kept (forSave:
 //     vault values and secret-looking values, never IPs or hostnames, so a
 //     note still says what it means), and every change is logged as
 //     agent.note without the text.
@@ -80,10 +79,20 @@ var (
 	ErrNoteRefused     = errors.New("agent: this host no longer lets the agent propose notes")
 	ErrNoteNotReadable = errors.New("agent: Agent can read is off for this host; turn it on to save a note for it")
 	ErrNoteExpired     = errors.New("agent: this note proposal expired; add the note yourself in Edit host or Settings · Agent")
-	noteFenceRe        = regexp.MustCompile("(?s)```[ \\t]*" + regexp.QuoteMeta(NoteFence) + "[ \\t]*\\r?\\n(.*?)\\r?\\n?```")
 	errNoteTooLong     = fmt.Errorf("%w: a note is 1 to %d bytes", ErrBadRequest, store.MaxAgentNoteBytes)
-	noteStatusValid    = map[string]bool{"open": true, "saved": true, "dismissed": true}
+	noteStatusValid    = map[string]bool{CardOpen: true, CardSaved: true, CardDismissed: true}
 )
+
+var noteCards = cardKind[NoteProposal, NoteProposal]{
+	find:    (*conversation).noteLocked,
+	saved:   func(c *conversation, id string) bool { return c.recordNoteLocked(id) != nil },
+	busy:    func(np *NoteProposal) *bool { return &np.busy },
+	view:    func(np *NoteProposal) NoteProposal { return *np },
+	expired: ErrNoteExpired,
+	closed:  ErrNoteClosed,
+}
+
+func noteOpen(np *NoteProposal) bool { return np.Status == CardOpen }
 
 // NoteProposal is a note the agent proposed, as the panel shows it.
 type NoteProposal struct {
@@ -143,6 +152,7 @@ type rawNote struct {
 // whose text is empty or too long is dropped.
 func parseNotes(text string) (string, []rawNote) {
 	var out []rawNote
+	noteFenceRe := blockOf(NoteFence)
 	rest := noteFenceRe.ReplaceAllStringFunc(text, func(block string) string {
 		m := noteFenceRe.FindStringSubmatch(block)
 		if len(m) < 2 || len(out) >= maxNoteProposals {
@@ -215,7 +225,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 			continue
 		}
 		fmt.Fprintf(&b, "--- host notes · host %s · saved by the user ---\n%s\n--- end host notes ---\n\n", frameName(h.Name, r), nx.Text.String())
-		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: "notes", NoteKind: "host", Notes: nx.Count, Redactions: nx.Report.Strings()})
+		steps = append(steps, TraceStep{HostID: h.ID, Host: h.Name, Status: TraceNotes, NoteKind: wire.NoteHost, Notes: nx.Count, Redactions: nx.Report.Strings()})
 	}
 	gText, gSteps := s.groupNoteContext(read, byID, byGroup, scope, r)
 	b.WriteString(gText)
@@ -223,7 +233,7 @@ func (s *Service) noteContext(read []agent.Excerpt, byID map[string]agent.Host, 
 	if mine := byHost[""]; len(mine) > 0 {
 		if nx, err := s.audit.ReadUserNotes(mine, r); err == nil && nx.Count > 0 {
 			fmt.Fprintf(&b, "--- your notes · the user's own preferences, saved by the user ---\n%s\n--- end your notes ---\n\n", nx.Text.String())
-			steps = append(steps, TraceStep{Status: "notes", NoteKind: "user", Notes: nx.Count, Redactions: nx.Report.Strings()})
+			steps = append(steps, TraceStep{Status: TraceNotes, NoteKind: wire.NoteUser, Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps
@@ -303,7 +313,7 @@ func (s *Service) groupNoteContext(read []agent.Excerpt, byID map[string]agent.H
 		}
 		fmt.Fprintf(&b, "--- group notes · group %s · saved by the user, about every host in it ---\n%s\n--- end group notes ---\n\n", frameName(gr.g.Name, r), nx.Text.String())
 		if nx.Count > 0 {
-			steps = append(steps, TraceStep{Host: gr.g.Name, Status: "notes", NoteKind: "group", Notes: nx.Count, Redactions: nx.Report.Strings()})
+			steps = append(steps, TraceStep{Host: gr.g.Name, Status: TraceNotes, NoteKind: wire.NoteGroup, Notes: nx.Count, Redactions: nx.Report.Strings()})
 		}
 	}
 	return b.String(), steps
@@ -326,7 +336,7 @@ func (s *Service) noteProposals(raws []rawNote, excerpts []agent.Excerpt, byID m
 		}
 	}
 	for _, rn := range raws {
-		np := &NoteProposal{ID: newID("np_"), Text: r.Text(rn.Text).String(), From: rn.From, Status: "open", ProposedAt: &now, PanesRead: read}
+		np := &NoteProposal{ID: newID("np_"), Text: r.Text(rn.Text).String(), From: rn.From, Status: CardOpen, ProposedAt: &now, PanesRead: read}
 		if t, ok := store.CleanAgentNote(np.Text); ok {
 			np.Text = t
 		} else {
@@ -334,7 +344,7 @@ func (s *Service) noteProposals(raws []rawNote, excerpts []agent.Excerpt, byID m
 		}
 		switch rn.For {
 		case "user", "me", "you":
-			np.For = "user"
+			np.For = wire.NoteUser
 		default:
 			var target *agent.Excerpt
 			switch {
@@ -350,7 +360,7 @@ func (s *Service) noteProposals(raws []rawNote, excerpts []agent.Excerpt, byID m
 			if !ok || !h.ProposeNotes {
 				continue
 			}
-			np.For, np.HostID, np.Host = "host", h.ID, h.Name
+			np.For, np.HostID, np.Host = wire.NoteHost, h.ID, h.Name
 		}
 		if shingles == nil {
 			shingles = buildShingles(excerpts)
@@ -436,12 +446,11 @@ func noteFromRecord(n store.AgentChatNote) NoteProposal {
 	at := n.ProposedAt
 	st := n.Status
 	if !noteStatusValid[st] {
-		st = "open"
+		st = CardOpen
 	}
 	return NoteProposal{ID: n.ID, For: n.For, HostID: n.HostID, Host: n.Host, Text: n.Text, FromPane: n.FromPane, SeenIn: n.SeenIn, PanesRead: n.PanesRead, Status: st, NoteID: n.NoteID, ProposedAt: &at, Expired: true}
 }
 
-// recordNoteLocked finds a note proposal in c's saved record.
 func (c *conversation) recordNoteLocked(id string) *store.AgentChatNote {
 	for i := len(c.record) - 1; i >= 0; i-- {
 		for j := range c.record[i].Notes {
@@ -462,36 +471,16 @@ func (c *conversation) noteLocked(id string) *NoteProposal {
 	return nil
 }
 
-// saveRedactor redacts what is kept in a note: secrets always (vault
-// values as exact matches, secret-looking values), never IPs or hostnames,
-// which a note may need and which the request's Redactor replaces anyway
-// when it is sent with the user's settings.
-//
-// Captured values and group variables' values are kept as {{name}}
-// (groupvars.go); saveCommandRedactor, for runbook step commands, leaves
-// group variables as written.
-func (s *Service) saveRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(true)...)
-}
-
-// saveCommandRedactor is saveRedactor without the group variables: a step
-// command that holds a variable's value (10.20.0.10) is the user's to
-// type, not a secret, and is kept as written.
-func (s *Service) saveCommandRedactor() (*redact.Redactor, error) {
-	return agent.NewRedactor(s.st, store.AgentRedaction{Secrets: true}, nil, s.namedValues(false)...)
-}
-
 func (s *Service) noteHost(hostID string) (agent.Host, error) {
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return agent.Host{}, err
 	}
-	for _, h := range agent.HostsFrom(hosts) {
-		if h.ID == hostID {
-			return h, nil
-		}
+	h, ok := hs.byID[hostID]
+	if !ok {
+		return agent.Host{}, ErrNotFound
 	}
-	return agent.Host{}, ErrNotFound
+	return h, nil
 }
 
 // cleanNote redacts a note's text for keeping and checks it. The raw text
@@ -503,7 +492,7 @@ func (s *Service) cleanNote(text string) (string, redact.Report, error) {
 	if len(text) > 4*store.MaxAgentNoteBytes {
 		return "", redact.Report{}, errNoteTooLong
 	}
-	r, err := s.saveRedactor()
+	r, err := s.redactorFor(forSave)
 	if err != nil {
 		return "", redact.Report{}, err
 	}
@@ -582,7 +571,6 @@ func (s *Service) AddGroupNote(groupID, text string) (SavedNote, error) {
 	return SavedNote{Note: n, Redacted: rep.Total()}, nil
 }
 
-// EditNote replaces a note's text.
 func (s *Service) EditNote(id, text string) (SavedNote, error) {
 	if s.notesSt == nil {
 		return SavedNote{}, ErrNoNotes
@@ -603,7 +591,6 @@ func (s *Service) EditNote(id, text string) (SavedNote, error) {
 	return SavedNote{Note: n, Redacted: rep.Total()}, nil
 }
 
-// DeleteNote removes a note.
 func (s *Service) DeleteNote(id string) error {
 	if s.notesSt == nil {
 		return ErrNoNotes
@@ -629,7 +616,7 @@ func (s *Service) DeleteAllNotes() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	s.log.Append(applog.Entry{Kind: agent.EventNote, Message: fmt.Sprintf("every note for the agent deleted by you (%d)", n), Count: n})
+	s.audit.Event(agent.EventNote, "", fmt.Sprintf("every note for the agent deleted by you (%d)", n), n)
 	return n, nil
 }
 
@@ -665,16 +652,16 @@ func (s *Service) SaveNoteProposal(convID, id, text string) (SavedNote, error) {
 	// Claim the proposal under mu: a second Save (or Save anyway, or an
 	// Undo) while this one runs gets ErrNoteClosed, so one proposal never
 	// becomes two notes.
-	snap, err := s.claimNote(convID, id, func(np *NoteProposal) bool { return np.Status == "open" })
+	c, np, snap, err := noteCards.claim(s, convID, id, noteOpen)
 	if err != nil {
 		return SavedNote{}, err
 	}
-	release := func() { s.releaseNote(convID, id) }
+	release := func() { noteCards.release(s, np) }
 	edited := strings.TrimSpace(text) != "" && strings.Join(strings.Fields(text), " ") != snap.Text
 	if !edited {
 		text = snap.Text
 	}
-	if snap.For == "host" {
+	if snap.For == wire.NoteHost {
 		h, err := s.noteHost(snap.HostID)
 		if err != nil {
 			release()
@@ -708,52 +695,18 @@ func (s *Service) SaveNoteProposal(convID, id, text string) (SavedNote, error) {
 		what += " after an edit"
 	}
 	s.audit.NoteChanged(what, snap.HostID, snap.Host, rep)
-	out := s.setNoteStatus(convID, id, "saved", n.ID)
+	out, _ := s.setNoteStatus(c, np, CardSaved, n.ID)
 	return SavedNote{Note: n, Redacted: rep.Total(), Proposal: out}, nil
 }
 
-// claimNote marks a proposal busy if ok(it) holds, under mu, and returns a
-// copy. A busy or closed proposal gives ErrNoteClosed; one keel serve no
-// longer holds gives ErrNoteExpired or ErrNotFound.
-func (s *Service) claimNote(convID, id string, ok func(*NoteProposal) bool) (NoteProposal, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c := s.convs[convID]
-	var np *NoteProposal
-	if c != nil {
-		np = c.noteLocked(id)
-	}
-	if np == nil {
-		if c != nil && c.recordNoteLocked(id) != nil {
-			return NoteProposal{}, ErrNoteExpired
-		}
-		return NoteProposal{}, ErrNotFound
-	}
-	if np.busy || !ok(np) {
-		return NoteProposal{}, ErrNoteClosed
-	}
-	np.busy = true
-	return *np, nil
-}
-
-func (s *Service) releaseNote(convID, id string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if c := s.convs[convID]; c != nil {
-		if np := c.noteLocked(id); np != nil {
-			np.busy = false
-		}
-	}
-}
-
-// DismissNoteProposal closes a proposal without saving anything.
 func (s *Service) DismissNoteProposal(convID, id string) (NoteProposal, error) {
-	if _, err := s.claimNote(convID, id, func(np *NoteProposal) bool { return np.Status == "open" }); err != nil {
+	c, np, _, err := noteCards.claim(s, convID, id, noteOpen)
+	if err != nil {
 		return NoteProposal{}, err
 	}
-	out := s.setNoteStatus(convID, id, "dismissed", "")
-	if out == nil {
-		return NoteProposal{}, ErrNotFound
+	out, err := s.setNoteStatus(c, np, CardDismissed, "")
+	if err != nil {
+		return NoteProposal{}, err
 	}
 	return *out, nil
 }
@@ -761,47 +714,39 @@ func (s *Service) DismissNoteProposal(convID, id string) (NoteProposal, error) {
 // UndoNoteProposal opens a saved or dismissed proposal again; a saved one's
 // note is deleted (logged).
 func (s *Service) UndoNoteProposal(convID, id string) (NoteProposal, error) {
-	snap, err := s.claimNote(convID, id, func(np *NoteProposal) bool { return np.Status == "saved" || np.Status == "dismissed" })
+	c, np, snap, err := noteCards.claim(s, convID, id, func(np *NoteProposal) bool { return np.Status == CardSaved || np.Status == CardDismissed })
 	if err != nil {
 		return NoteProposal{}, err
 	}
-	if snap.Status == "saved" && snap.NoteID != "" && s.notesSt != nil {
+	if snap.Status == CardSaved && snap.NoteID != "" && s.notesSt != nil {
 		n, err := s.notesSt.DeleteAgentNote(snap.NoteID)
 		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			s.releaseNote(convID, id)
+			noteCards.release(s, np)
 			return NoteProposal{}, err
 		}
 		if err == nil {
 			s.audit.NoteChanged("note proposed by the agent deleted by you (undo)", n.HostID, s.hostName(n.HostID), redact.Report{})
 		}
 	}
-	out := s.setNoteStatus(convID, id, "open", "")
-	if out == nil {
-		return NoteProposal{}, ErrNotFound
+	out, err := s.setNoteStatus(c, np, CardOpen, "")
+	if err != nil {
+		return NoteProposal{}, err
 	}
 	return *out, nil
 }
 
-// setNoteStatus sets a proposal's state and frees it; nil when the
-// conversation or the proposal is gone (deleted meanwhile).
-func (s *Service) setNoteStatus(convID, id, status, noteID string) *NoteProposal {
-	s.mu.Lock()
-	c := s.convs[convID]
-	if c == nil {
-		s.mu.Unlock()
-		return nil
+// setNoteStatus sets a claimed proposal's state and frees it; ErrNotFound
+// when the conversation or the proposal is gone (deleted meanwhile).
+func (s *Service) setNoteStatus(c *conversation, np *NoteProposal, status, noteID string) (*NoteProposal, error) {
+	id := np.ID
+	out, ok := noteCards.finish(s, c, id, np, func() {
+		np.Status, np.NoteID = status, noteID
+		if rec := c.recordNoteLocked(id); rec != nil {
+			rec.Status, rec.NoteID = status, noteID
+		}
+	})
+	if !ok {
+		return nil, ErrNotFound
 	}
-	np := c.noteLocked(id)
-	if np == nil {
-		s.mu.Unlock()
-		return nil
-	}
-	np.Status, np.NoteID, np.busy = status, noteID, false
-	if rec := c.recordNoteLocked(id); rec != nil {
-		rec.Status, rec.NoteID = status, noteID
-	}
-	out := *np
-	s.mu.Unlock()
-	s.persist(c)
-	return &out
+	return &out, nil
 }

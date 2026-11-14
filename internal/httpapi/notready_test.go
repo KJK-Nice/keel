@@ -19,8 +19,7 @@ import (
 func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeBridge, release func()) {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +31,7 @@ func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeB
 		<-gate
 		return fb, nil
 	})
-	srv = httptest.NewServer(New(st, rt, nil).Handler())
+	srv = httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(func() {
 		release()
 		srv.Close()
@@ -40,8 +39,8 @@ func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeB
 	return srv, st, fb, release
 }
 
-// Issue #63: a keystroke typed while the session is still connecting used to
-// close the session socket ("session is not ready"). It must be dropped (not
+// A keystroke typed while the session is still connecting must not close the
+// session socket ("session is not ready"). It is dropped (not
 // buffered for the next prompt) and the socket must stay open. An approved
 // inject at the same moment must still fail and be reported.
 func TestKeystrokeWhileConnectingKeepsSocket(t *testing.T) {

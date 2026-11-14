@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// workingBlocks is the mark of the model at work (plan 030 step 4): MyGo's loading.Blocks, sized to the line it sits in, in
+// workingBlocks is the mark of the model at work: MyGo's loading.Blocks, sized to the line it sits in, in
 // the accent or, in muted text, that colour, and named for assistive technology. It means "the model is working" and nothing
 // else: a wait on keel serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
 // asks for no frames where the desktop asks for less motion, and it takes no input, so Stop stays clickable.
@@ -15,7 +15,7 @@ func workingBlocks(c *ui.Context, col ui.Color, name string) ui.Element {
 	return loading.Blocks(c, loading.Options{Size: iconSize, Color: col}).Label(name).Shrink(0)
 }
 
-// The shared control layer (plan 030 step 3): Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
+// The shared control layer: Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
 // two looks MyGo has no variant for: quiet (no face until hovered) and destructive (the flare colours of the Destructive
 // badge). Colours come from the theme MyGo sets from the tokens (theme.go), so a control follows the system accent.
 
@@ -137,4 +137,131 @@ func modalChrome(c *ui.Context, backdrop, panel ui.Element) {
 // searchField is MyGo's search field for a filter: the label is its name and its placeholder.
 func searchField(c *ui.Context, value *string, name string, h *ui.Handle) ui.Element {
 	return ui.SearchField(c, value).Label(name).Placeholder(name).MinWidth(0).Bind(h)
+}
+
+// inputBox is a single-line input in a bordered box.
+func inputBox(c *ui.Context, name string, value *string, placeholder string, h *ui.Handle, mono, masked bool, maxLen int, onKey func(ui.TextKey) bool) {
+	in := ui.TextInput(c, value).Label(name).Placeholder(placeholder).FillWidth().MinWidth(0).Bind(h)
+	if mono {
+		in.Font(monoStack)
+	}
+	if masked {
+		in.Password()
+	}
+	if maxLen > 0 {
+		in.MaxLength(maxLen)
+	}
+	if onKey != nil {
+		in.OnTextKey(onKey)
+	}
+}
+
+// labeled is a field: the label above, the control below. Clicking the label gives h (when there is one) the
+// keyboard, as a <label for> does.
+func labeled(c *ui.Context, name string, h *ui.Handle, control func()) {
+	ui.Column(c).FillWidth().MinWidth(0).Gap(space1).Children(func() {
+		r := ui.Row(c).Cursor(ui.CursorPointer)
+		r.Children(func() { label(c, name, inkMuted) })
+		if h != nil && r.Clicked() {
+			h.Focus(c)
+		}
+		control()
+	})
+}
+
+func help(c *ui.Context, s string) ui.Element {
+	return ui.Text(c, s).TextColor(inkMuted).FontSize(captionSize)
+}
+
+func menuLabel(c *ui.Context, s string) { text(c, s, inkFaint, captionSize, weightSemibold) }
+
+// picker is a select: the chosen label and a chevron; the menu lists the entries (their second line is muted).
+func picker(c *ui.Context, name, current string, entries []pickEntry, onPick func(string)) {
+	shown := ""
+	for _, e := range entries {
+		if e.value == current {
+			shown = e.label
+		}
+	}
+	b := ui.Button(c, "").FillWidth().Justify(ui.Start).
+		Label(name + " picker") // not the label's own name: a click by name finds the label first
+	b.Children(func() {
+		ui.Text(c, shown).SingleLine().Grow(1).MinWidth(0)
+		icon(c, "chevron-down", inkMuted)
+	})
+	b.PopoverMenuButton(func(m *ui.Menu) {
+		for _, e := range entries {
+			it := m.Item(e.label).Radio(e.value == current)
+			if e.desc != "" {
+				it.Subtitle(e.desc)
+			}
+			if it.Chosen() {
+				v := e.value
+				onPick(v)
+			}
+		}
+	})
+}
+
+// segControl is a segmented control: one option is on.
+func segControl(c *ui.Context, name string, current string, opts [][2]string, onPick func(string)) {
+	segControlSized(c, name, current, opts, onPick, c.Theme().FontSize, space1)
+}
+
+// segControlSized is segControl with the labels' size and each segment's side padding set: the sidebar's four sections
+// (Hosts, Panes with its count, Snippets, Forwards) take the caption size and a narrow padding so they show whole.
+func segControlSized(c *ui.Context, name string, current string, opts [][2]string, onPick func(string), size, padX float32) {
+	labels := make([]string, len(opts))
+	at := 0
+	for i, o := range opts {
+		labels[i] = o[1]
+		if o[0] == current {
+			at = i
+		}
+	}
+	idx := at
+	// ui.SegmentedBase: MyGo's segmented control with a tighter segment, so four labels fit the sidebar at 13 pt.
+	seg := ui.SegmentedBase(c, &idx, len(opts))
+	t := c.Theme()
+	seg.Track.FillWidth().AlignItems(ui.Stretch).Padding(2).Gap(2).Radius(t.Radius).Border(1, t.Border).Label(name).Children(func() {
+		for i, l := range labels {
+			word, count, hasCount := strings.Cut(l, " ") // "Panes 3": the count is a badge beside the word, so the label stays short
+			if hasCount && strings.Trim(count, "0123456789") != "" {
+				word, count, hasCount = l, "", false
+			}
+			// Each segment starts from its text and shares the free room, so a long label never gives way to a short one.
+			need, _ := c.MeasureText(0, ui.Span{Text: word, Size: size})
+			if hasCount {
+				cw, _ := c.MeasureText(0, ui.Span{Text: count, Size: kbdSize})
+				need += space1 + cw + 2*space1_5 // the badge's own padding
+			}
+			s := seg.Segment(i).Grow(1).Shrink(1).Basis(need+2*padX+2).MinWidth(0).Padding(space1, padX).Radius(max(t.Radius-2, 0)).Justify(ui.Center).Label(l).KeepFocus()
+			if i == idx {
+				s.Background(hoverGround).Border(1, t.Border)
+			}
+			col := map[bool]ui.Color{true: ink, false: inkMuted}[i == idx]
+			s.Children(func() {
+				ui.Row(c).Gap(space1).AlignItems(ui.Center).Children(func() {
+					ui.Text(c, word).SingleLine().TextColor(col).FontSize(size)
+					if hasCount {
+						ui.Badge(c, count).FontSize(kbdSize)
+					}
+				})
+			})
+		}
+	})
+	if idx != at {
+		onPick(opts[idx][0])
+	}
+}
+
+// switchRow is a field row: the text on the left, the switch on the right.
+func switchRow(c *ui.Context, name, note string, on *bool) {
+	ui.Row(c).FillWidth().Gap(space3).Children(func() {
+		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
+			body(c, name, ink).MaxLines(0)
+			help(c, note)
+		})
+		ui.Switch(c, on).Label(name).Shrink(0)
+	})
 }

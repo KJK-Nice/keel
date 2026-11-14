@@ -9,13 +9,12 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 
 	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
 )
 
-// A notebook pane (term.js makeNotebookShell, paintNotebook, syncNotebookMeta, syncNotebookReview): the pane bar, the
+// A notebook pane: the pane bar, the
 // review banner of an agent edit, the title, the meta line, a rule and the document. The document is shown rendered; Edit
 // (or a double click on it) shows the Markdown as plain text in a text area, and Done, Escape or ⌘↵ shows it rendered
-// again. The text is stored as typed: it never passes through a rich text model (docs/native-notebook-spike.md).
+// again. The text is stored as typed: it never passes through a rich text model (docs/native.md "Read and edit").
 
 const nbFenceBar = sizeControlSm // the bar over a code block
 
@@ -43,34 +42,16 @@ func (w *workspace) tileNotebook(c *ui.Context, t *tab, p *pane, multi bool, fit
 			w.act(func() { p.handle.Focus(c); t.focused = p.id; w.revealPanes(t) })
 		}
 		bar.Children(func() {
-			dot(c, inkFaint) // k-dot--idle
+			dot(c, inkFaint)
 			bodyStrong(c, strings.TrimSpace(n.title), titleCol).Shrink(2).MinWidth(0)
 			mono(c, "Notebook", inkMuted).Shrink(8).MinWidth(0)
 			ui.Spacer(c)
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
-				// The first tool (term.js makeNotebookShell). A private notebook does not exist for the agent (§6 rule 12), so
-				// it is not offered; the app offers it and refuses.
+				// A private notebook does not exist for the agent (§6 rule 12), so this tool is not offered.
 				if rec, saved := w.notebook(n.id); !(saved && rec.Private) && iconBtn(c, "ai-magic", "Ask the agent about this notebook", sizeControlSm, false) {
 					w.act(func() { w.askAboutNotebookPane(p) })
 				}
-				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Row) })
-				}
-				if w.paneCapBtn(c, focused, "⇧E", "split-v", "Split down", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Col) })
-				}
-				zoomed := t.zoomed == p.id
-				zoomTip, zoomGlyph := "Focus view", "zoom"
-				if zoomed {
-					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
-				}
-				if w.paneCapBtn(c, focused, "⇧↵", zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) {
-					w.act(func() { w.toggleZoom(t, p.id) })
-				}
-				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
-				if iconBtn(c, "cancel-01", "Close pane", sizeControlSm, false) {
-					w.act(func() { w.closePane(t, p.id) })
-				}
+				w.paneTools(c, t, p, focused)
 			})
 		})
 		pane := ui.Column(c).Grow(1).FillWidth().Background(w.ground(surface)).Focusable().Label("notebook " + strings.TrimSpace(n.title)).Bind(&p.handle)
@@ -113,7 +94,7 @@ func (w *workspace) notebookBody(c *ui.Context, t *tab, p *pane) {
 			if saved && rec.AgentUnreviewed {
 				w.notebookReview(c, rec)
 			}
-			// The title is the notebook's name: an editable field (term.js: aria-label "Rename notebook").
+			// The title is the notebook's name: an editable field.
 			ui.TextInputBase(c, &n.title).Label("Rename notebook").TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold).FillWidth().Bind(&n.titleH)
 			w.notebookMeta(c, t, p, rec, saved)
 			ui.Box(c).FillWidth().Height(1).Background(line).Shrink(0).Margin(space4, 0, space1)
@@ -136,7 +117,7 @@ func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
 	if when := agentWhen(rec); when != "" {
 		head += " · " + when
 	}
-	// Wraps as the app's does (.notebook-review .k-rb-review: flex-wrap, the words' basis is six controls wide), so a narrow
+	// Wraps (the words' basis is six controls wide), so a narrow
 	// pane puts the three buttons under the words instead of squeezing them to a letter a line.
 	ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Wrap().Radius(radiusMd).Background(hoverGround).AlignItems(ui.Center).Margin(0, 0, space4).
 		Label("Agent edit to review").Children(func() {
@@ -146,7 +127,7 @@ func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
 			ui.Text(c, agentEditReview).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
 		})
 		id := rec.ID
-		// View changes opens History on the version before the agent's edit; Undo restores it (term.js undoAgentEdit).
+		// View changes opens History on the version before the agent's edit; Undo restores it.
 		if textBtn(c, "View changes", btnGhost) {
 			w.act(func() { w.openNotebookHistoryAt(id, "before-agent-edit") })
 		}
@@ -325,11 +306,11 @@ func (w *workspace) notebookCodeBlock(c *ui.Context, t *tab, p *pane, fs []fence
 			copyName := "Copy code"
 			if textBtnAs(c, fenceName(copyName, idx), copyName, btnGhost) {
 				code := f.Code
-				w.act(func() { c.WriteClipboard(code); w.say("Copied") })
+				w.act(func() { w.copy(code, "") })
 			}
 			if f.Shell {
-				// The app's bar always has it: "Type into <pane>", or "Type into pane" with no terminal beside the notebook
-				// (notebook-editor.mjs), and pressing it then says "Split a terminal beside this notebook first".
+				// The bar always has it: "Type into <pane>", or "Type into pane" with no terminal beside the notebook,
+				// and pressing it then says "Split a terminal beside this notebook first".
 				name, tip := "Type into pane", "Split a terminal beside this notebook first."
 				if term := t.firstTerm(); term != nil {
 					name, tip = "Type into "+term.title(), "Shows the command for "+term.title()+" first. Nothing is typed until you confirm."

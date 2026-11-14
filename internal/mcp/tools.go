@@ -1,5 +1,12 @@
 package mcp
 
+import (
+	"fmt"
+
+	"keel/internal/limits"
+	"keel/internal/wire"
+)
+
 // instructions is what keel mcp tells the client about itself
 // (initialize). It states the rules the tools hold to.
 const instructions = "Keel is the user's SSH workspace. These tools read its open terminal panes and propose commands for them. " +
@@ -37,17 +44,17 @@ var tools = []tool{
 		Description: "Read a pane's recent output, redacted by Keel. When the pane's shell reports its commands (OSC 133), you get the last command, its output and exit status. Keel logs every read.",
 		InputSchema: object(map[string]any{
 			"paneId": map[string]any{"type": "string", "description": "paneId from list_panes"},
-			"lines":  map[string]any{"type": "integer", "minimum": 1, "maximum": 1000, "description": "How many lines, at most Keel's Settings · Agent scrollback lines (the default)"},
+			"lines":  map[string]any{"type": "integer", "minimum": 1, "maximum": limits.MaxScrollbackLines, "description": "How many lines, at most Keel's Settings · Agent scrollback lines (the default)"},
 		}, "paneId"),
 		Annotations: map[string]any{"readOnlyHint": true, "openWorldHint": false},
 	},
 	{
 		Name:        "propose_command",
 		Title:       "Propose a command in Keel",
-		Description: "Propose a shell command for a pane. It is NOT run: it waits in Keel's agent panel (conversation \"Claude Code\") until the user approves the exact bytes and types it. Keel rates it read-only, changing state or destructive; destructive commands, and state changes on production hosts, need the user to hold ⇧. Never include redaction placeholders such as [secret:1].",
+		Description: "Propose a shell command for a pane. It is NOT run: it waits in Keel's agent panel (conversation \"" + wire.ExternalTitle + "\") until the user approves the exact bytes and types it. Keel rates it read-only, changing state or destructive; destructive commands, and state changes on production hosts, need the user to hold ⇧. Never include redaction placeholders such as [secret:1].",
 		InputSchema: object(map[string]any{
 			"paneId":  map[string]any{"type": "string", "description": "paneId from list_panes"},
-			"command": map[string]any{"type": "string", "description": "The command, at most 2048 bytes and 20 lines, no control characters"},
+			"command": map[string]any{"type": "string", "description": fmt.Sprintf("The command, at most %d bytes and %d lines, no control characters", wire.MaxProposalCommandBytes, wire.MaxProposalCommandLines)},
 			"why":     map[string]any{"type": "string", "description": "One or two sentences the user reads next to the command"},
 		}, "paneId", "command"),
 		Annotations: map[string]any{"readOnlyHint": false, "destructiveHint": false, "openWorldHint": false},

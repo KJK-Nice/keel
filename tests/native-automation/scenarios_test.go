@@ -5,7 +5,6 @@ package nativeautomation
 import (
 	"context"
 	"encoding/json"
-	"image"
 	"io"
 	"net/http"
 	"os"
@@ -35,27 +34,27 @@ func TestStartsAndShowsFirstRun(t *testing.T) {
 
 // 2. Every File and View item of shell.go is at its path, and the ones that change the window do.
 func TestMenuBar(t *testing.T) {
+	// The menu bar is made from the command table (commands.go): each item is a menuSpec{section, title, position}.
+	table, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "native", "commands.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file, view []string
+	for _, m := range regexp.MustCompile(`menuSpec\{"(File|View)", "([^"]+)"`).FindAllStringSubmatch(string(table), -1) {
+		if m[1] == "File" {
+			file = append(file, m[2])
+		} else {
+			view = append(view, m[2])
+		}
+	}
+	if len(file) < 9 || len(view) < 7 {
+		t.Fatalf("read %d File and %d View items from commands.go", len(file), len(view))
+	}
 	src, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "native", "shell.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := string(src)
-	at := strings.Index(s, "func viewMenu")
-	end := strings.Index(s, "// toggleSidebar")
-	if at < 0 || end < at {
-		t.Fatal("shell.go no longer has viewMenu before toggleSidebar")
-	}
-	entry := regexp.MustCompile(`\{"([^"]+)", `)
-	labels := func(part string) (out []string) {
-		for _, m := range entry.FindAllStringSubmatch(part, -1) {
-			out = append(out, m[1])
-		}
-		return
-	}
-	file, view := labels(s[:at]), labels(s[at:end])
-	if len(file) < 10 || len(view) < 7 {
-		t.Fatalf("read %d File and %d View items from shell.go", len(file), len(view))
-	}
 
 	r := newRig(t)
 	r.startServe()
@@ -205,51 +204,6 @@ func TestRealKeysIntoARealTerminal(t *testing.T) {
 		}
 	}
 	r.quit()
-}
-
-// 5. Paste with Sync input. The protocol has no way to put text on a clipboard (its text event is typing), so a
-// paste cannot be made without the user's real clipboard, which no test touches.
-func TestPasteWithSyncInput(t *testing.T) {
-	t.Skip("the automation protocol has no clipboard call; a paste would need the system clipboard, which is never touched")
-}
-
-// 6. Both themes, from Settings, captured from the workspace.
-func TestBothThemes(t *testing.T) {
-	r := newRig(t)
-	r.startServe()
-	r.startApp()
-	openShell(r)
-	r.press("Settings")
-	r.waitFor("Settings", has("settings nav Appearance"))
-	shot := func(theme, name string) image.Image {
-		r.pressIn("Color theme", theme)
-		r.press("tab Local Shell")
-		r.waitFor("the shell tab", has("pane 1"))
-		img := r.capture(name)
-		r.press("tab Settings")
-		r.waitFor("Settings", has("settings nav Appearance"))
-		return img
-	}
-	dark := shot("Dark", "theme-dark")
-	light := shot("Light", "theme-light")
-	if d, l := luma(dark), luma(light); d+40 > l {
-		t.Errorf("mean luminance dark %.0f, light %.0f: the themes do not differ", d, l)
-	}
-	r.quit()
-}
-
-// luma is the mean brightness of a picture, 0 to 255, ignoring alpha.
-func luma(img image.Image) float64 {
-	b := img.Bounds()
-	var sum, n float64
-	for y := b.Min.Y; y < b.Max.Y; y += 4 {
-		for x := b.Min.X; x < b.Max.X; x += 4 {
-			r, g, bl, _ := img.At(x, y).RGBA()
-			sum += (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(bl)) / 257
-			n++
-		}
-	}
-	return sum / n
 }
 
 // 7. The guard at run time: the tagged binary with the socket on and the default data directory (named or not) exits

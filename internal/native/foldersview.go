@@ -9,13 +9,11 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The sidebar's folder tree and the folder dialog, drawn as HostList and treeGroup (internal/ui/lists.templ) and groupDialog
-// (dialogs.templ): hosts in no folder first, then each folder (collapsible, with its host count and its menu) holding its
+// The sidebar's folder tree and the folder dialog: hosts in no folder first, then each folder (collapsible, with its host count and its menu) holding its
 // hosts and subfolders by name. A host row or a folder row drags onto a folder (or onto the tree's root, which takes it out
 // of any folder); the rules of a drop are folders.go's. Without folders the sidebar keeps the flat list of host.Group
 // (view.go group).
 
-// hasFolders reports whether keel serve has folders: only then is the tree the nested one.
 func (w *workspace) hasFolders() bool { return len(w.folders) > 0 }
 
 // folderTreeView is the Hosts section's body when there are folders.
@@ -40,7 +38,6 @@ func (w *workspace) folderTreeView(c *ui.Context) {
 	}
 }
 
-// folderMenu is groupRowMenu.
 func (w *workspace) folderMenu(g keelclient.Group) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if menuItem(m, "Roles and runbooks").Chosen() {
@@ -72,9 +69,9 @@ func (w *workspace) folderMenu(g keelclient.Group) func(m *ui.Menu) {
 	}
 }
 
-// folderNodeView is treeGroup: the heading, and while it is open the folder's hosts and then its subfolders.
+// folderNodeView is the heading, and while it is open the folder's hosts and then its subfolders.
 func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
-	open := !w.collapsed[n.g.ID]
+	open := !w.prefs.Collapsed[n.g.ID]
 	node := ui.Column(c).FillWidth().Key(n.g.ID).Label("folder node " + n.g.Name)
 	node.Children(func() {
 		indent := float32(n.depth-1) * space3
@@ -82,7 +79,7 @@ func (w *workspace) folderNodeView(c *ui.Context, n folderNode) {
 			Label("folder " + n.g.Name).Tooltip(n.g.Name).Cursor(ui.CursorPointer).Drag(&treeDrag{folder: n.g.ID})
 		over, isOver := ui.DragOver[*treeDrag](node)
 		switch {
-		case isOver && over != nil && over.folder != n.g.ID: // is-drop-target
+		case isOver && over != nil && over.folder != n.g.ID:
 			h.Background(hoverGround).Border(1, accentFill)
 		case h.Hovered():
 			h.Background(hoverGround)
@@ -146,7 +143,7 @@ func (w *workspace) folderRenameField(c *ui.Context) {
 	})
 }
 
-// folderRenameFocus gives the field the keyboard, and keeps the name when it loses it (the app's blur), once per frame.
+// folderRenameFocus gives the field the keyboard, and keeps the name when it loses it, once per frame.
 func (w *workspace) folderRenameFocus(c *ui.Context) {
 	r := w.folderRen
 	if r == nil {
@@ -166,7 +163,7 @@ func (w *workspace) folderRenameFocus(c *ui.Context) {
 
 func (w *workspace) folderDialogView(c *ui.Context) {
 	d := w.folderDlg
-	if d == nil || w.confirm != nil {
+	if d == nil {
 		return
 	}
 	title := folderNewTitle

@@ -3,7 +3,7 @@ name: release
 # Pushing a tag vX.Y.Z builds Keel for macOS (universal) and Linux (x86_64,
 # arm64) with `mygo build` (scripts/release.sh), keel-signal for every OS,
 # and publishes them as a GitHub Release with SHA256SUMS and notes
-# generated from the merged PRs. A tag with a hyphen (v0.2.0-rc.1) is
+# generated from the merged PRs. A tag with a hyphen (vX.Y.Z-rc.1) is
 # published as a pre-release. "version" in mygo.json must equal the tag
 # (scripts/release.sh checks it before anything is published).
 #

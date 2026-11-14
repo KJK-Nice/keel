@@ -12,7 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// History and Recently deleted (test/notebookhistory.test.mjs, in the window), and the palette's notebook items.
+// History and Recently deleted, in the window, and the palette's notebook items.
 
 func nbHistoryRig(t *testing.T) *rig {
 	t.Helper()
@@ -31,7 +31,7 @@ func TestHistoryListsTheVersionsAndDiffsTheSelectedOneAgainstNow(t *testing.T) {
 	if miss := r.lacks("History · Deploy", historyDesc, "Before the agent's edit", "Then: Adds a step", "2 min ago", "Your version", "Delete this version", "Close", "Restore this version"); len(miss) > 0 {
 		t.Fatalf("missing %q in %q", miss, r.tt.Texts())
 	}
-	// The newest is selected: "line a" against now ("line a\nline b\n"): two lines added (the empty last one counts, as in the app).
+	// The newest is selected: "line a" against now ("line a\nline b\n"): two lines added (the empty last one counts).
 	if !r.tt.HasText("From this version to now: 2 lines added · 0 removed") {
 		t.Fatalf("diff head: %q", r.tt.Texts())
 	}
@@ -84,7 +84,7 @@ func TestDeleteThisVersionAsksFirst(t *testing.T) {
 	r.frames(3)
 	r.click(t, "Delete this version")
 	r.frames(2)
-	if cf := r.w.confirm; cf == nil || cf.message != purgeVersion || cf.title != "Delete version" || cf.action != "Delete" {
+	if cf := r.w.confirmDlg(); cf == nil || cf.message != purgeVersion || cf.title != "Delete version" || cf.action != "Delete" {
 		t.Fatalf("confirm %+v", cf)
 	}
 	if r.fb.nb.reqsWith("purge") != 0 {
@@ -97,8 +97,8 @@ func TestDeleteThisVersionAsksFirst(t *testing.T) {
 	}
 	r.click(t, "Delete this version")
 	r.frames(2)
-	r.w.confirm.run()
-	r.w.confirm = nil
+	r.w.confirmDlg().run()
+	r.w.dismissConfirm()
 	r.frames(2)
 	if !slices.Contains(r.fb.nb.reqs, "purge nb1 v2") || len(r.w.nbDlg.versions) != 1 || r.w.nbDlg.selected != "v1" {
 		t.Fatalf("reqs %v dialog %+v", r.fb.nb.reqs, r.w.nbDlg)
@@ -136,13 +136,13 @@ func TestRecentlyDeletedRestoresAndDeletesForeverAfterAsking(t *testing.T) {
 	// Delete forever asks first.
 	r.click(t, "Delete forever")
 	r.frames(2)
-	if cf := r.w.confirm; cf == nil || cf.message != purgeNotebook {
-		t.Fatalf("confirm %+v", r.w.confirm)
+	if cf := r.w.confirmDlg(); cf == nil || cf.message != purgeNotebook {
+		t.Fatalf("confirm %+v", r.w.confirmDlg())
 	}
 	if r.fb.nb.reqsWith("purge-deleted") != 0 {
 		t.Fatal("purged before the answer")
 	}
-	r.w.confirm = nil
+	r.w.dismissConfirm()
 	r.frames(2)
 	// Restore notebook puts the selected one back in Notebooks.
 	r.click(t, "Old")
@@ -177,7 +177,7 @@ func TestThePaletteOpensNotebooksAndNothingTypes(t *testing.T) {
 	}
 	r.tt.Key(0, ui.KeyEnter)
 	r.frames(3)
-	if len(r.w.tab().panes) != 2 || r.nbPane(t).nb.id != "nb1" {
+	if len(r.w.activeTab().panes) != 2 || r.nbPane(t).nb.id != "nb1" {
 		t.Fatal("the palette did not open the notebook beside the terminal")
 	}
 	// New notebook and Split notebook and the page.
@@ -187,8 +187,8 @@ func TestThePaletteOpensNotebooksAndNothingTypes(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEnter)
 	r.frames(3)
-	if len(r.w.tab().panes) != 3 {
-		t.Fatalf("Split notebook: %d panes", len(r.w.tab().panes))
+	if len(r.w.activeTab().panes) != 3 {
+		t.Fatalf("Split notebook: %d panes", len(r.w.activeTab().panes))
 	}
 	r.tt.Key(ui.Cmd, ui.KeyK)
 	r.tt.Frame()
@@ -207,7 +207,7 @@ func TestThePaletteOpensNotebooksAndNothingTypes(t *testing.T) {
 		t.Error("the palette typed")
 	}
 	// ⌘N on the page is New notebook.
-	r.w.openPage("notebooks")
+	r.w.showPage("notebooks")
 	r.frames(2)
 	n := len(r.fb.nb.list)
 	r.tt.Key(ui.Cmd, ui.KeyN)
@@ -224,7 +224,7 @@ func TestClosingANotebookPaneSavesWhatWasTypedAndTypesNothing(t *testing.T) {
 	r.frames(2)
 	r.tt.Type("late ")
 	r.frames(1)
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	r.w.closePane(tb, np.id)
 	r.frames(2)
 	if r.fb.nb.reqsWith("put nb1") != 1 {

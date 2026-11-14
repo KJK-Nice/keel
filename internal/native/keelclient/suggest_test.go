@@ -10,7 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// The suggestion frames (inject.go): each one's shape is the app's (pty.js / term.js, internal/httpapi/agentsuggest.go).
+// The suggestion frames (inject.go): each one's shape is the server's (internal/httpapi/agentsuggest.go).
 
 const suggestionJSON = `{"type":"agent-suggest","seq":2,"ok":true,"suggestion":{"id":"s_1","options":[` +
 	`{"command":"echo a","bytes":"\u0015echo a","risk":"readonly","needsShift":false,"source":"generated","why":"w"},` +
@@ -195,7 +195,7 @@ func TestAnAnswerAboutAnotherSuggestionIsNotOurs(t *testing.T) {
 	}
 }
 
-func TestRestoreBytesClearTheLineAndCannotPressEnter(t *testing.T) { // lib/suggest.js restoreBytes
+func TestRestoreBytesClearTheLineAndCannotPressEnter(t *testing.T) {
 	if got := restoreBytes("show files\r\nrm -rf /"); got != "\x15show filesrm -rf /" {
 		t.Fatalf("%q", got)
 	}

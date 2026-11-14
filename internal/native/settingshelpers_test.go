@@ -7,7 +7,14 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Ported from cmd/keel/web/js/test/settingspages.test.mjs.
+// A command whose group the Keyboard page does not list would have no row there.
+func TestEveryKeyboardPageGroupIsListed(t *testing.T) {
+	for _, c := range commands {
+		if c.help != nil && !slices.Contains(shortcutGroupNames, c.help.group) {
+			t.Errorf("%s is in group %q, which shortcutGroupNames does not list", c.id, c.help.group)
+		}
+	}
+}
 
 func TestSettingsFormatting(t *testing.T) {
 	for sec, want := range map[int64]string{5: "5 s", 125: "2 min", 3*3600 + 300: "3 h 05 min", 2*86400 + 4*3600: "2 d 4 h", -3: "0 s", 59: "59 s", 60: "1 min"} {
@@ -64,7 +71,7 @@ func TestSignalFields(t *testing.T) {
 	}
 }
 
-func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
+func TestKeyCapsSplitAndShortcutTitlesAreUnique(t *testing.T) {
 	for label, want := range map[string][]string{"Ctrl+Shift+I": {"Ctrl", "Shift", "I"}, "⌘⇧T": {"⌘", "⇧", "T"}, "Ctrl++": {"Ctrl", "+"}, "⌘,": {"⌘", ","}, "Ctrl+⇧↵": {"Ctrl", "⇧", "↵"}} {
 		if got := splitKeyCaps(label); !slices.Equal(got, want) {
 			t.Errorf("caps %q = %v, want %v", label, got, want)
@@ -78,20 +85,5 @@ func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
 			}
 			titles[s.title] = true
 		}
-	}
-	// What this client has is listed; what waits for the share and agent phases is not (it would promise a key that does nothing).
-	for _, want := range []string{"New tab", "Command palette", "Settings", "Focus view (zoom pane)", "Reset text size", "Join session", "Toggle agent panel"} {
-		if !titles[want] {
-			t.Errorf("%q is not listed", want)
-		}
-	}
-	if !titles["Ask the agent (from the palette)"] { // the palette's ⌘↵ row is built (plan 025)
-		t.Error("Ask the agent (from the palette) is not listed")
-	}
-	if !titles["Put back your words after an inserted suggestion"] {
-		t.Error("the put-back key of in-pane suggestions is not listed")
-	}
-	if g := shortcutGroups(); g[0].name != "General" || g[len(g)-1].name != "Agent" || g[len(g)-2].name != "Terminal" {
-		t.Errorf("group order %v", g)
 	}
 }

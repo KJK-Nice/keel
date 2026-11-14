@@ -14,9 +14,11 @@ package redact
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 	"unicode"
+
+	"keel/internal/cmdrule"
+	"keel/internal/runvars"
 )
 
 // Kind is one rule that matched. Kinds are stable: they are written to
@@ -57,9 +59,9 @@ const (
 type category string
 
 const (
-	catSecret category = "secret"
-	catIP     category = "ip"
-	catHost   category = "host"
+	catSecret category = cmdrule.PlaceholderSecret
+	catIP     category = cmdrule.PlaceholderIP
+	catHost   category = cmdrule.PlaceholderHost
 )
 
 func (k Kind) category() category {
@@ -106,7 +108,6 @@ type Report struct {
 	Counts map[Kind]int `json:"counts"`
 }
 
-// Total is the number of replacements.
 func (r Report) Total() int {
 	n := 0
 	for _, c := range r.Counts {
@@ -127,23 +128,12 @@ func (r Report) Strings() map[string]int {
 	return out
 }
 
-// Kinds lists the kinds that matched, sorted.
-func (r Report) Kinds() []Kind {
-	out := make([]Kind, 0, len(r.Counts))
-	for k := range r.Counts {
-		out = append(out, k)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out
-}
-
 // Safe is text that went through a Redactor (or is a constant written in
 // Keel's source). Provider requests take Safe values only.
 type Safe struct {
 	text string
 }
 
-// String returns the redacted text.
 func (s Safe) String() string { return s.text }
 
 // Tail keeps at most max bytes from the end of s, starting at a line
@@ -189,7 +179,6 @@ type knownValue struct {
 	label    string // a Named value's name: its placeholder is {{label}}
 }
 
-// New returns a Redactor for one request.
 func New(opts Options) *Redactor {
 	r := &Redactor{
 		opts:   opts,
@@ -223,17 +212,7 @@ func namedList(values []Named) []knownValue {
 
 // validLabel keeps a placeholder to {{name}} with a plain variable name, so
 // a label can never draw anything else into the text.
-func validLabel(s string) bool {
-	if s == "" || len(s) > 32 {
-		return false
-	}
-	for i, c := range s {
-		if !(c == '_' || c >= 'a' && c <= 'z' || i > 0 && c >= '0' && c <= '9') {
-			return false
-		}
-	}
-	return true
-}
+func validLabel(s string) bool { return runvars.NameRe.MatchString(s) }
 
 // Text redacts s and returns it as Safe. Placeholders are shared with
 // every other Text call on this Redactor.
@@ -316,7 +295,7 @@ func (r *Redactor) placeholder(k Kind, value string) string {
 		return p
 	}
 	r.next[cat]++
-	p := "[" + string(cat) + ":" + strconv.Itoa(r.next[cat]) + "]"
+	p := cmdrule.Placeholder(string(cat), r.next[cat])
 	r.seen[key] = p
 	return p
 }

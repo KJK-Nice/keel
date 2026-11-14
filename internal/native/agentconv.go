@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -12,15 +13,14 @@ import (
 )
 
 // Saved conversations (docs/ui-redesign.md §5.4.1, the panel's title button) and the Agent tab page's use of the same
-// one conversation (§5.4.2). The feature is cmd/keel/web/js/ui/agentpanel.js (openSessions, resume, renameSession,
-// deleteSession, deleteAllSessions, proposeAgain) and agentthread.js (renderTranscript, paintExpired).
+// one conversation (§5.4.2).
 //
 // What this file does and does not do:
 //   - keel serve saves the conversation in the vault, redacted as sent. This client reads the list and a transcript into
 //     memory when the user asks to see them and writes none of it anywhere: not to keel-native.json, not to the saved
 //     workspace (which may hold the page tab's name and nothing of what was said).
 //   - A resumed conversation carries on under its own id; the ask sends exactly what any other ask sends.
-//   - A proposal keel serve no longer holds comes back Expired. Its card has Copy and Propose again and no Type and no Edit,
+//   - A proposal keel serve does not hold any more comes back Expired. Its card has Copy and Propose again and no Type and no Edit,
 //     and nothing in this file sends either request for it: Propose again asks keel serve for a new proposal, which is
 //     handled like any other (typeAgentProposal, the Approve before type dialog).
 //   - Delete and Delete all ask first.
@@ -92,8 +92,7 @@ func (a *agentPanel) known() bool { return len(a.turns) > 0 }
 
 // agentPageShown is whether the Agent page is the tab on screen.
 func (w *workspace) agentPageShown() bool {
-	t := w.tab()
-	return t != nil && t.pg != nil && t.pg.agent != nil
+	return pageAs[*agentPage](w.tab()) != nil
 }
 
 // ---- the list ----
@@ -101,33 +100,20 @@ func (w *workspace) agentPageShown() bool {
 // loadConversations reads the saved conversations (GET /api/agent/conversations).
 func (w *workspace) loadConversations() {
 	a := w.agent
-	if a.listLoading {
-		return
-	}
-	a.listLoading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Conversations(c)
-		w.post(func() {
-			a.listLoading = false
-			if w.closed {
-				return
+	callOnce(w, &a.listLoading, nil, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+		if err != nil {
+			a.list.sessions = nil
+			var se *keelclient.StatusError
+			if errors.As(err, &se) && se.Code == 423 {
+				a.list.err = msgListLocked
+			} else {
+				a.list.err = errText("read the conversations", err)
 			}
-			if err != nil {
-				a.list.sessions = nil
-				var se *keelclient.StatusError
-				if errors.As(err, &se) && se.Code == 423 {
-					a.list.err = msgListLocked
-				} else {
-					a.list.err = errText("read the conversations", err)
-				}
-				return
-			}
-			d := l.HistoryDays
-			a.list = convListState{sessions: l.Sessions, historyDays: &d, saveError: l.SaveError, unreadable: l.Unreadable}
-			a.sess.sel = min(a.sess.sel, len(l.Sessions)-1)
-		})
+			return
+		}
+		d := l.HistoryDays
+		a.list = convListState{sessions: l.Sessions, historyDays: &d, saveError: l.SaveError, unreadable: l.Unreadable}
+		a.sess.sel = min(a.sess.sel, len(l.Sessions)-1)
 	})
 }
 
@@ -148,7 +134,7 @@ func (w *workspace) closeSessions() {
 
 // resumeConversation opens a saved conversation in the window's one conversation, which the panel and the page both show.
 // Nothing is read or sent: the transcript comes from keel serve, and the next ask reads the panes in scope as they are
-// then (agentpanel.js resume).
+// then.
 func (w *workspace) resumeConversation(id string) {
 	a := w.agent
 	if id == "" {
@@ -161,14 +147,9 @@ func (w *workspace) resumeConversation(id string) {
 	}
 	a.resumedSeq++
 	seq := a.resumedSeq
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		t, err := w.be.Conversation(c, id)
-		w.post(func() {
-			if w.closed || a.resumedSeq != seq { // another resume, or a new conversation, began meanwhile
-				return
-			}
+	callIf(w, func() bool { return a.resumedSeq == seq }, // another resume, or a new conversation, began meanwhile
+		func(c context.Context) (keelclient.Transcript, error) { return w.be.Conversation(c, id) },
+		func(t keelclient.Transcript, err error) {
 			if err != nil {
 				var se *keelclient.StatusError
 				if errors.As(err, &se) && se.Code == 404 {
@@ -181,7 +162,6 @@ func (w *workspace) resumeConversation(id string) {
 			}
 			w.showTranscript(t)
 		})
-	})
 }
 
 // showTranscript makes the transcript the window's conversation: in memory only.
@@ -226,7 +206,7 @@ func (w *workspace) showTranscript(t keelclient.Transcript) {
 }
 
 // resumedAfter is the index of the last turn read from keel serve, which the "Resumed" divider and its note follow, or -1
-// when the conversation was not resumed. A later ask appends below it, as agentthread.js does.
+// when the conversation was not resumed. A later ask appends below it.
 func (a *agentPanel) resumedAfter() int {
 	if a.resumedAt.IsZero() {
 		return -1
@@ -258,84 +238,60 @@ func (w *workspace) renameConversation(id, title string) {
 	if title == "" || id == "" {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		kept, err := w.be.RenameConversation(c, id, title)
-		w.post(func() {
-			if w.closed {
-				return
+	call(w, func(c context.Context) (string, error) { return w.be.RenameConversation(c, id, title) }, func(kept string, err error) {
+		if err != nil {
+			w.warn(errText("rename the conversation", err))
+			return
+		}
+		for i := range a.list.sessions {
+			if a.list.sessions[i].ID == id {
+				a.list.sessions[i].Title = kept
 			}
-			if err != nil {
-				w.warn(errText("rename the conversation", err))
-				return
-			}
-			for i := range a.list.sessions {
-				if a.list.sessions[i].ID == id {
-					a.list.sessions[i].Title = kept
-				}
-			}
-			if id == a.conv {
-				a.title = kept
-			}
-		})
+		}
+		if id == a.conv {
+			a.title = kept
+		}
 	})
 }
 
-// deleteConversation is Delete on a row or on the page: at once, as the app does (agentpanel.js deleteSession asks
-// nothing; only Delete all and Disconnect ask), on the id keel serve gave. The toast is the app's.
+// deleteConversation is Delete on a row or on the page: at once, asking nothing (only Delete all and Disconnect
+// ask), on the id keel serve gave.
 func (w *workspace) deleteConversation(id string) {
 	if id == "" {
 		return
 	}
 	a := w.agent
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteConversation(c, id)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("delete the conversation", err))
-				return
-			}
-			a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s keelclient.ConversationSummary) bool { return s.ID == id })
-			if id == a.conv {
-				w.newAgentConversation()
-				a.focusInput = false
-			}
-			w.say("Conversation deleted")
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteConversation(c, id) }, func(err error) {
+		if err != nil {
+			w.warn(errText("delete the conversation", err))
+			return
+		}
+		a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s keelclient.ConversationSummary) bool { return s.ID == id })
+		if id == a.conv {
+			w.newAgentConversation()
+			a.focusInput = false
+		}
+		w.say("Conversation deleted")
 	})
 }
 
-// askDeleteAll is Delete all (Recent conversations, Settings · Agent's Delete all history): it asks first, with the app's words.
+// askDeleteAll is Delete all (Recent conversations, Settings · Agent's Delete all history): it asks first.
 func (w *workspace) askDeleteAll() {
 	w.closeSessions()
-	w.askConfirm(&hostConfirm{title: deleteAllTitle, message: deleteAllText, action: deleteAllAction, run: w.deleteAllConversations})
+	w.askConfirm(&confirmDialog{title: deleteAllTitle, message: deleteAllText, action: deleteAllAction, run: w.deleteAllConversations})
 }
 
 func (w *workspace) deleteAllConversations() {
 	a := w.agent
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteAllConversations(c)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(errText("delete the history", err))
-				return
-			}
-			a.list.sessions, a.list.saveError, a.list.unreadable, a.list.err = nil, "", false, ""
-			w.newAgentConversation()
-			a.focusInput = false
-			w.say("Agent history deleted")
-		})
+	callErr(w, w.be.DeleteAllConversations, func(err error) {
+		if err != nil {
+			w.warn(errText("delete the history", err))
+			return
+		}
+		a.list.sessions, a.list.saveError, a.list.unreadable, a.list.err = nil, "", false, ""
+		w.newAgentConversation()
+		a.focusInput = false
+		w.say("Agent history deleted")
 	})
 }
 
@@ -351,14 +307,8 @@ func (w *workspace) proposeAgain(id string) {
 		return
 	}
 	conv := a.conv
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		p, err := w.be.ProposeAgain(c, conv, id)
-		w.post(func() {
-			if w.closed || a.conv != conv {
-				return
-			}
+	callIf(w, func() bool { return a.conv == conv }, func(c context.Context) (keelclient.Proposal, error) { return w.be.ProposeAgain(c, conv, id) },
+		func(p keelclient.Proposal, err error) {
 			if err != nil {
 				w.warn(errText("propose again", err))
 				return
@@ -367,5 +317,4 @@ func (w *workspace) proposeAgain(id string) {
 			a.turns = append(a.turns, &agentTurn{done: true, again: true, at: time.Now(), props: []string{p.ID}})
 			a.stick = true
 		})
-	})
 }

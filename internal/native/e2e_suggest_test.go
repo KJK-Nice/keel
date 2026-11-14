@@ -14,7 +14,7 @@ import (
 )
 
 // In-pane suggestions against a real keel serve (KEEL_AGENT_PROVIDER=fake: the fake model and the fake Jev answer in
-// process, nothing is sent anywhere) and a real shell (Local Shell, /bin/sh). tests/suggest.e2e.ts is the app's twin.
+// process, nothing is sent anywhere) and a real shell (Local Shell, /bin/sh).
 //
 // What these prove: a noticed line, the card, an insert that leaves the command on the prompt line with its output absent
 // from the scrollback until the test presses Enter, the put-back of the user's words, the ⇧ rule, esc, the # mode, the
@@ -34,7 +34,7 @@ func (e *win) suggestSetup(detection string) {
 	if code, body := e.raw("PUT", "/api/agent/keys/jev", map[string]string{"key": fakeJevKey}); code != 200 {
 		e.t.Fatalf("PUT /api/agent/keys/jev: %d %s", code, body)
 	}
-	e.w.startPoll(200 * time.Millisecond) // the window learns of settings changed elsewhere through the vault rev (plan 036)
+	e.w.startPoll(200 * time.Millisecond) // the window learns of settings changed elsewhere through the vault rev
 	e.suggestSettings("on", detection)
 }
 
@@ -318,7 +318,7 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 	addr, dir := startServe(t, true)
 	a := newWin(t, addr, dir, nil)
 	a.suggestSetup("auto")
-	sid := a.openLocal()
+	a.openLocal()
 	a.clickBody("1")
 
 	// Suggestions in panes off: nothing.
@@ -385,7 +385,7 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 	// A pane that follows gets nothing: window B follows A's session.
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
-	pumpAll(t, both, func() bool { return len(b.w.tabs) == 1 && b.snap().Role == "follower" && a.snap().Role == "driver" }, "B following")
+	pumpAll(t, both, func() bool { return b.w.tabCount() == 1 && b.snap().Role == "follower" && a.snap().Role == "driver" }, "B following")
 	a.clickBody("1")
 	a.typeKeys("show the files here")
 	for end := time.Now().Add(1500 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
@@ -404,10 +404,9 @@ func TestE2ESuggestOffAndGuards(t *testing.T) {
 		t.Error("the follower's pane left idle")
 	}
 	a.key(ui.Ctrl, ui.KeyU)
-	_ = sid
 }
 
-func TestE2ESuggestDoesNotDelayTyping(t *testing.T) {
+func TestE2ETypingKeepsItsOrderWhileSuggestionsAreOn(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
 	e.suggestSetup("auto")

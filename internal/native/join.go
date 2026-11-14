@@ -1,6 +1,7 @@
 package native
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -8,16 +9,16 @@ import (
 	"keel/internal/native/joinpeer"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/sharelink"
+	"keel/internal/wire"
 )
 
-// Join a session (docs/ui-redesign.md §5.7), as the app has it: features/share.md. The dialog is joinDialog in
-// internal/ui/dialogs.templ; the joined tab is term.js joinRemote and attachFollowChannel; the peer is
+// Join a session (docs/ui-redesign.md §5.7, docs/sharing.md); the peer is
 // internal/native/joinpeer. A joined tab is a terminal and nothing else: it has no Vault sidebar, no Share, no
 // snippets (typeTarget refuses it), it owns no session on this machine (closing it kills nothing), and it is never
 // saved. The link's key is read by joinpeer.ParseLink and used by the peer to verify the host; it is not kept here:
 // the dialog's text is dropped when Join is pressed, and the pane remembers only the origin and the room.
 
-// The dialog's words (joinDialog in internal/ui/dialogs.templ).
 const (
 	joinTitle = "Join a session"
 	joinDesc  = "Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault."
@@ -37,23 +38,17 @@ func (w *workspace) openJoin() { w.joinDlg = &joinDialog{} }
 
 func (w *workspace) closeJoin() {
 	w.joinDlg = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
-// submitJoin reads the link: the app's error is a toast and the dialog stays; otherwise the dialog closes, its text
+// submitJoin reads the link: an error is a toast and the dialog stays; otherwise the dialog closes, its text
 // is dropped, and the join starts.
 func (w *workspace) submitJoin() {
 	d := w.joinDlg
 	if d == nil {
 		return
 	}
-	link, err := joinpeer.ParseLink(d.link)
+	link, err := sharelink.ParseLink(d.link)
 	if err != nil {
 		w.warn(err.Error())
 		return
@@ -62,11 +57,11 @@ func (w *workspace) submitJoin() {
 	w.joinRemote(link)
 }
 
-// joinKey names a join without its key: the same room on the same server (term.js: `join:${origin}:${room}`).
+// joinKey names a join without its key: the same room on the same server.
 func joinKey(l joinpeer.Link) string { return "join:" + l.Origin + ":" + l.Room }
 
-// joinName is what the host is told: the display name, as the Sharing page says (term.js state.name).
-func (w *workspace) joinName() string { return displayName(w.term.Name, defaultName()) }
+// joinName is what the host is told: the display name, as the Sharing page says.
+func (w *workspace) joinName() string { return displayName(w.prefs.Name, defaultName()) }
 
 // joinRemote opens a tab that follows the share. Pasting the link of a join that is already open shows that tab; one
 // that was denied, failed verification or was lost is closed and joined again.
@@ -75,11 +70,11 @@ func (w *workspace) joinRemote(l joinpeer.Link) {
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			if p.remote && p.joinKey == k {
-				if p.conn.Snapshot().Status == "error" {
+				if p.conn.Snapshot().Status == wire.StatusError {
 					w.closeTab(t)
 					goto open
 				}
-				w.selectTab(w.tabIndex(t))
+				w.selectTab(slices.Index(w.tabs, t))
 				return
 			}
 		}
@@ -105,7 +100,7 @@ open:
 	})
 }
 
-// joinedFallback is the pane's title until the host names its session (term.js joinRemote: "Follow").
+// joinedFallback is the pane's title until the host names its session.
 const joinedFallback = "Follow"
 
 // title is the name a pane shows: a joined pane takes the title of the host's session once it says it.
@@ -124,11 +119,7 @@ func (w *workspace) joinedActive() bool {
 	return t != nil && t.remote
 }
 
-// leaveJoin is the banner's Leave: the same as closing the tab. The peer connection closes; the host's session is
-// not touched.
-func (w *workspace) leaveJoin(t *tab) { w.closeTab(t) }
-
-// followNotice is "Typing is off while you follow" with Ask for control (ui/sharecontrol.js wireFollowerNotice), shown
+// followNotice is "Typing is off while you follow" with Ask for control, shown
 // when a follower types. Feedback only: nothing was sent.
 const followNotice = "Typing is off while you follow"
 

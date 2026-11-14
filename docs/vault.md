@@ -2,7 +2,7 @@
 
 The **Vault** is the sidebar on the left of every tab (**⌘B** or the titlebar button folds it). Its filter and segments show **Hosts** (the host tree by group: click a host to connect, the row's menu edits, duplicates or removes it), **Snippets** (click one to type it after you approve; notebooks below) and **Forwards** (on/off per forward). Its footer opens **Keychain**, **Logs** and **Settings**. Keychain, Port forwarding, Snippets, Notebooks, Logs and Settings each open as their own tab page, one of each; opening one again selects its tab.
 
-![The Vault sidebar beside a terminal tab](images/vault-dark.png)
+![The Vault sidebar beside a terminal tab](images/hero-light.png)
 
 ## Secrets
 

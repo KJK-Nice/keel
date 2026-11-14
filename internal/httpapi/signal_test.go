@@ -15,15 +15,13 @@ import (
 func signalServer(t *testing.T) (*httptest.Server, *store.Store, *share.Hub) {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	t.Setenv("KEEL_SIGNAL", "")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
-	hub := share.FromEnv(rt)
-	srv := httptest.NewServer(New(st, rt, hub).Handler())
+	rt := runtime.New(st, runtime.DefaultOpener(st))
+	hub := share.ForServe("", rt)
+	srv := httptest.NewServer(New(st, rt, hub).openHandler())
 	t.Cleanup(srv.Close)
 	return srv, st, hub
 }

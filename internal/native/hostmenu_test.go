@@ -21,7 +21,6 @@ func (r *rig) rowMenu(t *testing.T, host string) []string {
 
 func TestHostMenuItemsAndOrder(t *testing.T) {
 	r := hostRig(t)
-	// hostRowMenu in rowmenus.templ, for the items whose feature exists here.
 	want := []string{"Connect", "Open in split", "Edit", "Duplicate", "Copy SSH command", "Move to folder…", "Agent can read", "Delete"}
 	got := slices.DeleteFunc(r.rowMenu(t, "api-1"), func(s string) bool { return s == "-" })
 	if !slices.Equal(got, want) {
@@ -59,8 +58,7 @@ func TestCopySSHCommandPutsTheCommandOnTheClipboardOnly(t *testing.T) {
 	}
 }
 
-// The cases of internal/ui/menus_test.go TestSSHCommand.
-func TestSSHCommandHasTheWebviewsCases(t *testing.T) {
+func TestSSHCommandCases(t *testing.T) {
 	hosts := []keelclient.Host{
 		{ID: "j", Name: "bastion", Address: "bastion.example", Port: 2200, Username: "ed", AuthType: "password"},
 		{ID: "jd", Address: "bastion", Username: "-oProxyCommand=id", AuthType: "password"},
@@ -113,7 +111,7 @@ func TestHostMenuActions(t *testing.T) {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
 	choose("staging-web", "Open in split")
-	if !slices.Equal(r.fb.spawned, []string{"h-api", "h-web"}) || len(r.w.tabs) != 1 || len(r.w.tabs[0].panes) != 2 {
+	if !slices.Equal(r.fb.spawned, []string{"h-api", "h-web"}) || r.w.tabCount() != 1 || len(r.w.tabAt(0).panes) != 2 {
 		t.Fatalf("spawned %v, panes %d", r.fb.spawned, r.w.paneCount())
 	}
 	choose("api-1", "Edit")
@@ -122,7 +120,7 @@ func TestHostMenuActions(t *testing.T) {
 	}
 	r.press(0, ui.KeyEscape)
 	choose("pg-primary", "Duplicate")
-	if !slices.Equal(r.fb.duplicated, []string{"h-pg"}) || !r.hasText("pg-primary (copy)") {
+	if !slices.Equal(r.fb.duplicated, []string{"h-pg"}) || !r.tt.HasText("pg-primary (copy)") {
 		t.Fatalf("duplicated %v", r.fb.duplicated)
 	}
 	choose("pg-primary", "Agent can read") // on by default: this turns it off
@@ -130,7 +128,7 @@ func TestHostMenuActions(t *testing.T) {
 		t.Fatalf("agent readable %v", r.fb.readable)
 	}
 	choose("pg-primary", "Delete")
-	if len(r.fb.deleted) != 0 || !r.hasText("Remove pg-primary?") {
+	if len(r.fb.deleted) != 0 || !r.tt.HasText("Remove pg-primary?") {
 		t.Fatal("Delete did not ask first")
 	}
 	r.click(t, "Cancel")
@@ -148,7 +146,7 @@ func TestAltEnterOnAFocusedHostRowOpensASplit(t *testing.T) {
 	r := hostRig(t)
 	r.click(t, "host api-1") // a session tab to split
 	r.click(t, "Filter hosts")
-	for i := 0; i < 16 && !r.tt.Focused("host staging-web"); i++ { // Tab walks from the filter to the rows (plan 030: MyGo's buttons are stops of their own)
+	for i := 0; i < 16 && !r.tt.Focused("host staging-web"); i++ { // Tab walks from the filter to the rows (MyGo's buttons are stops of their own)
 		r.press(0, ui.KeyTab)
 	}
 	if !r.tt.Focused("host staging-web") {
@@ -159,17 +157,17 @@ func TestAltEnterOnAFocusedHostRowOpensASplit(t *testing.T) {
 	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h-web" {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
-	if len(r.w.tabs) != 1 || len(r.w.tabs[0].panes) != 2 {
-		t.Fatalf("not opened as a split: tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 1 || len(r.w.tabAt(0).panes) != 2 {
+		t.Fatalf("not opened as a split: tabs %d", r.w.tabCount())
 	}
 	// ↵ alone opens the focused row's host in a tab of its own.
 	r.click(t, "Filter hosts")
-	for i := 0; i < 16 && !r.tt.Focused("host pg-primary"); i++ { // plan 030: more tab stops
+	for i := 0; i < 16 && !r.tt.Focused("host pg-primary"); i++ { // more tab stops
 		r.press(0, ui.KeyTab)
 	}
 	r.press(0, ui.KeyEnter)
-	if got := r.fb.spawned[len(r.fb.spawned)-1]; got != "h-pg" || len(r.w.tabs) != 2 {
-		t.Errorf("↵ spawned %q, tabs %d", got, len(r.w.tabs))
+	if got := r.fb.spawned[len(r.fb.spawned)-1]; got != "h-pg" || r.w.tabCount() != 2 {
+		t.Errorf("↵ spawned %q, tabs %d", got, r.w.tabCount())
 	}
 }
 
@@ -177,17 +175,17 @@ func TestHostsReloadAfterAWriteKeepFilterGroupsAndTabs(t *testing.T) {
 	r := hostRig(t)
 	r.click(t, "host api-1")
 	r.w.filter = "pg"
-	r.w.collapsed["staging"] = true
+	r.w.prefs.Collapsed["staging"] = true
 	r.tt.Frame()
 	before := r.fb.hostsCalls
 	r.fb.hosts = append(r.fb.hosts, keelclient.Host{ID: "h-new", Name: "pg-replica", Group: "production", AuthType: "key", Address: "10.0.0.9", Username: "dba"})
 	r.w.reloadHosts()
 	r.tt.Frame()
-	if r.fb.hostsCalls != before+1 || !r.hasText("pg-replica") {
-		t.Fatalf("hosts calls %d→%d, new host shown %v", before, r.fb.hostsCalls, r.hasText("pg-replica"))
+	if r.fb.hostsCalls != before+1 || !r.tt.HasText("pg-replica") {
+		t.Fatalf("hosts calls %d→%d, new host shown %v", before, r.fb.hostsCalls, r.tt.HasText("pg-replica"))
 	}
-	if r.w.filter != "pg" || !r.w.collapsed["staging"] || len(r.w.tabs) != 1 || r.hasText("api-1 ") && false {
-		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.collapsed, len(r.w.tabs))
+	if r.w.filter != "pg" || !r.w.prefs.Collapsed["staging"] || r.w.tabCount() != 1 || r.tt.HasText("api-1 ") && false {
+		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.prefs.Collapsed, r.w.tabCount())
 	}
 	// A pane takes its host's new name.
 	h := r.fb.hosts[0]
@@ -217,8 +215,8 @@ func TestARevChangeReloadsOnceAndSameRevNever(t *testing.T) {
 	r.fb.vault.Rev = "e.2"
 	r.w.pollTick()
 	r.tt.Frame()
-	if r.fb.hostsCalls != base+1 || !r.hasText("from-elsewhere") || r.w.rev != "e.2" {
-		t.Fatalf("hosts calls %d, shown %v, rev %q", r.fb.hostsCalls-base, r.hasText("from-elsewhere"), r.w.rev)
+	if r.fb.hostsCalls != base+1 || !r.tt.HasText("from-elsewhere") || r.w.rev != "e.2" {
+		t.Fatalf("hosts calls %d, shown %v, rev %q", r.fb.hostsCalls-base, r.tt.HasText("from-elsewhere"), r.w.rev)
 	}
 	r.w.pollTick() // the same rev again
 	if r.fb.hostsCalls != base+1 {
@@ -256,10 +254,10 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	r.fb.vault = keelclient.Vault{Locked: true, Sessions: 2}
 	r.w.pollTick()
 	r.tt.Frame()
-	if r.w.gate == nil || !r.hasText("Unlock your vault") || r.hasText("Filter hosts") {
+	if r.w.gate == nil || !r.tt.HasText("Unlock your vault") || r.tt.HasText("Filter hosts") {
 		t.Fatal("the Unlock screen is not over the window")
 	}
-	if r.w.paneCount() != panes || len(r.w.tabs) != 1 {
+	if r.w.paneCount() != panes || r.w.tabCount() != 1 {
 		t.Errorf("panes %d→%d", panes, r.w.paneCount())
 	}
 	for _, c := range r.fb.conns {
@@ -281,7 +279,7 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	r.tt.Type(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || r.w.paneCount() != panes || len(r.w.tabs) != 1 || r.fb.hostsCalls != hosts+1 || !r.hasText("Filter hosts") {
+	if r.w.gate != nil || r.w.paneCount() != panes || r.w.tabCount() != 1 || r.fb.hostsCalls != hosts+1 || !r.tt.HasText("Filter hosts") {
 		t.Fatalf("gate %v panes %d hosts calls %d", r.w.gate != nil, r.w.paneCount(), r.fb.hostsCalls-hosts)
 	}
 }
@@ -295,7 +293,7 @@ func TestUnlockedElsewhereTakesTheScreenAway(t *testing.T) {
 	r.fb.vault = keelclient.Vault{Rev: "e.1"}
 	r.w.pollTick()
 	r.tt.Frame()
-	if r.w.gate != nil || !r.hasText("Filter hosts") || !r.hasText("Local Shell") {
+	if r.w.gate != nil || !r.tt.HasText("Filter hosts") || !r.tt.HasText("Local Shell") {
 		t.Fatal("the screen stayed after another window unlocked the vault")
 	}
 }

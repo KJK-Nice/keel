@@ -1,12 +1,12 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
 	"keel/internal/session"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Edit host: Test connection and the host key line (docs/ui-redesign.md
@@ -27,12 +27,12 @@ import (
 // goes away (the dialog's Cancel aborts the fetch).
 func (s *Server) testHost(w http.ResponseWriter, r *http.Request) {
 	var h store.Host
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&h); err != nil {
+	if err := decode(w, r, bodyHost, &h); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid host payload")
 		return
 	}
-	if h.AuthType == "local" {
-		writeError(w, http.StatusBadRequest, "the local shell needs no connection test")
+	if h.IsLocal() {
+		writeErr(w, badInput("the local shell needs no connection test"))
 		return
 	}
 	label := strings.TrimSpace(h.Name)
@@ -41,20 +41,20 @@ func (s *Server) testHost(w http.ResponseWriter, r *http.Request) {
 	}
 	check := h
 	check.Name = label
-	if err := validateHost(check); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := store.CheckHostSignIn(check); err != nil {
+		writeErr(w, err)
 		return
 	}
 	host, err := s.store.ResolveDraft(h)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	if host.Name == "" {
 		host.Name = label
 	}
 	res := session.Probe(r.Context(), host, s.store.CheckHostKeyType)
-	s.note("host", "connection test "+label+": "+res.Kind, h.ID, "", "")
+	s.note(wire.LogHost, "connection test "+label+": "+res.Kind, h.ID, "", "")
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -62,16 +62,16 @@ func (s *Server) testHost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getHostKey(w http.ResponseWriter, r *http.Request) {
 	h, err := s.store.GetHost(r.PathValue("id"))
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	if h.AuthType == "local" {
-		writeError(w, http.StatusBadRequest, "the local shell has no host key")
+	if h.IsLocal() {
+		writeErr(w, badInput("the local shell has no host key"))
 		return
 	}
 	k, err := s.store.KnownHost(store.HostKeyName(h))
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, k)
@@ -82,28 +82,28 @@ func (s *Server) getHostKey(w http.ResponseWriter, r *http.Request) {
 func (s *Server) forgetHostKey(w http.ResponseWriter, r *http.Request) {
 	h, err := s.store.GetHost(r.PathValue("id"))
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	if h.AuthType == "local" {
-		writeError(w, http.StatusBadRequest, "the local shell has no host key")
+	if h.IsLocal() {
+		writeErr(w, badInput("the local shell has no host key"))
 		return
 	}
 	name := store.HostKeyName(h)
 	prev, err := s.store.KnownHost(name)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	ok, err := s.store.ForgetHostKey(name)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "no saved host key for "+name)
 		return
 	}
-	s.note("host", "forgot host key for "+h.Name+" ("+name+", "+prev.Fingerprint+")", h.ID, "", "")
+	s.note(wire.LogHost, "forgot host key for "+h.Name+" ("+name+", "+prev.Fingerprint+")", h.ID, "", "")
 	writeJSON(w, http.StatusOK, store.KnownHostKey{Hostname: name})
 }

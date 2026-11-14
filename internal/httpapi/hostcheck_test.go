@@ -23,15 +23,14 @@ import (
 func hostCheckServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	dir := t.TempDir()
-	st, err := store.New(filepath.Join(dir, "keel.json"))
+	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
 	logPath := filepath.Join(dir, "keel.log")
-	srv := httptest.NewServer(New(st, rt, nil).WithLogs(applog.New(logPath)).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithLogs(applog.New(logPath)).openHandler())
 	t.Cleanup(srv.Close)
 	return srv, st, logPath
 }
@@ -81,11 +80,11 @@ func TestTestConnectionEndpoint(t *testing.T) {
 	// Trust needs the probe's offer, for exactly its address and key.
 	for _, bad := range []map[string]any{
 		{"hostname": res.Hostname, "fingerprint": res.Fingerprint},
-		{"token": res.TrustToken, "hostname": "127.0.0.2:22", "fingerprint": res.Fingerprint},
-		{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": "SHA256:q3VtXz0b6kP1d8yRk2mJw4sTn7aEc9hLf5uGi3o9fKe"},
-		{"token": res.TrustToken, "hostname": "not a host", "fingerprint": res.Fingerprint},
-		{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": "SHA256:abc"},
-		{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": res.Fingerprint, "replace": true},
+		{"trustToken": res.TrustToken, "hostname": "127.0.0.2:22", "fingerprint": res.Fingerprint},
+		{"trustToken": res.TrustToken, "hostname": res.Hostname, "fingerprint": "SHA256:q3VtXz0b6kP1d8yRk2mJw4sTn7aEc9hLf5uGi3o9fKe"},
+		{"trustToken": res.TrustToken, "hostname": "not a host", "fingerprint": res.Fingerprint},
+		{"trustToken": res.TrustToken, "hostname": res.Hostname, "fingerprint": "SHA256:abc"},
+		{"trustToken": res.TrustToken, "hostname": res.Hostname, "fingerprint": res.Fingerprint, "replace": true},
 	} {
 		if code := doJSON(t, "POST", srv.URL+"/api/known-hosts", bad, nil); code == 200 {
 			t.Fatalf("trusted %v", bad)
@@ -94,7 +93,7 @@ func TestTestConnectionEndpoint(t *testing.T) {
 	if k, _ := st.KnownHost(target.Addr); k.Known {
 		t.Fatal("a bad trust request saved a key")
 	}
-	if code := doJSON(t, "POST", srv.URL+"/api/known-hosts", map[string]any{"token": res.TrustToken, "hostname": res.Hostname, "fingerprint": res.Fingerprint}, nil); code != 200 {
+	if code := doJSON(t, "POST", srv.URL+"/api/known-hosts", map[string]any{"trustToken": res.TrustToken, "hostname": res.Hostname, "fingerprint": res.Fingerprint}, nil); code != 200 {
 		t.Fatalf("trust %d", code)
 	}
 	if k, _ := st.KnownHost(target.Addr); k.KeyType != "ssh-ed25519" {

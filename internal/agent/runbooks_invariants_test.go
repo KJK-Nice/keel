@@ -15,7 +15,7 @@ import (
 // Save on a proposal; their text reaches a provider message only from
 // runbookBefore, through the Auditor; a step becomes a proposal only in
 // runbookAfter, and a step's state changes only from the user's type
-// (typeDone), the shell's report (refreshRun) or the user's action
+// (TypeDoneAt), the shell's report (refreshRun) or the user's action
 // (StepAction).
 func TestRunbooksOnlyThroughTheirPaths(t *testing.T) {
 	allowed := map[string][]string{
@@ -27,7 +27,7 @@ func TestRunbooksOnlyThroughTheirPaths(t *testing.T) {
 		"runbookBefore":          {"Service.Ask"},
 		"runbookAfter":           {"Service.Ask"},
 		"runbookFrame":           {"Service.runbookBefore"},
-		"stepTypedLocked":        {"Service.typeDone"},
+		"stepTypedLocked":        {"Service.TypeDoneAt"},
 		"stepEditedLocked":       {"Service.EditProposal"},
 		"startRunLocked":         {"Service.runbookBefore", "Service.runbookAfter"},
 	}
@@ -84,6 +84,7 @@ func TestRunbooksOnlyThroughTheirPaths(t *testing.T) {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}
 	}
+	noValueUses(t, allowed, func(f goFile) bool { return inAgentTree(f.pkg) })
 }
 
 // Runbook text is refused, before anything is redacted or logged, unless

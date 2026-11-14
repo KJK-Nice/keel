@@ -70,8 +70,8 @@ func TestSidebarFooterOpensKeychainLogsAndSettings(t *testing.T) {
 	}
 	// One tab per page: opening it again selects it.
 	r.click(t, "Keychain")
-	if len(r.w.tabs) != 3 || r.w.active != 1 {
-		t.Fatalf("tabs %d active %d", len(r.w.tabs), r.w.active)
+	if r.w.tabCount() != 3 || r.w.active != 1 {
+		t.Fatalf("tabs %d active %d", r.w.tabCount(), r.w.active)
 	}
 	r.openPal(t)
 	r.typePal("Keychain")
@@ -79,8 +79,8 @@ func TestSidebarFooterOpensKeychainLogsAndSettings(t *testing.T) {
 	r.openPal(t)
 	r.typePal("Logs")
 	r.press(0, ui.KeyEnter)
-	if len(r.w.tabs) != 3 || r.w.active != 2 {
-		t.Fatalf("the palette opened a second page: tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 3 || r.w.active != 2 {
+		t.Fatalf("the palette opened a second page: tabs %d", r.w.tabCount())
 	}
 }
 
@@ -97,8 +97,8 @@ func TestPalettePageActionsAndOpenNowRows(t *testing.T) {
 		t.Fatalf("actions %v", have)
 	}
 	r.press(0, ui.KeyEscape)
-	r.w.openPage("keychain")
-	r.w.openPage("logs")
+	r.w.showPage("keychain")
+	r.w.showPage("logs")
 	r.openPal(t)
 	var open []string
 	for _, it := range r.w.pal.items {
@@ -114,7 +114,7 @@ func TestPalettePageActionsAndOpenNowRows(t *testing.T) {
 
 func TestPageTabHasItsNameAndIconCannotBeRenamedAndClosesWithCmdW(t *testing.T) {
 	r := pageRig(t, keychainBackend())
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	if !r.has("tab Keychain") {
 		t.Fatal("no tab named Keychain")
@@ -123,7 +123,7 @@ func TestPageTabHasItsNameAndIconCannotBeRenamedAndClosesWithCmdW(t *testing.T) 
 		t.Fatalf("menu %v", got)
 	}
 	r.tt.CloseMenu()
-	r.w.beginRename(r.w.tab())
+	r.w.beginRename(r.w.activeTab())
 	if r.w.renaming != nil {
 		t.Fatal("a page was renamed")
 	}
@@ -132,12 +132,12 @@ func TestPageTabHasItsNameAndIconCannotBeRenamedAndClosesWithCmdW(t *testing.T) 
 		t.Fatalf("⌘W left %v", got)
 	}
 	// It can be opened again afterwards, and closed from the tab menu.
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	menuLabels(t, r, "tab Logs")
 	choose(t, r, "Close")
-	if len(r.w.tabs) != 1 {
-		t.Fatalf("tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 1 {
+		t.Fatalf("tabs %d", r.w.tabCount())
 	}
 	if len(r.fb.killed) != 0 {
 		t.Errorf("closing a page killed %v", r.fb.killed)
@@ -148,19 +148,19 @@ func TestPageTabsAreReorderedWithTheOthers(t *testing.T) {
 	fb := keychainBackend()
 	fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
-	r.w.openPage("logs")
+	r.w.showPage("keychain")
+	r.w.showPage("logs")
 	r.tt.Frame()
-	r.w.moveTab(r.w.tabs[2], 0) // Logs first
+	r.w.moveTab(r.w.tabAt(2), 0) // Logs first
 	if got := tabNames(r); !slices.Equal(got, []string{"Logs", "api-1", "Keychain"}) {
 		t.Fatalf("tabs %v", got)
 	}
-	if r.w.tab().name() != "Logs" {
-		t.Errorf("active %s", r.w.tab().name())
+	if r.w.activeTab().name() != "Logs" {
+		t.Errorf("active %s", r.w.activeTab().name())
 	}
 	r.press(ui.Cmd, ui.Key3)
-	if r.w.tab().name() != "Keychain" {
-		t.Errorf("⌘3 shows %s", r.w.tab().name())
+	if r.w.activeTab().name() != "Keychain" {
+		t.Errorf("⌘3 shows %s", r.w.activeTab().name())
 	}
 }
 
@@ -169,8 +169,8 @@ func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *tes
 	fb := keychainBackend()
 	fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r := newRigIn(t, fb, dir)
-	r.w.openPage("logs")
-	r.w.openPage("keychain")
+	r.w.showPage("logs")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.w.selectTab(0) // a session tab is active
 	r.tt.Frame()
@@ -201,8 +201,8 @@ func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *tes
 	fb3 := keychainBackend()
 	fb3.sessions = fb2.sessions
 	r3 := newRigIn(t, fb3, dir)
-	if r3.w.tab().name() != "Keychain" {
-		t.Fatalf("active %s", r3.w.tab().name())
+	if r3.w.activeTab().name() != "Keychain" {
+		t.Fatalf("active %s", r3.w.activeTab().name())
 	}
 	// A page this client does not have, or twice, is dropped.
 	r3.w.closeWindow()
@@ -216,7 +216,7 @@ func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *tes
 func TestPageOnlyWindowSavesAndRestoresWithNoSessionTab(t *testing.T) {
 	dir := t.TempDir()
 	r := newRigIn(t, keychainBackend(), dir)
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	r.w.closeWindow()
 	r2 := newRigIn(t, keychainBackend(), dir)
@@ -233,11 +233,11 @@ func TestPageOnlyWindowSavesAndRestoresWithNoSessionTab(t *testing.T) {
 
 func TestKeychainPageListsTwoGroupsWithSubtitlesAndTheFirstDetail(t *testing.T) {
 	r := pageRig(t, keychainBackend())
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.texts(t, "Keychain", "New identity", "Filter identities", "SSH keys", "Passwords",
 		"deploy key", "SSH key · deploy · 2 hosts", "plain key", "SSH key · 0 hosts", "ops password", "Password · ops · 0 hosts", "passphrase")
-	// The detail shows the first identity (term.js syncIdentityPage).
+	// The detail shows the first identity.
 	r.texts(t, "SSH key · added Mar 4, 2026", "Username", "deploy", "Private key", "Encrypted in the vault", "Passphrase", "Stored in the vault",
 		"Used by 2 hosts", "pg-primary", "api-1", "Edit", "Delete identity", "Remove it from 2 hosts before you can delete it.")
 	if r.tt.HasText("Not stored") {
@@ -258,11 +258,11 @@ func TestKeychainPageListsTwoGroupsWithSubtitlesAndTheFirstDetail(t *testing.T) 
 func TestKeychainPageEmptyAndFilteredStates(t *testing.T) {
 	fb := okBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.texts(t, "No identities yet", "Add an SSH key or a password and attach it to hosts.", "Select an identity, or add one with New identity.")
 	r2 := pageRig(t, keychainBackend())
-	r2.w.openPage("keychain")
+	r2.w.showPage("keychain")
 	r2.tt.Frame()
 	r2.click(t, "Filter identities")
 	r2.tt.Type("ops")
@@ -285,7 +285,7 @@ func TestKeychainPageNeverRendersASecret(t *testing.T) {
 	}
 	fb.identities = append(fb.identities, in)
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.click(t, "identity n")
 	for _, s := range r.tt.Texts() {
@@ -293,7 +293,7 @@ func TestKeychainPageNeverRendersASecret(t *testing.T) {
 			t.Fatalf("the page shows a secret: %q", s)
 		}
 	}
-	if s := fmt.Sprintf("%v %+v %#v", r.w.tab().pg.keychain, in, in); strings.Contains(s, scratchPassword) || strings.Contains(s, scratchPEM) {
+	if s := fmt.Sprintf("%v %+v %#v", pageAs[*keychainPage](r.w.activeTab()), in, in); strings.Contains(s, scratchPassword) || strings.Contains(s, scratchPEM) {
 		t.Fatalf("printing holds a secret: %s", s)
 	}
 }
@@ -301,7 +301,7 @@ func TestKeychainPageNeverRendersASecret(t *testing.T) {
 func TestNewIdentityPasswordSendsItOnceAndSelectsTheNewOne(t *testing.T) {
 	fb := keychainBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.click(t, "New identity")
 	if r.w.identDlg == nil || r.w.identDlg.id != "" {
@@ -331,7 +331,7 @@ func TestNewIdentityPasswordSendsItOnceAndSelectsTheNewOne(t *testing.T) {
 		t.Error("the dialog stays open")
 	}
 	r.texts(t, "db login", "Password · postgres · 0 hosts")
-	if got := r.w.tab().pg.keychain.selected; got != "i-new1" {
+	if got := pageAs[*keychainPage](r.w.activeTab()).selected; got != "i-new1" {
 		t.Errorf("selected %q", got)
 	}
 	// The secret is nowhere in the page.
@@ -345,7 +345,7 @@ func TestNewIdentityPasswordSendsItOnceAndSelectsTheNewOne(t *testing.T) {
 func TestNewIdentityKindKeySendsTheKeyAndPassphraseAndNotAPassword(t *testing.T) {
 	fb := keychainBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.press(ui.Cmd, ui.KeyN) // the page's own New
 	if r.w.identDlg == nil || r.w.hostDlg != nil {
@@ -375,7 +375,7 @@ func TestNewIdentityKindKeySendsTheKeyAndPassphraseAndNotAPassword(t *testing.T)
 func TestEditIdentityKeepsBlankSecretsOutAndClearsThemOnClose(t *testing.T) {
 	fb := keychainBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.click(t, "Edit")
 	d := r.w.identDlg
@@ -407,7 +407,7 @@ func TestIdentitySaveRefusalStaysInTheDialogWithTheServersWords(t *testing.T) {
 	fb := keychainBackend()
 	fb.identSaveErr = &keelclient.StatusError{Code: 400, Msg: "kind must be password or key"}
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.click(t, "New identity")
 	r.fill(t, "Identity name", "x")
@@ -421,11 +421,11 @@ func TestIdentitySaveRefusalStaysInTheDialogWithTheServersWords(t *testing.T) {
 func TestDeleteIdentityAsksFirstAndAnInUseOneIsRefused(t *testing.T) {
 	fb := keychainBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	// The first one (deploy key) is used by two hosts: its Delete is off, and nothing is asked or sent.
 	r.click(t, "Delete identity")
-	if r.w.confirm != nil || len(fb.identDeleted) != 0 {
+	if r.w.confirmOpen() || len(fb.identDeleted) != 0 {
 		t.Fatal("an in-use identity was asked about")
 	}
 	// Its row menu says the same: Delete is disabled.
@@ -438,7 +438,7 @@ func TestDeleteIdentityAsksFirstAndAnInUseOneIsRefused(t *testing.T) {
 	}
 	if err := r.tt.ChooseMenuItem("Delete"); err == nil {
 		r.tt.Frame()
-		if r.w.confirm != nil {
+		if r.w.confirmOpen() {
 			t.Fatal("the disabled Delete asked")
 		}
 	}
@@ -446,13 +446,13 @@ func TestDeleteIdentityAsksFirstAndAnInUseOneIsRefused(t *testing.T) {
 	// The server's refusal path (a direct ask) shows the rule's own words in the status bar.
 	r.w.askDeleteIdentity(fb.identities[0])
 	r.tt.Frame()
-	if !r.tt.HasText("Remove deploy key from 2 hosts first") || r.w.confirm != nil {
-		t.Errorf("toast shown %v, confirm %v", r.tt.HasText("Remove deploy key from 2 hosts first"), r.w.confirm)
+	if !r.tt.HasText("Remove deploy key from 2 hosts first") || r.w.confirmOpen() {
+		t.Errorf("toast shown %v, confirm %v", r.tt.HasText("Remove deploy key from 2 hosts first"), r.w.confirmDlg())
 	}
-	// An unused one asks with the webview's words, and Cancel deletes nothing.
+	// An unused one asks first, and Cancel deletes nothing.
 	r.click(t, "identity plain key")
 	r.click(t, "Delete identity")
-	if r.w.confirm == nil || !r.tt.HasText("Delete identity “plain key”?") {
+	if !r.w.confirmOpen() || !r.tt.HasText("Delete identity “plain key”?") {
 		t.Fatal("no confirm")
 	}
 	r.click(t, "Cancel")
@@ -472,7 +472,7 @@ func TestDeleteIdentityAsksFirstAndAnInUseOneIsRefused(t *testing.T) {
 func TestIdentityRowMenuEditsAndDeletes(t *testing.T) {
 	fb := keychainBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	if err := r.tt.RightClick("identity ops password"); err != nil {
 		t.Fatal(err)
@@ -494,7 +494,7 @@ func TestIdentityRowMenuEditsAndDeletes(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if r.w.confirm == nil || len(fb.identDeleted) != 0 {
+	if !r.w.confirmOpen() || len(fb.identDeleted) != 0 {
 		t.Fatal("Delete did not ask first")
 	}
 }
@@ -502,7 +502,7 @@ func TestIdentityRowMenuEditsAndDeletes(t *testing.T) {
 func TestHostDialogIdentityPickerReadsTheIdentitiesAgainEachTimeItOpens(t *testing.T) {
 	fb := keychainBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("keychain")
+	r.w.showPage("keychain")
 	r.tt.Frame()
 	r.click(t, "New identity")
 	r.fill(t, "Identity name", "fresh")
@@ -540,16 +540,13 @@ func logsBackend() *fakeBackend {
 func TestLogsPageRowsAreNewestFirstWithTimeKindTargetAndEvent(t *testing.T) {
 	fb := logsBackend()
 	r := pageRig(t, fb)
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	r.texts(t, "Logs", "What Keel did on this machine, newest first. Secrets are never written here.", "Refresh", "Search events",
-		"All", "Sessions", "Forwards", "Vault", "Agent", "Time", "Kind", "Target", "Event",
+		"All", "Sessions", "Forwards", "Vault", "Sharing", "Agent", "Time", "Kind", "Target", "Event",
 		"15:04:08", "host", "api-1", "host deleted", "15:04:05", "tunnel", "tunnel started",
 		"agent.read", "pg-primary", "agent read 12 lines", "12 lines", "300 bytes", "3 redacted", "via jev",
 		"session opened", "staging-web", "3 sent", "model 40 ms", "Jev 9 ms", "connect failed")
-	if r.tt.HasText("Sharing") {
-		t.Error("a Sharing chip: the webview has none")
-	}
 	if fb.logLimit != logsLimit {
 		t.Errorf("limit %d", fb.logLimit)
 	}
@@ -563,7 +560,7 @@ func TestLogsPageRowsAreNewestFirstWithTimeKindTargetAndEvent(t *testing.T) {
 
 func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	r := pageRig(t, logsBackend())
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.w.sidebar = false // the sidebar's own Forwards segment shares the chip's name
 	r.tt.Frame()
 	has := func(s string) bool { return r.tt.HasText(s) }
@@ -579,8 +576,12 @@ func TestLogsPageChipsFilterByGroupAndTheSearchByKindAndMessage(t *testing.T) {
 	if !has("tunnel started") || has("session opened") {
 		t.Error("the Forwards chip keeps the wrong rows")
 	}
-	// The title bar's Agent button shares this chip's name: the chip is the one after Vault.
-	v, _ := r.tt.Find("Vault")
+	r.click(t, "Sharing")
+	if has("host deleted") || has("session opened") || has("agent read 12 lines") {
+		t.Error("the Sharing chip keeps the wrong rows")
+	}
+	// The title bar's Agent button shares this chip's name: the chip is the one after Sharing.
+	v, _ := r.tt.Find("Sharing")
 	r.tt.ClickAt(v.X+v.W+space1_5+20, v.Y+v.H/2)
 	r.tt.Frame()
 	if !has("agent read 12 lines") || !has("suggestion") || has("host deleted") || has("connect failed") {
@@ -617,7 +618,7 @@ func TestLogsPageShowsNewLinesEveryTwoSecondsOnlyWhileItIsTheSelectedTab(t *test
 	if fb.logsCalls != n {
 		t.Fatal("read with the page not open")
 	}
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	n = fb.logsCalls
 	fb.logs = append([]keelclient.LogEntry{{Time: time.Now(), Kind: "vault", Message: "vault unlocked"}}, fb.logs...)
@@ -642,7 +643,7 @@ func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {
 	fb.vault.Rev = "r1"
 	r := pageRig(t, fb)
 	r.w.rev = "r1"
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	n := fb.logsCalls
 	if n != 1 {
@@ -670,9 +671,9 @@ func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {
 	}
 }
 
-func TestLogRulesAreTheWebviews(t *testing.T) {
+func TestLogGroups(t *testing.T) {
 	for kind, want := range map[string]string{"session": "sessions", "tunnel": "forwards", "vault": "vault", "host": "vault", "group": "vault", "identity": "vault",
-		"snippet": "vault", "notebook": "vault", "agent": "agent", "agent.type": "agent", "AGENT.read": "agent", "share": "other", "error": "other"} {
+		"snippet": "vault", "notebook": "vault", "agent": "agent", "agent.type": "agent", "AGENT.read": "agent", "share": "sharing", "error": "other"} {
 		if got := logGroup(kind); got != want {
 			t.Errorf("logGroup(%q) = %q, want %q", kind, got, want)
 		}

@@ -1,13 +1,14 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -29,7 +30,31 @@ import (
 	"keel/internal/tunnel"
 )
 
+// agentProviderEnv set to "fake" swaps every provider for the in-process
+// test fake, in a build with the tag keelfake only (agent_fake.go). It
+// exists for end-to-end tests.
+const agentProviderEnv = "KEEL_AGENT_PROVIDER"
+
+// serveConfig is what keel serve takes from its environment and its build.
+// RunServe reads it once; nothing below reads the environment for these.
+type serveConfig struct {
+	// signal is KEEL_SIGNAL: the signal server for this run.
+	signal       string
+	agentFactory service.Factory
+	agentJudge   service.JudgeFactory
+	agentFake    bool
+	storeOpts    []store.Option
+}
+
 func RunServe(addr, dataDir string) error {
+	factory, judge, fake, err := agentProviders(os.Getenv(agentProviderEnv))
+	if err != nil {
+		return err
+	}
+	return runServe(addr, dataDir, serveConfig{signal: os.Getenv("KEEL_SIGNAL"), agentFactory: factory, agentJudge: judge, agentFake: fake})
+}
+
+func runServe(addr, dataDir string, cfg serveConfig) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return err
 	}
@@ -38,7 +63,7 @@ func RunServe(addr, dataDir string) error {
 		return err
 	}
 	defer release()
-	st, err := store.New(filepath.Join(dataDir, "keel.json"))
+	st, err := store.New(filepath.Join(dataDir, "keel.json"), cfg.storeOpts...)
 	if err != nil {
 		return fmt.Errorf("store: %w", err)
 	}
@@ -51,24 +76,21 @@ func RunServe(addr, dataDir string) error {
 	if err != nil {
 		return fmt.Errorf("mcp token: %w", err)
 	}
-	rt := runtime.New(st, nil)
-	hub := share.FromEnv(rt)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
+	hub := share.ForServe(cfg.signal, rt)
 	// Settings · Sharing's server; KEEL_SIGNAL still wins for this run.
 	hub.SetSaved(st.SignalURL())
 	logs := applog.New(filepath.Join(dataDir, "keel.log"))
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
-	// KEEL_AGENT_PROVIDER=fake is for end-to-end tests only: the agent then
-	// answers from an in-process fake and nothing is sent anywhere.
-	agentFactory, agentJudge, agentFake := service.FromEnv(os.Getenv)
-	if agentFake {
-		log.Printf("%s=fake: the agent panel and in-pane suggestions answer from built-in test fakes; nothing is sent to a provider", service.TestProviderEnv)
+	if cfg.agentFake {
+		log.Printf("%s=fake: the agent panel and in-pane suggestions answer from built-in test fakes; nothing is sent to a provider", agentProviderEnv)
 	}
 
 	stop := make(chan struct{})
 	var once sync.Once
 	shutdown := func() { once.Do(func() { close(stop) }) }
 
-	api := httpapi.New(st, rt, hub).WithBuild(buildid.Of()).WithAuth(token).WithMCPAuth(mcpToken).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(agentFactory, agentFake).WithAgentJudge(agentJudge)
+	api := httpapi.New(st, rt, hub).WithBuild(buildid.Of()).WithAuth(token).WithMCPAuth(mcpToken).WithTunnels(tn).WithLogs(logs).WithStop(shutdown).WithSSHDir(paths.SSHDir()).WithAgentProvider(cfg.agentFactory, cfg.agentFake).WithAgentJudge(cfg.agentJudge)
 	httpSrv := &http.Server{
 		Addr:              addr,
 		Handler:           api.Handler(),
@@ -128,8 +150,8 @@ func lockDataDirWait(dataDir string, wait time.Duration) (func(), error) {
 	}
 }
 
-func EnsureServe(addr, dataDir string) error {
-	if ProbeHealth(addr) {
+func ensureServe(addr, dataDir string) error {
+	if probeHealth(addr) {
 		return nil
 	}
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
@@ -140,7 +162,7 @@ func EnsureServe(addr, dataDir string) error {
 	}
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
-		if ProbeHealth(addr) {
+		if probeHealth(addr) {
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -148,9 +170,13 @@ func EnsureServe(addr, dataDir string) error {
 	return fmt.Errorf("keel serve did not become ready on %s", addr)
 }
 
-var stopWait = 5 * time.Second
-
 func StopServe(addr, dataDir string) error {
+	return stopServe(addr, dataDir, 5*time.Second)
+}
+
+// stopServe waits up to stopWait for the daemon to go down, after the stop
+// request and again after the signal.
+func stopServe(addr, dataDir string, stopWait time.Duration) error {
 	// Old daemons without a token ignore the header; current ones require it.
 	token, _ := authtoken.Read(dataDir)
 	posted := postRuntimeStop(addr, token)
@@ -177,7 +203,7 @@ func StopServe(addr, dataDir string) error {
 	if livePid != pid {
 		return fmt.Errorf("pid file names %d but keel serve on %s reports %d; not signalling", pid, addr, livePid)
 	}
-	if err := signalStop(pid); err != nil && ProbeHealth(addr) {
+	if err := signalStop(pid); err != nil && probeHealth(addr) {
 		return err
 	}
 	if waitUntilDown(addr, stopWait) {
@@ -206,7 +232,6 @@ func healthPid(addr string) (pid int, up bool) {
 	return body.Pid, true
 }
 
-// listening reports whether anything accepts TCP connections on addr.
 func listening(addr string) bool {
 	c, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
 	if err != nil {
@@ -216,50 +241,37 @@ func listening(addr string) bool {
 	return true
 }
 
-func ProbeHealth(addr string) bool {
-	client := &http.Client{Timeout: 400 * time.Millisecond}
-	res, err := client.Get(healthURL(addr))
-	if err != nil {
-		return false
-	}
-	defer res.Body.Close()
-	_, _ = io.Copy(io.Discard, res.Body)
-	return res.StatusCode == http.StatusOK
+func probeHealth(addr string) bool {
+	_, up := healthPid(addr)
+	return up
 }
 
 func healthURL(addr string) string {
 	return "http://" + addr + "/api/health"
 }
 
-// VerifyServe checks that the keel serve on addr holds token before a
+// verifyServe checks that the keel serve on addr holds token before a
 // client hands the token to it. It sends a random nonce, never the token,
 // and expects HMAC(token, nonce) back: another program that grabbed the
 // port first cannot answer.
-func VerifyServe(addr, token string) error {
-	nonce, err := authtoken.NewNonce()
-	if err != nil {
-		return err
-	}
-	client := &http.Client{Timeout: 2 * time.Second}
-	res, err := client.Get(healthURL(addr) + "?nonce=" + url.QueryEscape(nonce))
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	var body struct {
-		Proof string `json:"proof"`
-	}
-	if res.StatusCode == http.StatusOK {
-		_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&body)
-	}
-	if !authtoken.CheckProof(token, nonce, body.Proof) {
+func verifyServe(addr, token string) error {
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
+	err := authtoken.VerifyServer(context.Background(), client, addr, authtoken.WindowChallenge, token)
+	if errors.Is(err, authtoken.ErrUnproven) {
 		return fmt.Errorf("the server on %s did not prove it is this user's keel serve "+
 			"(an older keel serve, or another program on that port); run `keel serve stop` and try again", addr)
 	}
-	return nil
+	return err
 }
 
+// postRuntimeStop asks keel serve to stop. The token goes only to a server that proved it holds it, and never on
+// through a redirect.
 func postRuntimeStop(addr, token string) error {
+	if token != "" {
+		if err := verifyServe(addr, token); err != nil {
+			return err
+		}
+	}
 	req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/api/runtime/stop", strings.NewReader("{}"))
 	if err != nil {
 		return err
@@ -268,7 +280,7 @@ func postRuntimeStop(addr, token string) error {
 	if token != "" {
 		req.Header.Set(authtoken.Header, token)
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
 	res, err := client.Do(req)
 	if err != nil {
 		return err
@@ -284,12 +296,12 @@ func postRuntimeStop(addr, token string) error {
 func waitUntilDown(addr string, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
-		if !ProbeHealth(addr) {
+		if !probeHealth(addr) {
 			return true
 		}
 		time.Sleep(40 * time.Millisecond)
 	}
-	return !ProbeHealth(addr)
+	return !probeHealth(addr)
 }
 
 func spawnServe(addr, dataDir string) error {

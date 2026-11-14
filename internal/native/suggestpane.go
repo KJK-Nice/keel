@@ -1,7 +1,7 @@
 package native
 
 import (
-	"runtime"
+	"context"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -9,9 +9,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// In-pane suggestions in the window (docs/ui-redesign.md §5.5, plan 019): the glue between a pane's terminal, its
-// suggestion machine (suggest.go) and keel serve. The page's twin is cmd/keel/web/js/ui/suggest.js and term.js
-// (wirePaneSuggest, insertSuggestion, restoreWords).
+// In-pane suggestions in the window (docs/ui-redesign.md §5.5): the glue between a pane's terminal, its
+// suggestion machine (suggest.go) and keel serve.
 //
 // Nothing here builds a frame or writes a byte. The questions go through keelclient SuggestDetect and SuggestAsk, the
 // insert through SuggestInsert (insertSuggestion, below, is its one caller) and the put-back of the user's words through
@@ -62,16 +61,14 @@ func (p *pane) promptLine() *promptLine {
 	return pl
 }
 
-// canSuggest: the client drives a ready local session in the pane that has the keyboard, with no dialog open (term.js
-// canSuggestIn and ptyWritesBlocked). A follower, a joined pane, a session that is not ready and a pane in the
+// canSuggest: the client drives a ready local session in the pane that has the keyboard, with no dialog open. A follower, a joined pane, a session that is not ready and a pane in the
 // background get no notice, no card and no frame.
 func (w *workspace) canSuggest(p *pane) bool {
 	t := w.tabOf(p)
-	if p.remote || p.sg.cursor == nil || p.typing || t == nil || t != w.tab() || t.remote || t.focused != p.id || w.modalOpen() || w.gate != nil || w.first != nil {
+	if p.sg.cursor == nil || p.typing || t == nil || t != w.tab() || t.remote || t.focused != p.id || w.modalOpen() || w.gate != nil || w.first != nil {
 		return false
 	}
-	st := p.conn.Snapshot()
-	return st.Status == "ready" && st.Role == "driver"
+	return p.canType()
 }
 
 func (w *workspace) redraw() {
@@ -101,13 +98,12 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 		restore: func(words string) { w.restoreWords(p, words) },
 		render:  func(v sugView) { p.sg.v = v; w.redraw() },
 		now:     w.sugClock,
-		mac:     runtime.GOOS == "darwin",
 	})
 	return p.sg.m
 }
 
 // suggestKeyHere is the suggest key as this platform writes it (⌘Y, Ctrl+Shift+Y).
-func suggestKeyHere() string { return suggestKeyLabel(runtime.GOOS == "darwin") }
+func suggestKeyHere() string { return commandKeyLabel("agent.suggest") }
 
 // sugSettings are the two agent settings the machines follow, as last read or saved. They are kept apart from the
 // Settings page's copy so that reading them for the panes never overwrites what that page or the panel shows.
@@ -152,15 +148,10 @@ func (w *workspace) suggestSettingsChanged() {
 
 // refreshSuggestSettings reads the agent settings again, for the machines (the window's start, an unlock, a changed rev).
 func (w *workspace) refreshSuggestSettings() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		w.post(func() {
-			if !w.closed && err == nil {
-				w.noteSuggestSettings(s)
-			}
-		})
+	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
+		if err == nil {
+			w.noteSuggestSettings(s)
+		}
 	})
 }
 
@@ -188,7 +179,7 @@ func keyName(k ui.Key) string {
 	case ui.KeyZ:
 		return "z"
 	}
-	for i, d := range []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8, ui.Key9} {
+	for i, d := range digitKeys {
 		if k == d {
 			return string(rune('1' + i))
 		}
@@ -257,8 +248,7 @@ func (w *workspace) suggestFrame(c *ui.Context) {
 }
 
 // suggestInsert is the machine's insert: right before the write, the pane must still be at a prompt with the words the
-// suggestion was for and no dialog holding the keyboard; otherwise the card is dropped and nothing is written
-// (term.js insertSuggestion).
+// suggestion was for and no dialog holding the keyboard; otherwise the card is dropped and nothing is written.
 func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int, shift bool, words string, done func(insertResult)) {
 	if !w.canSuggest(p) {
 		done(insertResult{Message: "You follow this pane. Suggestions are for the driver."})
@@ -276,20 +266,12 @@ func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int
 // thread: keel serve answers within 4 s.
 func (w *workspace) insertSuggestion(p *pane, ref keelclient.SuggestionRef, done func(insertResult)) {
 	conn := p.conn
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := conn.SuggestInsert(c, ref)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				done(insertResult{Message: err.Error()})
-				return
-			}
-			done(insertResult{OK: true})
-		})
+	callErr(w, func(c context.Context) error { return conn.SuggestInsert(c, ref) }, func(err error) {
+		if err != nil {
+			done(insertResult{Message: err.Error()})
+			return
+		}
+		done(insertResult{OK: true})
 	})
 }
 

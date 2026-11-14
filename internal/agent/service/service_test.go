@@ -29,6 +29,9 @@ type fakeStore struct {
 	keyReads  int
 	snippets  []store.Snippet
 	snipReads int
+	// onListHosts, when set, runs once at the next ListHosts: a test lands
+	// something between an authorization's first read and its claim.
+	onListHosts func()
 }
 
 func (f *fakeStore) KnownSecretValues() ([]string, error) { return f.secrets, nil }
@@ -46,6 +49,13 @@ func (f *fakeStore) setSettings(fn func(*store.AgentSettings)) {
 	fn(&f.settings)
 }
 func (f *fakeStore) ListHosts() ([]store.Host, error) {
+	f.mu.Lock()
+	hook := f.onListHosts
+	f.onListHosts = nil
+	f.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]store.Host(nil), f.hosts...), nil
@@ -168,6 +178,30 @@ func (f *fixture) logKinds(kind string) []applog.Entry {
 	return out
 }
 
+// askReads is the agent.read entries (newest first) for what an Ask read:
+// panes, notebooks, the index. The entries of the requests themselves
+// (written by the one sender) are left out, after checking that every
+// request the provider got has one.
+func (f *fixture) askReads(t *testing.T) []applog.Entry {
+	t.Helper()
+	var out []applog.Entry
+	sends := 0
+	for _, e := range f.logKinds(agent.EventRead) {
+		if strings.HasPrefix(e.Message, "agent sent ") && strings.Contains(e.Message, " to answer it") {
+			if e.Source != "gemini" || e.SessionID != "" {
+				t.Fatalf("the request's entry = %+v", e)
+			}
+			sends++
+			continue
+		}
+		out = append(out, e)
+	}
+	if n := len(f.fake.Requests()); sends != n {
+		t.Fatalf("%d requests reached the provider, %d were logged as sent", n, sends)
+	}
+	return out
+}
+
 // requestBodies is everything the provider received, as JSON, so a test
 // can search it the way a network capture would.
 func (f *fixture) requestBodies(t *testing.T) string {
@@ -220,7 +254,7 @@ func TestAskReadsOnlyScopedReadablePanes(t *testing.T) {
 	if resp.Trace[1].Reason != "not-readable" || resp.Trace[2].Reason != "not-open" {
 		t.Errorf("skip reasons = %q, %q", resp.Trace[1].Reason, resp.Trace[2].Reason)
 	}
-	reads := f.logKinds(agent.EventRead)
+	reads := f.askReads(t)
 	if len(reads) != 1 || reads[0].SessionID != "s-web" || reads[0].Lines != 6 {
 		t.Fatalf("agent.read log = %+v", reads)
 	}
@@ -246,7 +280,7 @@ func TestAskRedactsBeforeTheProvider(t *testing.T) {
 	if resp.Trace[0].Redactions == nil || resp.QuestionRedactions == nil {
 		t.Errorf("redaction counts missing: trace %v, question %v", resp.Trace[0].Redactions, resp.QuestionRedactions)
 	}
-	if e := f.logKinds(agent.EventRead); len(e) != 1 || len(e[0].Redactions) == 0 {
+	if e := f.askReads(t); len(e) != 1 || len(e[0].Redactions) == 0 {
 		t.Errorf("agent.read must carry redaction counts: %+v", e)
 	}
 	raw, _ := os.ReadFile(f.path)
@@ -444,31 +478,6 @@ func TestScriptedFakeSpeaksTheProposalFormat(t *testing.T) {
 				t.Fatal("the fake received an unredacted secret")
 			}
 		}
-	}
-}
-
-func TestFromEnvOnlyFakeSwitches(t *testing.T) {
-	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
-		if _, _, test := FromEnv(func(string) string { return v }); test {
-			t.Errorf("KEEL_AGENT_PROVIDER=%q selected the fake", v)
-		}
-	}
-	fac, judge, test := FromEnv(func(k string) string {
-		if k == TestProviderEnv {
-			return "fake"
-		}
-		return ""
-	})
-	if !test {
-		t.Fatal("fake not selected")
-	}
-	p, err := fac("gemini", "any")
-	if err != nil || p.ID() != "fake" {
-		t.Fatalf("fake factory = %v, %v", p, err)
-	}
-	j, err := judge("any")
-	if err != nil || j.ID() != "fake-judge" {
-		t.Fatalf("fake judge = %v, %v", j, err)
 	}
 }
 

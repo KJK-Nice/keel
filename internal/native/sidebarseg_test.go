@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 031 step 1: the four section labels (Hosts, Panes with its count, Snippets, Forwards) show whole at the default
+// The four section labels (Hosts, Panes with its count, Snippets, Forwards) show whole at the default
 // sidebar width and at every UI size, in both appearances. A label is whole when its segment, less its padding and
 // border, is as wide as the text measured at the theme's font size.
 func TestSidebarSegmentLabelsFitAtEveryUISize(t *testing.T) { sidebarSegmentsFit(t, false) }
@@ -21,7 +21,7 @@ func sidebarSegmentsFit(t *testing.T, narrow bool) {
 			r := splitRig(t) // two panes, so Panes shows
 			setUISize(size)
 			if narrow {
-				r.w.sideWidth = sidebarMin()
+				r.w.prefs.SidebarWidth = sidebarMin()
 			}
 			r.w.setTheme(map[bool]string{true: themeDark, false: themeLight}[dark])
 			widths := map[string]float32{}
@@ -33,7 +33,7 @@ func sidebarSegmentsFit(t *testing.T, narrow bool) {
 				}
 			}, 1280, 720)
 			setUISize(size)
-			r.w.win.UISize = size
+			r.w.prefs.UISize = size
 			r.tt.Frame()
 			r.tt.Frame()
 			for _, c := range []struct{ seg, word string }{{"Hosts", "Hosts"}, {"Panes 2", "Panes"}, {"Snippets", "Snippets"}, {"Forwards", "Forwards"}} {

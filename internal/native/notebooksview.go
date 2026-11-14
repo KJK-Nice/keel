@@ -6,8 +6,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Notebooks page, the sidebar's Notebooks section and the row menu, drawn as NotebooksPage, NotebookList,
-// SidebarSnippets (its Notebooks half) and notebookCardMenu (internal/ui) with the Logs page's layout (logsview.go). The
+// The Notebooks page, the sidebar's Notebooks section and the row menu, in the Logs page's layout (logsview.go). The
 // document itself is the notebook pane (notebookpane.go).
 
 const notebooksSubtitle = "Markdown runbooks. Fenced sh and bash blocks fill a terminal's input; nothing is typed until you confirm."
@@ -17,6 +16,10 @@ type notebooksPage struct {
 	filter  string
 	filterH ui.Handle
 }
+
+func (p *notebooksPage) load(w *workspace)                { w.reloadNotebooks() }
+func (p *notebooksPage) view(w *workspace, c *ui.Context) { w.notebooksView(c, p) }
+func (p *notebooksPage) newItem(w *workspace)             { w.newNotebook() }
 
 // notebookMenu is notebookCardMenu: Open, Rename, Pin or Unpin, Make private or Let the agent read it, History, Ask the
 // agent about this notebook (not for a private one), Delete. Nothing in the menu types.
@@ -167,7 +170,7 @@ func (w *workspace) sidebarNotebooks(c *ui.Context) {
 				w.act(w.newNotebook)
 			}
 			if textBtn(c, "All notebooks", btnGhost) {
-				w.act(func() { w.openPage("notebooks") })
+				w.act(func() { w.openPage(pageNotebooks) })
 			}
 		})
 	})

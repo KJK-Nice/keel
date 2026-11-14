@@ -2,125 +2,29 @@ package native
 
 import (
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
+	"keel/internal/cmdrule"
 	"keel/internal/native/keelclient"
 )
 
-// Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session. They are
-// cmd/keel/web/js/lib/typedirect.js (pinned there by test/typedirect.test.mjs and here by typedirect_test.go).
+// Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session.
+// They are pinned by typedirect_test.go.
 //
 // keel serve decides whether a Type goes without the dialog (internal/httpapi/typedirect.go, agent.DirectSafe). These
 // only skip the round trip when the answer is certainly "dialog", and name the button and the badge. A hint that says
 // direct can still meet the dialog; one that says no never reaches keel serve. Nothing here types.
 
-// directLine reports whether command stays one line on a shell prompt (service.DirectLine).
-func directLine(command string) bool { return keelclient.DirectLine(command) }
-
-// The direct grammar as agent.DirectSafe has it (internal/agent/directsafe.go). Used only as a hint.
-var (
-	directExact = []string{"pwd", "whoami", "id", "date", "uptime", "hostname", "uname -a", "df -h", "free -h", "ps aux", "docker ps", "docker ps -a"}
-	kubeKinds   = strings.Fields("pods nodes svc services deployments ns namespaces ingress pvc events jobs cronjobs statefulsets daemonsets replicasets")
-	homeDirs    = []string{"/root", "/home", "/users", "/var/root", "/private/var/root"}
-	secretWords = []string{"/proc", "environ", "/.ssh", "/.aws", "/.kube", "/.gnupg", "/.config/gh", "/.docker", "/.netrc", "/.git-credentials", "/etc/shadow", "/etc/gshadow", "/etc/sudoers",
-		"id_", ".pem", ".key", ".p12", ".pfx", "credential", "token", "secret", "password", ".env", "kubeconfig", "shadow", "_history", ".pgpass", ".npmrc", ".pypirc", ".my.cnf", ".ssh"}
-
-	pathRe = regexp.MustCompile(`^[A-Za-z0-9_./-]{1,128}$`)
-	nsRe   = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
-	unitRe = regexp.MustCompile(`^[A-Za-z0-9@._][A-Za-z0-9@._-]{0,127}$`)
-)
-
-func safePath(p string) bool {
-	if !pathRe.MatchString(p) || strings.HasPrefix(p, "-") || strings.Contains(p, "//") {
-		return false
-	}
-	for _, seg := range strings.Split(p, "/") {
-		if seg == "." || seg == ".." {
-			return false
-		}
-	}
-	c := p
-	if len(p) > 1 {
-		c = strings.ToLower(strings.TrimSuffix(p, "/"))
-	}
-	for _, h := range homeDirs {
-		if c == h || strings.HasPrefix(c, h+"/") {
-			return false
-		}
-	}
-	for _, s := range secretWords {
-		if strings.Contains("/"+c, s) {
-			return false
-		}
-	}
-	return true
-}
-
-func kubeGet(w []string) bool {
-	if len(w) < 2 || w[0] != "get" || !slices.Contains(kubeKinds, w[1]) {
-		return false
-	}
-	ns, wide := false, false
-	for i := 2; i < len(w); i++ {
-		switch {
-		case w[i] == "-n" && !ns && i+1 < len(w) && nsRe.MatchString(w[i+1]):
-			ns = true
-			i++
-		case w[i] == "-A" && !ns:
-			ns = true
-		case w[i] == "-o" && !wide && i+1 < len(w) && w[i+1] == "wide":
-			wide = true
-			i++
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-// directHint: could keel serve type this line without the dialog? False means it certainly will not, and the window
-// goes straight to the dialog.
-func directHint(command string) bool {
-	if command == "" || len(command) > 256 {
-		return false
-	}
-	words := strings.Split(command, " ")
-	for _, w := range words {
-		if w == "" {
-			return false
-		}
-		for i := 0; i < len(w); i++ {
-			if w[i] < 0x21 || w[i] > 0x7e {
-				return false
-			}
-		}
-	}
-	if slices.Contains(directExact, command) {
-		return true
-	}
-	switch words[0] {
-	case "ls":
-		rest := words[1:]
-		if len(rest) > 0 && slices.Contains([]string{"-l", "-la", "-lah"}, rest[0]) {
-			rest = rest[1:]
-		}
-		return len(rest) == 0 || (len(rest) == 1 && safePath(rest[0]))
-	case "kubectl":
-		return kubeGet(words[1:])
-	case "systemctl":
-		return len(words) == 4 && words[1] == "status" && unitRe.MatchString(words[2]) && words[3] == "--no-pager"
-	}
-	return false
-}
+// The grammar of a direct type is cmdrule.DirectSafe, the rule keel serve applies; the window calls it as a hint (is the
+// dialog certain?) so the two cannot differ.
 
 // snippetLine is what a direct type of a snippet sends: its command without the newlines that would run it.
 func snippetLine(command string) string { return strings.TrimRight(command, crlf) }
 
 // snippetBadge is "Approve first" only on a snippet that will certainly open the dialog: one outside the grammar.
 func snippetBadge(command string) string {
-	if directHint(snippetLine(command)) {
+	if cmdrule.DirectSafe(snippetLine(command)) {
 		return ""
 	}
 	return "Approve first"
@@ -128,7 +32,7 @@ func snippetBadge(command string) string {
 
 // proposalDirect: an agent proposal that keel serve should type without the dialog, as far as the window knows.
 func proposalDirect(p keelclient.Proposal) bool {
-	return p.Risk == "readonly" && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && directHint(p.Command)
+	return p.Risk == keelclient.RiskReadOnly && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && cmdrule.DirectSafe(p.Command)
 }
 
 // typeWord adds the ellipsis when a dialog will follow the press.
@@ -163,7 +67,7 @@ var (
 // one to what is typed (guard_test.go).
 var crlf = string([]byte{13, 10})
 
-// promptLineMax is the longest line sent, as the page's cursorLine (lib/typedirect.js) cuts it.
+// promptLineMax is the longest line sent.
 const promptLineMax = 512
 
 // screenOf reads the pane's alternate screen and cursor line from a terminal Snapshot, with rows the terminal's height.

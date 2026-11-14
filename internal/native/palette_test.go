@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// ---- the model: cases of cmd/keel/web/js/test/palette.test.mjs for matching, ordering, cursor, highlight ----
+// ---- the model: matching, ordering, cursor, highlight ----
 
 var palSample = []palItem{
 	{group: "Actions", title: "New tab", keys: "⌘T"},
@@ -118,8 +118,8 @@ func palRig(t *testing.T) *rig {
 	r.click(t, "host api-1")
 	r.click(t, "Split right")
 	r.click(t, "host staging-web")
-	if len(r.w.tabs) != 2 || len(r.w.tabs[0].panes) != 2 {
-		t.Fatalf("tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 2 || len(r.w.tabAt(0).panes) != 2 {
+		t.Fatalf("tabs %d", r.w.tabCount())
 	}
 	return r
 }
@@ -183,7 +183,7 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 			t.Errorf("the palette does not show %q", s)
 		}
 	}
-	// The Ask the agent row is built (plan 025): the last row, with no group heading of its own, whatever the query matches.
+	// The Ask the agent row is built: the last row, with no group heading of its own, whatever the query matches.
 	rows := r.w.pal.visible()
 	if last := rows[len(rows)-1]; last.title != "Ask the agent" || !last.bare || last.keys != askKeys() {
 		t.Errorf("last row %+v", last)
@@ -193,7 +193,7 @@ func TestPaletteGroupsAndOrder(t *testing.T) {
 	}
 }
 
-// term.js askAgentFromPalette: ⌘↵ from any row opens the panel with the query typed and sends nothing; Search hosts gives
+// ⌘↵ from any row opens the panel with the query typed and sends nothing; Search hosts gives
 // the sidebar filter the keyboard.
 func TestPaletteAskTheAgentRowAndSearchHosts(t *testing.T) {
 	r := palRig(t)
@@ -208,8 +208,8 @@ func TestPaletteAskTheAgentRowAndSearchHosts(t *testing.T) {
 	}
 	asks := len(r.fb.agent.asks)
 	r.press(ui.Cmd, ui.KeyEnter)
-	if r.w.pal != nil || !r.w.agent.open || r.w.agent.input != "zzz no such command" {
-		t.Fatalf("palette open %v, panel open %v, composer %q", r.w.pal != nil, r.w.agent.open, r.w.agent.input)
+	if r.w.pal != nil || !r.w.prefs.AgentPanel || r.w.agentState().input != "zzz no such command" {
+		t.Fatalf("palette open %v, panel open %v, composer %q", r.w.pal != nil, r.w.prefs.AgentPanel, r.w.agentState().input)
 	}
 	if len(r.fb.agent.asks) != asks {
 		t.Error("the palette sent a question: it only fills the composer")
@@ -261,7 +261,7 @@ func TestPaletteOpenNowFocusesAndStartsNothing(t *testing.T) {
 	r.press(0, ui.KeyDown) // the tab's row, then its two panes
 	r.press(0, ui.KeyDown)
 	r.press(0, ui.KeyEnter)
-	t1 := r.w.tabs[0]
+	t1 := r.w.tabAt(0)
 	leaves := t1.root.Leaves()
 	if r.w.active != 0 || t1.focused != leaves[1] || len(r.fb.spawned) != spawned {
 		t.Fatalf("active %d, focused %q (leaves %v), spawned %d", r.w.active, t1.focused, leaves, len(r.fb.spawned))
@@ -282,19 +282,19 @@ func TestPaletteHostOpensInANewTabAndAltEnterInASplit(t *testing.T) {
 	r.openPal(t)
 	r.typePal("session on staging")
 	r.press(0, ui.KeyEnter)
-	if r.fb.spawned[len(r.fb.spawned)-1] != "h-web" || len(r.w.tabs) != 3 || r.w.active != 2 {
-		t.Fatalf("spawned %v tabs %d active %d", r.fb.spawned, len(r.w.tabs), r.w.active)
+	if r.fb.spawned[len(r.fb.spawned)-1] != "h-web" || r.w.tabCount() != 3 || r.w.active != 2 {
+		t.Fatalf("spawned %v tabs %d active %d", r.fb.spawned, r.w.tabCount(), r.w.active)
 	}
 	// ⌥↵ puts the host in a split of the focused pane (here the staging tab), not in the host of that pane.
 	spawned := len(r.fb.spawned)
 	r.openPal(t)
 	r.typePal("session on api")
 	r.press(ui.Alt, ui.KeyEnter)
-	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h-api" || len(r.w.tabs) != 3 || len(r.w.tabs[2].panes) != 2 {
-		t.Fatalf("spawned %v tabs %d panes %d", r.fb.spawned, len(r.w.tabs), len(r.w.tabs[2].panes))
+	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h-api" || r.w.tabCount() != 3 || len(r.w.tabAt(2).panes) != 2 {
+		t.Fatalf("spawned %v tabs %d panes %d", r.fb.spawned, r.w.tabCount(), len(r.w.tabAt(2).panes))
 	}
 	var hosts []string
-	for _, p := range r.w.tabs[2].panes {
+	for _, p := range r.w.tabAt(2).panes {
 		hosts = append(hosts, p.host.ID)
 	}
 	slices.Sort(hosts)
@@ -312,8 +312,8 @@ func TestPaletteRunsAnAction(t *testing.T) {
 		t.Fatalf("rows %q", got)
 	}
 	r.press(0, ui.KeyEnter)
-	if len(r.fb.spawned) != spawned+1 || len(r.w.tab().panes) != 2 {
-		t.Fatalf("spawned %d (was %d), panes %d", len(r.fb.spawned), spawned, len(r.w.tab().panes))
+	if len(r.fb.spawned) != spawned+1 || len(r.w.activeTab().panes) != 2 {
+		t.Fatalf("spawned %d (was %d), panes %d", len(r.fb.spawned), spawned, len(r.w.activeTab().panes))
 	}
 	r.openPal(t)
 	r.typePal("Toggle vault sidebar")
@@ -325,7 +325,7 @@ func TestPaletteRunsAnAction(t *testing.T) {
 
 func TestPaletteEscapeReturnsTheKeyboardToThePane(t *testing.T) {
 	r := palRig(t)
-	focused := r.w.tab().focused
+	focused := r.w.activeTab().focused
 	r.openPal(t)
 	r.press(0, ui.KeyEscape)
 	if r.w.pal != nil || !r.tt.Focused("body "+focused) {
@@ -352,13 +352,13 @@ func TestPaletteNeverTypesIntoASession(t *testing.T) {
 	}
 	r.press(ui.Cmd, ui.KeyW) // a window key does not act while the palette is open
 	r.press(ui.Cmd|ui.Shift, ui.KeyD)
-	if r.w.pal == nil || len(r.w.tabs) != 2 || len(r.w.tabs[0].panes) != 2 {
-		t.Fatalf("a key outside the palette acted: pal %v, tabs %d", r.w.pal != nil, len(r.w.tabs))
+	if r.w.pal == nil || r.w.tabCount() != 2 || len(r.w.tabAt(0).panes) != 2 {
+		t.Fatalf("a key outside the palette acted: pal %v, tabs %d", r.w.pal != nil, r.w.tabCount())
 	}
 	// ⌘↵ asks the agent (the last row): it fills the composer, and no plain ↵ comes of it, so nothing runs or types.
 	r.press(ui.Cmd, ui.KeyEnter)
-	if len(r.w.tabs) != 2 || len(r.w.tabs[0].panes) != 2 || r.w.agent.input != "echo hello; rm -rf" { // the Backspace above took the last character
-		t.Fatalf("⌘↵: tabs %d, composer %q", len(r.w.tabs), r.w.agent.input)
+	if r.w.tabCount() != 2 || len(r.w.tabAt(0).panes) != 2 || r.w.agentState().input != "echo hello; rm -rf" { // the Backspace above took the last character
+		t.Fatalf("⌘↵: tabs %d, composer %q", r.w.tabCount(), r.w.agentState().input)
 	}
 	r.press(0, ui.KeyEscape)
 	for i, c := range r.fb.conns {

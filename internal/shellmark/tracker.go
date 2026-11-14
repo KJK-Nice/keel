@@ -59,7 +59,6 @@ type Tracker struct {
 	seen bool
 }
 
-// NewTracker returns an empty tracker.
 func NewTracker() *Tracker { return &Tracker{now: time.Now} }
 
 // Feed scans b, whose first byte is at stream offset base.

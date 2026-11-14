@@ -5,8 +5,8 @@ import (
 )
 
 // The Agent page's composer ("Message the agent on the page") has a visible area in every layout, with the agent panel open
-// beside the page or not, and the page never pushes the panel out of the window (v0.2.1: a MinWidth(0) on the page root made the
-// composer collapse beside the open panel; before it, in a wider font the page pushed the panel out, issue #140).
+// beside the page or not, and the page never pushes the panel out of the window (the page root has no MinWidth(0): it
+// made the composer collapse beside the open panel).
 func TestTheAgentPageComposerIsVisibleAtEveryWidthWithThePanelOpenOrNot(t *testing.T) {
 	for _, width := range []int{1280, 1100, 850} {
 		for _, panel := range []bool{false, true} {
@@ -15,7 +15,7 @@ func TestTheAgentPageComposerIsVisibleAtEveryWidthWithThePanelOpenOrNot(t *testi
 			r.tt.SetSize(width, 720)
 			r.openPageSettled()
 			r.w.setAgentOpen(panel)
-			r.settleFrames()
+			r.settle()
 			page, ok := r.tt.Find("agent page")
 			if !ok {
 				t.Fatalf("width %v panel %v: no page", width, panel)

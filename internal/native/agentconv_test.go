@@ -45,7 +45,7 @@ func (r *rig) openRecent(t *testing.T) {
 	t.Helper()
 	r.click(t, "Recent conversations")
 	r.tt.Frame()
-	if !r.w.agent.sessOpen || !r.has("dialog Recent conversations") {
+	if !r.w.agentState().sessOpen || !r.has("dialog Recent conversations") {
 		t.Fatal("the title button did not open Recent conversations")
 	}
 }
@@ -78,19 +78,19 @@ func TestRecentConversationsKeysMoveAndEscCloses(t *testing.T) {
 	r.openRecent(t)
 	r.tt.Key(0, ui.KeyDown)
 	r.tt.Frame()
-	if r.w.agent.sess.sel != 0 {
-		t.Fatalf("↓ left the selection at %d", r.w.agent.sess.sel)
+	if r.w.agentState().sess.sel != 0 {
+		t.Fatalf("↓ left the selection at %d", r.w.agentState().sess.sel)
 	}
 	r.tt.Key(0, ui.KeyDown)
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyUp)
 	r.tt.Frame()
-	if r.w.agent.sess.sel != 0 {
-		t.Errorf("↑ left the selection at %d", r.w.agent.sess.sel)
+	if r.w.agentState().sess.sel != 0 {
+		t.Errorf("↑ left the selection at %d", r.w.agentState().sess.sel)
 	}
 	r.tt.Key(0, ui.KeyEscape)
 	r.tt.Frame()
-	if r.w.agent.sessOpen {
+	if r.w.agentState().sessOpen {
 		t.Error("Esc did not close Recent conversations")
 	}
 }
@@ -100,15 +100,15 @@ func TestRenameInlineEnterSendsAndEscLeavesTheTitle(t *testing.T) {
 	r.openRecent(t)
 	r.click(t, "Rename TLS cert")
 	r.tt.Frame()
-	if r.w.agent.renameID != "c-yday" || !r.has("Conversation title") {
+	if r.w.agentState().renameID != "c-yday" || !r.has("Conversation title") {
 		t.Fatal("Rename did not open the inline field")
 	}
 	r.tt.Type(" renewal")
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEscape)
 	r.tt.Frame()
-	if r.w.agent.renameID != "" || len(r.fb.convs.renamed) != 0 || !r.w.agent.sessOpen {
-		t.Fatalf("Esc must leave the title as it was and stay in the list: %v open %v", r.fb.convs.renamed, r.w.agent.sessOpen)
+	if r.w.agentState().renameID != "" || len(r.fb.convs.renamed) != 0 || !r.w.agentState().sessOpen {
+		t.Fatalf("Esc must leave the title as it was and stay in the list: %v open %v", r.fb.convs.renamed, r.w.agentState().sessOpen)
 	}
 	r.click(t, "Rename TLS cert")
 	r.tt.Frame()
@@ -128,22 +128,22 @@ func TestRenameInlineEnterSendsAndEscLeavesTheTitle(t *testing.T) {
 func TestDeleteActsAtOnceAndDeleteAllAsksFirst(t *testing.T) {
 	r := savedRig(t)
 	r.openRecent(t)
-	r.click(t, "Delete Disk full") // as the app: one conversation is deleted without asking
+	r.click(t, "Delete Disk full") // one conversation is deleted without asking
 	r.tt.Frame()
-	if r.w.confirm != nil || !slices.Equal(r.fb.convs.deleted, []string{"c-old"}) || !r.tt.HasText("Conversation deleted") {
-		t.Fatalf("deleted %v, confirm %v", r.fb.convs.deleted, r.w.confirm)
+	if r.w.confirmOpen() || !slices.Equal(r.fb.convs.deleted, []string{"c-old"}) || !r.tt.HasText("Conversation deleted") {
+		t.Fatalf("deleted %v, confirm %v", r.fb.convs.deleted, r.w.confirmDlg())
 	}
-	if !r.w.agent.sessOpen { // the list stays open and repaints, as the app's does
+	if !r.w.agentState().sessOpen { // the list stays open and repaints
 		t.Fatal("the list closed after a delete")
 	}
 
 	r.click(t, "Delete all")
 	r.tt.Frame()
-	if r.w.confirm == nil || r.w.confirm.title != "Delete all conversations?" || r.fb.convs.deletedAll != 0 {
-		t.Fatalf("Delete all did not ask first: %v", r.w.confirm)
+	if !r.w.confirmOpen() || r.w.confirmDlg().title != "Delete all conversations?" || r.fb.convs.deletedAll != 0 {
+		t.Fatalf("Delete all did not ask first: %v", r.w.confirmDlg())
 	}
-	if r.w.confirm.message != "Every saved agent conversation is deleted from the vault, in every window. The log entries that say what the agent read stay in Logs." || r.w.confirm.action != "Delete all" {
-		t.Errorf("the confirm's words are not the app's: %q %q", r.w.confirm.message, r.w.confirm.action)
+	if r.w.confirmDlg().message != "Every saved agent conversation is deleted from the vault, in every window. The log entries that say what the agent read stay in Logs." || r.w.confirmDlg().action != "Delete all" {
+		t.Errorf("the confirm's words are not the app's: %q %q", r.w.confirmDlg().message, r.w.confirmDlg().action)
 	}
 	r.click(t, "Cancel")
 	r.tt.Frame()
@@ -169,7 +169,7 @@ func TestResumeShowsTheSavedThreadTheDividerAndTheNote(t *testing.T) {
 	r.openRecent(t)
 	r.click(t, "conversation Why is pg-2 lagging")
 	r.tt.Frame()
-	a := r.w.agent
+	a := r.w.agentState()
 	if a.conv != "c-today" || a.title != "Why is pg-2 lagging" || a.sessOpen {
 		t.Fatalf("conv %q title %q open %v", a.conv, a.title, a.sessOpen)
 	}
@@ -194,13 +194,13 @@ func TestNewConversationKeepsTheOldOneInTheList(t *testing.T) {
 	r := savedRig(t)
 	r.answers()
 	r.ask(t, "first")
-	if len(r.w.agent.turns) == 0 {
+	if len(r.w.agentState().turns) == 0 {
 		t.Fatal("no turn")
 	}
-	old := r.w.agent.conv
+	old := r.w.agentState().conv
 	r.click(t, "New conversation")
 	r.tt.Frame()
-	if r.w.agent.conv == old || len(r.w.agent.turns) != 0 || r.w.agent.title != "" || len(r.fb.convs.deleted) != 0 || r.fb.convs.deletedAll != 0 {
+	if r.w.agentState().conv == old || len(r.w.agentState().turns) != 0 || r.w.agentState().title != "" || len(r.fb.convs.deleted) != 0 || r.fb.convs.deletedAll != 0 {
 		t.Fatal("New conversation must start a new one and delete nothing")
 	}
 }
@@ -225,10 +225,10 @@ func TestAnExpiredCardHasOnlyCopyAndProposeAgainAndNoRequestForTypeOrEdit(t *tes
 	}
 	// Even a call that tried would send nothing: no edit, no direct type, no frame.
 	r.w.typeAgentProposal("old1", true)
-	r.w.startEdit(r.w.agent.props["old1"])
+	r.w.startEdit(r.w.agentState().props["old1"])
 	r.w.editAgentProposal("old1")
 	r.tt.Frame()
-	if len(r.fb.agent.edits) != 0 || len(r.typed()) != 0 || len(r.directs()) != 0 || r.w.approve != nil || r.w.agent.props["old1"].editing {
+	if len(r.fb.agent.edits) != 0 || len(r.typed()) != 0 || len(r.directs()) != 0 || r.w.approveOpen() || r.w.agentState().props["old1"].editing {
 		t.Fatalf("an expired proposal reached a request: edits %v typed %v", r.fb.agent.edits, r.typed())
 	}
 	// Copy puts the command on the clipboard and sends nothing.
@@ -246,7 +246,7 @@ func TestAnExpiredCardHasOnlyCopyAndProposeAgainAndNoRequestForTypeOrEdit(t *tes
 	if !r.has("Proposal") || !r.has("Type into pane…") {
 		t.Errorf("no live card after Propose again: %v", r.tt.Texts())
 	}
-	if r.w.agent.props["again-old1"] == nil || r.w.agent.props["again-old1"].p.Expired {
+	if r.w.agentState().props["again-old1"] == nil || r.w.agentState().props["again-old1"].p.Expired {
 		t.Error("the new proposal is not live")
 	}
 }
@@ -271,7 +271,7 @@ func TestAProposalProposedAgainIsTypedOnlyThroughTheUsualPath(t *testing.T) {
 
 func TestNotSavedShowsWhenHistoryIsOffAndSavedWhenItIsOn(t *testing.T) {
 	r := savedRig(t)
-	r.w.agent.settings = nil
+	r.w.agentState().settings = nil
 	r.fb.agent.settings.Settings.HistoryDays = 30
 	r.w.loadAgent()
 	r.tt.Frame()

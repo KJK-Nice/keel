@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 1: the focused tile of a split tab has a 1.5 px border in focus (lineStrong while the window is not
+// The focused tile of a split tab has a 1.5 px border in focus (lineStrong while the window is not
 // the active one), the others 1 px in line, a single or zoomed pane none; focus never moves a tile.
 func TestTileRingByState(t *testing.T) {
 	for _, th := range []string{themeDark, themeLight} {
@@ -15,7 +15,7 @@ func TestTileRingByState(t *testing.T) {
 			r.w.setTheme(th)
 			r.click(t, "Split right")
 			if r.tt.Image() == nil {
-				t.Skip("Tester.Image gave no pixels")
+				noPixels(t)
 			}
 			edge := func(id string) ([3]uint8, [3]uint8) { // the border pixel and the one 3 px in
 				p, _ := r.tt.Find("pane " + id)
@@ -62,7 +62,7 @@ func TestTileRingByState(t *testing.T) {
 			r.tt.Frame()
 
 			// zoomed: one tile, no ring
-			r.w.toggleZoom(r.w.tabs[0], "1")
+			r.w.toggleZoom(r.w.tabAt(0), "1")
 			r.tt.Frame()
 			z, _ := r.tt.Find("pane 1")
 			if got := r.pixel(z.X+0.5, z.Y+z.H/2); is(got, focus) || is(got, line) {
@@ -76,7 +76,7 @@ func TestTileRingByState(t *testing.T) {
 func TestSinglePaneHasNoRing(t *testing.T) {
 	r := themeRig(t)
 	if r.tt.Image() == nil {
-		t.Skip("Tester.Image gave no pixels")
+		noPixels(t)
 	}
 	p, _ := r.tt.Find("pane 1")
 	if got := r.pixel(p.X+0.5, p.Y+p.H/2); is(got, focus) || is(got, line) {

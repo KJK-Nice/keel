@@ -34,7 +34,7 @@ func windowCornerRadius() float32 {
 
 // setWindowHasShadow gives the window its shadow or takes it away, on the main thread. Keel's window has none: a
 // Transparent window's shadow is cut from its content's alpha once and shows through the translucent grounds as a ghost
-// of the first page, so run.go takes it away when the window shows (plan 037 part C).
+// of the first page, so run.go takes it away when the window shows.
 func setWindowHasShadow(win *mygo.Window, on bool) {
 	go mygo.RunOnMain(func() {
 		defer func() { recover() }()

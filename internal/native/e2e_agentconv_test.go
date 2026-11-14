@@ -58,10 +58,10 @@ func (e *win) serverSettings() (s struct {
 // settledAsk asks and waits until every turn has its answer.
 func (e *win) settledAsk(q string) {
 	e.t.Helper()
-	n := len(e.w.agent.turns)
+	n := len(e.w.agentState().turns)
 	e.agentAsk(q)
 	e.pump(func() bool {
-		a := e.w.agent
+		a := e.w.agentState()
 		if len(a.turns) <= n || a.busy != nil {
 			return false
 		}
@@ -141,14 +141,14 @@ func TestE2EAgentConversationsSavedAndResumed(t *testing.T) {
 	e.settle(300 * time.Millisecond)
 	e2 := newWin(t, addr, dir, nil)
 	e2.pump(func() bool {
-		return e2.w.agent.open && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
+		return e2.w.prefs.AgentPanel && e2.w.agentState().keyConfigured != nil && e2.hasLabel("Message the agent")
 	}, "the panel in the new window")
 	e2.openRecent()
 	e2.pump(func() bool { return e2.tt.HasText("Renamed alpha") && e2.tt.HasText(beta.Title) }, "both conversations listed in the new window")
 
 	// Resume the first: the saved thread, the divider and the note; an ask carries on under its id.
 	e2.click("conversation Renamed alpha")
-	e2.pump(func() bool { return e2.w.agent.conv == alpha.ID && e2.tt.HasText("what should I run? alpha") }, "the saved thread")
+	e2.pump(func() bool { return e2.w.agentState().conv == alpha.ID && e2.tt.HasText("what should I run? alpha") }, "the saved thread")
 	for _, s := range []string{"and no command here", "I was given 1 pane excerpt and 0 redacted values.", "Earlier reads stay in this conversation as text. New reads use only the panes in scope now, on hosts that still allow the agent."} {
 		if !e2.tt.HasText(s) {
 			t.Errorf("the resumed thread lacks %q: %v", s, e2.tt.Texts())
@@ -178,7 +178,7 @@ func (e *win) fillConversations(n int) {
 
 func TestE2EAgentExpiredProposal(t *testing.T) {
 	t.Run("restart", func(t *testing.T) {
-		// A daemon stopped and started again on the same data dir no longer holds the proposal: the saved card is Expired.
+		// A daemon stopped and started again on the same data dir does not hold the proposal: the saved card is Expired.
 		dir := scratchDir(t)
 		addr, stop := startServeAt(t, dir, "serve", true)
 		dataDir := filepath.Join(dir, "data")
@@ -194,11 +194,12 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		addr2, _ := startServeAt(t, dir, "serve2", true)
 		e2 := newWin(t, addr2, dataDir, nil)
 		e2.pump(func() bool {
-			return e2.w.agent.open && e2.w.agent.keyConfigured != nil && e2.hasLabel("Message the agent")
+			return e2.w.prefs.AgentPanel && e2.w.agentState().keyConfigured != nil && e2.hasLabel("Message the agent")
 		}, "the panel on the new daemon")
 		e2.openRecent()
+		e2.pump(func() bool { return e2.hasLabel("conversation what should I run?") }, "the saved conversation in the list") // the list loads from the restarted daemon
 		e2.click("conversation what should I run?")
-		e2.pump(func() bool { return e2.w.agent.conv == id && e2.hasLabel("Proposal expired") }, "the expired card")
+		e2.pump(func() bool { return e2.w.agentState().conv == id && e2.hasLabel("Proposal expired") }, "the expired card")
 		for _, s := range []string{"Expired", "Panes may have changed since this was proposed.", "Copy", "Propose again"} {
 			if !e2.tt.HasText(s) && !e2.hasLabel(s) {
 				t.Errorf("the expired card lacks %q: %v", s, e2.tt.Texts())
@@ -235,7 +236,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		e.tt.Type("#01")
 		e.step()
 		e.click("conversation " + first.Title)
-		e.pump(func() bool { return e.w.agent.conv == first.ID && e.hasLabel("Proposal expired") }, "the expired card")
+		e.pump(func() bool { return e.w.agentState().conv == first.ID && e.hasLabel("Proposal expired") }, "the expired card")
 		if e.hasLabel("Type into pane…") || e.hasLabel("Edit command") {
 			t.Fatal("an expired card offers Type or Edit")
 		}
@@ -247,7 +248,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		e.click("Type into pane…")
 		e.waitApprove()
 		e.click("Type")
-		e.pump(func() bool { return e.w.approve == nil }, "the dialog to close after Type")
+		e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close after Type")
 		e.waitScrollback(sid, "\nkeel-agent-ok")
 		if e.logKinds()["agent.type"] != 1 {
 			t.Fatalf("log rows: %v", e.logKinds())
@@ -299,7 +300,7 @@ func TestE2EAgentPage(t *testing.T) {
 
 	// Pick a conversation: the panel shows it too.
 	e.click("conversation " + one.Title)
-	e.pump(func() bool { return e.w.agent.conv == one.ID && e.hasLabel("Message the agent on the page") }, "the page to resume it")
+	e.pump(func() bool { return e.w.agentState().conv == one.ID && e.hasLabel("Message the agent on the page") }, "the page to resume it")
 	e.w.setAgentOpen(true)
 	e.pump(func() bool { return e.hasLabel("Message the agent") }, "the panel")
 	// The page chooses its layout from its width in the frame before, so it follows the panel opening one frame later: wait for
@@ -325,7 +326,7 @@ func TestE2EAgentPage(t *testing.T) {
 	e.tt.Type("and then, no command from the page")
 	e.step()
 	e.key(0, ui.KeyEnter)
-	e.pump(func() bool { return count("and then, no command from the page") >= 2 && e.w.agent.busy == nil }, "both threads to show the page's ask")
+	e.pump(func() bool { return count("and then, no command from the page") >= 2 && e.w.agentState().busy == nil }, "both threads to show the page's ask")
 
 	// Rename on the page: keel serve and the panel follow.
 	e.click("Rename this conversation")
@@ -341,12 +342,12 @@ func TestE2EAgentPage(t *testing.T) {
 		}
 		return false
 	}, "keel serve to hold the new title")
-	e.pump(func() bool { return e.w.agent.title == "Page renamed" && e.hasLabel("Recent conversations") }, "the panel to follow")
+	e.pump(func() bool { return e.w.agentState().title == "Page renamed" && e.hasLabel("Recent conversations") }, "the panel to follow")
 
-	// Delete on the page acts at once, as the app's does; keel serve and the panel follow.
+	// Delete on the page acts at once; keel serve and the panel follow.
 	e.click("Delete this conversation")
-	e.pump(func() bool { return len(e.convList().Sessions) == 1 && len(e.w.agent.turns) == 0 }, "the conversation to be gone on keel serve and in the panel")
-	if e.w.agent.title != "" || e.w.agent.conv == one.ID {
+	e.pump(func() bool { return len(e.convList().Sessions) == 1 && len(e.w.agentState().turns) == 0 }, "the conversation to be gone on keel serve and in the panel")
+	if e.w.agentState().title != "" || e.w.agentState().conv == one.ID {
 		t.Error("the panel still has the deleted conversation")
 	}
 }
@@ -365,7 +366,7 @@ func TestE2EAgentDeleteAll(t *testing.T) {
 	}
 	e.openRecent()
 	e.click("Delete all")
-	e.pump(func() bool { return e.w.confirm != nil }, "the confirm")
+	e.pump(func() bool { return e.w.confirmOpen() }, "the confirm")
 	if !e.tt.HasText("Delete all conversations?") || !e.tt.HasText("Every saved agent conversation is deleted from the vault, in every window. The log entries that say what the agent read stay in Logs.") {
 		t.Errorf("the confirm is not the app's: %v", e.tt.Texts())
 	}
@@ -376,10 +377,10 @@ func TestE2EAgentDeleteAll(t *testing.T) {
 	}
 	e.openRecent()
 	e.click("Delete all")
-	e.pump(func() bool { return e.w.confirm != nil }, "the confirm again")
+	e.pump(func() bool { return e.w.confirmOpen() }, "the confirm again")
 	e.click("Delete all")
 	e.pump(func() bool { return len(e.convList().Sessions) == 0 }, "keel serve to hold no conversation")
-	e.pump(func() bool { return e.tt.HasText("Agent history deleted") && len(e.w.agent.turns) == 0 }, "the window to start over")
+	e.pump(func() bool { return e.tt.HasText("Agent history deleted") && len(e.w.agentState().turns) == 0 }, "the window to start over")
 	e.openRecent()
 	e.pump(func() bool { return e.tt.HasText("No saved conversations.") }, "the app's empty text")
 }
@@ -440,7 +441,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	}
 
 	// Scrollback lines and the default scope.
-	p := e.w.pageTab("settings").pg.settings
+	p := e.w.settingsPage()
 	p.linesV = 400
 	e.pump(func() bool { return e.serverSettings().Settings.ScrollbackLines == 400 }, "Scrollback lines on keel serve")
 	e.click("Default panes per conversation Every pane in the tab")
@@ -493,7 +494,7 @@ func TestE2EAgentSettings(t *testing.T) {
 
 	// A fake key through the Anthropic card: masked, sent once, then Connected, and in no log, pref, shot text or screen.
 	var d keelclient.AgentProvider
-	for _, x := range e.w.agent.provs {
+	for _, x := range e.w.agentState().provs {
 		if x.ID == "anthropic" {
 			d = x
 		}

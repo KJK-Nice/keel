@@ -6,49 +6,51 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"keel/internal/cmdrule"
+	"keel/internal/wire"
 )
 
 // The one place keel-native types into a session on the user's behalf (docs/ui-redesign.md §6, rule 1). Keystrokes
-// from the terminal view go through Conn.Write; everything else that reaches a PTY goes through ApprovedInject, and
-// ApprovedInject is called only by the Approve before type dialog's Type action (internal/native/approve.go). A test
-// (internal/native/guard_test.go) fails if another file in internal/native sends one of these frames or calls it.
+// from the terminal view go through Conn.Write; everything else that reaches a PTY goes through an inject frame, and this
+// file is the only one that builds one: it alone names wire.TypeInjectChallenge and wire.TypeInject and the parts of an
+// inject (wire.AgentType, wire.DirectType, wire.AgentInsert, Notebook), and every inject goes out through one function,
+// inject, which first gets keel serve's one-time nonce for the same bytes. internal/native/guard_test.go keeps all of it
+// true.
 //
 // keel serve writes exactly the bytes it is given and adds nothing, and only for a one-time nonce it issued for those
 // same bytes to this client, which must be the driver (internal/inject, runtime.Session.InjectTicket).
 //
-// A group run's step (docs/ui-redesign.md §6 rule 10) is typed through the same call too: the group approve dialog's Type action
-// calls it once per ticked host, each on that host's own connection with {groupRunId, proposalId, shift} in the agent part
-// of the frame, so each host is its own proposal with its own server nonce. For a step that names variables the bytes are the
-// ones keel serve's fill returned for that proposal (rule 11); this client never puts a value into them.
+// Three callers, one each:
 //
-// An agent proposal is typed through the same call. The webview adds {conversationId, proposalId, shift} to the inject
-// frame only (pty.js sendApprovedInject opts.agent; the inject-challenge carries the bytes alone), and keel serve then
-// checks the proposal (the exact bytes it holds, the pane, the role, the ⇧ rule) and logs agent.type before it writes;
-// it answers with an agent-type frame, which ApprovedInject waits for. A refusal there is final: nothing was typed and
-// nothing is retried. The bytes are the proposal's own (Proposal.Bytes: Ctrl-U, the command, a newline), built by keel
-// serve; this client adds nothing to them.
+// ApprovedInject is the Approve before type dialog's Type action (internal/native/approve.go). A group run's step
+// (docs/ui-redesign.md §6 rule 10) is typed through it too: the group approve dialog's Type action calls it once per ticked
+// host, each on that host's own connection with {groupRunId, proposalId, shift} in the agent part of the frame, so each
+// host is its own proposal with its own server nonce. For a step that names variables the bytes are the ones keel serve's
+// fill returned for that proposal (rule 11); this client never puts a value into them. An agent proposal is typed through
+// the same call, with {conversationId, proposalId, shift}: keel serve checks the proposal (the exact bytes it holds, the
+// pane, the role, the ⇧ rule) and logs agent.type before it writes, and answers with an agent-type frame, which
+// ApprovedInject waits for. A refusal there is final: nothing was typed and nothing is retried. The bytes are the
+// proposal's own (Proposal.Bytes: Ctrl-U, the command, a newline), built by keel serve; this client adds nothing to them.
+//
+// DirectType is for a command keel serve calls plainly read-only and one line (docs/ui-redesign.md §6 rule 13): it types
+// the command alone, with no Ctrl-U and no newline, so it waits on the prompt line for the user's Enter. It is called
+// only by the window's typeNow (internal/native/typenow.go), and keel serve decides every time: it checks the command,
+// the pane's state and the driver again, at the moment of the write, and answers typed, dialog (nothing written; the
+// window opens Approve before type) or a refusal.
+//
+// SuggestInsert is the user's ⇥ / ⇧⇥ on an in-pane suggestion (docs/ui-redesign.md §5.5): it sends the bytes keel serve
+// itself gave for that option (Ctrl-U and the command, no newline) and nothing else; the caller names the suggestion, the
+// option and ⇧, never the bytes. It is called only by (*workspace).insertSuggestion. keel serve decides, again, at the
+// moment of the write. Restoring the user's own words after an insert (⌘Z) is RestoreWords, called only by
+// (*workspace).restoreWords.
 
-// A second way, for a command keel serve calls plainly read-only and one line (docs/ui-redesign.md §6 rule 13): DirectType
-// types the command alone, with no Ctrl-U and no newline, so it waits on the prompt line for the user's Enter. It is
-// called only by the window's typeNow (internal/native/typenow.go), and keel serve decides every time: it checks
-// the command, the pane's state and the driver again, at the moment of the write, and answers typed, dialog (nothing
-// written; the window opens Approve before type) or a refusal. This file is the only one that builds the frames of
-// either way: inject-challenge, inject (with or without direct and agent) and type-check. guard_test.go keeps all of it
-// true. The page's version is cmd/keel/web/js/pty.js typeDirect and checkDirect.
-
-// A third way, for the user's ⇥ / ⇧⇥ on an in-pane suggestion (docs/ui-redesign.md §5.5; suggestinsert below):
-// SuggestInsert sends the bytes keel serve itself gave for that option (Ctrl-U and the command, no newline) and
-// nothing else; the caller names the suggestion, the option and ⇧, never the bytes. It is called only by
-// (*workspace).insertSuggestion. keel serve decides, again, at the moment of the write. Restoring the user's own
-// words after an insert (⌘Z) is RestoreWords, called only by (*workspace).restoreWords.
-
-// The refusals carry the words of the webview's toasts (cmd/keel/web/js/pty.js sendApprovedInject, typeDirect).
+// The refusals, in the words shown to the user.
 var (
 	ErrNotDriver  = errors.New("You are following — take or request control to type") // this client is following
 	ErrNotReady   = errors.New("Session is not connected")                            // the session is not ready
@@ -73,18 +75,73 @@ type AgentRef struct {
 // InjectOption marks where the bytes of an ApprovedInject come from.
 type InjectOption int
 
-// FromNotebook marks the bytes as a notebook fence's: the inject frame carries notebook:true, as pty.js
-// sendApprovedInject does, and keel serve refuses a redaction placeholder in them.
+// FromNotebook marks the bytes as a notebook fence's: the inject frame says so, and keel serve refuses a redaction
+// placeholder in them.
 const FromNotebook InjectOption = iota + 1
 
-// agentWait is how long keel serve has to answer a proposal's Type (term.js typeAgentProposal: 4 s).
+// agentWait is how long keel serve has to answer a proposal's Type.
 const agentWait = 4 * time.Second
 
-// ErrNoAgentAnswer is the webview's message when keel serve does not answer a proposal's Type.
+// ErrNoAgentAnswer is the message when keel serve does not answer a proposal's Type.
 var ErrNoAgentAnswer = errors.New("keel serve did not answer.")
 
-// ticketWait is how long keel serve has to answer an approval request (pty.js requestInjectTicket: 2.5 s).
+// ticketWait is how long keel serve has to answer an approval request. keel serve keeps a nonce it issued for 60 s
+// (internal/inject): the wait here is only this client's patience.
 const ticketWait = 2500 * time.Millisecond
+
+// waitFor is how long to wait for keel serve: d, or the connection's own wait when a test set one.
+func (c *Conn) waitFor(d time.Duration) time.Duration {
+	if c.wait > 0 {
+		return c.wait
+	}
+	return d
+}
+
+// claim takes the connection's one typing slot: one type at a time, never queued. direct marks the holder as a direct
+// type, so that a second one is told so (ErrDirectBusy). The caller releases the slot when its whole exchange with keel
+// serve is over.
+func (c *Conn) claim(direct bool) (nonce chan string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case direct && c.directBusy:
+		return nil, ErrDirectBusy
+	case c.ticket != nil:
+		return nil, ErrInjectBusy
+	}
+	c.ticket, c.directBusy = make(chan string, 1), direct
+	return c.ticket, nil
+}
+
+func (c *Conn) release() {
+	c.mu.Lock()
+	c.ticket, c.directBusy = nil, false
+	c.mu.Unlock()
+}
+
+// inject is the one way this client asks keel serve to type: it asks for a one-time nonce for exactly command, waits for
+// it on nonce (the slot the caller claimed), and sends those same bytes with it, once. parts says where the bytes come
+// from (Agent, Direct, Suggestion, Notebook); its type, command and nonce are set here and nowhere else. With no nonce in
+// time it sends no inject and returns ErrNoTicket. It never retries.
+func (c *Conn) inject(ctx context.Context, nonce chan string, command string, parts wire.Control) error {
+	if err := c.send(wire.Control{Type: wire.TypeInjectChallenge, Command: command}); err != nil {
+		return err
+	}
+	timer := time.NewTimer(c.waitFor(ticketWait))
+	defer timer.Stop()
+	var n string
+	select {
+	case n = <-nonce:
+	case <-timer.C:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if n == "" {
+		return ErrNoTicket
+	}
+	parts.Type, parts.Command, parts.Nonce = wire.TypeInject, command, n
+	return c.send(parts)
+}
 
 // ApprovedInject asks keel serve for a one-time nonce for exactly these bytes and, if it gets one, sends them. It
 // is called only by the Approve before type dialog's Type action. It sends nothing unless this client drives a ready
@@ -92,72 +149,54 @@ const ticketWait = 2500 * time.Millisecond
 // call then returns keel serve's refusal (the message of its agent-type answer) as an error, and nil only when keel
 // serve says it typed.
 func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentRef, opts ...InjectOption) error {
-	st := c.Snapshot()
-	switch {
-	case st.Status != "ready":
-		return ErrNotReady
-	case st.Role != "driver":
-		return ErrNotDriver
+	if err := c.typingReady(); err != nil {
+		return err
 	}
-	c.mu.Lock()
-	if c.ticket != nil {
-		c.mu.Unlock()
-		return ErrInjectBusy
+	nonce, err := c.claim(false)
+	if err != nil {
+		return err
 	}
-	waiter := make(chan string, 1)
-	c.ticket = waiter
+	defer c.release()
 	var answer chan agentAnswer // registered before the frame goes out, so the answer cannot be missed
 	if agent != nil {
 		answer = make(chan agentAnswer, 1)
-		c.agentWaiter, c.agentFor = answer, agent.ProposalID
-	}
-	c.mu.Unlock()
-	defer func() {
 		c.mu.Lock()
-		c.ticket = nil
-		if agent != nil {
-			c.agentWaiter, c.agentFor = nil, ""
-		}
+		c.agentWaiter, c.agentFor = answer, agent.ProposalID
 		c.mu.Unlock()
-	}()
-
-	b, _ := json.Marshal(map[string]any{"type": "inject-challenge", "command": command})
-	if err := c.write(websocket.TextMessage, b); err != nil {
+		defer func() {
+			c.mu.Lock()
+			c.agentWaiter, c.agentFor = nil, ""
+			c.mu.Unlock()
+		}()
+	}
+	parts := wire.Control{Agent: agentPart(agent)}
+	for _, o := range opts {
+		if o == FromNotebook { // keel serve refuses a placeholder in it
+			parts.Notebook = true
+		}
+	}
+	if err := c.inject(ctx, nonce, command, parts); err != nil || agent == nil {
 		return err
 	}
-	wait := ticketWait
-	if c.wait > 0 {
-		wait = c.wait
-	}
+	return waitAnswer(ctx, answer, agentWait, "Not typed.")
+}
+
+// agentAnswer is keel serve's agent-type or agent-insert frame: ok when it wrote the bytes, else why not (its own words).
+type agentAnswer struct {
+	ok      bool
+	message string
+}
+
+// waitAnswer waits for keel serve's answer to an inject: nil when it wrote the bytes, its refusal (or refused, when it
+// gave no words) as an error, ErrNoAgentAnswer when it did not answer in time.
+func waitAnswer(ctx context.Context, answer chan agentAnswer, wait time.Duration, refused string) error {
 	timer := time.NewTimer(wait)
 	defer timer.Stop()
-	var nonce string
-	select {
-	case nonce = <-waiter:
-	case <-timer.C:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	if nonce == "" {
-		return ErrNoTicket
-	}
-	frame := map[string]any{"type": "inject", "command": command, "nonce": nonce}
-	if agent != nil {
-		frame["agent"] = agentPart(agent)
-	}
-	if slices.Contains(opts, FromNotebook) { // keel serve refuses a placeholder in it (pty.js sendApprovedInject opts.notebook)
-		frame["notebook"] = true
-	}
-	b, _ = json.Marshal(frame)
-	if err := c.write(websocket.TextMessage, b); err != nil || agent == nil {
-		return err
-	}
-	timer.Reset(agentWait)
 	select {
 	case a := <-answer:
 		if !a.ok {
 			if a.message == "" {
-				a.message = "Not typed."
+				a.message = refused
 			}
 			return errors.New(a.message)
 		}
@@ -169,82 +208,85 @@ func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentR
 	}
 }
 
-// agentAnswer is keel serve's agent-type frame: ok when it wrote the bytes, else why not (its own words).
-type agentAnswer struct {
-	ok      bool
-	message string
-}
-
-// injectFrame hands keel serve's answer to an approval request to the call that waits for it. It reports whether the
-// frame was one; the nonce is never kept, logged or shown.
+// injectFrame hands keel serve's answer to an approval request, an inject or a suggestion question to the call that
+// waits for it. It reports whether the frame was one; the nonce is never kept, logged or shown.
 func (c *Conn) injectFrame(data []byte) bool {
-	var m struct {
-		Type       string `json:"type"`
-		Nonce      string `json:"nonce"`
-		OK         bool   `json:"ok"`
-		Message    string `json:"message"`
-		ProposalID string `json:"proposalId"`
-		Ref        string `json:"ref"`
-		Dialog     bool   `json:"dialog"`
-		Reason     string `json:"reason"`
-		Direct     bool   `json:"direct"`
+	var head struct {
+		Type string `json:"type"`
 	}
-	if json.Unmarshal(data, &m) != nil {
+	if json.Unmarshal(data, &head) != nil {
 		return false
 	}
-	if c.suggestFrame(m.Type, data) {
-		return true
-	}
-	if m.Type == "type-direct" || m.Type == "type-check" { // matched by the ref the request carried (pty.js settleDirect)
+	switch head.Type {
+	case wire.TypeInjectChallenge:
+		var m wire.Challenge
+		_ = json.Unmarshal(data, &m)
 		c.mu.Lock()
-		w := c.directWaiters[m.Ref]
+		w := c.ticket
 		c.mu.Unlock()
 		if w != nil {
-			select {
-			case w <- directAnswer{ok: m.OK, dialog: m.Dialog, reason: m.Reason, message: m.Message, direct: m.Direct}:
+			select { // the first answer counts; a second never blocks the reader
+			case w <- m.Nonce:
 			default:
 			}
 		}
-		return true
-	}
-	if m.Type == "agent-type" {
-		c.mu.Lock()
-		w, want := c.agentWaiter, c.agentFor
-		c.mu.Unlock()
-		if w != nil && m.ProposalID == want { // an answer about another proposal is not ours
-			select {
-			case w <- agentAnswer{m.OK, m.Message}:
-			default:
-			}
-		}
-		return true
-	}
-	if m.Type != "inject-challenge" {
+	case wire.TypeTypeDirect, wire.TypeAgentType, wire.TypeAgentInsert:
+		var m wire.TypeResult
+		_ = json.Unmarshal(data, &m)
+		c.typeResult(m)
+	case wire.TypeAgentDetect, wire.TypeAgentSuggest, wire.TypeAgentSuggestRisk:
+		c.suggestFrame(head.Type, data)
+	default:
 		return false
-	}
-	c.mu.Lock()
-	w := c.ticket
-	c.mu.Unlock()
-	if w != nil {
-		select { // the first answer counts; a second never blocks the reader
-		case w <- m.Nonce:
-		default:
-		}
 	}
 	return true
 }
 
-// agentPart is the agent part of an inject frame, as the webview builds it.
-func agentPart(a *AgentRef) map[string]any {
-	if a.GroupRunID != "" { // a group run's proposal: the run, never a conversation (term.js typeGroupProposal)
-		return map[string]any{"groupRunId": a.GroupRunID, "proposalId": a.ProposalID, "shift": a.Shift}
+// typeResult hands keel serve's answer to an inject to the call it is for: an answer about another request (by its ref,
+// its proposal or its suggestion) is not ours.
+func (c *Conn) typeResult(m wire.TypeResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch m.Type {
+	case wire.TypeTypeDirect:
+		if w := c.directWaiters[m.Ref]; w != nil {
+			select {
+			case w <- directAnswer{ok: m.OK, dialog: m.Dialog, reason: m.Reason, message: m.Message}:
+			default:
+			}
+		}
+	case wire.TypeAgentType:
+		if c.agentWaiter != nil && m.ProposalID == c.agentFor {
+			select {
+			case c.agentWaiter <- agentAnswer{m.OK, m.Message}:
+			default:
+			}
+		}
+	case wire.TypeAgentInsert:
+		if c.insertWaiter != nil && m.SuggestionID == c.insertFor {
+			select {
+			case c.insertWaiter <- agentAnswer{m.OK, m.Message}:
+			default:
+			}
+		}
 	}
-	return map[string]any{"conversationId": a.ConversationID, "proposalId": a.ProposalID, "shift": a.Shift}
 }
 
-// DirectRef is the "direct" part of a type-check or a direct inject (internal/httpapi/typedirect.go directTypeMsg): where
-// the command comes from, and what the pane's terminal shows, which keel serve ORs with its own view (it can only add a
-// dialog). The ref that matches an answer is made here.
+// agentPart is the agent part of an inject frame: nil for bytes that are no proposal's. A group run's proposal names the
+// run, never a conversation.
+func agentPart(a *AgentRef) *wire.AgentType {
+	if a == nil {
+		return nil
+	}
+	if a.GroupRunID != "" {
+		return &wire.AgentType{GroupRunID: a.GroupRunID, ProposalID: a.ProposalID, Shift: a.Shift}
+	}
+	return &wire.AgentType{ConversationID: a.ConversationID, ProposalID: a.ProposalID, Shift: a.Shift}
+}
+
+// DirectRef is the "direct" part of a direct inject (wire.DirectType): where the command comes from, and what the pane's
+// terminal shows, which keel serve ORs with its own view (it can only add a dialog). The ref that matches an answer is
+// made here.
 type DirectRef struct {
 	Kind       string // "snippet", "agent" or "notebook" (a group run is not built here)
 	SnippetID  string // the snippet, for Kind "snippet": keel serve compares its stored command with the bytes
@@ -263,49 +305,22 @@ type DirectResult struct {
 	Message string
 }
 
-// directAnswer is keel serve's type-direct or type-check frame.
+// directAnswer is keel serve's type-direct frame.
 type directAnswer struct {
-	ok, dialog, direct bool
-	reason, message    string
+	ok, dialog      bool
+	reason, message string
 }
 
-// directWait is how long keel serve has to answer a direct type or a check (pty.js askDirect: 8 s).
+// directWait is how long keel serve has to answer a direct type (8 s).
 const directWait = 8 * time.Second
 
-// directReady is pty.js directReady for a connection: nothing goes out for a kind this client does not build, or for a
-// session this client cannot type into (a follower, or one that is not ready).
+// directReady: nothing goes out for a kind this client does not build, or for a session this client cannot type into (a
+// follower, or one that is not ready).
 func (c *Conn) directReady(ref DirectRef) error {
-	if ref.Kind != "snippet" && ref.Kind != "agent" && ref.Kind != "notebook" {
+	if ref.Kind != wire.DirectSnippet && ref.Kind != wire.DirectAgent && ref.Kind != wire.DirectNotebook {
 		return errors.New("keelclient: no such kind of direct type")
 	}
-	st := c.Snapshot()
-	switch {
-	case st.Status != "ready":
-		return ErrNotReady
-	case st.Role != "driver":
-		return ErrNotDriver
-	}
-	return nil
-}
-
-// directFrame is a type-check or an inject with a direct part. The ref goes into it here and nowhere else.
-func directFrame(kind, command, nonce string, ref DirectRef, id string, agent *AgentRef) []byte {
-	d := map[string]any{"kind": ref.Kind, "altScreen": ref.AltScreen, "promptLine": ref.PromptLine, "ref": id}
-	if ref.SnippetID != "" {
-		d["snippetId"] = ref.SnippetID
-	}
-	if ref.NotebookID != "" {
-		d["notebookId"] = ref.NotebookID
-	}
-	f := map[string]any{"type": kind, "command": command, "direct": d}
-	if nonce != "" {
-		f["nonce"] = nonce
-	}
-	if agent != nil {
-		f["agent"] = agentPart(agent)
-	}
-	b, _ := json.Marshal(f)
-	return b
+	return c.typingReady()
 }
 
 // newDirectWaiter registers the answer a request with a fresh ref waits for, before the request goes out.
@@ -330,11 +345,7 @@ func (c *Conn) dropDirectWaiter(ref string) {
 
 // waitDirect waits for the answer to ref; ok is false when keel serve did not answer in time.
 func (c *Conn) waitDirect(ctx context.Context, w chan directAnswer) (a directAnswer, ok bool, err error) {
-	wait := directWait
-	if c.wait > 0 {
-		wait = c.wait
-	}
-	timer := time.NewTimer(wait)
+	timer := time.NewTimer(c.waitFor(directWait))
 	defer timer.Stop()
 	select {
 	case a = <-w:
@@ -357,51 +368,23 @@ func (c *Conn) DirectType(ctx context.Context, command string, ref DirectRef, ag
 	if err := c.directReady(ref); err != nil {
 		return DirectResult{}, err
 	}
-	if !DirectLine(command) {
+	if !cmdrule.DirectLine(command) {
 		return DirectResult{Dialog: true}, nil
 	}
-	c.mu.Lock()
-	switch {
-	case c.directBusy:
-		c.mu.Unlock()
-		return DirectResult{}, ErrDirectBusy
-	case c.ticket != nil:
-		c.mu.Unlock()
-		return DirectResult{}, ErrInjectBusy
-	}
-	c.directBusy = true
-	waiter := make(chan string, 1)
-	c.ticket = waiter
-	c.mu.Unlock()
-	defer func() {
-		c.mu.Lock()
-		c.directBusy, c.ticket = false, nil
-		c.mu.Unlock()
-	}()
-
-	b, _ := json.Marshal(map[string]any{"type": "inject-challenge", "command": command})
-	if err := c.write(websocket.TextMessage, b); err != nil {
+	nonce, err := c.claim(true)
+	if err != nil {
 		return DirectResult{}, err
 	}
-	wait := ticketWait
-	if c.wait > 0 {
-		wait = c.wait
-	}
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-	var nonce string
-	select {
-	case nonce = <-waiter:
-	case <-timer.C:
-	case <-ctx.Done():
-		return DirectResult{}, ctx.Err()
-	}
-	if nonce == "" {
-		return DirectResult{Dialog: true}, nil // no nonce, no inject
-	}
-	id, answer := c.newDirectWaiter()
+	defer c.release()
+
+	id, answer := c.newDirectWaiter() // the ref goes into the frame here and nowhere else
 	defer c.dropDirectWaiter(id)
-	if err := c.write(websocket.TextMessage, directFrame("inject", command, nonce, ref, id, agent)); err != nil {
+	parts := wire.Control{Agent: agentPart(agent), Direct: &wire.DirectType{
+		Ref: id, Kind: ref.Kind, SnippetID: ref.SnippetID, NotebookID: ref.NotebookID, AltScreen: ref.AltScreen, PromptLine: ref.PromptLine}}
+	switch err := c.inject(ctx, nonce, command, parts); {
+	case errors.Is(err, ErrNoTicket):
+		return DirectResult{Dialog: true}, nil // no nonce, no inject
+	case err != nil:
 		return DirectResult{}, err
 	}
 	a, ok, err := c.waitDirect(ctx, answer)
@@ -421,32 +404,29 @@ func (c *Conn) DirectType(ctx context.Context, command string, ref DirectRef, ag
 	return DirectResult{Typed: true}, nil
 }
 
-// DirectCheck asks keel serve whether DirectType would type command now. It writes nothing. keel serve answers it
-// only for a group run's proposal (every other kind is "dialog"), so the window does not use it to name its buttons: the
-// hint does that, as the page's does. false when keel serve would not, or did not answer in time.
-func (c *Conn) DirectCheck(ctx context.Context, command string, ref DirectRef, agent *AgentRef) (bool, error) {
-	if err := c.directReady(ref); err != nil {
-		return false, err
-	}
-	if !DirectLine(command) {
-		return false, nil
-	}
-	id, answer := c.newDirectWaiter()
-	defer c.dropDirectWaiter(id)
-	if err := c.write(websocket.TextMessage, directFrame("type-check", command, "", ref, id, agent)); err != nil {
-		return false, err
-	}
-	a, ok, err := c.waitDirect(ctx, answer)
-	return ok && a.direct, err
-}
-
-// ---- in-pane suggestions (cmd/keel/web/js/ui/suggest.js, lib/suggest.js; internal/httpapi/agentsuggest.go) ----
+// ---- in-pane suggestions (internal/httpapi/agentsuggest.go) ----
 
 // SuggestOption is one command keel serve offered. It holds no bytes: the bytes an insert sends stay in this package.
+// Risk is RiskReadOnly, RiskChanges or RiskDestructive.
 type SuggestOption struct {
 	Command, Why, Risk, Source       string
 	NeedsShift, Judged, Placeholders bool
 }
+
+// The risk words of a proposal, a step and a suggestion's option (wire.Risk).
+const (
+	RiskReadOnly    = string(wire.RiskReadOnly)
+	RiskChanges     = string(wire.RiskChanges)
+	RiskDestructive = string(wire.RiskDestructive)
+)
+
+// Why keel serve sent no suggestion, when the window acts on it (SuggestEvent.Reason; the rest are wire.Reason…).
+const (
+	ReasonOff         = wire.ReasonOff
+	ReasonNoKey       = wire.ReasonNoKey
+	ReasonNotReadable = wire.ReasonNotReadable
+	ReasonFollowing   = wire.ReasonFollowing
+)
 
 // Suggestion is the card keel serve sent for the words on a prompt line.
 type Suggestion struct {
@@ -489,94 +469,53 @@ type keptSuggestion struct {
 
 const keptSuggestions = 8 // keel serve expires them itself; a few are enough for the one card on screen
 
-// ErrSuggestionGone is keel serve's own word for an insert that is too late (httpapi.go).
-var ErrSuggestionGone = errors.New("the insert expired; press ⇥ again")
+// ErrSuggestionGone is keel serve's own word for an insert that is too late.
+var ErrSuggestionGone = errors.New(wire.MsgInsertExpired)
 
-// ErrMultiLine is the webview's refusal of a command that spans lines (term.js insertSuggestion).
+// ErrMultiLine refuses a command that spans lines.
 var ErrMultiLine = errors.New("This command spans lines; copy it instead.")
 
-// insertWait is how long keel serve has to answer an insert (term.js insertSuggestion: 4 s).
+// insertWait is how long keel serve has to answer an insert.
 const insertWait = 4 * time.Second
 
-// suggestReady is the check before any suggestion frame: a ready session this client drives.
-func (c *Conn) suggestReady() error {
-	st := c.Snapshot()
-	switch {
-	case st.Status != "ready":
-		return ErrNotReady
-	case st.Role != "driver":
-		return ErrNotDriver
-	}
-	return nil
-}
-
 func (c *Conn) sendSuggest(kind string, seq int, line string) error {
-	if err := c.suggestReady(); err != nil {
+	if err := c.typingReady(); err != nil {
 		return err
 	}
-	b, _ := json.Marshal(map[string]any{"type": kind, "seq": seq, "line": line})
-	return c.write(websocket.TextMessage, b)
+	return c.send(wire.Control{Type: kind, Seq: seq, Line: line})
 }
 
 // SuggestDetect asks keel serve whether the words on the prompt line are plain language (agent-detect). It writes
 // nothing to the session; keel serve's answer comes back as a SuggestDetected event with the same seq.
 func (c *Conn) SuggestDetect(seq int, line string) error {
-	return c.sendSuggest("agent-detect", seq, line)
+	return c.sendSuggest(wire.TypeAgentDetect, seq, line)
 }
 
 // SuggestAsk asks keel serve for a command for the words (agent-suggest). It writes nothing to the session; the
 // answer is a SuggestAnswered event, then perhaps a SuggestRated one.
 func (c *Conn) SuggestAsk(seq int, line string) error {
-	return c.sendSuggest("agent-suggest", seq, line)
+	return c.sendSuggest(wire.TypeAgentSuggest, seq, line)
 }
 
-// suggestFrame handles keel serve's four suggestion frames and reports whether data was one.
-func (c *Conn) suggestFrame(typ string, data []byte) bool {
-	var m struct {
-		Seq          int    `json:"seq"`
-		Plain        bool   `json:"plain"`
-		Source       string `json:"source"`
-		OK           bool   `json:"ok"`
-		Message      string `json:"message"`
-		Reason       string `json:"reason"`
-		SuggestionID string `json:"suggestionId"`
-		Suggestion   *struct {
-			ID      string `json:"id"`
-			Options []struct {
-				Command      string `json:"command"`
-				Bytes        string `json:"bytes"`
-				Why          string `json:"why"`
-				Risk         string `json:"risk"`
-				NeedsShift   bool   `json:"needsShift"`
-				Placeholders bool   `json:"placeholders"`
-				Source       string `json:"source"`
-				Judged       bool   `json:"judged"`
-			} `json:"options"`
-		} `json:"suggestion"`
-		Options []struct {
-			Risk       string `json:"risk"`
-			NeedsShift bool   `json:"needsShift"`
-			Judged     bool   `json:"judged"`
-		} `json:"options"`
-	}
+// suggestFrame handles keel serve's detect, suggest and risk frames (the insert's answer is typeResult's).
+func (c *Conn) suggestFrame(typ string, data []byte) {
 	switch typ {
-	case "agent-detect", "agent-suggest", "agent-suggest-risk", "agent-insert":
-	default:
-		return false
-	}
-	if json.Unmarshal(data, &m) != nil {
-		return true
-	}
-	switch typ {
-	case "agent-detect":
-		c.pushSuggest(SuggestEvent{Kind: SuggestDetected, Seq: m.Seq, Plain: m.Plain, Source: m.Source})
-	case "agent-suggest":
+	case wire.TypeAgentDetect:
+		var m wire.Detect
+		if json.Unmarshal(data, &m) == nil {
+			c.pushSuggest(SuggestEvent{Kind: SuggestDetected, Seq: m.Seq, Plain: m.Plain, Source: m.Source})
+		}
+	case wire.TypeAgentSuggest:
+		var m wire.Suggest
+		if json.Unmarshal(data, &m) != nil {
+			return
+		}
 		e := SuggestEvent{Kind: SuggestAnswered, Seq: m.Seq, OK: m.OK, Message: m.Message, Reason: m.Reason}
 		if s := m.Suggestion; s != nil {
 			sug := &Suggestion{ID: s.ID}
 			kept := keptSuggestion{id: s.ID}
 			for _, o := range s.Options {
-				sug.Options = append(sug.Options, SuggestOption{Command: o.Command, Why: o.Why, Risk: o.Risk, Source: o.Source,
+				sug.Options = append(sug.Options, SuggestOption{Command: o.Command, Why: o.Why, Risk: string(o.Risk), Source: o.Source,
 					NeedsShift: o.NeedsShift, Judged: o.Judged, Placeholders: o.Placeholders})
 				kept.bytes = append(kept.bytes, o.Bytes)
 			}
@@ -589,24 +528,17 @@ func (c *Conn) suggestFrame(typ string, data []byte) bool {
 			c.mu.Unlock()
 		}
 		c.pushSuggest(e)
-	case "agent-suggest-risk":
+	case wire.TypeAgentSuggestRisk:
+		var m wire.SuggestRisk
+		if json.Unmarshal(data, &m) != nil {
+			return
+		}
 		e := SuggestEvent{Kind: SuggestRated, ID: m.SuggestionID}
 		for _, o := range m.Options {
-			e.Options = append(e.Options, SuggestOption{Risk: o.Risk, NeedsShift: o.NeedsShift, Judged: o.Judged})
+			e.Options = append(e.Options, SuggestOption{Risk: string(o.Risk), NeedsShift: o.NeedsShift, Judged: o.Judged})
 		}
 		c.pushSuggest(e)
-	case "agent-insert":
-		c.mu.Lock()
-		w, want := c.insertWaiter, c.insertFor
-		c.mu.Unlock()
-		if w != nil && m.SuggestionID == want { // an answer about another suggestion is not ours
-			select {
-			case w <- agentAnswer{m.OK, m.Message}:
-			default:
-			}
-		}
 	}
-	return true
 }
 
 func (c *Conn) pushSuggest(e SuggestEvent) {
@@ -649,7 +581,7 @@ func (c *Conn) suggestBytes(id string, i int) (string, bool) {
 // It is called only by (*workspace).insertSuggestion. One at a time, never queued, never retried. Nothing goes out
 // unless this client drives a ready session, the suggestion is one keel serve sent, and its bytes are one line.
 func (c *Conn) SuggestInsert(ctx context.Context, ref SuggestionRef) error {
-	if err := c.suggestReady(); err != nil {
+	if err := c.typingReady(); err != nil {
 		return err
 	}
 	bytes, ok := c.suggestBytes(ref.ID, ref.Option)
@@ -659,71 +591,29 @@ func (c *Conn) SuggestInsert(ctx context.Context, ref SuggestionRef) error {
 	case strings.IndexFunc(bytes, func(r rune) bool { return r == 13 || r == 10 }) >= 0:
 		return ErrMultiLine
 	}
-	c.mu.Lock()
-	if c.ticket != nil || c.insertWaiter != nil {
-		c.mu.Unlock()
-		return ErrInjectBusy
+	nonce, err := c.claim(false)
+	if err != nil {
+		return err
 	}
-	waiter := make(chan string, 1)
-	c.ticket = waiter
+	defer c.release()
 	answer := make(chan agentAnswer, 1) // registered before the frame goes out, so the answer cannot be missed
+	c.mu.Lock()
 	c.insertWaiter, c.insertFor = answer, ref.ID
 	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
-		c.ticket, c.insertWaiter, c.insertFor = nil, nil, ""
+		c.insertWaiter, c.insertFor = nil, ""
 		c.mu.Unlock()
 	}()
-
-	b, _ := json.Marshal(map[string]any{"type": "inject-challenge", "command": bytes})
-	if err := c.write(websocket.TextMessage, b); err != nil {
+	parts := wire.Control{Suggestion: &wire.AgentInsert{SuggestionID: ref.ID, Option: ref.Option, Shift: ref.Shift}}
+	if err := c.inject(ctx, nonce, bytes, parts); err != nil {
 		return err
 	}
-	wait := ticketWait
-	if c.wait > 0 {
-		wait = c.wait
-	}
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-	var nonce string
-	select {
-	case nonce = <-waiter:
-	case <-timer.C:
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-	if nonce == "" {
-		return ErrNoTicket
-	}
-	b, _ = json.Marshal(map[string]any{"type": "inject", "command": bytes, "nonce": nonce,
-		"suggestion": map[string]any{"suggestionId": ref.ID, "option": ref.Option, "shift": ref.Shift}})
-	if err := c.write(websocket.TextMessage, b); err != nil {
-		return err
-	}
-	if c.wait > 0 {
-		wait = c.wait
-	} else {
-		wait = insertWait
-	}
-	timer.Reset(wait)
-	select {
-	case a := <-answer:
-		if !a.ok {
-			if a.message == "" {
-				a.message = "Not inserted."
-			}
-			return errors.New(a.message)
-		}
-		return nil
-	case <-timer.C:
-		return ErrNoAgentAnswer
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return waitAnswer(ctx, answer, c.waitFor(insertWait), "Not inserted.")
 }
 
 // restoreBytes is what ⌘Z sends to put the user's own words back: Ctrl-U to clear the inserted command, then the words
-// with every control character dropped, so a restore can never press Enter (lib/suggest.js restoreBytes).
+// with every control character dropped, so a restore can never press Enter.
 func restoreBytes(words string) string {
 	return "\x15" + strings.Map(func(r rune) rune {
 		if r < 0x20 || r == 0x7f {
@@ -733,11 +623,11 @@ func restoreBytes(words string) string {
 	}, words)
 }
 
-// RestoreWords is ⌘Z after an insert: the user's own words back, as their keystrokes, to this session only (term.js
-// restoreWords: sendSessionBytes, which keel serve takes as ordinary typing from the driver). Nothing goes out unless
-// this client drives a ready session. It is called only by (*workspace).restoreWords.
+// RestoreWords is ⌘Z after an insert: the user's own words back, as their keystrokes, to this session only (keel serve
+// takes them as ordinary typing from the driver). Nothing goes out unless this client drives a ready session. It is
+// called only by (*workspace).restoreWords.
 func (c *Conn) RestoreWords(words string) error {
-	if err := c.suggestReady(); err != nil {
+	if err := c.typingReady(); err != nil {
 		return err
 	}
 	return c.write(websocket.BinaryMessage, []byte(restoreBytes(words)))

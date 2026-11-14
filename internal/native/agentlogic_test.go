@@ -8,8 +8,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The cases of cmd/keel/web/js/test/agent.test.mjs that concern the panel, on the Go port of lib/agent.js.
-
 var testAgentPanes = []agentPane{
 	{sessionID: "s1", label: "web-1", focused: true, inActiveTab: true, readable: true, driving: true},
 	{sessionID: "s2", label: "prod-db-01", inActiveTab: true, readable: true, production: true, driving: true},

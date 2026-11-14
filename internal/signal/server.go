@@ -1,9 +1,7 @@
 package signal
 
 import (
-	"crypto/rand"
 	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +13,10 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"keel/internal/randid"
+	"keel/internal/sharelink"
+	"keel/internal/wire"
 )
 
 const (
@@ -23,11 +25,8 @@ const (
 	// maxRoomAge bounds a hosted room; the host's 30-minute read deadline
 	// alone let any traffic keep a room alive forever.
 	maxRoomAge = 24 * time.Hour
-	// maxJoiners caps peers per room: each joiner costs the host a WebRTC
-	// PeerConnection.
-	maxJoiners = 16
-	// maxMessage bounds one signaling message (SDP offers are a few KB).
-	maxMessage = 64 << 10
+	maxJoiners = sharelink.MaxViewers
+	maxMessage = sharelink.MaxSignalMessageBytes
 	// Room creation per client address: a burst, then one per interval.
 	roomBurst    = 6
 	roomInterval = 10 * time.Second
@@ -44,20 +43,6 @@ const (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: allowSignalOrigin,
-}
-
-type envelope struct {
-	Type      string `json:"type"`
-	PeerID    string `json:"peerId,omitempty"`
-	Name      string `json:"name,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	SDP       string `json:"sdp,omitempty"`
-	Candidate string `json:"candidate,omitempty"`
-	SDPMid    string `json:"sdpMid,omitempty"`
-	SDPLine   *int   `json:"sdpMLineIndex,omitempty"`
-	// Mac binds an offer or answer to the secret in the join link's
-	// #fragment, which this server never sees (see internal/share/verify.go).
-	Mac string `json:"mac,omitempty"`
 }
 
 type peer struct {
@@ -81,6 +66,8 @@ type room struct {
 	mu      sync.Mutex
 	host    *peer
 	joiners map[string]*peer
+	// hosted is closed when the host arrives: a joiner that came first waits on it.
+	hosted chan struct{}
 }
 
 type Server struct {
@@ -147,7 +134,7 @@ func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "too many rooms", http.StatusServiceUnavailable)
 		return
 	}
-	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}}
+	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}, hosted: make(chan struct{})}
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	// hostKey proves the caller created the room: anyone who learns the
@@ -188,7 +175,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	roomID := r.URL.Query().Get("room")
 	role := r.URL.Query().Get("role")
 	name := r.URL.Query().Get("name")
-	if roomID == "" || (role != "host" && role != "join") {
+	if roomID == "" || (role != wire.SignalRoleHost && role != wire.SignalRoleJoin) {
 		http.Error(w, "room and role=host|join required", http.StatusBadRequest)
 		return
 	}
@@ -197,11 +184,11 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "room not found", http.StatusNotFound)
 		return
 	}
-	if role == "host" && subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("key")), []byte(rm.hostKey)) != 1 {
+	if role == wire.SignalRoleHost && subtle.ConstantTimeCompare([]byte(r.URL.Query().Get("key")), []byte(rm.hostKey)) != 1 {
 		http.Error(w, "host key required", http.StatusForbidden)
 		return
 	}
-	if role == "join" {
+	if role == wire.SignalRoleJoin {
 		rm.mu.Lock()
 		full := len(rm.joiners) >= maxJoiners
 		rm.mu.Unlock()
@@ -217,7 +204,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.SetReadLimit(maxMessage)
 	p := &peer{id: newID(), name: name, role: role, conn: conn}
-	if role == "host" {
+	if role == wire.SignalRoleHost {
 		rm.mu.Lock()
 		if rm.host != nil {
 			rm.mu.Unlock()
@@ -225,19 +212,18 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rm.host = p
+		close(rm.hosted) // a second host is refused above, so this closes once
 		rm.mu.Unlock()
 	} else {
-		deadline := time.Now().Add(8 * time.Second)
-		var host *peer
-		for time.Now().Before(deadline) {
-			rm.mu.Lock()
-			host = rm.host
-			rm.mu.Unlock()
-			if host != nil {
-				break
-			}
-			time.Sleep(20 * time.Millisecond)
+		wait := time.NewTimer(8 * time.Second)
+		select {
+		case <-rm.hosted:
+		case <-wait.C:
 		}
+		wait.Stop()
+		rm.mu.Lock()
+		host := rm.host
+		rm.mu.Unlock()
 		if host == nil {
 			_ = conn.Close()
 			return
@@ -257,14 +243,14 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			_ = conn.Close()
 			return
 		}
-		_ = host.send(envelope{Type: "peer", PeerID: p.id, Name: name})
+		_ = host.send(wire.Signal{Type: wire.SignalPeer, PeerID: p.id, Name: name})
 	}
 	defer func() {
 		_ = conn.Close()
 		rm.mu.Lock()
-		if role == "host" {
+		if role == wire.SignalRoleHost {
 			for _, j := range rm.joiners {
-				_ = j.send(envelope{Type: "leave"})
+				_ = j.send(wire.Signal{Type: wire.SignalLeave})
 				_ = j.conn.Close()
 			}
 			rm.host = nil
@@ -276,7 +262,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		host := rm.host
 		rm.mu.Unlock()
 		if host != nil {
-			_ = host.send(envelope{Type: "leave", PeerID: p.id})
+			_ = host.send(wire.Signal{Type: wire.SignalLeave, PeerID: p.id})
 		}
 	}()
 
@@ -311,16 +297,16 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	for {
-		var msg envelope
+		var msg wire.Signal
 		if err := conn.ReadJSON(&msg); err != nil {
 			return
 		}
 		_ = conn.SetReadDeadline(readDeadline())
-		if msg.Type != "signal" {
+		if msg.Type != wire.SignalMessage {
 			continue
 		}
 		rm.mu.Lock()
-		if role == "host" {
+		if role == wire.SignalRoleHost {
 			j := rm.joiners[msg.PeerID]
 			rm.mu.Unlock()
 			if j != nil {
@@ -408,9 +394,5 @@ func addrKey(host string) string {
 
 // newID returns 128 random bits: a room ID is the only secret in a join link.
 func newID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return hex.EncodeToString([]byte("fallback"))
-	}
-	return hex.EncodeToString(b)
+	return randid.Hex(16)
 }

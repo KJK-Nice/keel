@@ -269,7 +269,6 @@ func (s *Store) NotebookHistory(id string) ([]NotebookVersion, error) {
 	return out, nil
 }
 
-// NotebookVersionByID is one kept version of notebook id, with its text.
 func (s *Store) NotebookVersionByID(id, vid string) (NotebookVersion, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

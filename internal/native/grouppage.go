@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path"
@@ -10,9 +11,10 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// The Group page (docs/ui-redesign.md §17, board GroupRoles; cmd/keel/web/js/ui/groups.js, internal/ui/groupspage.templ): one
+// The Group page (docs/ui-redesign.md §17, board GroupRoles): one
 // folder's hosts with their roles, its notes for the agent, its variables, "Run a runbook on this group" and the Ansible
 // export drawer. A tab page, one instance, named after the folder; the folder it shows is kept in the saved workspace
 // (saved.go). Roles and variables are saved one at a time by keel serve, which checks them; this client holds what keel
@@ -48,7 +50,6 @@ func (w *workspace) downloadFile(name, content string) {
 	})
 }
 
-// The page's words (internal/ui/groupspage.templ, ui/groups.js).
 const (
 	groupRoleHelp   = "Roles tell runbooks and the agent what each host is. A step for a role runs on every host with it."
 	groupNoHosts    = "No hosts in this folder yet. Drag hosts onto it in the sidebar."
@@ -120,16 +121,24 @@ type ansibleDrawer struct {
 }
 
 func newGroupPage() *groupPage {
-	return &groupPage{ex: ansibleDrawer{format: "ini", mode: "rolling", user: true}}
+	return &groupPage{ex: ansibleDrawer{format: wire.FormatINI, mode: wire.ModeRolling, user: true}}
+}
+
+func (p *groupPage) load(w *workspace)                { w.loadGroupPage() }
+func (p *groupPage) view(w *workspace, c *ui.Context) { w.groupPageView(c, p) }
+func (p *groupPage) tabTitle() string                 { return p.title }
+func (p *groupPage) snapshot(d *savedDoc)             { d.GroupID = p.id }
+
+func (p *groupPage) restore(w *workspace, d *savedDoc) {
+	p.id = d.GroupID
+	p.notes = notesEditor{group: true, groupID: d.GroupID}
+	if g, ok := groupByID(w.folders, d.GroupID); ok {
+		p.title = g.Name
+	}
 }
 
 // groupPageState is the page of the Group tab, or nil.
-func (w *workspace) groupPageState() *groupPage {
-	if t := w.pageTab("group"); t != nil {
-		return t.pg.group
-	}
-	return nil
-}
+func (w *workspace) groupPageState() *groupPage { return pageAs[*groupPage](w.pageTab(pageGroup)) }
 
 // openGroupPage opens the folder's page (the folder menu's Roles and runbooks, the palette's Group …), or shows it in the
 // tab that is open: one instance. runMenu also opens its "Run a runbook on this group" list.
@@ -138,11 +147,11 @@ func (w *workspace) openGroupPage(id string, runMenu bool) {
 		w.warn("Group not found")
 		return
 	}
-	t := w.pageTab("group")
+	t := w.pageTab(pageGroup)
 	if t == nil {
-		t = w.addPageTab("group")
+		t = w.addPageTab(pageGroup)
 	}
-	p := t.pg.group
+	p := pageAs[*groupPage](t)
 	if p.id != id {
 		*p = *newGroupPage()
 		p.id = id
@@ -168,14 +177,8 @@ func (w *workspace) loadGroupPage() {
 	gen, id := p.gen, p.id
 	w.loadNotes(&p.notes)
 	w.loadGroupRunbooks(p)
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		info, err := w.be.GroupMembers(c, id)
-		w.post(func() {
-			if w.closed || w.groupPageState() != p || p.gen != gen {
-				return
-			}
+	callIf(w, func() bool { return w.groupPageState() == p && p.gen == gen }, func(c context.Context) (keelclient.GroupInfo, error) { return w.be.GroupMembers(c, id) },
+		func(info keelclient.GroupInfo, err error) {
 			if err != nil {
 				var se *keelclient.StatusError
 				if errors.As(err, &se) && se.Code == 423 {
@@ -191,33 +194,24 @@ func (w *workspace) loadGroupPage() {
 			}
 			w.exportRefresh(p)
 		})
-	})
 }
 
 // loadGroupRunbooks reads the runbooks that have steps: the list of "Run a runbook on this group" and of the export's playbook.
 func (w *workspace) loadGroupRunbooks(p *groupPage) {
 	p.run.loading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Runbooks(c)
-		w.post(func() {
-			if w.closed || w.groupPageState() != p {
-				return
+	callIf(w, func() bool { return w.groupPageState() == p }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+		p.run.loading = false
+		if err != nil { // runbooks need the vault; the inventory alone still works
+			p.run.books, p.run.err = nil, hostError(err)
+			return
+		}
+		p.run.err = ""
+		p.run.books = p.run.books[:0]
+		for _, b := range l.Runbooks {
+			if len(b.Steps) > 0 {
+				p.run.books = append(p.run.books, b)
 			}
-			p.run.loading = false
-			if err != nil { // runbooks need the vault; the inventory alone still works
-				p.run.books, p.run.err = nil, hostError(err)
-				return
-			}
-			p.run.err = ""
-			p.run.books = p.run.books[:0]
-			for _, b := range l.Runbooks {
-				if len(b.Steps) > 0 {
-					p.run.books = append(p.run.books, b)
-				}
-			}
-		})
+		}
 	})
 }
 
@@ -231,14 +225,8 @@ func (w *workspace) setRole(p *groupPage, hostID, role string) {
 		return
 	}
 	id := p.id
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		_, err := w.be.SetGroupRole(c, id, hostID, r)
-		w.post(func() {
-			if w.closed || w.groupPageState() != p || p.id != id {
-				return
-			}
+	callErrIf(w, func() bool { return w.groupPageState() == p && p.id == id }, func(c context.Context) error { _, err := w.be.SetGroupRole(c, id, hostID, r); return err },
+		func(err error) {
 			p.roleFor = ""
 			if err != nil {
 				p.err = hostError(err)
@@ -252,7 +240,6 @@ func (w *workspace) setRole(p *groupPage, hostID, role string) {
 			p.err = ""
 			w.exportRefresh(p)
 		})
-	})
 }
 
 // pickRole is the role picker's choice: "New role…" opens the field, anything else is saved at once.
@@ -289,14 +276,8 @@ func (w *workspace) setVar(p *groupPage, name, value string, onDone func()) {
 	}
 	p.varsBusy = true
 	id := p.id
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		g, err := w.be.SetGroupVar(c, id, n, v)
-		w.post(func() {
-			if w.closed || w.groupPageState() != p || p.id != id {
-				return
-			}
+	callIf(w, func() bool { return w.groupPageState() == p && p.id == id }, func(c context.Context) (keelclient.Group, error) { return w.be.SetGroupVar(c, id, n, v) },
+		func(g keelclient.Group, err error) {
 			p.varsBusy = false
 			if err != nil {
 				p.varsErr = hostError(err)
@@ -308,14 +289,11 @@ func (w *workspace) setVar(p *groupPage, name, value string, onDone func()) {
 			}
 			w.exportRefresh(p)
 		})
-	})
 }
 
 func (w *workspace) addVar(p *groupPage) {
 	w.setVar(p, p.varName, p.varValue, func() { p.varName, p.varValue, p.varNameFocus = "", "", true })
 }
-
-func (w *workspace) removeVar(p *groupPage, name string) { w.setVar(p, name, "", nil) }
 
 func (w *workspace) startEditVar(p *groupPage, v keelclient.GroupVar) {
 	p.varEdit, p.varEditTxt, p.varFocusEdit, p.varsErr = v.Name, v.Value, true, ""
@@ -359,14 +337,8 @@ func (w *workspace) exportRefresh(p *groupPage) {
 	p.ex.gen++
 	gen, id := p.ex.gen, p.id
 	q := keelclient.AnsibleQuery{Format: p.ex.format, RunbookID: p.ex.runbook, Mode: p.ex.mode, User: p.ex.user, Jump: p.ex.jump}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		files, err := w.be.GroupAnsible(c, id, q)
-		w.post(func() {
-			if w.closed || w.groupPageState() != p || p.ex.gen != gen {
-				return
-			}
+	callIf(w, func() bool { return w.groupPageState() == p && p.ex.gen == gen }, func(c context.Context) ([]keelclient.ExportFile, error) { return w.be.GroupAnsible(c, id, q) },
+		func(files []keelclient.ExportFile, err error) {
 			if err != nil {
 				p.ex.files, p.ex.err = nil, hostError(err)
 				return
@@ -376,5 +348,4 @@ func (w *workspace) exportRefresh(p *groupPage) {
 				p.ex.file = 0
 			}
 		})
-	})
 }

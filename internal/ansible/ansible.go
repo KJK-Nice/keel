@@ -17,6 +17,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"keel/internal/wire"
 )
 
 // Host is one inventory host. It deliberately has NO field for passwords,
@@ -31,6 +33,9 @@ type Host struct {
 	Production bool
 	Jump       *Jump // nil = direct
 }
+
+// IsLocal reports whether h is the local shell.
+func (h Host) IsLocal() bool { return h.Auth == wire.AuthLocal }
 
 // Jump is the jump host a Host connects through.
 type Jump struct {
@@ -179,7 +184,6 @@ func oneLine(s string) string {
 	}, s)
 }
 
-// hasJinja reports whether s holds a Jinja opening delimiter.
 func hasJinja(s string) bool {
 	return strings.Contains(s, "{{") || strings.Contains(s, "{%") || strings.Contains(s, "{#")
 }
@@ -269,15 +273,15 @@ func jumpArg(inv Inventory, h Host) string {
 func hostHints(inv Inventory, h Host, name string) []string {
 	var out []string
 	switch h.Auth {
-	case "key", "identity":
+	case wire.AuthKey, wire.AuthIdentity:
 		out = append(out, name+": Keel keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.")
-	case "password":
+	case wire.AuthPassword:
 		out = append(out, name+": this host signs in with a password kept in Keel's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.")
 	}
 	if h.Production {
 		out = append(out, name+": production")
 	}
-	if h.Auth != "local" && h.Jump != nil && jumpArg(inv, h) == "" {
+	if !h.IsLocal() && h.Jump != nil && jumpArg(inv, h) == "" {
 		jn := strings.TrimSpace(oneLine(h.Jump.Name))
 		if jn == "" {
 			jn = "a jump host"
@@ -316,7 +320,6 @@ func comment(b *strings.Builder, indent, text string) {
 	b.WriteString(indent + "# " + oneLine(text) + "\n")
 }
 
-// INI renders the inventory in Ansible's INI format.
 func INI(inv Inventory) string {
 	n := NamesFor(inv)
 	var sections []string
@@ -331,7 +334,7 @@ func INI(inv Inventory) string {
 		name := n.Hosts[i]
 		notes := hostHints(inv, h, name)
 		line := name
-		if h.Auth == "local" {
+		if h.IsLocal() {
 			line += " ansible_connection=local"
 		} else {
 			if h.Address != "" {
@@ -401,7 +404,6 @@ func INI(inv Inventory) string {
 	return strings.Join(sections, "\n")
 }
 
-// YAML renders the inventory in Ansible's YAML format.
 func YAML(inv Inventory) string {
 	n := NamesFor(inv)
 	var b strings.Builder
@@ -419,7 +421,7 @@ func YAML(inv Inventory) string {
 				comment(&b, "        ", c)
 			}
 			var kv []string
-			if h.Auth == "local" {
+			if h.IsLocal() {
 				kv = append(kv, "ansible_connection: "+yq("local"))
 			} else {
 				if h.Address != "" {
@@ -580,7 +582,7 @@ func convertCommand(cmd string) (string, bool) {
 func PlaybookYAML(pb Playbook, inv Inventory) string {
 	n := NamesFor(inv)
 	roles := stepRoles(n, pb)
-	rolling := pb.Mode != "parallel"
+	rolling := pb.Mode != wire.ModeParallel
 
 	var b strings.Builder
 	name := strings.TrimSpace(oneLine(pb.Name))

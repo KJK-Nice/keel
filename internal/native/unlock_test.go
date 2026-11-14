@@ -2,7 +2,6 @@ package native
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -46,7 +45,7 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 }
 
 func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
-	kc := keychainName(goosForTest)
+	kc := keychainName()
 	for _, c := range []struct {
 		v          keelclient.Vault
 		banner     string
@@ -93,8 +92,8 @@ func TestWrongPassphraseShowsTheErrorAndKeepsFocus(t *testing.T) {
 	if r.w.gate == nil || r.w.gate.pass != "" {
 		t.Error("the wrong passphrase is still in the field's state")
 	}
-	if fb.unlockCalls != 1 || len(r.w.tabs) != 0 || fb.hostsCalls != 0 {
-		t.Errorf("unlock calls %d, tabs %d, hosts calls %d", fb.unlockCalls, len(r.w.tabs), fb.hostsCalls)
+	if fb.unlockCalls != 1 || r.w.tabCount() != 0 || fb.hostsCalls != 0 {
+		t.Errorf("unlock calls %d, tabs %d, hosts calls %d", fb.unlockCalls, r.w.tabCount(), fb.hostsCalls)
 	}
 	// Typing again after the error works, and the right one opens the window.
 	r.typeIn(testPass)
@@ -169,27 +168,24 @@ func TestNoShortcutActsOnTheUnlockScreen(t *testing.T) {
 	r.tt.Frame()
 	r.press(ui.Cmd, ui.KeyT)
 	r.press(ui.Cmd, ui.KeyK)
-	if len(r.w.tabs) != 0 || r.w.pal != nil {
+	if r.w.tabCount() != 0 || r.w.pal != nil {
 		t.Error("a window shortcut acted over the Unlock screen")
 	}
 }
-
-// goosForTest is the OS the banner words are checked for: the running one, as the screen uses.
-var goosForTest = runtime.GOOS
 
 func TestLockedFirstRunShowsUnlockThenFirstRun(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{Locked: true, FirstRun: true}, hosts: testHosts, unlockWant: testPass}
 	fb.unlockWant = testPass
 	r := newRig(t, fb)
 	r.tt.Frame()
-	if !r.hasText("Unlock your vault") {
+	if !r.tt.HasText("Unlock your vault") {
 		t.Fatal("a locked vault with an open first run does not show Unlock")
 	}
 	fb.vault.FirstRun = true // Unlock opens it; the first run stays open
 	r.typeIn(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || !r.hasText("Welcome to Keel") {
+	if r.w.gate != nil || !r.tt.HasText("Welcome to Keel") {
 		t.Error("after unlocking, an open first run shows its step 1")
 	}
 }

@@ -8,10 +8,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Every case of cmd/keel/web/js/test/suggest.test.mjs (16 tests), as Go. The card tests that asserted HTML are in
-// suggestview_test.go (the words and look of the card in the window).
+// The suggestion machine's cases.
 
-func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) { // JS 1
+func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) {
 	cases := []struct {
 		in, prompt, input string
 		start             int
@@ -38,7 +37,7 @@ func TestPromptInputSplitsThePromptFromWhatWasTyped(t *testing.T) { // JS 1
 	}
 }
 
-func TestWorthDetecting(t *testing.T) { // JS 2
+func TestWorthDetecting(t *testing.T) {
 	for in, want := range map[string]bool{
 		"show the files": true, "# restart": true, "#": false, "uptime": false,
 		strings.Repeat("x", suggestMaxLen+1) + " y": false, "a\x03 b": false,
@@ -49,7 +48,7 @@ func TestWorthDetecting(t *testing.T) { // JS 2
 	}
 }
 
-func TestInsertGate(t *testing.T) { // JS 3
+func TestInsertGate(t *testing.T) {
 	if ok, why := insertGate(&keelclient.SuggestOption{NeedsShift: true}, false); ok || why != needsShiftReason {
 		t.Errorf("plain on a ⇧ option: %v %q", ok, why)
 	}
@@ -64,7 +63,7 @@ func TestInsertGate(t *testing.T) { // JS 3
 	}
 }
 
-func TestUndoKey(t *testing.T) { // JS 4
+func TestUndoKey(t *testing.T) {
 	for _, c := range []struct {
 		k    sugKey
 		mac  bool
@@ -76,13 +75,18 @@ func TestUndoKey(t *testing.T) { // JS 4
 		{sugKey{Name: "Z", Ctrl: true, Shift: true}, false, true},
 		{sugKey{Name: "z", Meta: true, Shift: true}, true, false},
 	} {
-		if got := undoKey(c.k, c.mac); got != c.want {
+		goos := "linux"
+		if c.mac {
+			goos = "darwin"
+		}
+		usePlatform(t, goos)
+		if got := undoKey(c.k); got != c.want {
 			t.Errorf("undoKey(%+v, mac=%v) = %v", c.k, c.mac, got)
 		}
 	}
 }
 
-func TestCardWordsAndRiskRules(t *testing.T) { // the logic of JS 6 (the card's words are checked in suggestview_test.go)
+func TestCardWordsAndRiskRules(t *testing.T) {
 	if got := riskWords(keelclient.SuggestOption{Risk: "destructive", Command: "rm -rf /tmp/x"}); got != "Deletes files" {
 		t.Errorf("rm: %q", got)
 	}
@@ -92,12 +96,13 @@ func TestCardWordsAndRiskRules(t *testing.T) { // the logic of JS 6 (the card's 
 	if got := riskWords(keelclient.SuggestOption{Risk: "readonly"}); got != "Read-only" {
 		t.Errorf("readonly: %q", got)
 	}
-	for src, want := range map[string]string{"history": "From this pane's scrollback", "snippet": "From your snippets", "generated": "Suggested from your words", "": "Suggested from your words"} { // JS 16
+	for src, want := range map[string]string{"history": "From this pane's scrollback", "snippet": "From your snippets", "generated": "Suggested from your words", "": "Suggested from your words"} {
 		if got := sourceLabel(src); got != want {
 			t.Errorf("sourceLabel(%q) = %q", src, got)
 		}
 	}
-	k := keyLabels(false)
+	usePlatform(t, "linux")
+	k := keyLabels()
 	if k.Tab != "Tab" || k.Shift != "Shift" || len(k.Undo) != 3 {
 		t.Errorf("labels off macOS: %+v", k)
 	}
@@ -112,7 +117,7 @@ func TestOptionKeys(t *testing.T) {
 	}
 }
 
-// harness is JS machine(): a machine with a fake clock, fake I/O and a pending insert the test completes.
+// harness is a machine with a fake clock, fake I/O and a pending insert the test completes.
 type harness struct {
 	t        *testing.T
 	m        *sugMachine
@@ -141,7 +146,9 @@ type insertCall struct {
 }
 
 func newHarness(t *testing.T) *harness {
-	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, mode: sugAuto, line: &promptLine{Input: "# show the files here", Start: 8}} // a # line: its notice takes ⇥ (plan 036)
+	// The machine's tests are written with ⌘.
+	usePlatform(t, "darwin")
+	h := &harness{t: t, now: time.Unix(1000, 0), driving: true, mode: sugAuto, line: &promptLine{Input: "# show the files here", Start: 8}} // a # line: its notice takes ⇥
 	ok := insertResult{OK: true}
 	h.auto = &ok
 	h.m = newSugMachine(sugDeps{
@@ -160,7 +167,6 @@ func newHarness(t *testing.T) *harness {
 		},
 		restore: func(w string) { h.restores = append(h.restores, w) },
 		now:     func() time.Time { return h.now },
-		mac:     true,
 	})
 	return h
 }
@@ -189,7 +195,7 @@ func opts(cmds ...string) *keelclient.Suggestion {
 	return s
 }
 
-func TestNoticeSuggestInsertUndo(t *testing.T) { // JS 7
+func TestNoticeSuggestInsertUndo(t *testing.T) {
 	h := newHarness(t)
 	if h.m.OnKey(kd("Tab")) { // ⇥ is the shell's until a line is noticed
 		t.Fatal("⇥ taken while idle")
@@ -241,7 +247,7 @@ func TestNoticeSuggestInsertUndo(t *testing.T) { // JS 7
 	h.state(sugIdle)
 }
 
-func TestDestructiveNeedsShift(t *testing.T) { // JS 8
+func TestDestructiveNeedsShift(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -261,7 +267,7 @@ func TestDestructiveNeedsShift(t *testing.T) { // JS 8
 	}
 }
 
-func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) { // JS 9
+func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -285,7 +291,7 @@ func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) { // JS 9
 	}
 }
 
-// Esc on the notice is Keel's (the webview also passes it to the shell, which then eats the next key as Meta+key); the
+// Esc on the notice is Keel's, not the shell's (a shell given it would eat the next key as Meta+key); the
 // key typed right after goes to the session, and Esc with nothing showing stays the shell's.
 func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
 	h := newHarness(t)
@@ -305,7 +311,7 @@ func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
 	}
 }
 
-func TestAFollowerGetsNothing(t *testing.T) { // JS 10
+func TestAFollowerGetsNothing(t *testing.T) {
 	h := newHarness(t)
 	h.driving = false
 	h.m.OnInput("x")
@@ -325,7 +331,7 @@ func TestAFollowerGetsNothing(t *testing.T) { // JS 10
 	h.state(sugIdle)
 }
 
-func TestAltScreenStaleAnswerEnterAndAnOffPane(t *testing.T) { // JS 11
+func TestAltScreenStaleAnswerEnterAndAnOffPane(t *testing.T) {
 	h := newHarness(t)
 	h.line = nil // full-screen app or no prompt
 	h.m.OnInput("x")
@@ -360,7 +366,7 @@ func TestAltScreenStaleAnswerEnterAndAnOffPane(t *testing.T) { // JS 11
 	h.state(sugIdle) // Enter runs the words; the notice goes
 }
 
-func TestCachedAnswersAreNotAskedAgainFallbackIsNot(t *testing.T) { // JS 12
+func TestCachedAnswersAreNotAskedAgainFallbackIsNot(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -380,7 +386,7 @@ func TestCachedAnswersAreNotAskedAgainFallbackIsNot(t *testing.T) { // JS 12
 	h.state(sugNotice)
 }
 
-func TestAnInsertRefusedKeepsTheCardWithTheReason(t *testing.T) { // JS 13
+func TestAnInsertRefusedKeepsTheCardWithTheReason(t *testing.T) {
 	h := newHarness(t)
 	h.auto = &insertResult{Message: "the insert expired; press ⇥ again"}
 	h.m.OnInput("x")
@@ -395,7 +401,7 @@ func TestAnInsertRefusedKeepsTheCardWithTheReason(t *testing.T) { // JS 13
 	}
 }
 
-func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) { // JS 14
+func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) {
 	h := newHarness(t)
 	h.auto = &insertResult{Dropped: true}
 	h.m.OnInput("x")
@@ -410,7 +416,7 @@ func TestAnInsertDroppedWritesNothingAndClosesTheCard(t *testing.T) { // JS 14
 	h.state(sugIdle)
 }
 
-func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) { // JS 15
+func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
 	h.fire()
@@ -444,7 +450,7 @@ func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) { // J
 	}
 }
 
-// Plan 036, "Only lines starting with #": a typed line without # is never sent anywhere; a # line is, and its notice
+// "Only lines starting with #": a typed line without # is never sent anywhere; a # line is, and its notice
 // takes ⇥. Nothing is asked while suggestions are off, and nothing is asked again after a pause for a line that was.
 func TestPrivacyOnlyHashLinesAreSentInHashMode(t *testing.T) {
 	h := newHarness(t)
@@ -549,7 +555,7 @@ func TestOffAtOnceDropsEverythingAndTheKeySaysSo(t *testing.T) {
 	h.m.OnInput("x")
 	h.fire()
 	if len(h.sent) != n {
-		t.Fatal("asked with suggestions off, where a 15 s backoff used to ask again")
+		t.Fatal("asked with suggestions off: no backoff retry may send a request")
 	}
 	h.m.Request()
 	h.state(sugError)
@@ -576,7 +582,7 @@ func TestOffAtOnceDropsEverythingAndTheKeySaysSo(t *testing.T) {
 }
 
 // A request whose answer is lost does not stay loading: past suggestWait the card shows the error, ⇥ dismisses it, and a
-// late answer for it shows nothing (plan 036; before, nothing but a key ended the wait).
+// late answer for it shows nothing.
 func TestALostAnswerEndsInTheErrorCard(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")
@@ -607,7 +613,7 @@ func TestALostAnswerEndsInTheErrorCard(t *testing.T) {
 	h.state(sugIdle)
 }
 
-// Beyond the JS cases: the pieces the page has in other files.
+// The stale answer, and typing while it loads.
 func TestStaleSuggestAnswerAndTypingWhileLoading(t *testing.T) {
 	h := newHarness(t)
 	h.m.OnInput("x")

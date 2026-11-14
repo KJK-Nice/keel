@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
 // The host import's rules (docs/ui-redesign.md §5.15): which hosts start ticked, what the table says about each,
-// what the request carries and the words around it. They are cmd/keel/web/js/lib/onboard.js, function by
-// function, with the cases of test/onboard.test.mjs in onboard_test.go. Nothing here reads a file or a key: keel
+// what the request carries and the words around it (onboard_test.go pins them). Nothing here reads a file or a key: keel
 // serve parses the ssh config and copies a key into the vault only when the request names it.
 
 // keyState is one key's copy switch and the passphrase typed for it. String leaves the passphrase out.
@@ -74,7 +74,7 @@ func hostAddress(h keelclient.ConfigHost) string {
 	if addr == "" {
 		addr = h.Alias
 	}
-	if h.Port != 0 && h.Port != 22 {
+	if h.Port != 0 && h.Port != limits.DefaultPort {
 		return fmt.Sprintf("%s:%d", addr, h.Port)
 	}
 	return addr
@@ -93,13 +93,6 @@ func leadText(p keelclient.SSHPreview) string {
 		return "Keel found no " + path + ". Add hosts later with New host."
 	}
 	return fmt.Sprintf("Keel found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
-}
-
-func countWord(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return fmt.Sprintf("%d %s", n, many)
 }
 
 func selectedCount(p keelclient.SSHPreview, s *importSel) (n int) {

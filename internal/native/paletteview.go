@@ -4,16 +4,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The palette's modal, styled as the webview's k-palette (docs/design/components.css, .cmd-palette in
-// keel.css): the input with esc, group headings, rows with icon, title, hint and meta, and a footer of keys.
+// The palette's modal: the input with esc, group headings, rows with icon, title, hint and meta, and a footer of keys.
 // The input has the keyboard while it is open, so no key reaches a terminal.
 
-// kbd is one key cap (k-kbd), flat: see keyCapFace.
+// kbd is one key cap, flat: see keyCapFace.
 func kbd(c *ui.Context, s string) ui.Element { return keyCapFace(c, s, false, nil) }
 
-// keyCapFace is the face of every key cap, the inline k-kbd and the one shown while ⌘ is held, in one place (plan 028 step 5,
-// which supersedes the raised look of plan 016). Flat: a 1 px border on all four sides, radiusXs, no shadow and no thicker
-// bottom edge, the same box as before (kbdBox, border inside). Inline it is surface with a line border and ink-muted mono
+// keyCapFace is the face of every key cap, the inline one and the one shown while ⌘ is held, in one place. Flat: a 1 px border on all four sides, radiusXs, no shadow
+// and no thicker bottom edge (kbdBox, border inside). Inline it is surface with a line border and ink-muted mono
 // text; held it must read on any ground, translucent ones and icons too, so it is raised, fully opaque, with a line-strong
 // border and ink text. extra sets what the caller adds (an opacity, a label) before the children are drawn.
 func keyCapFace(c *ui.Context, s string, held bool, extra func(ui.Element)) ui.Element {
@@ -28,7 +26,7 @@ func keyCapFace(c *ui.Context, s string, held bool, extra func(ui.Element)) ui.E
 	return box.Children(func() { text(c, s, fg, kbdSize, weightMedium).Font(monoStack) })
 }
 
-// keyCaps draws a shortcut as one cap per key: "⌘⇧O" is ⌘, ⇧ and O (k-keys).
+// keyCaps draws a shortcut as one cap per key: "⌘⇧O" is ⌘, ⇧ and O.
 func keyCaps(c *ui.Context, keys string) {
 	ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
 		for _, k := range splitKeyCaps(keys) { // "Ctrl+↵" is Ctrl and ↵
@@ -37,7 +35,7 @@ func keyCaps(c *ui.Context, keys string) {
 	})
 }
 
-// stateDot is a k-dot: live has a soft ring, dead is a hollow ring.
+// stateDot is a status dot: live has a soft ring, dead is a hollow ring.
 func stateDot(c *ui.Context, state string) {
 	b := ui.Box(c).Size(dotSize, dotSize).Radius(radiusFull).Shrink(0)
 	switch state {
@@ -62,8 +60,9 @@ func (w *workspace) paletteView(c *ui.Context) {
 	rows := p.visible()
 	_, winH := c.Size()
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
-		c.OnWindowShortcut(ui.Cmd, ui.KeyK, func() { w.act(w.closePalette) })
-		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyP, func() { w.act(w.closePalette) })
+		for _, k := range commandByID("palette").chords() { // the keys that open it close it
+			c.OnWindowShortcut(k.mods, k.key, func() { w.act(w.closePalette) })
+		}
 		backdrop.Background(scrim).Justify(ui.Start).Padding(winH*paletteTop, 0, 0, 0)
 		panel.Width(paletteWidth).MaxHeight(sizeSidebar*2).Background(raised).Border(1, line).Radius(radiusLg).Clip().
 			Shadow(0, 24, 64, 0, shadowModal).Label("dialog Command palette")
@@ -104,7 +103,7 @@ func (w *workspace) paletteView(c *ui.Context) {
 			foot("open", "↵")
 			foot("open in split", "⌥↵")
 			ui.Spacer(c)
-			foot("ask agent", splitKeyCaps(askKeys())...) // k-palette-foot-end
+			foot("ask agent", splitKeyCaps(askKeys())...)
 		})
 	})
 	if !p.focus {
@@ -139,7 +138,7 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 		icon(c, ic, col)
 		ui.RichText(c).FontSize(uiFontSize).TextColor(ink).MaxLines(1).Shrink(0).MaxWidthPercent(70).Children(func() {
 			spans := highlight(it.title, p.query)
-			if it.bare { // the ask row is not highlighted (lib/palette.js paletteHTML)
+			if it.bare { // the ask row is not highlighted
 				spans = []span{{text: it.title}}
 			}
 			for _, s := range spans {
@@ -157,7 +156,7 @@ func (w *workspace) paletteRow(c *ui.Context, p *palette, i int, it palItem) {
 		if it.state != "" {
 			stateDot(c, it.state)
 		}
-		if it.badge != "" { // k-badge--brass
+		if it.badge != "" {
 			accentBadge(c, it.badge)
 		}
 		if it.keys != "" {

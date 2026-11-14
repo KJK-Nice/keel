@@ -2,11 +2,7 @@ package native
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -16,9 +12,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The agent panel (docs/ui-redesign.md §5.4, phase 6b): ask about the panes in scope, read the trace, and type a
-// proposal only through Approve before type. The feature is cmd/keel/web/js/ui/agentpanel.js and agentthread.js, its
-// words and rules in lib/agent.js (agentlogic.go).
+// The agent panel (docs/ui-redesign.md §5.4): ask about the panes in scope, read the trace, and type a
+// proposal only through Approve before type (words and rules in agentlogic.go).
 //
 // What this file does and does not do:
 //   - keel serve reads the panes. An ask sends the question and the session ids of the panes in scope, and nothing else
@@ -32,25 +27,23 @@ import (
 //     is sent and nothing keeps it.
 //
 // Saved conversations (agentconv.go), the Agent page (agentpage.go) and Settings · Agent (agentsettings.go) show and keep
-// the window's one conversation. Notes and runbooks are notes.go and runbooks.go, notebooks agentnotebooks.go. Not here, and
-// in the app: Claude Code's mcp (docs/native.md).
+// the window's one conversation. Notes and runbooks are notes.go and runbooks.go, notebooks agentnotebooks.go. Claude Code's
+// mcp is not here (docs/native.md).
 
 const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
 
-// agentStatus is a card's line after a Type: what happened.
 type agentStatus struct {
 	ok   bool
 	text string
 }
 
-// agentProp is a proposal on the thread: what keel serve holds, what the card says about it, and an edit in progress.
 type agentProp struct {
 	p       keelclient.Proposal
 	status  *agentStatus
 	editing bool
-	edit    string    // the edit field; never typed anywhere, only sent to keel serve by Save command
-	editH   ui.Handle // the field in the panel
-	editHP  ui.Handle // the same field on the Agent page
+	edit    string // the edit field; never typed anywhere, only sent to keel serve by Save command
+	editH   ui.Handle
+	editHP  ui.Handle
 	saving  bool
 
 	focusEdit bool
@@ -60,8 +53,8 @@ type agentProp struct {
 // again turn (again) has no question: it is only the new card.
 type agentTurn struct {
 	question string
-	at       time.Time // when it was asked; set on a saved turn
-	scoped   int       // panes in scope when it was asked
+	at       time.Time
+	scoped   int
 	pending  bool
 	stopped  bool
 	err      error
@@ -71,21 +64,20 @@ type agentTurn struct {
 	trace        []keelclient.TraceStep
 	answer, cut  string
 	testProvider bool
-	props        []string // the proposals under it, by id (agentPanel.props holds them)
+	props        []string
 	notes        []string // the notes it proposed (agentPanel.notes), shown after the proposals
 	books        []string // the runbooks it proposed (agentPanel.books)
 	nbs          []string // what the agent did to notebooks, and the deletes it proposed (agentPanel.nbProps), shown last
-	runID        string   // the runbook in use that started here: its card sits under "Agent" (agentthread.js placeRun)
+	runID        string   // the runbook in use that started here: its card sits under "Agent"
 }
 
 type agentPanel struct {
-	open bool // saved in keel-native.json
 	conv string
 	// title is the conversation's name from keel serve; "" is "New conversation".
 	title string
 
-	scope     []string // session ids
-	scopeAuto bool     // the scope follows the setting until the user picks
+	scope     []string
+	scopeAuto bool // the scope follows the setting until the user picks
 	picker    bool
 
 	settings      *keelclient.AgentSettings
@@ -115,10 +107,10 @@ type agentPanel struct {
 	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
 	// written anywhere by this client, and none of it is in keel-native.json.
 	list        convListState
-	createdAt   time.Time // when the conversation started (the page's header)
+	createdAt   time.Time
 	resumedAt   time.Time // set on a resumed conversation: the divider says how long ago it was last used
 	resumedSeq  int       // a resume answered after another one began is dropped
-	sessOpen    bool      // Recent conversations
+	sessOpen    bool
 	sess        sessUI
 	renameID    string // the row (or, on the page, the heading) being renamed; "" for none
 	renameText  string
@@ -129,7 +121,7 @@ type agentPanel struct {
 	input      string
 	inputH     ui.Handle
 	focusInput bool
-	busy       context.CancelFunc // the ask in flight
+	busy       context.CancelFunc
 
 	keyField string // the masked field: emptied the moment the key is sent
 	keyErr   string
@@ -138,10 +130,9 @@ type agentPanel struct {
 	keyBusy  bool
 
 	scroll ui.ScrollState
-	stick  bool // scroll to the end in the next frame
+	stick  bool
 
-	width float32 // the panel's width as kept; 0 is size-agent (clampAgentWidth)
-	sash  sashState
+	sash sashState
 }
 
 func newAgentPanel() *agentPanel {
@@ -149,12 +140,11 @@ func newAgentPanel() *agentPanel {
 }
 
 const (
-	msgAgentJoined     = "The agent is off in joined sessions" // term.js toggleAgentPanel
+	msgAgentJoined     = "The agent is off in joined sessions"
 	msgAgentNotOpen    = "That pane is not open in this window."
 	msgAgentFollowing  = "You follow this pane. The agent cannot type into it."
 	titleNewConv       = "New conversation"
 	savedInVault       = "Saved in the vault"
-	agentPanelFileKey  = "agentPanel"
 	agentEmptyTitle    = "Ask about your sessions"
 	agentInputHint     = "Ask about these sessions…"
 	agentComposerHint  = "@ add a pane · ↵ send"
@@ -163,28 +153,19 @@ const (
 	agentNoModelDetail = "Add a key to ask the agent."
 )
 
-// shiftWord is how the app names the key in its sentences.
 func shiftWord() string {
-	if runtime.GOOS == "darwin" {
+	if isMac() {
 		return "⇧"
 	}
 	return "Shift"
 }
 
-// agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+⇧I elsewhere (Ctrl+I is Tab in a terminal).
-func agentKeys() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘I"
-	}
-	return "Ctrl+⇧I"
-}
+// agentKeys is the toggle's key cap: ⌘I on macOS, Ctrl+Shift+I elsewhere (Ctrl+I is Tab in a terminal).
+func agentKeys() string { return commandKeyLabel("agent.toggle") }
 
-// The panel's width (ui/agentpanel.js "width"): at least --size-agent and at most half the window, kept as agentWidth in
+// The panel's width: at least --size-agent and at most half the window, kept as agentWidth in
 // keel-native.json; 0 is the default. The sash on its left edge changes it (agentview.go).
-const agentWidthFileKey = "agentWidth"
 
-// clampAgentWidth is applyWidth: a width of 0 is the default, else between size-agent and half the window (never below
-// size-agent, whatever the window).
 func clampAgentWidth(width, windowW float32) float32 {
 	if width <= 0 {
 		return sizeAgent
@@ -193,55 +174,23 @@ func clampAgentWidth(width, windowW float32) float32 {
 	return min(hi, max(sizeAgent, float32(int(width+0.5))))
 }
 
-// loadAgentWidth reads the width the panel was left at: 0 (the default) when absent.
-func loadAgentWidth(dataDir string) float32 {
-	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
-	if err != nil {
-		return 0
-	}
-	var f struct {
-		AgentWidth float32 `json:"agentWidth"`
-	}
-	if json.Unmarshal(b, &f) != nil || f.AgentWidth < 0 {
-		return 0
-	}
-	return f.AgentWidth
-}
-
-// setAgentWidth keeps a new width (0 puts the default back) in keel-native.json.
 func (w *workspace) setAgentWidth(width float32) {
-	w.agent.width = width
-	if w.dataDir != "" {
-		if err := savePrefs(w.dataDir, map[string]any{agentWidthFileKey: width}); err != nil {
-			w.fail("save the agent panel width", err)
-		}
-	}
-}
-
-// loadAgentOpen reads whether the panel was left open: keel-native.json's agentPanel, closed when absent.
-func loadAgentOpen(dataDir string) bool {
-	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
-	if err != nil {
-		return false
-	}
-	var f struct {
-		AgentPanel bool `json:"agentPanel"`
-	}
-	return json.Unmarshal(b, &f) == nil && f.AgentPanel
+	w.prefs.AgentWidth = width
+	w.setPref(keyAgentWidth)
 }
 
 // ---- the panes in scope ----
 
 // agentPanes lists the panes of this window as the panel sees them: the terminal panes with a session, in every tab but
-// a New tab or a page (term.js agentPanes). "Focused" and "this tab" mean the tab shown, or the session tab shown last
+// a New tab or a page. "Focused" and "this tab" mean the tab shown, or the session tab shown last
 // when a page is.
 func (w *workspace) agentPanes() (out []agentPane) {
 	sessionTab := w.tab()
-	if sessionTab == nil || sessionTab.isNew() || sessionTab.isPage() {
+	if sessionTab == nil || !sessionTab.mode().hasPanes() {
 		sessionTab = w.lastSession
 	}
 	for _, t := range w.tabs {
-		if t.isNew() || t.isPage() {
+		if !t.mode().hasPanes() {
 			continue
 		}
 		for _, id := range t.root.Leaves() {
@@ -249,14 +198,9 @@ func (w *workspace) agentPanes() (out []agentPane) {
 			if p == nil || p.sessionID() == "" {
 				continue
 			}
-			var host *keelclient.Host // the host as it is now: reading may have been turned off since the pane opened
-			for i := range w.hosts {
-				if w.hosts[i].ID == p.host.ID {
-					host = &w.hosts[i]
-				}
-			}
+			host, known := hostByID(w.hosts, p.host.ID) // the host as it is now: reading may have been turned off since the pane opened
 			label := p.title()
-			if host != nil {
+			if known {
 				label = host.Name
 			}
 			out = append(out, agentPane{
@@ -264,9 +208,9 @@ func (w *workspace) agentPanes() (out []agentPane) {
 				focused:     t == sessionTab && t.focused == id,
 				inActiveTab: t == sessionTab,
 				// The server decides; this only shapes the picker. A host it does not know is not readable there either.
-				readable:   host != nil && (host.AgentReadable == nil || *host.AgentReadable),
-				production: host != nil && host.Production != nil && *host.Production,
-				driving:    p.conn.Snapshot().Role == "driver",
+				readable:   known && host.AgentMayRead(),
+				production: known && host.IsProduction(),
+				driving:    p.conn.Snapshot().Driving(),
 				remote:     p.remote || t.remote,
 				p:          p, t: t,
 			})
@@ -285,10 +229,10 @@ func (w *workspace) agentPaneBySession(id string) *agentPane {
 }
 
 // agentSync keeps the scope true to the panes that are open and readable, every frame: it follows the setting until the
-// user picks, then only drops what closed or can no longer be read (agentpanel.js refresh).
+// user picks, then only drops what closed or can no longer be read.
 func (w *workspace) agentSync() {
 	a := w.agent
-	a.attached = reconcileAttached(a.attached, w.notebooks) // a notebook deleted or made private is no longer attached
+	a.attached = reconcileAttached(a.attached, w.notebooks) // a notebook deleted or made private is detached
 	all := w.agentPanes()
 	if a.scopeAuto && a.settings != nil {
 		a.scope = defaultScope(a.settings.Settings.DefaultScope, all)
@@ -310,68 +254,53 @@ func (w *workspace) toggleAgent() {
 		w.say(msgAgentJoined)
 		return
 	}
-	w.setAgentOpen(!w.agent.open)
+	w.setAgentOpen(!w.prefs.AgentPanel)
 }
 
-// setAgentOpen shows or hides the panel and keeps the choice in keel-native.json.
 func (w *workspace) setAgentOpen(open bool) {
 	a := w.agent
-	a.open = open
-	if w.dataDir != "" {
-		if err := savePrefs(w.dataDir, map[string]any{agentPanelFileKey: open}); err != nil {
-			w.fail("save the agent panel", err)
-		}
-	}
+	w.prefs.AgentPanel = open
+	w.setPref(keyAgentPanel)
 	if open {
 		a.focusInput = true
 		w.loadAgent()
 		return
 	}
 	a.picker, a.sessOpen = false, false
-	if t := w.tab(); t != nil && t.panes[t.focused] != nil { // the keyboard goes back to the pane
-		w.wantFocus = t.focused
-	}
+	w.returnKeyboard(false)
 }
 
 // loadAgent reads the agent settings (the default scope, whether a key is saved) and, with no key, the provider's words
 // for the Connect card.
 func (w *workspace) loadAgent() {
 	a := w.agent
-	if a.loading {
-		return
+	type read struct {
+		s    keelclient.AgentSettings
+		prov *keelclient.AgentProvider
 	}
-	a.loading = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		var prov *keelclient.AgentProvider
-		if err == nil && !s.KeyConfigured() {
+	callOnce(w, &a.loading, nil, func(c context.Context) (r read, err error) {
+		if r.s, err = w.be.AgentSettings(c); err == nil && !r.s.KeyConfigured() {
 			if list, lerr := w.be.AgentProviders(c); lerr == nil {
 				for i := range list {
-					if list[i].ID == s.Settings.Provider {
-						prov = &list[i]
+					if list[i].ID == r.s.Settings.Provider {
+						r.prov = &list[i]
 					}
 				}
 			}
 		}
-		w.post(func() {
-			a.loading = false
-			if w.closed {
-				return
-			}
-			var se *keelclient.StatusError
-			switch {
-			case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
-			case err != nil:
-				a.keyConfigured = nil
-			default:
-				a.settings = &s
-				k := s.KeyConfigured()
-				a.keyConfigured = &k
-				a.provider = prov
-			}
-		})
+		return r, err
+	}, func(r read, err error) {
+		var se *keelclient.StatusError
+		switch {
+		case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
+		case err != nil:
+			a.keyConfigured = nil
+		default:
+			a.settings = &r.s
+			k := r.s.KeyConfigured()
+			a.keyConfigured = &k
+			a.provider = r.prov
+		}
 	})
 }
 
@@ -390,11 +319,11 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	}
 	if a.keyConfigured != nil && !*a.keyConfigured {
 		a.focusInput, a.focusKey = false, true
-		return false // the Connect card is what the thread shows
+		return false
 	}
 	a.picker, a.sessOpen, a.nbPicker = false, false, ""
 	w.agentSync()
-	// A resumed conversation carries on under its own id: that is all a continued ask changes (agentpanel.js ask).
+	// A resumed conversation carries on under its own id: that is all a continued ask changes.
 	panes := append([]string{}, a.scope...)
 	turn := &agentTurn{question: q, at: time.Now(), scoped: len(panes), pending: true}
 	a.turns = append(a.turns, turn)
@@ -483,7 +412,6 @@ func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *
 	})
 }
 
-// typedStatus is the card's line for a proposal keel serve already knows was typed.
 func typedStatus(p keelclient.Proposal) *agentStatus {
 	if p.TypedAt == nil || p.Expired {
 		return nil
@@ -491,14 +419,12 @@ func typedStatus(p keelclient.Proposal) *agentStatus {
 	return &agentStatus{ok: true, text: "Typed into " + orElse(p.Host, "the pane") + " at " + stampLabel(*p.TypedAt, time.Now()) + "."}
 }
 
-// agentStop is Stop: it cancels the ask in flight, as the app's AbortController does.
 func (w *workspace) agentStop() {
 	if w.agent.busy != nil {
 		w.agent.busy()
 	}
 }
 
-// newAgentConversation is New conversation: it stops an ask in flight and starts again with the setting's scope.
 func (w *workspace) newAgentConversation() {
 	a := w.agent
 	if a.busy != nil {
@@ -540,23 +466,21 @@ func (w *workspace) saveAgentKey() {
 	in := keelclient.AgentKeyInput{Provider: pid, Key: key}
 	key = ""
 	a.keyBusy, a.keyErr = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	call(w, func(c context.Context) (struct{}, error) {
 		err := w.be.SetAgentKey(c, in)
 		in = keelclient.AgentKeyInput{}
-		w.post(func() {
-			a.keyBusy = false
-			if err != nil {
-				a.keyErr = errText("save the key", err)
-				return
-			}
-			k := true
-			a.keyConfigured = &k
-			w.say(short + " connected. The key is in the vault.")
-			a.focusInput = true
-			w.loadAgent()
-		})
+		return struct{}{}, err
+	}, func(_ struct{}, err error) {
+		a.keyBusy = false
+		if err != nil {
+			a.keyErr = errText("save the key", err)
+			return
+		}
+		k := true
+		a.keyConfigured = &k
+		w.say(short + " connected. The key is in the vault.")
+		a.focusInput = true
+		w.loadAgent()
 	})
 }
 
@@ -572,25 +496,20 @@ func (w *workspace) editAgentProposal(id string) {
 	}
 	command, conv := rec.edit, a.conv
 	rec.saving = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		p, err := w.be.EditProposal(c, conv, id, command)
-		w.post(func() {
-			rec.saving = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				w.warn(errText("edit the command", err))
-				return
-			}
-			rec.p, rec.status, rec.editing = p, nil, false
-		})
+	call(w, func(c context.Context) (keelclient.Proposal, error) { return w.be.EditProposal(c, conv, id, command) }, func(p keelclient.Proposal, err error) {
+		rec.saving = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			w.warn(errText("edit the command", err))
+			return
+		}
+		rec.p, rec.status, rec.editing = p, nil, false
 	})
 }
 
-// typeAgentProposal is a card's Type into pane (term.js typeAgentProposal, agentpanel.js typeProposal). It never types:
+// typeAgentProposal is a card's Type into pane. It never types:
 // it opens the Approve before type dialog, whose Type action is the only thing that does.
 func (w *workspace) typeAgentProposal(id string, shift bool) {
 	a := w.agent
@@ -655,8 +574,7 @@ func (w *workspace) typeAgentProposal(id string, shift bool) {
 	})
 }
 
-// paneTarget names a pane with its tab ("prod-db-01 · deploy"); the tab is left out when it only repeats the name
-// (lib/agent.js paneTarget).
+// paneTarget names a pane with its tab ("prod-db-01 · deploy"); the tab is left out when it only repeats the name.
 func paneTarget(label, tab string) string {
 	l, t := strings.TrimSpace(label), strings.TrimSpace(tab)
 	switch {

@@ -7,11 +7,12 @@ import (
 	"strconv"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
-// The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions of
-// cmd/keel/web/js/lib/agentsettings.js, pinned there by test/agentsettings.test.mjs and here by agentsettingshelpers_test.go.
+// The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions
+// (agentsettingshelpers_test.go pins them).
 // A key never comes back from keel serve, so nothing here can show one: a provider is only ever configured or not.
 
 // providerPurpose is what each provider is for, in one line: Keel's own wording (the descriptor carries the name,
@@ -36,8 +37,8 @@ func safeURL(u string) string {
 }
 
 const (
-	detectionAuto     = "auto"
-	detectionHashOnly = "hash-only"
+	detectionAuto     = limits.DetectionAuto
+	detectionHashOnly = limits.DetectionHashOnly
 )
 
 // detectionNote says what "Notice automatically" does right now: it needs a Jev key, and without one the only lines
@@ -74,16 +75,12 @@ func historyValue(days int) string {
 }
 
 const (
-	linesMin, linesMax, linesStep, linesDefault = 50, 1000, 10, 200
+	linesMin, linesMax, linesDefault = limits.MinScrollbackLines, limits.MaxScrollbackLines, limits.DefaultScrollbackLines
+	linesStep                        = 10
 )
 
-// clampLines is the scrollback lines per pane the control shows: 50–1000, 200 for what is not a number.
-func clampLines(n int) int {
-	if n == 0 {
-		return linesDefault
-	}
-	return min(linesMax, max(linesMin, n))
-}
+// clampLines is the scrollback lines per pane the control shows, as keel serve keeps them.
+func clampLines(n int) int { return limits.ClampScrollbackLines(n) }
 
 // modelItem is one choice of the Model select: picking it sets the model, and the provider when it is another one's.
 type modelItem struct{ value, label, provider string }

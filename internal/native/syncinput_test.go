@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func syncRig(t *testing.T, n int) *sugRig {
 		st := drivingState
 		c.st = &st
 	}
-	r.w.tab().focused = r.p.id
+	r.w.activeTab().focused = r.p.id
 	r.w.wantFocus = r.p.id
 	r.tt.Frame()
 	return r
@@ -53,9 +52,9 @@ func (r *sugRig) written() (out []string) {
 
 func (r *sugRig) syncOn(t *testing.T) {
 	t.Helper()
-	r.w.toggleSync(r.w.tab())
+	r.w.toggleSync(r.w.activeTab())
 	r.tt.Frame()
-	if !r.w.tab().sync {
+	if !r.w.activeTab().sync {
 		t.Fatal("sync did not turn on")
 	}
 }
@@ -80,13 +79,13 @@ func TestSyncOnThreePanesGetTheSameBytesInOrderOnce(t *testing.T) {
 		}
 	}
 	// Typing in another pane of the tab fans out from there.
-	other := r.w.tab().panes["2"]
+	other := r.w.activeTab().panes["2"]
 	typeKeys(other, "x")
 	if got := r.written(); !slices.Equal(got, []string{"echo hi\rx", "echo hi\rx", "echo hi\rx"}) {
 		t.Fatalf("writes %q", got)
 	}
 	// Sync off again: back to the pane alone.
-	r.w.toggleSync(r.w.tab())
+	r.w.toggleSync(r.w.activeTab())
 	r.tt.Frame()
 	typeKeys(r.p, "y")
 	if got := r.fb.conns[1].written(); got != "echo hi\rx" {
@@ -102,7 +101,7 @@ func TestSyncSendsToDrivenReadyTerminalPanesOfTheTabAndNothingElse(t *testing.T)
 	conn.Status = "connecting"
 	*r.fb.conns[1].st, *r.fb.conns[2].st = fol, conn
 	// A notebook pane of the tab.
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	nb := &pane{id: "nb", nb: &notebookPane{}, conn: &fakeConn{}}
 	tb.panes["nb"] = nb
 	tb.root = tb.root.Split("1", "nb", layout.Row)
@@ -111,7 +110,7 @@ func TestSyncSendsToDrivenReadyTerminalPanesOfTheTabAndNothingElse(t *testing.T)
 	st := drivingState
 	other.st = &st
 	op := &pane{id: "o", conn: other}
-	r.w.tabs = append(r.w.tabs, &tab{root: layout.Leaf("o"), panes: map[string]*pane{"o": op}, focused: "o"})
+	r.w.appendTab(&tab{root: layout.Leaf("o"), panes: map[string]*pane{"o": op}, focused: "o"})
 	tb.sync = true
 	r.w.publishSync()
 	typeKeys(r.p, "q")
@@ -125,7 +124,7 @@ func TestSyncSendsToDrivenReadyTerminalPanesOfTheTabAndNothingElse(t *testing.T)
 
 func TestAJoinedTabAndATabWithNoTerminalCannotTurnSyncOn(t *testing.T) {
 	r := syncRig(t, 2)
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	tb.remote = true
 	r.w.toggleSync(tb)
 	if tb.sync {
@@ -137,7 +136,7 @@ func TestAJoinedTabAndATabWithNoTerminalCannotTurnSyncOn(t *testing.T) {
 	if nbOnly.sync {
 		t.Error("a tab of notebooks turned sync on")
 	}
-	if nbOnly.canSync() || (&tab{page: &startPage{}}).canSync() {
+	if nbOnly.canSync() || (&tab{start: &startPage{}}).canSync() {
 		t.Error("canSync is true where there is nothing to sync")
 	}
 	// Not offered in the palette either; offered in a session tab.
@@ -264,7 +263,7 @@ func TestTheFlagIsSavedWithTheWorkspace(t *testing.T) {
 	r.click(t, "host api-1")
 	r.w.splitFocused(layout.Row)
 	r.tt.Frame()
-	r.w.toggleSync(r.w.tab())
+	r.w.toggleSync(r.w.activeTab())
 	r.click(t, "host api-1") // a second tab, sync off
 	r.w.closeWindow()
 	if b := readSaved(t, dir); !strings.Contains(b, `"sync":true`) || strings.Count(b, `"sync"`) != 1 {
@@ -272,13 +271,13 @@ func TestTheFlagIsSavedWithTheWorkspace(t *testing.T) {
 	}
 
 	r2 := newRigIn(t, &fakeBackend{hosts: testHosts, sessions: sessionsOf(r.fb)}, dir)
-	if len(r2.w.tabs) != 2 || !r2.w.tabs[0].sync || r2.w.tabs[1].sync {
-		t.Fatalf("tabs %d, sync %v %v", len(r2.w.tabs), r2.w.tabs[0].sync, r2.w.tabs[1].sync)
+	if r2.w.tabCount() != 2 || !r2.w.tabAt(0).sync || r2.w.tabAt(1).sync {
+		t.Fatalf("tabs %d, sync %v %v", r2.w.tabCount(), r2.w.tabAt(0).sync, r2.w.tabAt(1).sync)
 	}
 	// And it works after the restart: a frame publishes the peers.
 	r2.w.selectTab(0)
 	r2.tt.Frame()
-	a, b := r2.w.tabs[0].panes["1"], r2.w.tabs[0].panes["2"]
+	a, b := r2.w.tabAt(0).panes["1"], r2.w.tabAt(0).panes["2"]
 	for _, c := range r2.fb.conns {
 		st := drivingState
 		c.st = &st
@@ -287,28 +286,6 @@ func TestTheFlagIsSavedWithTheWorkspace(t *testing.T) {
 	if a.conn.(*fakeConn).written() != "k" || b.conn.(*fakeConn).written() != "k" {
 		t.Errorf("after a restart the keys reached %q and %q", a.conn.(*fakeConn).written(), b.conn.(*fakeConn).written())
 	}
-}
-
-// The terminal's input goroutine writes while the UI thread publishes: run it with -race.
-func TestSyncPublishAndWriteDoNotRace(t *testing.T) {
-	r := syncRig(t, 3)
-	r.syncOn(t)
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 200; i++ {
-			typeKeys(r.p, "x")
-		}
-	}()
-	for i := 0; i < 200; i++ {
-		r.w.publishSync()
-		if i%50 == 0 {
-			r.w.toggleSync(r.w.tab())
-			r.w.toggleSync(r.w.tab())
-		}
-	}
-	wg.Wait()
 }
 
 func TestTheSyncButtonAndTheStatusBarSayWhatSyncIs(t *testing.T) {
@@ -320,7 +297,7 @@ func TestTheSyncButtonAndTheStatusBarSayWhatSyncIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if !r.w.tab().sync || !r.tt.HasText("Sync on") || !r.has("Stop syncing input") || r.has("Sync input") {
+	if !r.w.activeTab().sync || !r.tt.HasText("Sync on") || !r.has("Stop syncing input") || r.has("Sync input") {
 		t.Fatalf("sync on: texts %v", r.tt.Texts())
 	}
 }

@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-// Plan 028 step 4: one empty state. Each place that can be empty renders it, its action does what the page's own button
+// One empty state. Each place that can be empty renders it, its action does what the page's own button
 // does, and where a list can be filtered or can fail the three states are told apart.
 
-// emptyTitle is the title emptySentences makes of one of the app's empty lines.
+// emptyTitle is the title emptySentences makes of an empty line.
 func emptyTitle(words string) string { return emptySentences("", words, "").title }
 
 func emptyRig(t *testing.T) *rig {
@@ -68,10 +68,10 @@ func TestPageEmptyStates(t *testing.T) {
 		{"notebooks", "No notebooks yet", "empty New notebook", func(w *workspace) bool { return slices.ContainsFunc(w.tabs, (*tab).onlyNotebooks) }},
 		{"forwards", "No forwards yet", "empty New forward", func(w *workspace) bool { return w.fwdDlg != nil }},
 		{"keychain", "No identities yet", "empty New identity", func(w *workspace) bool { return w.identDlg != nil }},
-		{"runbooks", "No runbooks yet", "empty New runbook", func(w *workspace) bool { return w.tab().pg.runbooks.ed != nil }},
+		{"runbooks", "No runbooks yet", "empty New runbook", func(w *workspace) bool { return pageAs[*runbooksPage](w.tab()).ed != nil }},
 	} {
 		r := emptyRig(t)
-		r.w.openPage(c.page)
+		r.w.showPage(c.page)
 		r.tt.Frame()
 		r.tt.Frame()
 		r.texts(t, c.title, c.action)
@@ -81,7 +81,7 @@ func TestPageEmptyStates(t *testing.T) {
 		}
 	}
 	r := emptyRig(t)
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	r.tt.Frame()
 	r.texts(t, "No log entries")
@@ -90,9 +90,9 @@ func TestPageEmptyStates(t *testing.T) {
 func TestLogsCannotLoadHasTryAgain(t *testing.T) {
 	r := newRig(t, logsBackend())
 	r.tt.Frame()
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
-	r.w.tab().pg.logs.err = "keel serve is not answering"
+	pageAs[*logsPage](r.w.activeTab()).err = "keel serve is not answering"
 	r.tt.Frame()
 	r.texts(t, "Cannot load the log", "keel serve is not answering", "empty Try again")
 	before := r.fb.logsCalls
@@ -104,7 +104,7 @@ func TestLogsCannotLoadHasTryAgain(t *testing.T) {
 
 func TestEmptyPageSitsAboveTheMiddleAndBelowTheHeader(t *testing.T) {
 	r := emptyRig(t)
-	r.w.openPage("forwards")
+	r.w.showPage("forwards")
 	r.tt.Frame()
 	r.tt.Frame()
 	title, ok := r.tt.Find("No forwards yet")

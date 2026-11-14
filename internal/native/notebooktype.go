@@ -1,23 +1,25 @@
 package native
 
-import "strings"
+import (
+	"strings"
 
-// Typing a notebook's fence (docs/ui-redesign.md §6 rules 12 and 13; term.js runNotebookFence, insertNotebookIntoInput,
-// confirmTermInput). A notebook is one more source for the two ways a snippet is typed, and adds no writer and no call
+	"keel/internal/cmdrule"
+)
+
+// Typing a notebook's fence (docs/ui-redesign.md §6 rules 12 and 13). A notebook is one more source for the two ways a snippet is typed, and adds no writer and no call
 // site: this file calls neither ApprovedInject nor DirectType (guard_test.go keeps that true).
 //
 //   - Direct: a shell fence of exactly one line, with no placeholder, goes through typeNow. keel serve compares the line with
 //     the one line of a shell fence of the stored notebook (so the notebook is saved first), refuses an unreviewed agent edit
 //     with a dialog, and types the line with no Enter and no Ctrl-U.
 //   - The dialog: every other fence, and whenever keel serve says a dialog is needed, opens Approve before type with the
-//     fence's exact bytes: the trimmed code and a newline, no Ctrl-U (confirmTermInput sends line + "\n"), and the inject
-//     carries notebook:true (pty.js sendApprovedInject), which keel serve refuses a placeholder for.
+//     fence's exact bytes: the trimmed code and a newline, no Ctrl-U, and the inject
+//     carries notebook:true, which keel serve refuses a placeholder for.
 //
 // The target is the terminal beside the notebook in its tab. Opening, rendering, editing, saving, restoring and deleting
 // a notebook type nothing; only the Type button of a fence does, and only for a shell fence.
 
 // unreviewedNote is the line under the bytes when the agent edited the notebook and the user has not reviewed that edit
-// (term.js insertNotebookIntoInput: _inputAgentNote).
 const unreviewedNote = "The agent edited this notebook and you have not reviewed that edit. Read this command before you approve it: it may be the agent's."
 
 // typeNotebookFence is a fence's Type button.
@@ -36,7 +38,7 @@ func (w *workspace) typeNotebookFence(np *pane, f fence) {
 		w.say("Write a command first")
 		return
 	}
-	if hasPlaceholder(line) { // a shell glob, never the value: refused before anything is sent
+	if cmdrule.HasPlaceholder(line) { // a shell glob, never the value: refused before anything is sent
 		w.warn(placeholderRefused)
 		return
 	}
@@ -50,10 +52,9 @@ func (w *workspace) typeNotebookFence(np *pane, f fence) {
 
 // askNotebookType opens Approve before type for a fence's line. It sends nothing.
 func (w *workspace) askNotebookType(term, np *pane, line string) {
-	w.openApprove(term, func() (string, bool) { return line, true })
-	d := w.approve
-	d.notebook = true
+	note := ""
 	if rec, ok := w.notebook(np.nb.id); ok && rec.AgentUnreviewed {
-		d.note = unreviewedNote
+		note = unreviewedNote
 	}
+	w.openApprove(term, approveNotebook{approveSnippet{func() (string, bool) { return line, true }}, note})
 }

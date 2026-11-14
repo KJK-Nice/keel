@@ -24,7 +24,7 @@ func ownerState() *keelclient.State {
 		Status: "ready", Role: "driver", Title: "api-1", YouID: 1, DriverID: 1, OwnerID: 1,
 		Attached: []keelclient.Peer{
 			{ID: 2, Name: "Ann", Kind: "webrtc", Role: "follower", AttachedAt: time.Now().Add(-2 * time.Minute).Format(time.RFC3339)},
-			{ID: 1, Name: "me", Kind: "web", Role: "driver", AttachedAt: time.Now().Add(-10 * time.Minute).Format(time.RFC3339)},
+			{ID: 1, Name: "me", Kind: keelclient.KindWindow, Role: "driver", AttachedAt: time.Now().Add(-10 * time.Minute).Format(time.RFC3339)},
 		},
 	}
 }
@@ -42,8 +42,8 @@ func TestSharePeopleOrderRolesAndHowTheyCame(t *testing.T) {
 	st := keelclient.State{YouID: 1, DriverID: 3, OwnerID: 1, Attached: []keelclient.Peer{
 		{ID: 5, Name: "Cy", Kind: "webrtc", AttachedAt: "2026-01-02T03:09:00Z"},
 		{ID: 3, Name: "Dee", Kind: "webrtc", AttachedAt: "2026-01-02T03:08:00Z"},
-		{ID: 4, Name: "", Kind: "tui", AttachedAt: "2026-01-02T03:02:00Z"},
-		{ID: 1, Name: "me", Kind: "web", AttachedAt: "2026-01-02T03:00:00Z"},
+		{ID: 4, Name: "", Kind: keelclient.KindWindow, AttachedAt: "2026-01-02T03:02:00Z"},
+		{ID: 1, Name: "me", Kind: keelclient.KindWindow, AttachedAt: "2026-01-02T03:00:00Z"},
 	}}
 	rows := sharePeople(st, shareNow)
 	var got []string
@@ -53,7 +53,7 @@ func TestSharePeopleOrderRolesAndHowTheyCame(t *testing.T) {
 	want := []string{
 		"You|owner|owner · this window",
 		"Dee|driver|joined by link · 2 min ago",
-		"guest|follower|terminal · 8 min ago",
+		"guest|follower|Keel window · 8 min ago",
 		"Cy|follower|joined by link · 1 min ago",
 	}
 	if !slices.Equal(got, want) {
@@ -141,7 +141,7 @@ func TestShareButtonOpensThePopoverAndCopiesTheLink(t *testing.T) {
 	if r.tt.Clipboard() != shareTestURL {
 		t.Errorf("the link was not put on the clipboard")
 	}
-	if !r.tt.HasText(shareTestURL) { // the Join link field shows the whole link, as the app does
+	if !r.tt.HasText(shareTestURL) { // the Join link field shows the whole link
 		t.Errorf("the Join link field does not hold the link: %q", r.tt.Texts())
 	}
 	if !r.has("Pass control to Ann") {
@@ -248,7 +248,7 @@ func TestStopSharingCallsStopShareAndClosesThePopover(t *testing.T) {
 func TestPopoverButtonsForYourSeat(t *testing.T) {
 	// A follower asks; the owner not driving takes control; several people each get Pass control.
 	follower := &keelclient.State{Status: "ready", Role: "follower", YouID: 2, DriverID: 1, OwnerID: 1, Attached: []keelclient.Peer{
-		{ID: 1, Name: "Ann", Kind: "web"}, {ID: 2, Name: "me", Kind: "web"}}}
+		{ID: 1, Name: "Ann", Kind: keelclient.KindWindow}, {ID: 2, Name: "me", Kind: keelclient.KindWindow}}}
 	r := shareRig(t, follower)
 	r.click(t, "Share")
 	r.tt.Frame()
@@ -261,7 +261,7 @@ func TestPopoverButtonsForYourSeat(t *testing.T) {
 	}
 
 	owner := &keelclient.State{Status: "ready", Role: "owner", YouID: 1, DriverID: 2, OwnerID: 1, Attached: []keelclient.Peer{
-		{ID: 1, Name: "me", Kind: "web"}, {ID: 2, Name: "Ann", Kind: "webrtc"}, {ID: 3, Name: "Bo", Kind: "webrtc"}, {ID: 4, Name: "Cy", Kind: "webrtc"}}}
+		{ID: 1, Name: "me", Kind: keelclient.KindWindow}, {ID: 2, Name: "Ann", Kind: "webrtc"}, {ID: 3, Name: "Bo", Kind: "webrtc"}, {ID: 4, Name: "Cy", Kind: "webrtc"}}}
 	r = shareRig(t, owner)
 	r.click(t, "Share")
 	r.tt.Frame()
@@ -305,7 +305,7 @@ func TestTheWatchersBadgeCountsPeopleWhoCameByLink(t *testing.T) {
 	if !r.has("1 watching") {
 		t.Fatal("badge")
 	}
-	st.Attached = append(st.Attached, keelclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc"}, keelclient.Peer{ID: 4, Name: "Kim", Kind: "web"})
+	st.Attached = append(st.Attached, keelclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc"}, keelclient.Peer{ID: 4, Name: "Kim", Kind: keelclient.KindWindow})
 	r.tt.Frame()
 	if !r.has("2 watching") || r.has("1 watching") {
 		t.Errorf("badge after two joined: %q", r.tt.Texts())

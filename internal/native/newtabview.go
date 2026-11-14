@@ -12,13 +12,11 @@ import (
 	"keel/internal/native/sshparse"
 )
 
-// The New tab page, laid out as the webview's (.k-start-* in keel.css): "Where to?", the input, the offer for a
-// pasted command, the recent cards, the Start actions and the recently closed rows. The words are term.js
-// paintStartPage and lib/newtab.js. Start has Quick connect and New host: Join session waits for phase N6
-// (docs/native.md).
+// The New tab page: "Where to?", the input, the offer for a pasted command, the recent cards, the Start actions and the
+// recently closed rows.
 
 const (
-	startGap      = space6 + space1 // calc(space-6 + space-1)
+	startGap      = space6 + space1
 	startGrid     = 3
 	startMaxWidth = sizeSidebar * 3
 	startInputH   = sizeControlLg * 3 / 2
@@ -27,7 +25,7 @@ const (
 
 // startPageView is the stage for a New tab.
 func (w *workspace) startPageView(c *ui.Context, t *tab) {
-	p := t.page
+	p := t.start
 	cards := w.cards(p)
 	p.sync(cards)
 	offer, offerErr := p.offer()
@@ -41,9 +39,9 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 		if ev.Kind != ui.InputKeyDown || ev.Mods != ui.Alt {
 			return
 		}
-		i := slices.Index(altDigits, ev.Key)
+		i := slices.Index(digitKeys[:6], ev.Key)
 		if i < 0 {
-			i = slices.Index(altDigits, ev.PhysicalKey)
+			i = slices.Index(digitKeys[:6], ev.PhysicalKey)
 		}
 		if i >= 0 {
 			p.alt = altPress{cards: cards, query: p.query, at: time.Now()}
@@ -75,7 +73,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 					})
 				case q != "" && offer == nil && offerErr == "":
 					if emptySide(c, emptySpec{icon: "search-01", title: "No saved host matches “" + q + "”", desc: "Paste an ssh command to connect, or save it as a host.", action: "Clear filter"}) {
-						w.act(func() { t.page.query = "" })
+						w.act(func() { t.start.query = "" })
 					}
 				}
 				w.section(c, "Start", "", func() {
@@ -105,7 +103,7 @@ func (w *workspace) startPageView(c *ui.Context, t *tab) {
 }
 
 func (w *workspace) startHead(c *ui.Context, t *tab) {
-	p := t.page
+	p := t.start
 	ui.Column(c).FillWidth().Gap(space2).Children(func() {
 		ui.Text(c, "Where to?").TextColor(ink).FontSize(displaySize).FontWeight(weightSemibold).MaxLines(1)
 		ui.Row(c).FillWidth().Height(startInputH).Padding(0, space2, 0, space3).Gap(space3).Radius(radiusMd).
@@ -148,7 +146,7 @@ func (w *workspace) startHead(c *ui.Context, t *tab) {
 	})
 }
 
-// section is a k-start-section: a head (name left, a note right) and its body.
+// section is a head (name left, a note right) and its body.
 func (w *workspace) section(c *ui.Context, head, note string, bodyFn func()) {
 	ui.Column(c).FillWidth().Gap(space2).Children(func() {
 		ui.Row(c).FillWidth().Gap(space2).Children(func() {
@@ -162,9 +160,9 @@ func (w *workspace) section(c *ui.Context, head, note string, bodyFn func()) {
 	})
 }
 
-// card is one recent host (k-start-card): its tile, name and address, the live count and the ⌥ number.
+// card is one recent host: its tile, name and address, the live count and the ⌥ number.
 func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
-	p := t.page
+	p := t.start
 	r := ui.Row(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(surface)).Label("start card " + h.Name).Cursor(ui.CursorPointer)
 	border := line
 	switch {
@@ -177,7 +175,7 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 	r.Border(1, border)
 	r.Children(func() {
 		ic := "server"
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			ic = "computer-terminal-01"
 		}
 		ui.Row(c).Size(sizeControl, sizeControl).Radius(radiusSm).Justify(ui.Center).Shrink(0).
@@ -207,7 +205,7 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 		}
 	})
 	if r.Clicked() {
-		w.act(func() { w.openFrom(t, h) })
+		w.act(func() { w.openHostIn(h, t) })
 	}
 }
 
@@ -215,7 +213,7 @@ func cardSub(c *ui.Context, s string) ui.Element {
 	return text(c, s, inkMuted, kbdSize, weightRegular).Font(monoStack).Shrink(1).MinWidth(0)
 }
 
-// startAction is a k-start-action button: icon, label, key cap.
+// startAction is a Start button: icon, label, key cap.
 func (w *workspace) startAction(c *ui.Context, glyph, name, keys string, run func()) {
 	r := ui.Row(c).FillWidth().Height(startActionH).Padding(0, space3).Gap(space3).Radius(radiusMd).Border(1, line).Label(name).Cursor(ui.CursorPointer)
 	col := inkMuted
@@ -234,7 +232,7 @@ func (w *workspace) startAction(c *ui.Context, glyph, name, keys string, run fun
 	}
 }
 
-// closedRowView is a recently closed row (k-start-closed): the first shows ⌘⇧T.
+// closedRowView is a recently closed row: the first shows ⌘⇧T.
 func (w *workspace) closedRowView(c *ui.Context, t *tab, i int, e closedEntry, now time.Time) {
 	label := w.closedRow(e)
 	r := ui.Row(c).FillWidth().Height(sizeControlLg).Padding(0, space3).Gap(space3).Radius(radiusSm).Label("reopen " + label).Cursor(ui.CursorPointer)
@@ -257,7 +255,7 @@ func (w *workspace) closedRowView(c *ui.Context, t *tab, i int, e closedEntry, n
 	}
 }
 
-// offerView is the panel for a read command (offerHTML): what was read, what was left out, and Connect once.
+// offerView is the panel for a read command: what was read, what was left out, and Connect once.
 // Save as host opens the host dialog filled from the command. Nothing has run.
 func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 	ui.Column(c).FillWidth().Padding(space3).Gap(space2).Background(controlFill(surface)).Border(1, line).Radius(radiusMd).Label("pasted command").Children(func() {
@@ -278,14 +276,14 @@ func (w *workspace) offerView(c *ui.Context, r *sshparse.Result) {
 	})
 }
 
-// saveAsHostButton is the offer's primary button: it opens New host filled from the command (offerSaveHost).
+// saveAsHostButton is the offer's primary button: it opens New host filled from the command.
 func (w *workspace) saveAsHostButton(c *ui.Context, r *sshparse.Result) {
 	if capButton(c, "Save as host", "↵", false).Clicked() {
 		w.act(func() { w.saveAsHost(r) })
 	}
 }
 
-// notesView is notesHTML: the options that were left out (and why) and the key-file note.
+// notesView is the options that were left out (and why) and the key-file note.
 func (w *workspace) notesView(c *ui.Context, r *sshparse.Result) {
 	if len(r.Dropped) > 0 {
 		text(c, fmt.Sprintf("Left out (%d), not applied", len(r.Dropped)), signal, captionSize, weightSemibold)

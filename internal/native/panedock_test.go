@@ -7,8 +7,7 @@ import (
 	"keel/internal/native/layout"
 )
 
-// Dragging a pane to the tab strip and a tab onto a pane (panedrag.go: extractPane and dockTab; ui/drag.js, term.js
-// extractPaneToTab and dockTabIntoPane). Nothing opens or closes a session.
+// Dragging a pane to the tab strip and a tab onto a pane (panedrag.go: extractPane and dockTab). Nothing opens or closes a session.
 
 // dockRig is a window with tab A of panes 1 and 2 (split right) and tab B of pane 3, B named "second". A is shown.
 func dockRig(t *testing.T) (*rig, *tab, *tab) {
@@ -19,7 +18,7 @@ func dockRig(t *testing.T) (*rig, *tab, *tab) {
 	r.w.splitFocused(layout.Row)
 	r.tt.Frame()
 	r.click(t, "host api-1")
-	a, b := r.w.tabs[0], r.w.tabs[1]
+	a, b := r.w.tabAt(0), r.w.tabAt(1)
 	b.title = "second"
 	r.w.selectTab(0)
 	r.tt.Frame()
@@ -34,8 +33,8 @@ func TestDockingATabMovesItsPanesBesideAPaneAndKeepsSyncIfEitherHadIt(t *testing
 		r, a, b := dockRig(t)
 		a.sync, b.sync = tc.a, tc.b
 		r.w.dockTab(b, "1", "bottom")
-		if len(r.w.tabs) != 1 || r.w.tabs[0] != a || len(a.panes) != 3 {
-			t.Fatalf("tabs %d, panes %d", len(r.w.tabs), len(a.panes))
+		if r.w.tabCount() != 1 || r.w.tabAt(0) != a || len(a.panes) != 3 {
+			t.Fatalf("tabs %d, panes %d", r.w.tabCount(), len(a.panes))
 		}
 		if got := a.root.Leaves(); !slices.Equal(got, []string{"1", "3", "2"}) || a.root.A.Dir != layout.Col {
 			t.Errorf("leaves %v, want 3 under 1 and beside 2", got)
@@ -67,8 +66,8 @@ func TestATabThatCannotDockIsLeftAlone(t *testing.T) {
 	b.remote = false
 	pg := r.w.addPageTab("logs")
 	r.w.dockTab(pg, "1", "right") // a page
-	if len(r.w.tabs) != 3 || len(a.panes) != 2 || len(b.panes) != 1 {
-		t.Fatalf("tabs %d, panes %d and %d", len(r.w.tabs), len(a.panes), len(b.panes))
+	if r.w.tabCount() != 3 || len(a.panes) != 2 || len(b.panes) != 1 {
+		t.Fatalf("tabs %d, panes %d and %d", r.w.tabCount(), len(a.panes), len(b.panes))
 	}
 }
 
@@ -76,10 +75,10 @@ func TestExtractingAPaneMakesItsOwnTabAtTheDropSlot(t *testing.T) {
 	r, a, b := dockRig(t)
 	a.sync = true
 	r.w.extractPane(a, "2", 2) // the end of the strip
-	if len(r.w.tabs) != 3 || r.w.tabs[2] == a || r.w.tabs[1] != b {
-		t.Fatalf("tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 3 || r.w.tabAt(2) == a || r.w.tabAt(1) != b {
+		t.Fatalf("tabs %d", r.w.tabCount())
 	}
-	n := r.w.tabs[2]
+	n := r.w.tabAt(2)
 	if len(n.panes) != 1 || n.panes["2"] == nil || n.focused != "2" || r.w.active != 2 || n.sync {
 		t.Errorf("new tab: panes %d focused %q active %d sync %v", len(n.panes), n.focused, r.w.active, n.sync)
 	}
@@ -92,14 +91,14 @@ func TestExtractingAPaneMakesItsOwnTabAtTheDropSlot(t *testing.T) {
 	// A tab of one pane has nothing to leave from.
 	r.w.extractPane(a, "1", 0)
 	r.w.extractPane(b, "3", 0)
-	if len(r.w.tabs) != 3 {
-		t.Errorf("a one-pane tab was split: %d tabs", len(r.w.tabs))
+	if r.w.tabCount() != 3 {
+		t.Errorf("a one-pane tab was split: %d tabs", r.w.tabCount())
 	}
 	// At the first slot.
 	r, a, _ = dockRig(t)
 	r.w.extractPane(a, "1", 0)
-	if len(r.w.tabs) != 3 || r.w.tabs[0].panes["1"] == nil || r.w.active != 0 {
-		t.Errorf("first slot: %d tabs, active %d", len(r.w.tabs), r.w.active)
+	if r.w.tabCount() != 3 || r.w.tabAt(0).panes["1"] == nil || r.w.active != 0 {
+		t.Errorf("first slot: %d tabs, active %d", r.w.tabCount(), r.w.active)
 	}
 }
 
@@ -118,11 +117,11 @@ func TestDraggingAPaneBarToTheStripAndATabOntoAPane(t *testing.T) {
 	r.tt.Move(ex, ey)
 	r.tt.Release(ex, ey)
 	r.tt.Frame()
-	if len(r.w.tabs) != 3 || len(a.panes) != 1 || r.w.tabs[2].panes["2"] == nil {
-		t.Fatalf("after the drop: %d tabs, tab A has %d panes", len(r.w.tabs), len(a.panes))
+	if r.w.tabCount() != 3 || len(a.panes) != 1 || r.w.tabAt(2).panes["2"] == nil {
+		t.Fatalf("after the drop: %d tabs, tab A has %d panes", r.w.tabCount(), len(a.panes))
 	}
 	// Now the last tab onto the right of pane 1.
-	last := r.w.tabs[2]
+	last := r.w.tabAt(2)
 	last.title = "moved"
 	r.w.selectTab(0)
 	r.tt.Frame()
@@ -138,8 +137,8 @@ func TestDraggingAPaneBarToTheStripAndATabOntoAPane(t *testing.T) {
 	r.tt.Move(tx, ty)
 	r.tt.Release(tx, ty)
 	r.tt.Frame()
-	if len(r.w.tabs) != 2 || len(a.panes) != 2 || a.panes["2"] == nil {
-		t.Fatalf("after the dock: %d tabs, tab A has %d panes", len(r.w.tabs), len(a.panes))
+	if r.w.tabCount() != 2 || len(a.panes) != 2 || a.panes["2"] == nil {
+		t.Fatalf("after the dock: %d tabs, tab A has %d panes", r.w.tabCount(), len(a.panes))
 	}
 	if got := a.root.Leaves(); !slices.Equal(got, []string{"1", "2"}) {
 		t.Errorf("leaves %v, want 2 to the right of 1", got)

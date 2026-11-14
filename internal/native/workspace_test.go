@@ -7,15 +7,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 type fakeConn struct {
@@ -72,7 +76,7 @@ func (c *fakeConn) state() keelclient.State {
 	if c.st != nil {
 		return *c.st
 	}
-	return keelclient.State{Status: c.status}
+	return keelclient.State{Status: wire.Status(c.status)}
 }
 
 func (c *fakeConn) Read([]byte) (int, error) { return 0, io.EOF }
@@ -649,7 +653,7 @@ func (r *rig) click(t *testing.T, name string) {
 
 func TestLockedOrUnsetVaultMakesNoOtherCall(t *testing.T) {
 	// A locked vault that needs no setup shows the Unlock screen, whatever firstRun says; setup, and an unlocked
-	// first run, show First run's step 1 (gate.js update). None of them reads the hosts or the sessions.
+	// first run, show First run's step 1. None of them reads the hosts or the sessions.
 	for _, c := range []struct {
 		v      keelclient.Vault
 		unlock bool
@@ -716,8 +720,8 @@ func TestClickingAHostSpawnsOnceAndAddsATab(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.click(t, "host api-1")
-	if !slices.Equal(r.fb.spawned, []string{"h-api"}) || len(r.w.tabs) != 1 {
-		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, len(r.w.tabs))
+	if !slices.Equal(r.fb.spawned, []string{"h-api"}) || r.w.tabCount() != 1 {
+		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, r.w.tabCount())
 	}
 	if !r.tt.HasText("deploy@10.0.0.1") {
 		t.Error("the pane bar does not show user@address")
@@ -739,8 +743,8 @@ func TestPlusOpensANewTabPage(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1") // fills the New tab the empty window showed
 	r.click(t, "New tab")
-	if len(r.fb.spawned) != 1 || len(r.w.tabs) != 2 || !r.w.tabs[1].isNew() || r.w.active != 1 {
-		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, len(r.w.tabs))
+	if len(r.fb.spawned) != 1 || r.w.tabCount() != 2 || !r.w.tabAt(1).isNew() || r.w.active != 1 {
+		t.Fatalf("spawned %v, tabs %d", r.fb.spawned, r.w.tabCount())
 	}
 }
 
@@ -756,8 +760,8 @@ func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 	if !slices.Equal(fb.attached, []string{"s-a", "s-b", "s-c"}) || len(fb.spawned) != 0 {
 		t.Fatalf("attached %v spawned %v", fb.attached, fb.spawned)
 	}
-	if len(r.w.tabs) != 3 || r.w.tabs[1].name() != "old host" {
-		t.Fatalf("tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 3 || r.w.tabAt(1).name() != "old host" {
+		t.Fatalf("tabs %d", r.w.tabCount())
 	}
 	if r.w.paneCount() != 3 {
 		t.Errorf("panes %d", r.w.paneCount())
@@ -765,8 +769,20 @@ func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 }
 
 // pixel samples the tester image at DIP coordinates.
-func (r *rig) pixel(x, y float32) [3]uint8 {
-	img := r.tt.Image()
+func (r *rig) pixel(x, y float32) [3]uint8 { return pixelAt(r.tt, x, y) }
+
+// noPixels ends a pixel test whose Tester.Image gave nothing: on macOS the tester always draws, so it fails there;
+// elsewhere it is skipped (the tester may have no renderer).
+func noPixels(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "darwin" {
+		t.Fatal("Tester.Image gave no pixels on macOS")
+	}
+	t.Skip("Tester.Image gave no pixels on " + runtime.GOOS)
+}
+
+func pixelAt(tt *ui.Tester, x, y float32) [3]uint8 {
+	img := tt.Image()
 	s := float64(img.Bounds().Dx()) / 1280
 	o := img.PixOffset(int(float64(x)*s), int(float64(y)*s))
 	return [3]uint8{img.Pix[o], img.Pix[o+1], img.Pix[o+2]}
@@ -782,7 +798,7 @@ func TestSinglePaneIsFullBleedAndSplitHasARingOnTheFocusedTileOnly(t *testing.T)
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	if r.tt.Image() == nil {
-		t.Skip("Tester.Image gave no pixels")
+		noPixels(t)
 	}
 	one, ok := r.tt.Find("pane 1")
 	if !ok {
@@ -797,8 +813,8 @@ func TestSinglePaneIsFullBleedAndSplitHasARingOnTheFocusedTileOnly(t *testing.T)
 	}
 
 	r.click(t, "Split right")
-	if len(r.w.tabs[0].panes) != 2 {
-		t.Fatalf("panes %d", len(r.w.tabs[0].panes))
+	if len(r.w.tabAt(0).panes) != 2 {
+		t.Fatalf("panes %d", len(r.w.tabAt(0).panes))
 	}
 	a, _ := r.tt.Find("pane 1")
 	b, _ := r.tt.Find("pane 2")
@@ -824,7 +840,7 @@ func TestSplitRightSpawnsOnTheSameHost(t *testing.T) {
 	if !slices.Equal(r.fb.spawned, []string{"h-web", "h-web", "h-web"}) {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
-	tb := r.w.tabs[0]
+	tb := r.w.tabAt(0)
 	if len(tb.panes) != 3 || !slices.Equal(tb.root.Leaves(), []string{"1", "3", "2"}) {
 		// "Split down" acts on the first pane's bar (the first match), so it lands between 1 and 2.
 		t.Fatalf("panes %d leaves %v", len(tb.panes), tb.root.Leaves())
@@ -837,18 +853,18 @@ func TestClosingPanesKillsTheirSessions(t *testing.T) {
 	r.click(t, "host api-1")
 	r.click(t, "Split right") // s1 and s2
 	r.click(t, "Close pane")  // the first bar's button: pane 1 = s1
-	if !slices.Equal(r.fb.killed, []string{"s1"}) || len(r.w.tabs[0].panes) != 1 {
-		t.Fatalf("killed %v panes %d", r.fb.killed, len(r.w.tabs[0].panes))
+	if !slices.Equal(r.fb.killed, []string{"s1"}) || len(r.w.tabAt(0).panes) != 1 {
+		t.Fatalf("killed %v panes %d", r.fb.killed, len(r.w.tabAt(0).panes))
 	}
 	if !r.fb.conns[0].closed || r.fb.conns[1].closed {
 		t.Error("only the closed pane's connection should be closed")
 	}
-	if r.w.tabs[0].focused != "2" {
-		t.Errorf("focus %q after closing pane 1", r.w.tabs[0].focused)
+	if r.w.tabAt(0).focused != "2" {
+		t.Errorf("focus %q after closing pane 1", r.w.tabAt(0).focused)
 	}
 	r.click(t, "Close pane")
-	if len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() || !slices.Equal(r.fb.killed, []string{"s1", "s2"}) {
-		t.Fatalf("tabs %d killed %v", len(r.w.tabs), r.fb.killed)
+	if r.w.tabCount() != 1 || !r.w.tabAt(0).isNew() || !slices.Equal(r.fb.killed, []string{"s1", "s2"}) {
+		t.Fatalf("tabs %d killed %v", r.w.tabCount(), r.fb.killed)
 	}
 	if !r.tt.HasText("Where to?") {
 		t.Error("the empty window does not show the New tab page")
@@ -897,7 +913,7 @@ func TestDraggingAGapChangesThatSplitsRatioWithinTheClamp(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	r.click(t, "Split right")
-	root := r.w.tabs[0].root
+	root := r.w.tabAt(0).root
 	a, _ := r.tt.Find("pane 1")
 	g, ok := r.tt.Find("split handle")
 	if !ok || g.W != space1_5 {
@@ -931,7 +947,7 @@ func TestStackedGapDragsVertically(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	r.click(t, "Split down")
-	root := r.w.tabs[0].root
+	root := r.w.tabAt(0).root
 	if root.Dir != layout.Col {
 		t.Fatalf("dir %v", root.Dir)
 	}
@@ -973,18 +989,18 @@ func TestShortcuts(t *testing.T) {
 	}
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyD)
 	r.tt.Frame()
-	if len(r.w.tabs[2].panes) != 2 || r.fb.spawned[len(r.fb.spawned)-1] != "h-web" {
-		t.Errorf("Cmd+Shift+D: panes %d spawned %v", len(r.w.tabs[2].panes), r.fb.spawned)
+	if len(r.w.tabAt(2).panes) != 2 || r.fb.spawned[len(r.fb.spawned)-1] != "h-web" {
+		t.Errorf("Cmd+Shift+D: panes %d spawned %v", len(r.w.tabAt(2).panes), r.fb.spawned)
 	}
 	r.tt.Key(ui.Cmd|ui.Shift, ui.KeyE)
 	r.tt.Frame()
-	if len(r.w.tabs[2].panes) != 3 {
-		t.Errorf("Cmd+Shift+E: panes %d", len(r.w.tabs[2].panes))
+	if len(r.w.tabAt(2).panes) != 3 {
+		t.Errorf("Cmd+Shift+E: panes %d", len(r.w.tabAt(2).panes))
 	}
 	r.tt.Key(ui.Cmd, ui.KeyW)
 	r.tt.Frame()
-	if len(r.w.tabs[2].panes) != 2 || len(r.fb.killed) != 1 {
-		t.Errorf("Cmd+W: panes %d killed %v", len(r.w.tabs[2].panes), r.fb.killed)
+	if len(r.w.tabAt(2).panes) != 2 || len(r.fb.killed) != 1 {
+		t.Errorf("Cmd+W: panes %d killed %v", len(r.w.tabAt(2).panes), r.fb.killed)
 	}
 	r.tt.Key(ui.Cmd, ui.KeyB)
 	r.tt.Frame()
@@ -1050,6 +1066,7 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 	for _, a := range []float32{0.66, 1} {
 		r := newRig(t, okBackend())
 		r.w.alpha = a
+		r.w.prefs.Theme = themeDark // the default is System, which is light under the tester
 		r.tt = ui.NewTester(r.w.view, 1280, 720)
 		r.tt.Frame()
 		r.click(t, "host api-1")
@@ -1088,19 +1105,24 @@ func TestGroundsFollowTheWindowAlphaWithoutStacking(t *testing.T) {
 }
 
 func TestLoadPrefs(t *testing.T) {
-	def := prefs{Opacity: 66, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}
+	with := func(opacity, blur int) prefsDoc {
+		p := defaultPrefs()
+		p.Opacity, p.Blur = opacity, blur
+		return p
+	}
 	for _, tc := range []struct {
 		name, file string
-		want       prefs
+		want       prefsDoc
 	}{
-		{"missing", "", def},
-		{"bad json", "{", def},
-		{"opacity too low", `{"opacity":10,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"opacity too high", `{"opacity":200,"blur":8}`, prefs{Opacity: 66, Blur: 8, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"blur negative", `{"opacity":50,"blur":-1}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"blur too high", `{"opacity":50,"blur":99}`, prefs{Opacity: 50, Blur: 20, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"only blur", `{"blur":0}`, prefs{Opacity: 66, Blur: 0, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
-		{"valid", `{"opacity":100,"blur":64}`, prefs{Opacity: 100, Blur: 64, TermSize: 12, Theme: "system", UISize: 12, TermFont: "jetbrains"}},
+		{"missing", "", with(66, 20)},
+		{"bad json", "{", with(66, 20)},
+		{"opacity too low", `{"opacity":10,"blur":8}`, with(66, 8)},
+		{"opacity too high", `{"opacity":200,"blur":8}`, with(66, 8)},
+		{"blur negative", `{"opacity":50,"blur":-1}`, with(50, 20)},
+		{"blur too high", `{"opacity":50,"blur":99}`, with(50, 20)},
+		{"only blur", `{"blur":0}`, with(66, 0)},
+		{"valid", `{"opacity":100,"blur":64}`, with(100, 64)},
+		{"wrong type", `{"opacity":"x","blur":5,"termSize":14.5}`, with(66, 5)},
 	} {
 		dir := t.TempDir()
 		if tc.file != "" {
@@ -1108,30 +1130,50 @@ func TestLoadPrefs(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if got := loadPrefs(dir); got != tc.want {
+		if got := loadPrefs(dir); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("%s: got %+v, want %+v", tc.name, got, tc.want)
 		}
 	}
-	if got := (prefs{Opacity: 66}).alpha(); got != 0.66 {
+	if got := (prefsDoc{Opacity: 66}).alpha(); got != 0.66 {
 		t.Errorf("alpha %v", got)
 	}
 }
 
-func TestPrefsEnvOverridesAndRejects(t *testing.T) {
-	t.Setenv("KEEL_NATIVE_OPACITY", "50")
-	t.Setenv("KEEL_NATIVE_BLUR", "")
-	p, err := prefs{Opacity: 66, Blur: 20}.withEnv()
-	if err != nil || p != (prefs{Opacity: 50, Blur: 20}) {
-		t.Errorf("got %+v, %v", p, err)
+// A keel-native.json as v0.2.1 wrote it, with every key it knew, a key a newer Keel may add and the retired windowShadow:
+// it loads with the same values, the next save keeps the unknown key and drops windowShadow, and what is written loads the same.
+func TestPrefsFileOfV021LoadsKeepsUnknownKeysAndRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	const file = `{
+  "opacity": 80, "blur": 12, "termSize": 15, "uiSize": 13, "theme": "light", "termFont": "ibmplex",
+  "copyOnSelect": false, "rightClick": "paste", "name": "Ann",
+  "sidebarWidth": 300, "agentWidth": 410, "agentPanel": true,
+  "groupCollapsed": ["infra", "g-2"], "recentHosts": ["h2", "h1"],
+  "closedTabs": [{"hostId": "h3", "title": "api", "kind": "pane", "at": 5000}],
+  "windowShadow": false, "future": {"a": 1}
+}`
+	if err := os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte(file), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	t.Setenv("KEEL_NATIVE_BLUR", "lots")
-	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_BLUR") {
-		t.Errorf("err %v", err)
+	want := prefsDoc{
+		Opacity: 80, Blur: 12, TermSize: 15, UISize: 13, Theme: themeLight, TermFont: fontPlex,
+		CopyOnSelect: false, RightClick: rightPaste, Name: "Ann",
+		SidebarWidth: 300, AgentWidth: 410, AgentPanel: true,
+		Collapsed: map[string]bool{"infra": true, "g-2": true}, RecentHosts: []string{"h2", "h1"},
+		ClosedTabs: []closedEntry{{hostID: "h3", title: "api", kind: "pane", at: time.UnixMilli(5000)}},
 	}
-	t.Setenv("KEEL_NATIVE_BLUR", "")
-	t.Setenv("KEEL_NATIVE_OPACITY", "5")
-	if _, err := (prefs{}).withEnv(); err == nil || !strings.Contains(err.Error(), "KEEL_NATIVE_OPACITY") {
-		t.Errorf("err %v", err)
+	if got := loadPrefs(dir); !reflect.DeepEqual(got, want) {
+		t.Fatalf("loaded %+v, want %+v", got, want)
+	}
+	if err := savePrefs(dir, map[string]any{keyTermSize: 16}); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "keel-native.json"))
+	if !strings.Contains(string(b), `"future"`) || strings.Contains(string(b), "windowShadow") {
+		t.Errorf("the save kept or dropped the wrong keys: %s", b)
+	}
+	want.TermSize = 16
+	if got := loadPrefs(dir); !reflect.DeepEqual(got, want) {
+		t.Errorf("after a save %+v, want %+v", got, want)
 	}
 }
 

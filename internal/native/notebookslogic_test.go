@@ -8,16 +8,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Test ports of the cases of cmd/keel/web/js/test/notebooks.test.mjs (placeholders, diffLines, history rows) and
-// test/autosave.test.mjs that the native client uses.
-
-func TestPlaceholdersAreFoundAsKeelServeFindsThem(t *testing.T) {
-	for s, want := range map[string]bool{"export T=[secret:1]": true, "ping [ip:12]": true, "ssh [host:3]": true, "ls [abc] [secret:]": false, "": false} {
-		if got := hasPlaceholder(s); got != want {
-			t.Errorf("hasPlaceholder(%q) = %v, want %v", s, got, want)
-		}
-	}
-}
+// Cases for placeholders, diffLines, history rows and autosave.
 
 func TestDiffLinesAlignsTheLinesThatStayedAndMarksTheRest(t *testing.T) {
 	ops := func(d []diffLine) (out []string) {
@@ -177,7 +168,7 @@ func TestFenceIndexIsTheBlockIndex(t *testing.T) {
 	}
 }
 
-// ---- autosave: test/autosave.test.mjs ----
+// ---- autosave ----
 
 // saver drives an autosave with a clock, the way the frame does: due at the time, then begin and end.
 type saver struct {

@@ -75,8 +75,8 @@ func TestFinishedAnswerIsNotMarked(t *testing.T) {
 	}
 }
 
-// The panel asks for room for a whole answer, not the old 2048 tokens
-// that a thinking model spent before it wrote anything.
+// The panel asks for room for a whole answer: a small budget is spent by a
+// thinking model before it writes anything.
 func TestAskSendsAnswerBudget(t *testing.T) {
 	f := newFixture(t, "ok")
 	if _, err := f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"}); err != nil {

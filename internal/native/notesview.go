@@ -4,12 +4,13 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// Notes for the agent drawn: the list in Edit host and in Settings · Agent (internal/ui/dialogs.templ notesBlock, ui/notes.js)
-// and the card for a note the agent proposes (ui/agentthread.js paintNote). Colours and sizes are tokens.go's.
+// Notes for the agent drawn: the list in Edit host and in Settings · Agent
+// and the card for a note the agent proposes. Colours and sizes are tokens.go's.
 
-// inlineText draws a line with `code` in mono and **bold**, as the app's answerHTML does for a note.
+// inlineText draws a line with `code` in mono and **bold**.
 func inlineText(c *ui.Context, s string, col ui.Color) ui.Element {
 	var spans []ui.Span
 	for _, m := range mdInline(s) {
@@ -25,7 +26,7 @@ func inlineText(c *ui.Context, s string, col ui.Color) ui.Element {
 	return ui.RichText(c, spans...).TextColor(col).FontSize(uiFontSize).MaxLines(0)
 }
 
-// warnBlock is a k-note-warn: the warning on a card whose text may have come from terminal output.
+// warnBlock is the warning on a card whose text may have come from terminal output.
 func warnBlock(c *ui.Context, s string) {
 	ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Radius(radiusSm).Background(signalSoft).AlignItems(ui.Start).Label("note warning").Children(func() {
 		icon(c, "alert", signal)
@@ -40,7 +41,7 @@ type notesBlockOpts struct {
 	readable                 bool // the dialog's Agent can read switch
 }
 
-// notesBlock is a k-notes-block: its head (title and count), the list with Edit and Delete on each note, the field that adds
+// notesBlock is the notes list: its head (title and count), the list with Edit and Delete on each note, the field that adds
 // one, an error and the help.
 func (w *workspace) notesBlock(c *ui.Context, e *notesEditor, o notesBlockOpts) {
 	unsaved := !e.saved()
@@ -100,7 +101,7 @@ func (w *workspace) notesBlock(c *ui.Context, e *notesEditor, o notesBlockOpts) 
 	}
 }
 
-// emptyNotesText is ui/notes.js emptyText.
+// emptyNotesText is the list's empty-state sentence.
 func emptyNotesText(e *notesEditor, host bool) string {
 	switch {
 	case e.unreadable:
@@ -174,7 +175,7 @@ func (w *workspace) doneRow(c *ui.Context, ok bool, msg string, buttons func()) 
 	})
 }
 
-// agentNoteCard is "Remember this?" (agentthread.js paintNote): nothing is saved until Save is pressed.
+// agentNoteCard is "Remember this?": nothing is saved until Save is pressed.
 func (w *workspace) agentNoteCard(c *ui.Context, id string, onPage bool) {
 	rec := w.agent.notes[id]
 	if rec == nil {
@@ -187,17 +188,17 @@ func (w *workspace) agentNoteCard(c *ui.Context, id string, onPage bool) {
 		editH = &rec.editHP
 	}
 	border := line
-	if warn && n.Status == "open" && !n.Expired {
+	if warn && n.Status == wire.CardOpen && !n.Expired {
 		border = signal
 	}
 	card := ui.Column(c).FillWidth().Key("note "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposed note")
 	card.Children(func() {
-		if n.Status != "open" || n.Expired {
+		if n.Status != wire.CardOpen || n.Expired {
 			msg := noteProposalDone(n)
-			if n.Status == "open" {
+			if n.Status == wire.CardOpen {
 				msg = "Not saved. This proposal expired; add the note yourself in Edit host or Settings · Agent."
 			}
-			w.doneRow(c, n.Status == "saved", msg, func() {
+			w.doneRow(c, n.Status == wire.CardSaved, msg, func() {
 				if !n.Expired && textBtnOff(c, "Undo", btnGhost, rec.busy) {
 					w.act(func() { w.undoNoteProposal(id) })
 				}
@@ -239,7 +240,7 @@ func (w *workspace) agentNoteCard(c *ui.Context, id string, onPage bool) {
 		hairline(ui.Row(c).FillWidth().Margin(space3, 0, 0).Padding(space2, space3).Gap(space1_5).Background(w.ground(surface)), 1, 0, 0, 0).Children(func() {
 			save := func() {
 				name, kind := "Save", btnPrimary
-				if warn { // the app's Save is plain, and says "Save anyway", on a note that may come from a pane
+				if warn { // Save says "Save anyway" on a note that may come from a pane
 					name, kind = "Save anyway", btnDefault
 				}
 				if textBtnOff(c, name, kind, rec.busy) {

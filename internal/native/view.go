@@ -2,7 +2,6 @@ package native
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"strconv"
 	"unicode/utf8"
@@ -11,13 +10,14 @@ import (
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 // view draws the whole screen (docs/ui-redesign.md §5.1). It reads and changes the workspace
 // on the UI thread only; changes the buttons ask for are queued with act and run at the end.
 func (w *workspace) view(c *ui.Context) {
 	w.resolveTheme(c)
-	setUISize(w.win.UISize)
+	setUISize(w.prefs.UISize)
 	windowTheme(c, w.dark)
 	if w.alpha < 1 {
 		c.Root().Background(ui.Transparent) // the grounds below are painted at the window's alpha
@@ -37,11 +37,6 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.fallBackToHosts()
 	w.publishSync()
-	if w.clip != "" { // a menu's Copy has no context to write with: the next frame does (term.js data-copy)
-		c.WriteClipboard(w.clip)
-		w.say("Copied " + w.clipWhat)
-		w.clip, w.clipWhat = "", ""
-	}
 	w.shareFrame(c)
 	w.suggestFrame(c)
 	w.shortcuts(c)
@@ -74,19 +69,7 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	w.toastsView(c) // under the dialogs: a dialog opened over a toast keeps its buttons
 	w.sharePrompts(c)
-	w.hostKeyDialog(c)
-	w.quickDialogView(c)
-	w.joinDialogView(c)
-	w.hostDialogView(c)
-	w.identityDialogView(c)
-	w.snippetDialogView(c)
-	w.notebookDialogView(c)
-	w.folderDialogView(c)
-	w.forwardDialogView(c)
-	w.forwardKeyView(c)
-	w.approveView(c)
-	w.confirmView(c)
-	w.paletteView(c)
+	w.dialogsView(c)
 	w.reviewFocus(c)
 	if w.focusHosts && !w.modalOpen() {
 		w.hostsH.Focus(c)
@@ -94,7 +77,7 @@ func (w *workspace) view(c *ui.Context) {
 	}
 	if t := w.tab(); t != nil && w.wantFocus != "" && !w.modalOpen() {
 		if p := t.panes[w.wantFocus]; p != nil && (t.zoomed == "" || t.zoomed == p.id) {
-			if p.nb != nil && p.nb.editing { // the text being edited takes the keyboard
+			if p.nb != nil && p.nb.editing {
 				p.nb.editH.Focus(c)
 			} else {
 				p.handle.Focus(c)
@@ -124,7 +107,6 @@ func (w *workspace) view(c *ui.Context) {
 	w.persist()
 }
 
-// runLater runs what the view queued, now that the frame is built.
 func (w *workspace) runLater(c *ui.Context) {
 	if len(w.later) > 0 {
 		run := w.later
@@ -135,66 +117,24 @@ func (w *workspace) runLater(c *ui.Context) {
 		w.publishSync()
 		c.Invalidate()
 	}
+	w.flushClipboard(c)
 }
 
-// shortcuts declares the keys of docs/shortcuts.md that N1 has. A window shortcut is taken
-// before the terminal sees the key.
-// altDigits are the keys of the New tab page's cards, ⌥1 to ⌥6.
-var altDigits = []ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6}
-
+// shortcuts declares the window shortcuts: the commands' keys (commands.go), the New tab page's cards and the find bar's. A
+// window shortcut is taken before the terminal sees the key. Shortcuts built here wait while a dialog shows, so while the
+// palette is open no other window key acts.
 func (w *workspace) shortcuts(c *ui.Context) {
-	// ⌘K and ⌘⇧P open the palette (the palette's own dialog closes it again). Shortcuts built here wait
-	// while a dialog shows, so while the palette is open no other window key acts.
-	c.OnWindowShortcut(ui.Cmd, ui.KeyK, func() { w.act(w.togglePalette) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyP, func() { w.act(w.togglePalette) })
-	digits := [...]ui.Key{ui.Key1, ui.Key2, ui.Key3, ui.Key4, ui.Key5, ui.Key6, ui.Key7, ui.Key8}
-	for i, k := range digits {
-		c.OnWindowShortcut(ui.Cmd, k, func() { w.act(func() { w.selectTab(i) }) })
-	}
-	c.OnWindowShortcut(ui.Cmd, ui.Key9, func() { w.act(func() { w.selectTab(len(w.tabs) - 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyW, func() { w.act(w.closeFocused) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyT, func() { w.act(w.newTabKey) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyO, func() { w.act(func() { w.openQuick("", nil) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyJ, func() { w.act(w.openJoin) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyComma, func() { w.act(func() { w.openPage("settings") }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyN, func() { w.act(w.newItem) }) // New host, or the page's own New (docs/shortcuts.md)
-	if t := w.tab(); t != nil && t.isNew() {                         // ⌥1 to ⌥6 open the nth card of the New tab page
-		for i, k := range altDigits {
+	w.commandShortcuts(c)
+	if t := w.tab(); t != nil && t.isNew() { // ⌥1 to ⌥6 open the nth card of the New tab page
+		for i, k := range digitKeys[:6] {
 			c.OnWindowShortcut(ui.Alt, k, func() { w.act(func() { w.openCard(t, i) }) })
 		}
 	}
-	// ⌘I toggles the agent panel; elsewhere Ctrl+⇧I, because Ctrl+I is Tab in a terminal (lib/shortcutmap.js).
-	agentMods := ui.Cmd
-	if runtime.GOOS != "darwin" {
-		agentMods |= ui.Shift
-	}
-	c.OnWindowShortcut(agentMods, ui.KeyI, func() { w.act(w.toggleAgent) })
-	// ⌘Y asks for a command for the words on the prompt line (Ctrl+⇧Y elsewhere: Ctrl+Y is the shell's yank). It types nothing.
-	c.OnWindowShortcut(agentMods, ui.KeyY, func() { w.act(w.suggestRequest) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyB, func() { w.act(w.toggleSidebar) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyD, func() { w.act(func() { w.splitFocused(layout.Row) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyE, func() { w.act(func() { w.splitFocused(layout.Col) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEnter, func() { w.act(w.zoomFocused) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyT, func() { w.act(w.reopenClosed) })
-	// ⌘< and ⌘> are ⌘⇧, and ⌘⇧. on a US keyboard: both spellings are taken (docs/shortcuts.md).
-	for _, k := range []ui.Key{ui.KeyBracketLeft, ui.KeyComma} {
-		c.OnWindowShortcut(ui.Cmd|ui.Shift, k, func() { w.act(func() { w.cycleTab(-1) }) })
-	}
-	for _, k := range []ui.Key{ui.KeyBracketRight, ui.KeyPeriod} {
-		c.OnWindowShortcut(ui.Cmd|ui.Shift, k, func() { w.act(func() { w.cycleTab(1) }) })
-	}
-	c.OnWindowShortcut(ui.Cmd, ui.KeyF, func() { w.act(func() { w.openFind(w.focusedPane()) }) })
 	if w.findPane != nil {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyG, func() { w.act(func() { w.findStep(true) }) })
 		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { w.act(func() { w.findStep(false) }) })
-		// Escape closes the bar from anywhere in the window, as in the webview (term.js closeOpenFind).
-		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind(true) }) })
+		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind() }) })
 	}
-	// Terminal text size: ⌘+ is ⌘= with or without ⇧.
-	c.OnWindowShortcut(ui.Cmd, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
-	c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyEqual, func() { w.act(func() { w.setTermSize(w.termSize + 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.KeyMinus, func() { w.act(func() { w.setTermSize(w.termSize - 1) }) })
-	c.OnWindowShortcut(ui.Cmd, ui.Key0, func() { w.act(func() { w.setTermSize(termSizeDefault) }) })
 }
 
 func (w *workspace) titlebar(c *ui.Context) {
@@ -206,16 +146,16 @@ func (w *workspace) titlebar(c *ui.Context) {
 	}
 	hairline(ui.Row(c).FillWidth().Height(sizeTitlebar).Shrink(0).Background(w.ground(chrome)), 0, 0, 1, 0).
 		Padding(0, space2, 0, inset).Gap(space1_5).DragWindow().Children(func() {
-		if !w.joinedActive() && w.capBtn(c, "B", "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) { // no toggle in a joined tab
-			w.act(func() { w.sidebar = !w.sidebar })
+		if !w.joinedActive() && w.capBtn(c, capLabel("sidebar"), "panel-left", "Toggle sidebar", sizeControlSm, w.sidebar, false) {
+			w.act(func() { w.runCommand("sidebar") })
 		}
 		for i, t := range w.tabs {
 			w.tabPill(c, i, t)
 		}
-		if w.capBtn(c, "T", "add-01", "New tab", sizeControlSm, false, false) {
-			w.act(w.newTab)
+		if w.capBtn(c, capLabel("tab.new"), "add-01", "New tab", sizeControlSm, false, false) {
+			w.act(w.addStartTab)
 		}
-		// The empty strip past the last tab: a tab dropped here goes last (ui/drag.js: a drop on the strip).
+		// The empty strip past the last tab: a tab dropped here goes last.
 		gap := ui.Box(c).Grow(1).FillHeight().Label("tab strip end")
 		if moved, ok := ui.Drop[dragged](gap); ok {
 			switch m := moved.(type) {
@@ -225,26 +165,26 @@ func (w *workspace) titlebar(c *ui.Context) {
 				w.act(func() { w.dropPaneOnStrip(m, len(w.tabs)) })
 			}
 		}
-		if s := w.barStatus(); s != "" { // #bar-status in .bar-meta: ink-muted, 0.917rem
+		if s := w.barStatus(); s != "" {
 			if s == "Connecting…" {
 				ui.Spinner(c).Label("Connecting").Shrink(0)
 			}
 			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
 		}
-		w.shareControls(c) // the watchers badge and the Share button of a session tab
+		w.shareControls(c)
 		w.agentButton(c)
 	})
 }
 
-// barStatus is #bar-status (term.js renderTabs): what the window shows at the right of the title bar. A page shows
+// barStatus is what the window shows at the right of the title bar. A page shows
 // nothing; the New tab page says "New tab" (or "Connecting…" while it connects); a session says whose hands are on it.
 func (w *workspace) barStatus() string {
 	t := w.tab()
 	switch {
-	case t == nil || t.isPage():
+	case t == nil || t.mode() == modePage:
 		return ""
-	case t.isNew():
-		if t.page.connecting != "" {
+	case t.mode() == modeNew:
+		if t.start.connecting != "" {
 			return "Connecting…"
 		}
 		return "New tab"
@@ -256,7 +196,7 @@ func (w *workspace) barStatus() string {
 	if p.nb != nil {
 		return "Notebook"
 	}
-	if st := p.conn.Snapshot(); st.Role == "driver" {
+	if st := p.conn.Snapshot(); st.Driving() {
 		return paneSubtitle(p, st) + " · driving"
 	}
 	return paneSubtitle(p, p.conn.Snapshot()) + " · following"
@@ -286,19 +226,19 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 	r.PopoverMenu(w.tabMenu(t))
 	renaming := w.renaming == t
 	r.Children(func() {
-		status := ""
+		var status wire.Status
 		if p := t.panes[t.focused]; p != nil {
 			status = p.status()
 		}
 		var lead ui.Element
-		switch {
-		case t.isNew():
+		switch t.mode() {
+		case modeNew:
 			lead = icon(c, "computer-terminal-01", inkMuted)
-		case t.isPage():
-			lead = icon(c, pageDefs[t.pg.name].tabIcon, inkMuted)
-		case t.remote: // the joined-share link (lib/tabstrip.js)
+		case modePage:
+			lead = icon(c, t.pg.tabIcon, inkMuted)
+		case modeRemote:
 			lead = icon(c, "link", inkMuted)
-		case t.onlyNotebooks(): // no session to have a state
+		case modeNotebooks: // no session to have a state
 			lead = icon(c, "notebook-pen", inkMuted)
 		default:
 			lead = dot(c, statusColor(status))
@@ -336,8 +276,8 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		}
 		if n := len(t.panes); n > 1 {
 			ui.Spacer(c)
-			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround). // k-badge--mono tab-count
-																			Children(func() { text(c, fmt.Sprint(n), inkMuted, rem(tabCountFontPx), weightRegular).Font(monoStack) })
+			ui.Row(c).Height(rem(tabCountPx)).Padding(0, space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Background(hoverGround).
+				Children(func() { text(c, fmt.Sprint(n), inkMuted, rem(tabCountFontPx), weightRegular).Font(monoStack) })
 		}
 		if !renaming {
 			w.tabClose(c, t, selected, r.Hovered())
@@ -347,7 +287,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 		w.act(func() { w.selectTab(i) })
 	}
 	// A tab dropped on another lands before it or after it, by which half the pointer let go in.
-	// A pane dragged by its bar and dropped here becomes a tab of its own, before this tab or after it (ui/drag.js). An element
+	// A pane dragged by its bar and dropped here becomes a tab of its own, before this tab or after it. An element
 	// takes one type of dragged value, so a tab and a pane are taken as a dragged and told apart here.
 	if moved, ok := ui.Drop[dragged](r); ok {
 		x, _, _ := r.PointerPosition()
@@ -373,17 +313,17 @@ func (w *workspace) dropPaneOnStrip(p *pane, slot int) {
 	}
 }
 
-// tabClose is the tab's close button (lib/tabstrip.js k-tab-close): 16 px, shown while the pill is hovered or, with ⌘ held,
+// tabClose is the tab's close button: 16 px, shown while the pill is hovered or, with ⌘ held,
 // on the selected tab, where the W cap stands in for its glyph. Its room is kept when it is hidden, so the pill does not
 // change width. It closes the tab as the tab menu's Close does.
 func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) {
-	// .tab .close is 16 px, not rem.
+	// 16 px, not rem.
 	b := ui.Row(c).Size(space4, space4).Radius(radiusXs).Justify(ui.Center).AlignItems(ui.Center).Shrink(0).
 		Label("Close " + t.name()).Tooltip("Close " + t.name()).Cursor(ui.CursorPointer)
 	capped := selected && w.capAlpha > 0
 	show := pillHovered || capped
 	if !show {
-		b.Opacity(0).Disabled(true) // pointer-events: none
+		b.Opacity(0).Disabled(true)
 	}
 	hov := show && b.Hovered()
 	if hov {
@@ -392,7 +332,7 @@ func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) 
 	b.Children(func() {
 		switch {
 		case capped:
-			w.capFace(c, "W")
+			w.capFace(c, capLabel("tab.close"))
 		case hov:
 			icon(c, "cancel-01", ink)
 		default:
@@ -407,22 +347,20 @@ func (w *workspace) tabClose(c *ui.Context, t *tab, selected, pillHovered bool) 
 // sideSnippets is the sidebar's Snippets section showing (Hosts is the default).
 func (w *workspace) sideSnippets() bool { return w.sideSeg == "snippets" }
 
-// sideForwards is the sidebar's Forwards section showing.
 func (w *workspace) sideForwards() bool { return w.sideSeg == "forwards" }
 
-// sidebarWidth is size-sidebar at the default UI size and under it, and grows with the UI size above it (plan 031).
+// sidebarWidth is size-sidebar at the default UI size and under it, and grows with the UI size above it.
 func sidebarWidth() float32 { return max(sizeSidebar, rem(sizeSidebar)) }
 
 func (w *workspace) sidebarView(c *ui.Context) {
 	hairline(ui.Column(c).Width(w.sidebarNow()).Shrink(0).FillHeight().Background(w.ground(chrome)), 0, 1, 0, 0).Children(func() {
 		w.sidebarSash(c)
-		// .k-sidebar-head: 12 8 8, the tools row and the section switch 8 apart.
 		ui.Column(c).FillWidth().Shrink(0).Padding(space3, space2, space2).Gap(space2).Children(func() {
-			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() { // the filter's 4 and the tools' 2
+			ui.Row(c).FillWidth().Shrink(0).Gap(space1_5).Children(func() {
 				switch {
 				case w.sidePanes():
 					searchField(c, &w.paneQuery, "Filter panes", &w.paneH).Grow(1).Shrink(1)
-				case w.sideSnippets(): // each section has its own filter (term.js sidebarQuery)
+				case w.sideSnippets():
 					searchField(c, &w.snipQuery, "Filter snippets", &w.snipH).Grow(1).Shrink(1)
 				case w.sideForwards():
 					searchField(c, &w.fwdQuery, "Filter forwards", &w.fwdH).Grow(1).Shrink(1)
@@ -430,13 +368,13 @@ func (w *workspace) sidebarView(c *ui.Context) {
 					searchField(c, &w.filter, "Filter hosts", &w.hostsH).Grow(1).Shrink(1)
 				}
 				ui.Row(c).Shrink(0).Gap(space0_5).Children(func() {
-					if w.capBtn(c, "N", "add-01", "New host", sizeControlSm, false, false) { // btn-new-host: k-btn--sm k-btn--icon
+					if w.capBtn(c, capLabel("host.new"), "add-01", "New host", sizeControlSm, false, false) {
 						w.act(w.newHost)
 					}
 					iconMenuBtn(c, "more-horizontal", "More host actions", sizeControlSm, w.hostActionsMenu)
 				})
 			})
-			// k-seg "Vault section": Hosts · Panes · Snippets · Forwards. Panes shows only while the tab has 2+ panes.
+			// The section switch: Hosts · Panes · Snippets · Forwards. Panes shows only while the tab has 2+ panes.
 			segs := [][2]string{{"hosts", "Hosts"}, {"snippets", "Snippets"}, {"forwards", "Forwards"}}
 			if pt := w.panesTab(); pt != nil {
 				segs = slices.Insert(segs, 1, [2]string{"panes", "Panes " + strconv.Itoa(len(pt.panes))})
@@ -447,7 +385,6 @@ func (w *workspace) sidebarView(c *ui.Context) {
 			}
 			segControlSized(c, "Vault section", cur, segs, func(v string) { w.sideSeg = v }, captionSize, space0_5)
 		})
-		// .k-sidebar-body: 0 6 8, scrolling.
 		body := func(label string, kids func()) {
 			ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Label(label).Bind(&w.sideListH).Children(func() {
 				ui.Column(c).FillWidth().Padding(0, space1_5, space2).Children(kids)
@@ -481,14 +418,12 @@ func (w *workspace) sidebarView(c *ui.Context) {
 	})
 }
 
-// hostActionsMenu is the "More host actions" menu next to New host (sidebar.templ): Quick connect, Join session, New
-// group and Local terminal.
 func (w *workspace) hostActionsMenu(m *ui.Menu) {
-	if menuItem(m, "Quick connect").Shortcut(ui.Cmd|ui.Shift, ui.KeyO).Chosen() {
-		w.act(func() { w.openQuick("", nil) })
+	if menuItem(m, "Quick connect").Shortcut(shortcutOf("host.quick")).Chosen() {
+		w.act(func() { w.runCommand("host.quick") })
 	}
-	if menuItem(m, "Join session").Shortcut(ui.Cmd, ui.KeyJ).Chosen() {
-		w.act(w.openJoin)
+	if menuItem(m, "Join session").Shortcut(shortcutOf("host.join")).Chosen() {
+		w.act(func() { w.runCommand("host.join") })
 	}
 	if menuItem(m, "New group").Chosen() {
 		w.act(func() { w.newFolder("") })
@@ -498,29 +433,26 @@ func (w *workspace) hostActionsMenu(m *ui.Menu) {
 	}
 }
 
-// sidebarFoot is k-sidebar-foot: Keychain and Logs open their pages; Settings is the icon button on the right, with ⌘,
-// (its key cap shows only while ⌘ is held in the app).
+// sidebarFoot: Keychain and Logs open their pages; a page with a key (Settings, ⌘,) is an icon button on the right
+// (its key cap shows only while ⌘ is held).
 func (w *workspace) sidebarFoot(c *ui.Context) {
 	hairline(ui.Row(c).FillWidth().Shrink(0).Padding(space1_5).Gap(space0_5), 1, 0, 0, 0).Children(func() {
-		for _, name := range footPages {
-			def := pageDefs[name]
-			glyph := "key-01"
-			if name == "logs" {
-				glyph = "logs"
-			}
-			if textBtnIcon(c, glyph, def.title, btnGhost) {
-				w.act(func() { w.openPage(name) })
+		for _, k := range pageKinds {
+			if k.footIcon != "" && textBtnIcon(c, k.footIcon, k.title, btnGhost) {
+				w.act(func() { w.openPage(k.name) })
 			}
 		}
 		ui.Spacer(c)
-		if w.capBtn(c, ",", "settings-01", "Settings", sizeControlSm, false, false) {
-			w.act(func() { w.openPage("settings") })
+		for _, k := range pageKinds {
+			if k.cmd != "" && w.capBtn(c, capLabel(k.cmd), k.tabIcon, k.title, sizeControlSm, false, false) {
+				w.act(func() { w.runCommand(k.cmd) })
+			}
 		}
 	})
 }
 
 func (w *workspace) group(c *ui.Context, g hostGroup) {
-	open := !w.collapsed[g.name]
+	open := !w.prefs.Collapsed[g.name]
 	ui.Column(c).FillWidth().Key(g.name).Children(func() {
 		h := ui.Row(c).FillWidth().Height(sizeControl).Padding(0, space2).Gap(space1_5).Label("group " + g.name).Tooltip(g.name).Cursor(ui.CursorPointer)
 		h.Children(func() {
@@ -563,7 +495,7 @@ func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
 		r.Background(hoverGround)
 	}
 	r.PopoverMenu(w.hostMenu(host))
-	// ⌥↵ on a focused row opens it in a split of the focused pane (term.js host-list keydown); ↵ alone clicks the
+	// ⌥↵ on a focused row opens it in a split of the focused pane; ↵ alone clicks the
 	// focused row, which opens it.
 	r.ObserveInput(func(ev ui.InputEvent) {
 		if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyEnter && ev.Mods == ui.Alt {
@@ -595,10 +527,10 @@ func (w *workspace) stage(c *ui.Context) {
 		w.centered(c, w.blocked)
 	case t == nil:
 		w.centered(c, "") // the window keeps a tab: this is only the moment before the first listing
-	case t.isNew():
+	case t.mode() == modeNew:
 		w.startPageView(c, t)
-	case t.isPage():
-		w.pageView(c, t)
+	case t.mode() == modePage:
+		t.pg.view(w, c)
 	default:
 		if t.panes[t.zoomed] == nil || len(t.panes) < 2 {
 			t.zoomed = ""
@@ -757,8 +689,8 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				roleChip(c, st.Role)
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
-				focused := t.focused == p.id // only the focused pane's tools have caps (keel.css:1032)
-				if !t.remote {               // hidden in a joined tab (term.js:1716)
+				focused := t.focused == p.id // only the focused pane's tools have caps
+				if !t.remote {
 					tip := "Sync input"
 					if t.sync {
 						tip = "Stop syncing input"
@@ -767,24 +699,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 						w.act(func() { w.toggleSync(t) })
 					}
 				}
-				if w.paneCapBtn(c, focused, "⇧D", "split-h", "Split right", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Row) })
-				}
-				if w.paneCapBtn(c, focused, "⇧E", "split-v", "Split down", false, false) {
-					w.act(func() { w.split(t, p.id, layout.Col) })
-				}
-				zoomed := t.zoomed == p.id
-				zoomTip, zoomGlyph := "Focus view", "zoom"
-				if zoomed {
-					zoomTip, zoomGlyph = "Exit focus view", "unzoom"
-				}
-				if w.paneCapBtn(c, focused, "⇧↵", zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
-					w.act(func() { w.toggleZoom(t, p.id) })
-				}
-				iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
-				if iconBtn(c, "cancel-01", "Close pane", sizeControlSm, false) {
-					w.act(func() { w.closePane(t, p.id) })
-				}
+				w.paneTools(c, t, p, focused)
 			})
 		})
 		w.paneBanners(c, t, p, st)
@@ -792,7 +707,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			w.findBar(c, p)
 		}
 		pane := ui.Box(c).Grow(1).FillWidth().Background(w.termGround())
-		// A press into the terminal of a split tab shows the Panes section (term.js mousedown → revealPanes). The press
+		// A press into the terminal of a split tab shows the Panes section. The press
 		// is only watched: the terminal keeps the keyboard. The bar's buttons do not count; the bar itself does.
 		pane.ObserveInput(func(ev ui.InputEvent) {
 			if ev.Kind == ui.InputPointerDown {
@@ -801,12 +716,12 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		})
 		pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
 		pane.Children(func() {
-			// While the session is not ready (connecting, failed, lost, reconnecting) the terminal view is not built (issue #139,
-			// plan 037 part A): its last picture is not readable through the overlay and no caret blinks; the pane shows its
+			// While the session is not ready (connecting, failed, lost, reconnecting) the terminal view is not built (issue #139):
+			// its last picture is not readable through the overlay and no caret blinks; the pane shows its
 			// ground. The terminal object and its scrollback stay alive in p; only the view is out of the tree, so nothing typed
 			// reaches it. A joined pane keeps its view (it has its own banner). When the session is ready the view is back,
 			// and the pane takes the keyboard again if it had it.
-			if st.Status != "ready" && !p.remote {
+			if !st.Ready() && !p.remote {
 				if t.focused == p.id {
 					p.regain = true
 				}
@@ -818,7 +733,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				w.wantFocus = p.id
 			}
 			tv := p.view(c).Bind(&p.handle)
-			if multi && !focused { // the terminal's text dims, the body keeps its ground (keel.css:942 dims .xterm only)
+			if multi && !focused { // the terminal's text dims, the body keeps its ground
 				tv.Opacity(dimAlpha)
 			}
 			w.suggestOverlay(c, p)
@@ -862,11 +777,11 @@ func (w *workspace) statusbar(c *ui.Context) {
 			dot(c, tide)
 			noun := "sessions"
 			if w.paneCount() == 1 {
-				noun = "session" // term.js:573
+				noun = "session"
 			}
 			caption(c, fmt.Sprintf("keel serve · %d %s", w.paneCount(), noun), inkMuted)
 		})
-		if n := w.runningForwards(); n > 0 { // #sb-forwards is hidden with none running
+		if n := w.runningForwards(); n > 0 {
 			ui.Row(c).Gap(space1_5).Label("status forwards").Children(func() {
 				iconSized(c, "forwards", inkMuted, iconSizeSm)
 				caption(c, forwardsLabel(n), inkMuted)
@@ -876,7 +791,7 @@ func (w *workspace) statusbar(c *ui.Context) {
 		if p := w.focusedPane(); p != nil && p.nb == nil {
 			cols, rows := p.size()
 			caption(c, fmt.Sprintf("%s · %d×%d · UTF-8", p.title(), cols, rows), inkMuted)
-			if t := w.tab(); t != nil && !t.remote { // #sb-sync is hidden in a joined tab (term.js:1827)
+			if t := w.tab(); t != nil && !t.remote {
 				word := "Sync off"
 				if t.sync {
 					word = "Sync on"
@@ -887,13 +802,13 @@ func (w *workspace) statusbar(c *ui.Context) {
 	})
 }
 
-// agentButton is the title bar's Agent button with its key cap (internal/ui/agent.templ agentToggle). A joined tab has no
+// agentButton is the title bar's Agent button with its key cap. A joined tab has no
 // panel and no button (§5.7).
 func (w *workspace) agentButton(c *ui.Context) {
 	if w.joinedActive() {
 		return
 	}
-	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.agent.open) // one cap, as the app's #btn-agent-kbd
+	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.prefs.AgentPanel)
 	if b.Clicked() {
 		w.act(w.toggleAgent)
 	}

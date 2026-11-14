@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"keel/internal/agent/service"
 	"keel/internal/authtoken"
 	"keel/internal/paths"
+	"keel/internal/store"
 )
 
 func TestProbeHealth(t *testing.T) {
@@ -29,11 +32,11 @@ func TestProbeHealth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ProbeHealth(u.Host) {
+	if !probeHealth(u.Host) {
 		t.Fatal("expected healthy")
 	}
 	srv.Close()
-	if ProbeHealth(u.Host) {
+	if probeHealth(u.Host) {
 		t.Fatal("expected down after close")
 	}
 }
@@ -68,8 +71,6 @@ func TestWriteReadRemovePid(t *testing.T) {
 
 func TestRunServeHealthAndStop(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	t.Setenv("KEEL_SIGNAL", "")
 	dir := t.TempDir()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -79,11 +80,12 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	ln.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- RunServe(addr, dir) }()
+	cfg := serveConfig{agentFactory: service.Real, agentJudge: service.RealJudge, storeOpts: []store.Option{store.TestVault()}}
+	go func() { done <- runServe(addr, dir, cfg) }()
 
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if ProbeHealth(addr) {
+		if probeHealth(addr) {
 			break
 		}
 		select {
@@ -93,7 +95,7 @@ func TestRunServeHealthAndStop(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if !ProbeHealth(addr) {
+	if !probeHealth(addr) {
 		t.Fatal("serve never became healthy")
 	}
 	pid, err := readPid(dir)
@@ -107,13 +109,13 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("serve did not write its token: %v", err)
 	}
-	if err := VerifyServe(addr, token); err != nil {
+	if err := verifyServe(addr, token); err != nil {
 		t.Fatalf("VerifyServe on our own serve: %v", err)
 	}
 	if err := postRuntimeStop(addr, ""); err == nil {
 		t.Fatal("runtime stop without the token was accepted")
 	}
-	if !ProbeHealth(addr) {
+	if !probeHealth(addr) {
 		t.Fatal("unauthenticated stop brought serve down")
 	}
 	if err := StopServe(addr, dir); err != nil {
@@ -127,16 +129,12 @@ func TestRunServeHealthAndStop(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("RunServe did not exit after stop")
 	}
-	if ProbeHealth(addr) {
+	if probeHealth(addr) {
 		t.Fatal("still healthy after stop")
 	}
 }
 
 func TestStopServeFailsIfStillHealthy(t *testing.T) {
-	prev := stopWait
-	stopWait = 80 * time.Millisecond
-	t.Cleanup(func() { stopWait = prev })
-
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/health":
@@ -152,7 +150,7 @@ func TestStopServeFailsIfStillHealthy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = StopServe(u.Host, t.TempDir())
+	err = stopServe(u.Host, t.TempDir(), 80*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "did not stop") {
 		t.Fatalf("err = %v", err)
 	}
@@ -165,22 +163,66 @@ func TestStopServeAlreadyDown(t *testing.T) {
 	}
 }
 
-func TestPostRuntimeStopSendsToken(t *testing.T) {
+// The token goes to a server that proves it holds it, and to nothing else: not to one that cannot prove it, and not on
+// through a redirect.
+func TestPostRuntimeStopSendsTokenOnlyToItsServe(t *testing.T) {
+	const token = "tok"
+	var leaked []string
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(authtoken.Header) != "" {
+			leaked = append(leaked, "redirect target")
+		}
+	}))
+	t.Cleanup(elsewhere.Close)
+	serve := func(proves bool, stop http.HandlerFunc) string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/health" {
+				proof := "nope"
+				if proves {
+					proof = authtoken.Proof(token, r.URL.Query().Get("nonce"))
+				}
+				_, _ = io.WriteString(w, `{"proof":"`+proof+`"}`)
+				return
+			}
+			stop(w, r)
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return u.Host
+	}
+
 	var got string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	own := serve(true, func(w http.ResponseWriter, r *http.Request) {
 		got = r.Header.Get(authtoken.Header)
 		w.WriteHeader(http.StatusAccepted)
-	}))
-	t.Cleanup(srv.Close)
-	u, err := url.Parse(srv.URL)
-	if err != nil {
+	})
+	if err := postRuntimeStop(own, token); err != nil {
 		t.Fatal(err)
 	}
-	if err := postRuntimeStop(u.Host, "tok"); err != nil {
-		t.Fatal(err)
+	if got != token {
+		t.Fatalf("%s = %q, want the token", authtoken.Header, got)
 	}
-	if got != "tok" {
-		t.Fatalf("%s = %q, want tok", authtoken.Header, got)
+
+	impostor := serve(false, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(authtoken.Header) != "" {
+			leaked = append(leaked, "impostor")
+		}
+	})
+	if err := postRuntimeStop(impostor, token); err == nil {
+		t.Fatal("stop went through on a server that did not prove the token")
+	}
+
+	redirecting := serve(true, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/api/runtime/stop", http.StatusTemporaryRedirect)
+	})
+	if err := postRuntimeStop(redirecting, token); err == nil {
+		t.Fatal("a redirect was taken as a stop")
+	}
+	if len(leaked) != 0 {
+		t.Fatalf("the token reached: %v", leaked)
 	}
 }
 
@@ -205,7 +247,7 @@ func TestVerifyServeRejectsImpostor(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := VerifyServe(u.Host, "our-token"); err == nil {
+			if err := verifyServe(u.Host, "our-token"); err == nil {
 				t.Fatal("VerifyServe trusted a server that does not hold the token")
 			}
 		})
@@ -226,7 +268,7 @@ func TestVerifyServeNeverSendsToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyServe(u.Host, token); err != nil {
+	if err := verifyServe(u.Host, token); err != nil {
 		t.Fatal(err)
 	}
 }

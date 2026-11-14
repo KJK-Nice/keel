@@ -1,7 +1,7 @@
 package agent_test
 
 // Source checks for the agent invariants (docs/ui-redesign.md §6) and for
-// "nothing leaves the machine in phase 6a". They parse the module's Go
+// "nothing leaves the machine unasked". They parse the module's Go
 // files with go/parser (no extra dependency) and look at imports, calls
 // and field reads. Test files are skipped: tests may build a client
 // against a loopback httptest server.
@@ -183,11 +183,13 @@ func TestAgentCallsNoWriteMethods(t *testing.T) {
 // agent service, in providerFor (the model provider's key, which goes only
 // into the x-goog-api-key header) and in judgeFor (the detector's key,
 // which goes only into Jev's Authorization header), never into a request
-// body.
+// body. NewRedactor itself is called once, in the service's
+// buildRedactor, which also puts in the values Keel withholds (§6 rule
+// 11): no call site can build a Redactor that forgets either.
 func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	secretFields := map[string]bool{"Password": true, "PrivateKey": true, "Passphrase": true, "Token": true}
 	secretCalls := map[string]bool{"GetHost": true, "HostForConnect": true, "GetIdentity": true, "ListIdentities": true, "DuplicateHost": true}
-	known, keys := 0, 0
+	known, keys, redactors := 0, 0, 0
 	for _, f := range parseModule(t) {
 		if f.test || !inAgentTree(f.pkg) || isClientPkg(f.pkg) {
 			continue
@@ -221,6 +223,12 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 						t.Errorf("%s: KnownSecretValues used in %q, only NewRedactor may", f.rel, fn)
 					}
 				}
+				if name == "NewRedactor" {
+					redactors++
+					if f.pkg != module+"/internal/agent/service" || fn != "buildRedactor" {
+						t.Errorf("%s: a Redactor is built in %q, only service.buildRedactor may", f.rel, fn)
+					}
+				}
 				return true
 			})
 		}
@@ -228,14 +236,20 @@ func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	if known != 1 {
 		t.Errorf("KnownSecretValues used %d times in the agent tree, want exactly 1 (NewRedactor)", known)
 	}
+	if redactors != 1 {
+		t.Errorf("NewRedactor called %d times in the agent tree, want exactly 1 (service.buildRedactor)", redactors)
+	}
 	if keys != 2 {
 		t.Errorf("AgentKey used %d times in the agent tree, want exactly 2 (service.providerFor, service.judgeFor)", keys)
 	}
 }
 
 // clientPkgs are the provider clients: the only packages in the agent tree
-// that open a network connection or hold a key.
+// that name an endpoint. They and transportPkg, the HTTP core they share,
+// are the only ones that open a network connection or hold a key.
 var clientPkgs = []string{module + "/internal/agent/provider/gemini", module + "/internal/agent/provider/anthropic", module + "/internal/agent/provider/jev"}
+
+const transportPkg = module + "/internal/agent/provider/transport"
 
 func isClientPkg(pkg string) bool {
 	for _, p := range clientPkgs {
@@ -246,6 +260,30 @@ func isClientPkg(pkg string) bool {
 	return false
 }
 
+// The shared HTTP core is reached only through the three clients: nothing
+// else imports it (tests included), so nothing else can post with it.
+func TestOnlyTheClientsUseTheTransport(t *testing.T) {
+	importers := map[string]bool{}
+	for _, f := range parseModule(t) {
+		for _, p := range imports(f) {
+			if p != transportPkg {
+				continue
+			}
+			importers[f.pkg] = true
+			ok := false
+			for _, c := range clientPkgs {
+				ok = ok || f.pkg == c
+			}
+			if !ok {
+				t.Errorf("%s imports the provider transport; only %v may", f.rel, clientPkgs)
+			}
+		}
+	}
+	if len(importers) != len(clientPkgs) {
+		t.Errorf("transport importers = %v, want exactly the %d clients", importers, len(clientPkgs))
+	}
+}
+
 // The agent's role names must match the runtime's, which the caller maps.
 func TestRolesMatchRuntime(t *testing.T) {
 	if string(agent.RoleOwner) != string(runtime.RoleOwner) || string(agent.RoleDriver) != string(runtime.RoleDriver) || string(agent.RoleFollower) != string(runtime.RoleFollower) {
@@ -254,7 +292,7 @@ func TestRolesMatchRuntime(t *testing.T) {
 }
 
 // clientImporters is the list of packages allowed to build a real provider
-// client (Gemini, Anthropic, Jev): exactly the agent service (phase 6b),
+// client (Gemini, Anthropic, Jev): exactly the agent service,
 // which builds one only for a user's Ask or ⇥ (service.Real and
 // service.RealJudge, called from providerFor and judgeFor).
 var clientImporters = []string{module + "/internal/agent/service"}
@@ -290,17 +328,61 @@ func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 	}
 }
 
+// fakeWiring is the one file that links the test fakes, and only in a build
+// with the tag keelfake.
+const fakeWiring = "internal/app/agent_fake.go"
+
+// A release binary holds no test provider: providertest is imported by
+// tests and by fakeWiring, whose first line is its build tag. Nothing under
+// internal/agent imports it outside a test.
+func TestFakeProviderIsLinkedOnlyByTheTaggedFile(t *testing.T) {
+	const fake = module + "/internal/agent/provider/providertest"
+	found := false
+	for _, f := range parseModule(t) {
+		if f.test {
+			continue
+		}
+		for _, imp := range f.ast.Imports {
+			p, _ := strconv.Unquote(imp.Path.Value)
+			if p != fake {
+				continue
+			}
+			if strings.HasPrefix(f.rel, "internal/agent/") {
+				t.Errorf("%s imports providertest; no non-test file under internal/agent may", f.rel)
+			}
+			if f.rel != fakeWiring {
+				t.Errorf("%s imports providertest; only %s may", f.rel, fakeWiring)
+				continue
+			}
+			found = true
+			if !strings.HasPrefix(string(f.src), "//go:build keelfake\n") {
+				t.Errorf("%s imports providertest without //go:build keelfake on its first line", f.rel)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("%s does not import providertest: the guard is looking at the wrong file", fakeWiring)
+	}
+}
+
 // In the agent service, the Gemini and Anthropic clients are built only in
-// Real, the Jev
-// client only in RealJudge, the test fakes only in FromEnv; a model
-// provider is called (Generate) only from Ask, the in-pane model
-// suggester and the key-scrubbing wrapper; and a judge (Jev) only from
-// Detect, judgeRisks and its scrubbing wrapper. Ask is reached only from
-// POST /api/agent/ask, the suggester and Detect only from the session
-// socket (TestSuggestionsOnlyFromTheSessionSocket).
+// Real, the Jev client only in RealJudge; the test fakes only in
+// fakeWiring.
+//
+// One sender (§6 rules 4 and 7): a model provider (Generate) and a judge
+// (Judge) are each called exactly once in the service, both in
+// Service.send, which writes the agent.read entry (Auditor.Sent) before
+// the call and does not call when it cannot. So nothing is sent without a
+// log entry, and only redact.Safe text can be sent (the request types).
+// send itself is called only for the user's Ask, the in-pane model
+// suggester, Detect, judgeRisks and the history pick. Ask is reached only
+// from POST /api/agent/ask, the suggesters and Detect only from the
+// session socket (TestSuggestionsOnlyFromTheSessionSocket).
 func TestOnlyAskCallsAProvider(t *testing.T) {
 	const svc = module + "/internal/agent/service"
 	seen := map[string]int{}
+	senders := map[string]bool{"Service.Ask": true, "modelSuggester.Suggest": true, "Service.Detect": true, "Service.judgeRisks": true, "historySuggester.Suggest": true}
+	loggers := map[string]bool{"Service.send": true, "Service.noteDetect": true, "Service.flushDetect": true}
 	for _, f := range parseModule(t) {
 		if f.test {
 			continue
@@ -342,26 +424,69 @@ func TestOnlyAskCallsAProvider(t *testing.T) {
 						t.Errorf("%s: jev.New called in %q; only service.RealJudge may", f.rel, fn)
 					}
 				case x != nil && x.Name == "providertest" && (sel.Sel.Name == "NewScripted" || sel.Sel.Name == "NewScriptedJudge"):
-					if f.pkg != svc || fn != "FromEnv" {
-						t.Errorf("%s: the test provider is built in %q; only service.FromEnv may", f.rel, fn)
+					if f.rel != fakeWiring || fn != "agentProviders" {
+						t.Errorf("%s: the test provider is built in %q; only agentProviders in %s may", f.rel, fn, fakeWiring)
 					}
-				case sel.Sel.Name == "Generate" && f.pkg == svc:
-					seen["Generate"]++
-					if fn != "Service.Ask" && fn != "scrubbing.Generate" && fn != "modelSuggester.Suggest" {
-						t.Errorf("%s: a provider is called in %q; only Service.Ask and modelSuggester.Suggest may", f.rel, fn)
+				case (sel.Sel.Name == "Generate" || sel.Sel.Name == "Judge") && f.pkg == svc:
+					seen[sel.Sel.Name]++
+					if fn != "Service.send" {
+						t.Errorf("%s: a provider is called (%s) in %q; only Service.send may", f.rel, sel.Sel.Name, fn)
 					}
-				case sel.Sel.Name == "Judge" && f.pkg == svc:
-					seen["Judge"]++
-					if fn != "Service.Detect" && fn != "Service.judgeRisks" && fn != "historySuggester.Suggest" && fn != "scrubbingJudge.Judge" {
-						t.Errorf("%s: a judge is called in %q; only Service.Detect, Service.judgeRisks and historySuggester.Suggest may", f.rel, fn)
+				case sel.Sel.Name == "send" && f.pkg == svc:
+					seen["send"]++
+					if !senders[fn] {
+						t.Errorf("%s: Service.send is called in %q; only %v may", f.rel, fn, senders)
+					}
+				case sel.Sel.Name == "Sent" && inAgentTree(f.pkg):
+					seen["Sent"]++
+					if f.pkg != svc || !loggers[fn] {
+						t.Errorf("%s: the egress entry is written in %q; only Service.send (and the detection window it logs through) may", f.rel, fn)
 					}
 				}
 				return true
 			})
 		}
 	}
-	if seen["gemini.New"] != 1 || seen["anthropic.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 4 || seen["Judge"] != 4 {
-		t.Errorf("calls found: %v; want gemini.New, anthropic.New and jev.New once, Generate 4 times (Ask twice: the question and the notebook read rounds; modelSuggester, scrubbing) and Judge 4 times (Detect, judgeRisks, historySuggester, scrubbing)", seen)
+	if seen["gemini.New"] != 1 || seen["anthropic.New"] != 1 || seen["jev.New"] != 1 || seen["Generate"] != 1 || seen["Judge"] != 1 || seen["send"] != len(senders) || seen["Sent"] != len(loggers) {
+		t.Errorf("calls found: %v; want gemini.New, anthropic.New and jev.New once, Generate and Judge once each (Service.send), send %d times (one in each of %v) and Sent %d times", seen, len(senders), senders, len(loggers))
+	}
+}
+
+// §6 rule 7: nothing in the agent tree writes keel.log but the Auditor,
+// through gate (an entry for something about to happen: refused when it
+// cannot be written) and note (something that happened: owed until it is
+// written).
+func TestOnlyTheAuditorWritesTheLog(t *testing.T) {
+	appends := 0
+	for _, f := range parseModule(t) {
+		if f.test || !inAgentTree(f.pkg) {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			fn := funcName(fd)
+			ast.Inspect(fd, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "Append" {
+					return true
+				}
+				appends++
+				if f.pkg != module+"/internal/agent" || (fn != "Auditor.gate" && fn != "Auditor.flushLocked") {
+					t.Errorf("%s: keel.log is written in %q; only Auditor.gate and Auditor.flushLocked may", f.rel, fn)
+				}
+				return true
+			})
+		}
+	}
+	if appends != 2 {
+		t.Errorf("Append called %d times in the agent tree, want 2", appends)
 	}
 }
 
@@ -484,6 +609,72 @@ func TestAgentReadsOnlyAgentUsableSnippets(t *testing.T) {
 	}
 }
 
+// §6 rules 5 and 9: no proposal exists without its rating, its ⇧ rule and
+// its placeholder scan. In the agent service a Proposal is filled in only
+// by newProposal (a new one), expiredView (a saved one, shown) and
+// fillProposal (a group run's step with its values in); the bytes Type
+// sends are made only by Proposal.seal; and the ⇧ rule is computed only
+// there, in the one gate (authorize) and for in-pane suggestions.
+func TestProposalsAreSealedInOnePlace(t *testing.T) {
+	const svc = module + "/internal/agent/service"
+	literals := map[string]bool{"Service.newProposal": true, "Service.expiredView": true, "Service.fillProposal": true}
+	shift := map[string]bool{"Proposal.seal": true, "Service.authorize": true, "codeRatings": true, "RiskCheck.run": true}
+	seals := 0
+	for _, f := range parseModule(t) {
+		if f.test || f.pkg != svc {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			fn := funcName(fd)
+			ast.Inspect(fd, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.CompositeLit:
+					if id, ok := n.Type.(*ast.Ident); ok && id.Name == "Proposal" && len(n.Elts) > 0 && !literals[fn] {
+						t.Errorf("%s: a Proposal is filled in by hand in %s", f.rel, fn)
+					}
+				case *ast.CallExpr:
+					switch fun := n.Fun.(type) {
+					case *ast.Ident:
+						if fun.Name == "typedBytes" && fn != "Proposal.seal" {
+							t.Errorf("%s: typedBytes called in %s; only Proposal.seal may", f.rel, fn)
+						}
+					case *ast.SelectorExpr:
+						if fun.Sel.Name == "NeedsShift" && !shift[fn] {
+							t.Errorf("%s: the ⇧ rule is computed in %s", f.rel, fn)
+						}
+						if fun.Sel.Name == "seal" {
+							seals++
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+	if seals < 4 {
+		t.Errorf("Proposal.seal called %d times; the check is out of date", seals)
+	}
+}
+
+// funcName is a function's name, "Type.Method" for a method.
+func funcName(fd *ast.FuncDecl) string {
+	fn := fd.Name.Name
+	if fd.Recv != nil && len(fd.Recv.List) > 0 {
+		typ := fd.Recv.List[0].Type
+		if star, ok := typ.(*ast.StarExpr); ok {
+			typ = star.X
+		}
+		if id, ok := typ.(*ast.Ident); ok {
+			fn = id.Name + "." + fn
+		}
+	}
+	return fn
+}
+
 // The Gemini, Anthropic and Jev endpoints appear in no source but their
 // client packages, so no other code can talk to them directly.
 func TestProviderEndpointsOnlyInClients(t *testing.T) {
@@ -555,11 +746,13 @@ func TestAgentNeverUsesHTTPScrollback(t *testing.T) {
 
 // The agent core, redaction and provider interface packages open no
 // network connection; only a client package (provider/gemini,
-// provider/anthropic, provider/jev) may.
+// provider/anthropic, provider/jev) and the HTTP core they share
+// (provider/transport, which only they import and which names no
+// endpoint) may.
 func TestAgentCoreHasNoNetwork(t *testing.T) {
 	net := map[string]bool{"net": true, "net/http": true, "net/rpc": true, "net/smtp": true, "crypto/tls": true, "net/http/httputil": true}
 	for _, f := range parseModule(t) {
-		if f.test || !inAgentTree(f.pkg) || isClientPkg(f.pkg) {
+		if f.test || !inAgentTree(f.pkg) || isClientPkg(f.pkg) || f.pkg == transportPkg {
 			continue
 		}
 		for _, p := range imports(f) {

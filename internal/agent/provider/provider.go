@@ -3,14 +3,16 @@
 // A Provider takes only redacted text (redact.Safe), so terminal output
 // cannot reach one without going through internal/agent/redact first. Real
 // clients live in their own sub-packages (provider/gemini,
-// provider/anthropic) and are built only by the agent service in phase 6b,
-// on a user action; in phase 6a no code outside tests builds or calls one
-// (see egress_test.go).
+// provider/anthropic, provider/jev, over provider/transport) and are built
+// only by the agent service, on a user action
+// (internal/agent/invariants_test.go).
 package provider
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"keel/internal/agent/redact"
 )
@@ -86,6 +88,16 @@ var (
 	ErrUnknown = errors.New("provider: unknown provider")
 )
 
+// ScrubKey removes a provider key from a message, in case a transport or
+// a server ever echoes it. It is the one scrub: the clients' transport and
+// the agent service both use it.
+func ScrubKey(msg, key string) string {
+	if key == "" {
+		return msg
+	}
+	return strings.ReplaceAll(msg, key, "[key]")
+}
+
 // Kind tells the settings page what a provider is for.
 type Kind string
 
@@ -114,6 +126,10 @@ type Descriptor struct {
 	// Warning is shown next to the key field before the user connects.
 	Warning  string `json:"warning,omitempty"`
 	TermsURL string `json:"termsUrl,omitempty"`
+	// noMinimal lists the provider's models that do not take
+	// ThinkingMinimal: their lowest level is ThinkingLow (Thinking).
+	// "*" means every model of the provider.
+	noMinimal []string
 }
 
 // GeminiWarning is worded with care: it states what Google's terms allow,
@@ -142,6 +158,10 @@ var descriptors = []Descriptor{
 		SuggestThinking: ThinkingMinimal,
 		Warning:         GeminiWarning,
 		TermsURL:        "https://ai.google.dev/gemini-api/terms",
+		// The models that reject the MINIMAL thinking level
+		// (https://ai.google.dev/gemini-api/docs/thinking), listed or not:
+		// the settings may still name an older one.
+		noMinimal: []string{"gemini-3.8-flash", "gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"},
 	},
 	{
 		ID:           "anthropic",
@@ -157,6 +177,9 @@ var descriptors = []Descriptor{
 		SuggestModel:    "claude-haiku-5-5",
 		SuggestThinking: ThinkingLow,
 		TermsURL:        "https://www.anthropic.com/legal/commercial-terms",
+		// The current models think adaptively and take an effort (low,
+		// medium, high) as the control for how much: there is no minimal.
+		noMinimal: []string{"*"},
 	},
 	{
 		ID:       "jev",
@@ -164,6 +187,35 @@ var descriptors = []Descriptor{
 		Kind:     KindDetector,
 		KeyLabel: "Jev API key",
 	},
+}
+
+// JevModel is the judge's model. It is pinned, not jev-latest: the
+// thresholds in internal/agent/service/suggestq.go were tuned against it,
+// and an alias moves on a new release.
+const JevModel = "jev-1.13.0"
+
+// Thinking is the thinking level a provider's model is sent for the level
+// asked: "" stays "" (the model's default), and a level the model does not
+// take becomes the nearest it does (ThinkingMinimal becomes ThinkingLow for
+// the models its descriptor lists).
+func Thinking(providerID, model, level string) (string, error) {
+	switch level {
+	case "", ThinkingLow, ThinkingMedium, ThinkingHigh:
+		return level, nil
+	case ThinkingMinimal:
+		for _, d := range descriptors {
+			if d.ID != providerID {
+				continue
+			}
+			for _, m := range d.noMinimal {
+				if m == "*" || m == model {
+					return ThinkingLow, nil
+				}
+			}
+		}
+		return ThinkingMinimal, nil
+	}
+	return "", fmt.Errorf("%s: unknown thinking level %q", providerID, level)
 }
 
 // Descriptors lists the providers Keel knows, model providers first.
@@ -176,7 +228,6 @@ func Descriptors() []Descriptor {
 	return out
 }
 
-// Lookup returns the descriptor for id.
 func Lookup(id string) (Descriptor, bool) {
 	for _, d := range Descriptors() {
 		if d.ID == id {
@@ -202,7 +253,7 @@ func ListedElsewhere(id, model string) bool {
 	return false
 }
 
-// Judge answers typed questions about a state (phase 6c, TypeSafe Jev). It
+// Judge answers typed questions about a state (TypeSafe Jev). It
 // never generates text: each answer is a probability (Noul) or a pick from
 // options the caller wrote (Choice). Like a Provider it takes only
 // redacted text: every state value is Safe, and the questions are

@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// The answer's text, as much of the app's markdown (lib/markdown.js) as a first panel needs: paragraphs, fenced code
+// The answer's text, as much markdown as a first panel needs: paragraphs, fenced code
 // blocks, `inline code` and **bold**. The model's text is shown as text: nothing here fetches an image or opens a link,
 // so a link, a heading, a list or an image is shown as the characters the model wrote (a known gap, docs/native.md).
 
@@ -15,7 +15,7 @@ type mdBlock struct {
 }
 
 // mdBlocks splits an answer into paragraphs (separated by a blank line) and fenced code blocks (``` … ```). An unclosed
-// fence runs to the end, as in the app.
+// fence runs to the end.
 func mdBlocks(s string) (out []mdBlock) {
 	var para []string
 	flush := func() {

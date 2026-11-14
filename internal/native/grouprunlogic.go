@@ -5,15 +5,14 @@ import (
 	"strings"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11): the words and decisions of
-// cmd/keel/web/js/lib/grouprun.js and of fillRows and approveGroups in lib/groupvars.js, pinned there by
-// test/grouprun.test.mjs and test/groupvars.test.mjs and here by grouprunlogic_test.go and grouprun_test.go. Nothing here
+// The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11), pinned by grouprunlogic_test.go and
+// grouprun_test.go. Nothing here
 // talks to keel serve, draws or types. A row of the approve dialog holds bytes keel serve gave (the proposal's, or the
 // fill's); nothing here builds, edits or substitutes into them.
 
-// The words of the page (lib/grouprun.js).
 const (
 	modeHelpRolling  = "Rolling: one host at a time, in order. The first failure stops the step before the next host."
 	modeHelpParallel = "Parallel: every host at once. A failure does not stop the others. Best for read-only steps."
@@ -21,14 +20,14 @@ const (
 )
 
 func modeHelp(mode string) string {
-	if mode == "parallel" {
+	if mode == wire.ModeParallel {
 		return modeHelpParallel
 	}
 	return modeHelpRolling
 }
 
 func modeShort(mode string) string {
-	if mode == "parallel" {
+	if mode == wire.ModeParallel {
 		return "parallel"
 	}
 	return "rolling, one at a time"
@@ -63,48 +62,48 @@ func targetLabel(step keelclient.GroupRunStep) string {
 // cellText is how a host × step shows: its glyph, words and kind of colour (ok, fail, run, wait).
 type cellText struct{ glyph, text, kind, state string }
 
-var cellGlyph = map[string]string{"done": "✓", "failed": "✗", "typed": "◌", "typing": "◌", "proposed": "·", "waiting": "·", "skipped": "–"}
+var cellGlyph = map[string]string{wire.StepDone: "✓", wire.StepFailed: "✗", wire.StepTyped: "◌", wire.StepTyping: "◌", wire.StepProposed: "·", wire.StepWaiting: "·", wire.StepSkipped: "–"}
 
-// cellView never says more than the shell reported (lib/grouprun.js cellView).
+// cellView never says more than the shell reported.
 func cellView(c *keelclient.GroupRunCell) cellText {
 	if c == nil {
 		return cellText{kind: "wait", state: "none"}
 	}
 	text, kind := "", "wait"
 	switch c.State {
-	case "done":
+	case wire.StepDone:
 		kind = "ok"
 		switch {
-		case c.Exit != nil && c.Result == "reported":
+		case c.Exit != nil && c.Result == wire.ResultReported:
 			text = fmt.Sprintf("exit %d", *c.Exit)
-		case c.Result == "user":
+		case c.Result == wire.ResultUser:
 			text = "marked done"
 		default:
 			text = "done"
 		}
-	case "failed":
+	case wire.StepFailed:
 		kind = "fail"
 		text = "failed"
 		if c.Exit != nil {
 			text = fmt.Sprintf("exit %d", *c.Exit)
 		}
-	case "typed":
+	case wire.StepTyped:
 		kind = "run"
 		switch {
 		case c.Confirm:
 			text = "exit 0 · confirm"
-		case c.Result == "unreported":
+		case c.Result == wire.ResultUnreported:
 			text = "no exit status"
-		case c.Result == "abandoned":
+		case c.Result == wire.ResultAbandoned:
 			text = "shell went away"
 		default:
 			text = "running"
 		}
-	case "typing":
+	case wire.StepTyping:
 		kind, text = "run", "typing"
-	case "proposed":
+	case wire.StepProposed:
 		kind, text = "run", "waiting for you"
-	case "skipped":
+	case wire.StepSkipped:
 		text = "skipped"
 	default:
 		text = "waiting"
@@ -133,14 +132,14 @@ func stepSummary(step keelclient.GroupRunStep) string {
 	ok, failed, skipped, idle := 0, 0, 0, 0
 	for _, c := range step.Cells {
 		switch c.State {
-		case "done":
+		case wire.StepDone:
 			ok++
-		case "failed":
+		case wire.StepFailed:
 			failed++
-		case "skipped":
+		case wire.StepSkipped:
 			skipped++
 		}
-		if c.State == "waiting" && c.Proposal == nil {
+		if c.State == wire.StepWaiting && c.Proposal == nil {
 			idle++
 		}
 	}
@@ -161,11 +160,11 @@ func stepSummary(step keelclient.GroupRunStep) string {
 // (paneOpen(sessionID)). Nothing else is ever offered for typing: not a typed, skipped or waiting host, not a stopped run,
 // not a pane that is closed, followed or joined.
 func typeable(run *keelclient.GroupRun, paneOpen func(sessionID string) bool) (out []keelclient.GroupRunCell) {
-	if run == nil || run.Status != "active" || run.Current < 0 || run.Current >= len(run.Steps) {
+	if run == nil || run.Status != wire.RunActive || run.Current < 0 || run.Current >= len(run.Steps) {
 		return nil
 	}
 	for _, c := range run.Steps[run.Current].Cells {
-		if c.State == "proposed" && c.Proposal != nil && paneOpen(c.Proposal.SessionID) {
+		if c.State == wire.StepProposed && c.Proposal != nil && paneOpen(c.Proposal.SessionID) {
 			out = append(out, c)
 		}
 	}
@@ -255,16 +254,6 @@ func typeLabel(rows []*groupRow) string {
 	return "Type into " + countWord(n, "pane", "panes")
 }
 
-// sameBytes reports whether every row types the same bytes.
-func sameBytes(rows []*groupRow) bool {
-	for _, r := range rows {
-		if r.bytes != rows[0].bytes {
-			return false
-		}
-	}
-	return true
-}
-
 // rowGroups splits the rows that can be typed by their bytes: one group when every host types the same, else one per
 // distinct bytes (values captured per host can differ).
 func rowGroups(rows []*groupRow) (n int) {
@@ -308,7 +297,7 @@ func haltLine(run *keelclient.GroupRun) *halt {
 	cells := run.Steps[run.Current].Cells
 	i := -1
 	for k, c := range cells {
-		if c.Host == run.Halted && c.State == "failed" {
+		if c.Host == run.Halted && c.State == wire.StepFailed {
 			i = k
 			break
 		}
@@ -318,7 +307,7 @@ func haltLine(run *keelclient.GroupRun) *halt {
 	if i >= 0 {
 		failed = cells[i]
 		for _, c := range cells[i+1:] {
-			if c.State != "done" && c.State != "skipped" {
+			if c.State != wire.StepDone && c.State != wire.StepSkipped {
 				rest = append(rest, c.Host)
 			}
 		}
@@ -351,10 +340,10 @@ func stepMark(run *keelclient.GroupRun, i int) (mark, state string) {
 	all := len(st.Cells) > 0
 	failed := false
 	for _, c := range st.Cells {
-		if c.State != "done" && c.State != "skipped" {
+		if c.State != wire.StepDone && c.State != wire.StepSkipped {
 			all = false
 		}
-		if c.State == "failed" {
+		if c.State == wire.StepFailed {
 			failed = true
 		}
 	}
@@ -377,9 +366,9 @@ func runStatusLine(run *keelclient.GroupRun) string {
 		return ""
 	}
 	switch run.Status {
-	case "finished":
+	case wire.RunFinished:
 		return "Runbook finished"
-	case "stopped":
+	case wire.RunStopped:
 		return fmt.Sprintf("Runbook stopped at step %d", stoppedAt(run))
 	}
 	return fmt.Sprintf("Runbook · step %d of %d · %s", run.Current+1, len(run.Steps), modeShort(run.Mode))

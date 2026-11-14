@@ -5,7 +5,7 @@
 - **Turning suggestions off takes effect at once** in every open pane, also when it is changed in another window; ⌘Y then says they are off.
 - **⌥1–⌥6 on the New tab page** open the card with the caret in the input too, without typing the Option character.
 - **A disconnected pane** no longer shows the terminal and a blinking caret behind its overlay; the terminal comes back when the session does.
-- **Linux fixes** found by running the window's tests on Ubuntu: the hint after a plain Tab on a destructive suggestion reads "Shift+Tab" (it read "ShiftTab"); the Agent page no longer pushes the Agent panel out of the window beside it; the narrowest sidebar is a little wider so its four labels fit; and the bundled JetBrains Mono and IBM Plex Mono are not used on Linux for now (when registered on Ubuntu their glyph advance did not follow the font size, likely because the glyphs do not come from the font file; cause not yet found), the system monospace is. The window's own tests now run on Linux in CI too.
+- **Linux fixes** found by running the window's tests on Ubuntu: the hint after a plain Tab on a destructive suggestion reads "Shift+Tab" (it read "ShiftTab"); the Agent page no longer pushes the Agent panel out of the window beside it; the narrowest sidebar is a little wider so its four labels fit; and the bundled JetBrains Mono and IBM Plex Mono are not used on Linux for now (see docs/native.md, Linux), the system monospace is. The window's own tests now run on Linux in CI too.
 - **No window shadow.** The Window shadow setting is gone; the window has a thin border instead (macOS).
 
 ## Install
@@ -18,7 +18,7 @@ xattr -dr com.apple.quarantine /Applications/Keel.app
 
 The `keel` command (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Keel.app/Contents/MacOS/Keel`.
 
-**Linux** (x86_64 is `amd64`): the window is Keel's own (not a web view), so there is no WebKitGTK to install; it needs GTK 3, and the package carries `libghostty-vt.so`, the terminal engine, beside the binary. What the desktop itself must provide for a window is MyGo's concern (<https://github.com/egoist/mygo>); Keel's CI does not run on Linux windows, so the Linux build is not checked there.
+**Linux** (x86_64 is `amd64`): the window is Keel's own (not a web view), so there is no WebKitGTK to install; it needs GTK 3, and the package carries `libghostty-vt.so`, the terminal engine, beside the binary. What the desktop itself must provide for a window is MyGo's concern (<https://github.com/egoist/mygo>); Keel's CI runs the window's tests on Ubuntu, but nobody has run the window on a Linux desktop yet, so expect rough edges.
 
 ```bash
 # Debian, Ubuntu: /opt/keel, the `keel` command and a menu entry

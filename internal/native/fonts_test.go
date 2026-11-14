@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -22,45 +21,8 @@ func renderIn(family string) []byte {
 	return tt.Image().Pix
 }
 
-// TestRegisterFontAcceptsWOFF2 is the proof for the font decision: a registered family must render
-// differently from a family that does not exist.
-func TestRegisterFontAcceptsWOFF2(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("fonts", "jetbrains-mono-latin-400-normal.woff2"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = ui.RegisterFont(b, "keel-test-mono-7f3a")
-	t.Logf("RegisterFont(woff2) = %v", err)
-	if !bytes.Equal(renderIn("keel-test-missing-7f3a"), renderIn("keel-test-missing-2b9c")) {
-		t.Fatal("two missing families render differently: the comparison proves nothing")
-	}
-	if bytes.Equal(renderIn("keel-test-mono-7f3a"), renderIn("keel-test-missing-7f3a")) {
-		t.Skip("WOFF2 is not accepted by ui.RegisterFont: the registered family renders as the fallback (RegisterFont error: " + errString(err) + ")")
-	}
-}
-
-func errString(err error) string {
-	if err == nil {
-		return "nil"
-	}
-	return err.Error()
-}
-
-// The embedded fonts are the eight woff2 files the window ships, and their licences sit beside them.
-func TestEmbeddedFontsAreTheShippedSet(t *testing.T) {
-	files, err := fontFiles.ReadDir("fonts")
-	if err != nil {
-		t.Fatal(err)
-	}
-	woff2 := 0
-	for _, f := range files {
-		if strings.HasSuffix(f.Name(), ".woff2") {
-			woff2++
-		}
-	}
-	if woff2 != 8 {
-		t.Fatalf("embedded fonts: %d woff2 files; want 8 (JetBrains Mono and IBM Plex Mono, 400 and 500, latin and latin-ext)", woff2)
-	}
+// The fonts' licences sit beside them.
+func TestFontLicencesShip(t *testing.T) {
 	for _, name := range []string{"OFL-jetbrains-mono.txt", "OFL-ibm-plex-mono.txt"} {
 		if b, _ := os.ReadFile(filepath.Join("fonts", name)); len(b) == 0 {
 			t.Errorf("%s is missing", name)
@@ -71,7 +33,7 @@ func TestEmbeddedFontsAreTheShippedSet(t *testing.T) {
 // Each shipped family, once registered as run.go does, renders differently from a missing family and from the other.
 func TestShippedFamiliesRenderDifferently(t *testing.T) {
 	if runtime.GOOS == "linux" {
-		t.Skip("registerFonts registers nothing on Linux (run.go): on Ubuntu CI a registered JetBrains Mono file gave every glyph an advance of 25 px at 6.5 px, 15 at 13 and 23 at 26 (the system monospace 4, 8, 16), so the advance does not follow the size and the glyphs likely do not come from the file (a missing-glyph box: the runner's FreeType may not decode the woff2); see TestDiagRegisteredFontMetrics and docs/native.md Linux")
+		t.Skip("registerFonts registers nothing on Linux (run.go; docs/native.md, Linux)")
 	}
 	t.Cleanup(func() {
 		if t.Failed() { // issue #140: the widths in the default, the bundled and a missing family (linuxdiag_test.go)

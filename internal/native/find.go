@@ -7,10 +7,9 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Find in the terminal (term.js openFind, runPaneFind, wireFindEl). The bar drives the terminal's own
+// Find in the terminal. The bar drives the terminal's own
 // search, which only highlights and scrolls: nothing is sent to the session.
 
-// termSearch is the terminal's search as the workspace uses it.
 type termSearch struct {
 	start      func(text string) // "" ends the search
 	next, prev func()
@@ -28,7 +27,6 @@ func (w *workspace) openFind(p *pane) {
 	w.findPane, w.findFocus, w.findDone = p, true, ""
 }
 
-// endFind closes the bar and ends the search and its highlights.
 func (w *workspace) endFind() {
 	if p := w.findPane; p != nil && p.search != nil {
 		p.search.start("")
@@ -36,11 +34,11 @@ func (w *workspace) endFind() {
 	w.findPane, w.findDone = nil, ""
 }
 
-// closeFind is endFind that, with refocus, gives the keyboard back to the terminal.
-func (w *workspace) closeFind(refocus bool) {
+// closeFind is endFind that gives the keyboard back to the terminal.
+func (w *workspace) closeFind() {
 	p := w.findPane
 	w.endFind()
-	if refocus && p != nil {
+	if p != nil {
 		w.wantFocus = p.id
 	}
 }
@@ -59,7 +57,7 @@ func (w *workspace) findStep(next bool) {
 	}
 }
 
-// syncFind starts the search when the text changed (the webview searches as you type).
+// syncFind starts the search when the text changed, so it searches as you type.
 func (w *workspace) syncFind() {
 	if p := w.findPane; p != nil && p.search != nil && w.findText != w.findDone {
 		p.search.start(w.findText)
@@ -82,7 +80,6 @@ func (w *workspace) findCount(p *pane) string {
 	return "0"
 }
 
-// findBar is the bar above p's terminal, under its banners.
 func (w *workspace) findBar(c *ui.Context, p *pane) {
 	hairline(ui.Row(c).FillWidth().Height(sizeControl).Shrink(0).Padding(0, space1, 0, space3).Gap(space1_5).
 		Background(w.ground(surface)).Label("find bar"), 0, 0, 1, 0).Children(func() {
@@ -94,7 +91,7 @@ func (w *workspace) findBar(c *ui.Context, p *pane) {
 		in.OnTextKey(func(k ui.TextKey) bool {
 			switch {
 			case k.Key == ui.KeyEscape && k.Mods == 0:
-				w.act(func() { w.closeFind(true) })
+				w.act(func() { w.closeFind() })
 			case k.Key == ui.KeyEnter && k.Mods == 0:
 				w.act(func() { w.findStep(true) })
 			case k.Key == ui.KeyEnter && k.Mods == ui.Shift:
@@ -112,7 +109,7 @@ func (w *workspace) findBar(c *ui.Context, p *pane) {
 			w.act(func() { w.findStep(true) })
 		}
 		if iconBtn(c, "cancel-01", "Close", sizeControlSm, false) {
-			w.act(func() { w.closeFind(true) })
+			w.act(func() { w.closeFind() })
 		}
 	})
 }

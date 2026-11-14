@@ -64,17 +64,17 @@ func TestNewHostDialogHasEveryGroupAndLabel(t *testing.T) {
 		"Treat as production", "Let the agent propose notes", "It asks first. Nothing is saved until you press Save.",
 		"Test connection", "Cancel", "Save host",
 	} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("New host: no %q", s)
 		}
 	}
-	// The notes block is there, and waits for the host to be saved (dialogs.templ notesBlock, data-notes-unsaved).
+	// The notes block is there, and waits for the host to be saved.
 	for _, s := range []string{"Notes for the agent", "Save the host first, then add notes for the agent."} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("New host: no %q", s)
 		}
 	}
-	if r.hasText("Delete host") || r.has("Add a note") {
+	if r.tt.HasText("Delete host") || r.has("Add a note") {
 		t.Error("New host shows Delete host, or a field to add a note to a host that is not saved")
 	}
 	d := r.dlg(t)
@@ -96,7 +96,7 @@ func TestEditHostDialogHasDeleteAndTheSavedValues(t *testing.T) {
 	r.tt.Frame()
 	for _, s := range []string{"Edit host", "Delete host", "Trusted", "ED25519", "SHA256:xyz", "Forget host key",
 		"Saved for 10.0.0.3:2222. Keel refuses a different key until you replace it."} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("Edit host: no %q", s)
 		}
 	}
@@ -113,7 +113,7 @@ func TestEditHostDialogHasDeleteAndTheSavedValues(t *testing.T) {
 	r.w.editHost(testHosts[3])
 	r.tt.Frame()
 	for _, s := range []string{"Delete host", "Test connection", "Startup command", "Jump host", "Host key", "Auto reconnect"} {
-		if r.hasText(s) {
+		if r.tt.HasText(s) {
 			t.Errorf("a local shell shows %q", s)
 		}
 	}
@@ -128,7 +128,7 @@ func TestSaveAsHostFromAPastedCommandPrefillsAndSendsNothing(t *testing.T) {
 	if d.f.name != "10.0.0.5" || d.f.address != "10.0.0.5" || d.f.port != "2222" || d.f.username != "deploy" || d.f.auth != "password" || d.id != "" {
 		t.Fatalf("prefill %v", d.f)
 	}
-	if !r.hasText("Left out (1), not applied") || !r.hasText("-o StrictHostKeyChecking=no") {
+	if !r.tt.HasText("Left out (1), not applied") || !r.tt.HasText("-o StrictHostKeyChecking=no") {
 		t.Error("the dialog does not carry the command's notes")
 	}
 	r.click(t, "Cancel")
@@ -148,6 +148,7 @@ func TestSaveAsHostFromAPastedCommandPrefillsAndSendsNothing(t *testing.T) {
 }
 
 func TestEntryPointsOpenNewHost(t *testing.T) {
+	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	for name, open := range map[string]func(r *rig, t *testing.T){
 		"the sidebar +": func(r *rig, t *testing.T) { // a session tab, so the New tab page's own action is not on screen
 			r.click(t, "host Local Shell")
@@ -202,7 +203,7 @@ func TestHostValidationMessages(t *testing.T) {
 	} {
 		c.set(&r.dlg(t).f)
 		r.click(t, "Save host")
-		if r.w.hostDlg == nil || r.dlg(t).err != c.want || !r.hasText(c.want) {
+		if r.w.hostDlg == nil || r.dlg(t).err != c.want || !r.tt.HasText(c.want) {
 			t.Fatalf("want %q, got %q", c.want, r.w.hostDlg.err)
 		}
 	}
@@ -224,7 +225,7 @@ func TestServerRefusalStaysInTheDialog(t *testing.T) {
 	d.f.name, d.f.address, d.f.username, d.f.password = "x", "a", "u", typedPass
 	r.fb.saveErr = &keelclient.StatusError{Code: 400, Msg: "one hop only"}
 	r.click(t, "Save host")
-	if r.w.hostDlg == nil || !r.hasText("one hop only") {
+	if r.w.hostDlg == nil || !r.tt.HasText("one hop only") {
 		t.Fatal("the server's reason is not shown in the dialog")
 	}
 	if d.f.password != "" {
@@ -256,7 +257,7 @@ func TestSaveSendsTheExpectedBodies(t *testing.T) {
 		got.Port != 2200 || got.KeepAliveSec != 30 || got.NoAutoReconnect || got.JumpHost != "h-api" || got.GroupID != "g2" {
 		t.Fatalf("body %v", got)
 	}
-	if r.w.hostDlg != nil || !r.hasText("web-1") {
+	if r.w.hostDlg != nil || !r.tt.HasText("web-1") {
 		t.Error("the dialog stayed open, or the new host is not in the tree")
 	}
 	if !slices.Contains(r.fb.calls, "hosts") {
@@ -372,8 +373,8 @@ func TestEachTestOutcomeRendersItsText(t *testing.T) {
 		d.f.name, d.f.address, d.f.username, d.f.password = "x", "a", "u", typedPass
 		r.click(t, "Test connection")
 		r.tt.Frame()
-		if !r.hasText(c.short) || (c.extra != "" && !r.hasText(c.extra)) {
-			t.Errorf("%s: short %q shown %v, detail shown %v", c.res.Kind, c.short, r.hasText(c.short), r.hasText(c.extra))
+		if !r.tt.HasText(c.short) || (c.extra != "" && !r.tt.HasText(c.extra)) {
+			t.Errorf("%s: short %q shown %v, detail shown %v", c.res.Kind, c.short, r.tt.HasText(c.short), r.tt.HasText(c.extra))
 		}
 		if len(r.fb.tests) != 1 || r.fb.tests[0].Password != typedPass || r.fb.tests[0].Address != "a" {
 			t.Errorf("%s: the test did not send the dialog's values", c.res.Kind)
@@ -385,7 +386,7 @@ func TestEachTestOutcomeRendersItsText(t *testing.T) {
 		if got := r.has("Trust and save") || r.has("Replace saved key"); got != offered {
 			t.Errorf("%s: trust button shown %v, want %v", c.res.Kind, got, offered)
 		}
-		if offered && !r.hasText(fingerprintText(c.res)) {
+		if offered && !r.tt.HasText(fingerprintText(c.res)) {
 			t.Errorf("%s: no fingerprint line %q", c.res.Kind, fingerprintText(c.res))
 		}
 	}
@@ -407,7 +408,7 @@ func TestTrustFromATestResultSendsTheOfferAndTestsAgain(t *testing.T) {
 	if len(r.fb.trusted) != 0 {
 		t.Fatal("the test trusted the key on its own")
 	}
-	r.settleNoTrust(t)
+	r.tt.Frame()
 	r.click(t, "Trust and save")
 	if len(r.fb.trusted) != 1 {
 		t.Fatalf("%d trusts", len(r.fb.trusted))
@@ -416,19 +417,11 @@ func TestTrustFromATestResultSendsTheOfferAndTestsAgain(t *testing.T) {
 	if k.Token != "tt-1" || k.Hostname != "10.0.0.9:22" || k.Fingerprint != "SHA256:fp" || r.fb.replaced[0] {
 		t.Fatalf("offer %+v replace %v", k, r.fb.replaced[0])
 	}
-	if len(r.fb.tests) != 2 || !r.hasText("Connected in 7 ms") {
-		t.Fatalf("tests %d, ok shown %v", len(r.fb.tests), r.hasText("Connected in 7 ms"))
+	if len(r.fb.tests) != 2 || !r.tt.HasText("Connected in 7 ms") {
+		t.Fatalf("tests %d, ok shown %v", len(r.fb.tests), r.tt.HasText("Connected in 7 ms"))
 	}
 	if len(r.fb.saved) != 0 {
 		t.Error("Trust and save saved the host")
-	}
-}
-
-func (r *rig) settleNoTrust(t *testing.T) {
-	t.Helper()
-	r.tt.Frame()
-	if len(r.fb.trusted) != 0 {
-		t.Fatal("trusted before the click")
 	}
 }
 
@@ -442,8 +435,8 @@ func TestReplacingAChangedKeyAsksFirst(t *testing.T) {
 	r.click(t, "Test connection")
 	r.tt.Frame()
 	r.click(t, "Replace saved key")
-	if len(r.fb.trusted) != 0 || !r.hasText("Replace host key?") ||
-		!r.hasText("Replace the saved key for h:22 with SHA256:new? Only do this if you know the server was reinstalled.") {
+	if len(r.fb.trusted) != 0 || !r.tt.HasText("Replace host key?") ||
+		!r.tt.HasText("Replace the saved key for h:22 with SHA256:new? Only do this if you know the server was reinstalled.") {
 		t.Fatalf("no confirm, or it already trusted (%d)", len(r.fb.trusted))
 	}
 	r.click(t, "Cancel")
@@ -477,7 +470,7 @@ func TestEditingDropsTheTestResult(t *testing.T) {
 	}
 	d.f.address = "other"
 	r.tt.Frame()
-	if r.has("Trust and save") || r.hasText("Host key unknown") {
+	if r.has("Trust and save") || r.tt.HasText("Host key unknown") {
 		t.Error("the result stayed after the address changed")
 	}
 }
@@ -507,14 +500,14 @@ func TestTestConnectionCanBeCancelled(t *testing.T) {
 	d := r.dlg(t)
 	d.f.name, d.f.address, d.f.username, d.f.password = "x", "a", "u", typedPass
 	r.click(t, "Test connection")
-	if !d.test.running || !r.has("Cancel test") || !r.hasText("Testing…") {
+	if !d.test.running || !r.has("Cancel test") || !r.tt.HasText("Testing…") {
 		t.Fatal("not running")
 	}
 	r.click(t, "Cancel test")
 	run(func() bool { return !d.test.running }, "the test to stop")
 	r.tt.Frame()
-	if !r.hasText("Test cancelled") || !r.has("Test connection") {
-		t.Errorf("cancelled text shown %v", r.hasText("Test cancelled"))
+	if !r.tt.HasText("Test cancelled") || !r.has("Test connection") {
+		t.Errorf("cancelled text shown %v", r.tt.HasText("Test cancelled"))
 	}
 	// Closing the dialog while a test runs cancels it and drops the result.
 	r.fb.testWait = make(chan struct{})
@@ -535,30 +528,30 @@ func TestDeleteHostAsksFirst(t *testing.T) {
 	r.w.editHost(h)
 	r.tt.Frame()
 	r.click(t, "Delete host")
-	if !r.hasText("Remove api-1?") || !r.hasText("Confirm") || len(r.fb.deleted) != 0 {
+	if !r.tt.HasText("Remove api-1?") || !r.tt.HasText("Confirm") || len(r.fb.deleted) != 0 {
 		t.Fatal("no confirm, or it deleted already")
 	}
 	r.click(t, "Cancel")
-	if len(r.fb.deleted) != 0 || r.w.hostDlg == nil || !r.hasText("Edit host") {
+	if len(r.fb.deleted) != 0 || r.w.hostDlg == nil || !r.tt.HasText("Edit host") {
 		t.Fatal("Cancel in the confirm sent a request or lost the host dialog")
 	}
 	r.click(t, "Delete host")
 	r.click(t, "Remove")
-	if !slices.Equal(r.fb.deleted, []string{"h-api"}) || r.w.hostDlg != nil || r.hasText("api-1") {
-		t.Fatalf("deleted %v, dialog open %v, still in the tree %v", r.fb.deleted, r.w.hostDlg != nil, r.hasText("api-1"))
+	if !slices.Equal(r.fb.deleted, []string{"h-api"}) || r.w.hostDlg != nil || r.tt.HasText("api-1") {
+		t.Fatalf("deleted %v, dialog open %v, still in the tree %v", r.fb.deleted, r.w.hostDlg != nil, r.tt.HasText("api-1"))
 	}
 }
 
 func TestDeletedHostKeepsItsOpenSession(t *testing.T) {
 	r := hostRig(t)
 	r.click(t, "host api-1")
-	if len(r.w.tabs) != 1 || r.w.tab().isNew() {
+	if r.w.tabCount() != 1 || r.w.activeTab().isNew() {
 		t.Fatal("no session")
 	}
 	r.w.askDeleteHost(testHosts[1])
 	r.tt.Frame()
 	r.click(t, "Remove")
-	if len(r.w.tabs) != 1 || len(r.fb.killed) != 0 || r.w.focusedPane().host.Name != "api-1" || r.fb.conns[0].closed {
+	if r.w.tabCount() != 1 || len(r.fb.killed) != 0 || r.w.focusedPane().host.Name != "api-1" || r.fb.conns[0].closed {
 		t.Error("deleting the host touched its open session")
 	}
 	// Edit host from that pane's banner says the host is gone.
@@ -575,23 +568,27 @@ func TestForgetHostKeyAsksFirst(t *testing.T) {
 	r.w.editHost(testHosts[1])
 	r.tt.Frame()
 	r.click(t, "Forget host key")
-	if len(r.fb.forgot) != 0 || !r.hasText("Forget host key?") ||
-		!r.hasText("Keel forgets the saved key for api-1 (10.0.0.1:22). The next connect shows the server's key and asks you to trust it again.") {
+	if len(r.fb.forgot) != 0 || !r.tt.HasText("Forget host key?") ||
+		!r.tt.HasText("Keel forgets the saved key for api-1 (10.0.0.1:22). The next connect shows the server's key and asks you to trust it again.") {
 		t.Fatal("no confirm, or it forgot already")
 	}
 	r.click(t, "Cancel")
 	if len(r.fb.forgot) != 0 {
 		t.Fatal("Cancel forgot the key")
 	}
+	r.tt.Frame()
+	if r.w.hostDlg == nil || !r.tt.Focused("Label") {
+		t.Fatal("the host dialog did not take the keyboard back after Cancel")
+	}
 	r.click(t, "Forget host key")
 	r.click(t, "Forget key")
 	r.tt.Frame()
-	if !slices.Equal(r.fb.forgot, []string{"h-api"}) || !r.hasText("Not saved") || r.has("Forget host key") {
+	if !slices.Equal(r.fb.forgot, []string{"h-api"}) || !r.tt.HasText("Not saved") || r.has("Forget host key") {
 		t.Errorf("forgot %v", r.fb.forgot)
 	}
 }
 
-func TestPickersListWhatTheWebviewLists(t *testing.T) {
+func TestPickersListGroupsAndHosts(t *testing.T) {
 	groups := []keelclient.Group{{ID: "g1", Name: "production"}, {ID: "g2", Name: "web", ParentID: "g1"}, {ID: "g3", Name: "alpha"}}
 	var labels []string
 	for _, e := range folderEntries(groups) {

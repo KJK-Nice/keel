@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"keel/internal/wire"
 )
 
 type roomResp struct {
@@ -243,7 +245,7 @@ func TestJoinerCapHoldsForJoinersWaitingOnHost(t *testing.T) {
 	peers := 0
 	_ = host.SetReadDeadline(time.Now().Add(1500 * time.Millisecond))
 	for {
-		var msg envelope
+		var msg wire.Signal
 		if err := host.ReadJSON(&msg); err != nil {
 			break
 		}
@@ -253,6 +255,29 @@ func TestJoinerCapHoldsForJoinersWaitingOnHost(t *testing.T) {
 	}
 	if peers != maxJoiners {
 		t.Fatalf("host saw %d joiners, want the cap of %d", peers, maxJoiners)
+	}
+}
+
+// A joiner that came before the host is released when the host joins, not when its 8 s wait ends.
+func TestJoinerWaitingForHostIsReleasedWhenHostJoins(t *testing.T) {
+	srv := httptest.NewServer(New().Handler())
+	t.Cleanup(srv.Close)
+	_, room := postRoom(t, srv.URL, "")
+	ws := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?room=" + room.ID
+	join, _, err := websocket.DefaultDialer.Dial(ws+"&role=join&name=bob", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { join.Close() })
+	host, _, err := websocket.DefaultDialer.Dial(ws+"&role=host&key="+room.HostKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { host.Close() })
+	_ = host.SetReadDeadline(time.Now().Add(time.Second)) // far under the 8 s wait
+	var msg wire.Signal
+	if err := host.ReadJSON(&msg); err != nil || msg.Type != wire.SignalPeer || msg.Name != "bob" {
+		t.Fatalf("host got %#v, %v; want the waiting joiner's peer notice", msg, err)
 	}
 }
 

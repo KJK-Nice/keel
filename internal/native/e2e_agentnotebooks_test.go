@@ -17,7 +17,7 @@ import (
 )
 
 // Notebooks and the agent against a real keel serve with the fake provider (KEEL_AGENT_PROVIDER=fake, made-up key only; no
-// model is reached). The questions are the ones tests/agent-notebooks.e2e.ts uses: "read / edit / drop the notebook <title in
+// model is reached). The questions are: "read / edit / drop the notebook <title in
 // lower case>" makes the fake read, edit (keel-edit-me becomes keel-edited-by-agent) or propose deleting it, and "write this
 // up" makes it create a notebook (named agentDraftName) with a shell fence. The daemon decides everything; these tests look
 // at the server for every effect.
@@ -118,8 +118,8 @@ func TestE2EAgentNotebookAttach(t *testing.T) {
 	e.shot("TestE2EAgentNotebookAttach-picker")
 	e.click("pick notebook keel-nb-e2e private")
 	e.pump(func() bool { return e.tt.HasText(privateRefused) }, "the reason a private notebook is not attached")
-	if len(e.w.agent.attached) != 0 {
-		t.Fatalf("a private notebook was attached: %v", e.w.agent.attached)
+	if len(e.w.agentState().attached) != 0 {
+		t.Fatalf("a private notebook was attached: %v", e.w.agentState().attached)
 	}
 	e.click("pick notebook keel-nb-e2e attached")
 	e.key(0, ui.KeyEscape)
@@ -182,7 +182,7 @@ func TestE2EAgentCreatesANotebook(t *testing.T) {
 	// In the sidebar and on the page, marked From agent.
 	e.click("Snippets")
 	e.pump(func() bool { return e.hasLabel("sidebar notebook " + agentDraftName) }, "the sidebar row")
-	e.w.openPage("notebooks")
+	e.w.showPage("notebooks")
 	e.pump(func() bool { return e.hasLabel("notebook "+agentDraftName) && e.hasLabel("badge From agent") }, "the page row marked From agent")
 
 	// Open: the banner says the agent wrote it.
@@ -375,8 +375,8 @@ func TestE2EAgentNeverSeesAPrivateNotebook(t *testing.T) {
 	// "Ask the agent about this notebook" does not exist for it; a forced attach is refused by the client.
 	e.w.askAboutNotebook(priv)
 	e.step()
-	if len(e.w.agent.attached) != 0 {
-		t.Fatalf("a private notebook was attached: %v", e.w.agent.attached)
+	if len(e.w.agentState().attached) != 0 {
+		t.Fatalf("a private notebook was attached: %v", e.w.agentState().attached)
 	}
 	e.closeToasts()
 
@@ -396,8 +396,8 @@ func TestE2EAgentNeverSeesAPrivateNotebook(t *testing.T) {
 	if all := e.texts(); strings.Contains(all, marker) || strings.Contains(all, "keel-nb-e2e private") && strings.Contains(all, "Sent notebook keel-nb-e2e private") {
 		t.Fatalf("the private notebook is on screen: %q", all)
 	}
-	if len(e.w.agent.nbProps) != 0 {
-		t.Fatalf("a card about a private notebook: %v", e.w.agent.nbProps)
+	if len(e.w.agentState().nbProps) != 0 {
+		t.Fatalf("a card about a private notebook: %v", e.w.agentState().nbProps)
 	}
 	for _, l := range e.logEntries() {
 		if strings.Contains(l.Message, marker) || strings.HasPrefix(l.Kind, "agent.") && strings.Contains(l.Message, priv) {
@@ -418,7 +418,7 @@ func TestE2ERunbookDraftFromANotebook(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.pump(func() bool { return e.tt.HasText("Local Shell") }, "the host tree")
 	e.apiNotebook("keel-nb-e2e steps", "Intro words.\n\n## Check disk\n\n```sh\ndf -h\n```\n\n## Check load\n\n```sh\nuptime\n```\n")
-	e.w.openPage("runbooks")
+	e.w.showPage("runbooks")
 	e.pump(func() bool { return e.hasLabel("From a notebook…") }, "the Runbooks page")
 	e.click("From a notebook…")
 	e.pump(func() bool { return e.hasLabel("draft from notebook keel-nb-e2e steps") }, "the notebook list")

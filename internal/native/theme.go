@@ -1,13 +1,11 @@
 package native
 
 import (
-	"runtime"
-
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
 
-// Appearance · Theme (term.js themeChoice, setTheme, applyThemeClass; page.templ applyTheme): the choice is system,
+// Appearance · Theme: the choice is system,
 // light or dark, saved in keel-native.json as "theme". system follows the OS appearance and changes with it. The colours
 // of each theme are tokens.go's; everything reads them through the variables useTheme sets.
 
@@ -19,7 +17,7 @@ const (
 
 var themeChoices = [][2]string{{themeSystem, "System"}, {themeLight, "Light"}, {themeDark, "Dark"}}
 
-// validTheme is the choice, or system for anything else (term.js setTheme).
+// validTheme is the choice, or system for anything else.
 func validTheme(s string) string {
 	if s == themeLight || s == themeDark {
 		return s
@@ -27,15 +25,14 @@ func validTheme(s string) string {
 	return themeSystem
 }
 
-// followsNatively reports whether the window takes the theme as its own appearance (the macOS chrome, as
-// internal/desktop/appearance.go does for the webview). Elsewhere a theme that differs from the OS's keeps the window
-// opaque, because the backdrop would show the OS's tint (page.templ applyTheme).
-func followsNatively() bool { return runtime.GOOS == "darwin" }
+// followsNatively reports whether the window takes the theme as its own appearance (the macOS chrome). Elsewhere a theme that differs from the OS's keeps the window
+// opaque, because the backdrop would show the OS's tint.
+func followsNatively() bool { return isMac() }
 
 // resolveTheme runs first in every frame: it reads the OS appearance, works out the theme in use and sets the colour
 // variables. A change gives every terminal its colours and the window its appearance.
 func (w *workspace) resolveTheme(c *ui.Context) {
-	choice := validTheme(w.win.Theme)
+	choice := validTheme(w.prefs.Theme)
 	osDark := c.Theme().Dark
 	if w.themeNative && w.themeSeen && choice != themeSystem {
 		osDark = w.osDark // the window's own appearance is the choice now: the OS's was read before it
@@ -49,7 +46,7 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 		changed, w.termAccent = true, accent
 	}
 	if w.translucentWin { // the grounds' alpha: the opacity, unless the theme cannot match the backdrop
-		w.alpha = alphaFor(w.win.Opacity)
+		w.alpha = alphaFor(w.prefs.Opacity)
 		if w.opaqueForTheme() {
 			w.alpha = 1
 		}
@@ -67,7 +64,7 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 	}
 }
 
-// The system accent (plan 030). MyGo reads it from the desktop (NSColor.controlAccentColor on macOS, the settings portal on
+// The system accent. MyGo reads it from the desktop (NSColor.controlAccentColor on macOS, the settings portal on
 // Linux) and hands it to a frame as Context.Preferences().Accent, and a change of it repaints the next frame; zero means the
 // desktop has none, and the appearance's MyGo accent stands. No cgo and no private API: nothing of Keel's own reads it.
 // accentSet is the family a theme and the views take from it.
@@ -148,7 +145,7 @@ func readableOn(bg ui.Color, candidates ...ui.Color) ui.Color {
 }
 
 // terminalColors is Keel's terminal theme from the colours in use. The cursor is the terminal's text colour (the maintainer's
-// choice, plan 032 section 11) and the text under a block cursor the terminal's background; the selection is the system
+// choice) and the text under a block cursor the terminal's background; the selection is the system
 // accent's, as in a text field. A find match is a neutral tint; the current one is the accent.
 func terminalColors(a accentSet, fg, bg ui.Color, palette [16]ui.Color) *terminal.Theme {
 	return &terminal.Theme{
@@ -168,12 +165,11 @@ func controlBase(dark bool) ui.Color {
 	return ui.LightTheme().Surface
 }
 
-// windowTheme is the one place that builds the MyGo theme for a frame and sets it (plan 030). It starts from MyGo's own light
+// windowTheme is the one place that builds the MyGo theme for a frame and sets it. It starts from MyGo's own light
 // or dark theme, whose radius, spacing, control sizes and focus ring stay, and changes only: the system accent family, the
 // meaning colours MyGo's components use (Danger, Warning, Success are flare, signal and tide), the control fills at the window's
-// control alpha, and the font size (the system font, scaled by Appearance · UI size). The old per-frame globals map as:
-// Background = surface (the page), Surface/SurfaceHover = the control fills, Border = line, Text/TextMuted = ink/inkMuted,
-// Accent = accentFill, Focus = focus, FontSize = uiFontSize. The grounds the window draws itself (w.ground) are chrome, surface
+// control alpha, and the font size (the system font, scaled by Appearance · UI size). Background is surface (the page), Surface/SurfaceHover the control fills, Border line, Text/TextMuted
+// ink/inkMuted, Accent accentFill, Focus focus, FontSize uiFontSize. The grounds the window draws itself (w.ground) are chrome, surface
 // and stage.
 func windowTheme(c *ui.Context, dark bool) {
 	t := ui.LightTheme()
@@ -195,14 +191,14 @@ func (w *workspace) opaqueForTheme() bool {
 	return !w.themeNative && w.dark != w.osDark
 }
 
-// setTheme is term.js setTheme: it keeps the choice and gives the window its appearance.
+// setTheme keeps the choice and gives the window its appearance.
 func (w *workspace) setTheme(choice string) {
 	choice = validTheme(choice)
-	if choice == w.win.Theme {
+	if choice == w.prefs.Theme {
 		return
 	}
-	w.win.Theme = choice
-	w.savePref("theme", choice)
+	w.prefs.Theme = choice
+	w.setPref(keyTheme)
 	if w.appearanceHook != nil {
 		w.appearanceHook(choice)
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"keel/internal/limits"
 )
 
 // Notebooks and who may change them (docs/ui-redesign.md §18, §6 rule 12).
@@ -31,8 +33,8 @@ const NotebookByAgent = "agent"
 const (
 	// MaxNotebookNameBytes and MaxNotebookBytes bound what the agent may
 	// write: the name, and the name and every cell together.
-	MaxNotebookNameBytes = 120
-	MaxNotebookBytes     = 256 * 1024
+	MaxNotebookNameBytes = limits.MaxNotebookNameBytes
+	MaxNotebookBytes     = limits.MaxNotebookBytes
 	// sessionGap: a user save that replaces a version older than this keeps
 	// that version in the history first (one entry per editing session, not
 	// per keystroke).
@@ -125,7 +127,6 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 			}
 			replacedAgent = base != ex.Rev
 		case now.Sub(ex.UpdatedAt) >= sessionGap && !sameNotebookContent(ex, nb):
-			// A new editing session: keep the version it starts from.
 			s.keepVersionLocked(ex, "session", "", now)
 		}
 		nb.CreatedAt = ex.CreatedAt

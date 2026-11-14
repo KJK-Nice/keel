@@ -59,7 +59,7 @@ func (e *win) addSnippet(name, command string) {
 // openApprove waits for the Approve before type dialog.
 func (e *win) waitApprove() {
 	e.t.Helper()
-	e.pump(func() bool { return e.hasLabel("dialog "+approveTitle) && e.w.approve != nil }, "the Approve before type dialog")
+	e.pump(func() bool { return e.hasLabel("dialog "+approveTitle) && e.w.approveOpen() }, "the Approve before type dialog")
 }
 
 func TestE2EApproveBeforeType(t *testing.T) {
@@ -70,7 +70,7 @@ func TestE2EApproveBeforeType(t *testing.T) {
 	// Create the snippet through the Snippets page: the sidebar section, Manage snippets, New snippet.
 	e.click("Snippets")
 	e.click("Manage snippets")
-	e.pump(func() bool { return e.w.pageTab("snippets") != nil && e.w.tab().name() == "Snippets" }, "the Snippets page")
+	e.pump(func() bool { return e.w.pageTab("snippets") != nil && e.w.activeTab().name() == "Snippets" }, "the Snippets page")
 	e.click("New snippet")
 	e.pump(func() bool { return e.hasLabel("dialog New snippet") && e.tt.Focused("Snippet dialog name") }, "the New snippet dialog")
 	e.fillField("Snippet dialog name", "e2e arithmetic")
@@ -100,7 +100,7 @@ func TestE2EApproveBeforeType(t *testing.T) {
 	}
 	// Escape closes it and still nothing is typed.
 	e.key(0, ui.KeyEscape)
-	e.pump(func() bool { return e.w.approve == nil }, "Escape to close the dialog")
+	e.pump(func() bool { return !e.w.approveOpen() }, "Escape to close the dialog")
 	e.settle(300 * time.Millisecond)
 	if strings.Contains(e.scrollback(sid), "snippet-") {
 		t.Fatal("Escape typed")
@@ -110,7 +110,7 @@ func TestE2EApproveBeforeType(t *testing.T) {
 	e.click("Type into pane…")
 	e.waitApprove()
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close after Type")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close after Type")
 	e.waitScrollback(sid, "snippet-42") // the output: the echoed command line has "$((40+2))", never "snippet-42"
 	if !strings.Contains(e.scrollback(sid), "echo snippet-$((40+2))") {
 		t.Error("the command line is not in the scrollback")
@@ -132,7 +132,7 @@ func TestE2ETypeClearsTheLineFirst(t *testing.T) {
 	e.click("sidebar snippet e2e clean")
 	e.waitApprove()
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close")
 	e.waitScrollback(sid, "clean-2")
 	sb := e.scrollback(sid)
 	if strings.Contains(sb, "garbage echo") || strings.Contains(sb, "garbageecho") {
@@ -150,7 +150,7 @@ func TestE2EFollowerCannotType(t *testing.T) {
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
-		return len(b.w.tabs) == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.inWindow("e2e follow")
+		return b.w.tabCount() == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.inWindow("e2e follow")
 	}, "B following with the snippet loaded")
 	b.click("Snippets")
 	b.click("sidebar snippet e2e follow")
@@ -165,7 +165,7 @@ func TestE2EFollowerCannotType(t *testing.T) {
 	if strings.Contains(a.scrollback(sid), "follow-typed") {
 		t.Fatal("a follower typed")
 	}
-	if b.w.approve == nil {
+	if !b.w.approveOpen() {
 		t.Fatal("the dialog closed on a refused Type")
 	}
 
@@ -176,7 +176,7 @@ func TestE2EFollowerCannotType(t *testing.T) {
 	}
 	pumpAll(t, both, func() bool { return b.snap().Role == "driver" && !b.tt.HasText(msgFollowing) }, "B driving")
 	b.click("Type")
-	pumpAll(t, both, func() bool { return b.w.approve == nil }, "the dialog to close")
+	pumpAll(t, both, func() bool { return !b.w.approveOpen() }, "the dialog to close")
 	a.waitScrollback(sid, "follow-typed-42")
 }
 
@@ -202,7 +202,7 @@ func TestE2ESnippetFromPaletteAndSidebar(t *testing.T) {
 		t.Fatal("↵ in the palette typed")
 	}
 	e.click("Cancel")
-	e.pump(func() bool { return e.w.approve == nil }, "Cancel to close")
+	e.pump(func() bool { return !e.w.approveOpen() }, "Cancel to close")
 
 	// The sidebar's Snippets section: a click opens the dialog too.
 	e.click("Snippets")
@@ -213,7 +213,7 @@ func TestE2ESnippetFromPaletteAndSidebar(t *testing.T) {
 		t.Fatal("a sidebar click typed")
 	}
 	e.click("Type")
-	e.pump(func() bool { return e.w.approve == nil }, "the dialog to close")
+	e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close")
 	e.waitScrollback(sid, "palette-42")
 }
 
@@ -243,7 +243,7 @@ func TestE2ESnippetsPageComesBack(t *testing.T) {
 	if s, _ := e.snippetNamed("e2e kept"); s.AgentUsable {
 		t.Fatal("a new snippet may be suggested by the agent")
 	}
-	ed := &e.w.pageTab("snippets").pg.snippets.ed
+	ed := &pageAs[*snippetsPage](e.w.pageTab("snippets")).ed
 	// The save is done when the window's list holds it too: until then the editor re-reads the old text.
 	e.pump(func() bool {
 		s, _ := e.w.snippet(ed.id)
@@ -258,7 +258,7 @@ func TestE2ESnippetsPageComesBack(t *testing.T) {
 
 	e2 := newWin(t, addr, dir, nil)
 	e2.pump(func() bool { return e2.w.pageTab("snippets") != nil && e2.hasLabel("snippet e2e kept") }, "the Snippets tab to come back with the edit")
-	if e2.w.tab().name() != "Snippets" {
-		t.Errorf("the page that was shown is not shown again: %s", e2.w.tab().name())
+	if e2.w.activeTab().name() != "Snippets" {
+		t.Errorf("the page that was shown is not shown again: %s", e2.w.activeTab().name())
 	}
 }

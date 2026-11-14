@@ -6,15 +6,16 @@ import (
 	"time"
 	"unicode"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The pure rules of runbooks (docs/ui-redesign.md §16): the words and states the screens show for a saved runbook, a
-// runbook in use in a conversation and a runbook the agent proposes. They are cmd/keel/web/js/lib/runbooks.js, pinned there
-// by test/runbooks.test.mjs and here by runbookslogic_test.go, without the parts that belong to group runs (§17: roles,
+// runbook in use in a conversation and a runbook the agent proposes (runbookslogic_test.go pins them), without the parts that belong to group runs (§17: roles,
 // "one host only", captures) and to notebooks. Nothing here talks to keel serve, draws or types.
 
-const maxRunbookSteps = 30 // MAX_STEPS
+const maxRunbookSteps = limits.MaxRunbookSteps
 
 type rbSource struct{ label, long string }
 
@@ -66,7 +67,6 @@ func runbookNeedsReview(rb keelclient.Runbook) bool {
 	return rb.Source != "" && rb.Source != "user" && !rb.AgentMayPick
 }
 
-// runbookReviewText is the review banner's words.
 func runbookReviewText(rb keelclient.Runbook) string {
 	var from string
 	switch rb.Source {
@@ -89,7 +89,7 @@ func runbookReviewText(rb keelclient.Runbook) string {
 	}
 	var changes []string
 	for i, s := range rb.Steps {
-		if s.Risk != "" && s.Risk != "readonly" {
+		if changesState(s.Risk) {
 			changes = append(changes, fmt.Sprint(i+1))
 		}
 	}
@@ -126,7 +126,7 @@ func runbookStepsLine(rb keelclient.Runbook) string {
 	for _, s := range rb.Steps {
 		if s.Command != "" {
 			commands++
-			if s.Risk != "" && s.Risk != "readonly" {
+			if changesState(s.Risk) {
 				changes++
 			}
 		}
@@ -146,15 +146,13 @@ func runbookStepsLine(rb keelclient.Runbook) string {
 // runbookStepKind is a step's kind on the page: Check, Read-only, Destructive or Changes (Keel's own rating of the saved
 // command), with the badge colour.
 func runbookStepKind(command, risk string) (label, kind string) {
-	switch {
-	case command == "":
+	if command == "" {
 		return "Check", ""
-	case risk == "readonly":
-		return "Read-only", "tide"
-	case risk == "destructive":
-		return "Destructive", "flare"
 	}
-	return "Changes", "signal"
+	if label, kind = riskBadge(risk); kind == "signal" {
+		label = "Changes"
+	}
+	return label, kind
 }
 
 // filterRunbooks narrows the list by name, Use when, hosts and step titles: every word must be in one of them.
@@ -244,7 +242,6 @@ func cleanLine(text string) string {
 	return strings.Join(strings.FieldsFunc(b.String(), unicode.IsSpace), " ")
 }
 
-// rbEditStep and rbEdit are the editor's state as toRunbookInput reads it.
 type rbEditStep struct {
 	id, title, description, command, expect string
 	role                                    string
@@ -306,23 +303,8 @@ func checkRunbookInput(in keelclient.RunbookInput) string {
 	return checkCaptures(in.Steps)
 }
 
-// validRole is /^[a-z0-9][a-z0-9_.-]{0,31}$/.
-func validRole(r string) bool {
-	if r == "" || len(r) > 32 {
-		return false
-	}
-	for i, c := range r {
-		switch {
-		case c >= 'a' && c <= 'z', c >= '0' && c <= '9':
-		case i > 0 && (c == '_' || c == '.' || c == '-'):
-		default:
-			return false
-		}
-	}
-	return true
-}
+func validRole(r string) bool { return limits.ValidRole(r) }
 
-// addHost adds a folder or tag chip (no duplicates, any case).
 func addHost(hosts []string, text string) []string {
 	t := cleanLine(text)
 	if t == "" {
@@ -336,7 +318,6 @@ func addHost(hosts []string, text string) []string {
 	return append(append([]string{}, hosts...), t)
 }
 
-// moveItem moves item i by delta (-1 up, +1 down), within bounds, in a copy.
 func moveItem[T any](items []T, i, delta int) []T {
 	j := i + delta
 	if i < 0 || i >= len(items) || j < 0 || j >= len(items) {
@@ -349,23 +330,20 @@ func moveItem[T any](items []T, i, delta int) []T {
 
 // ---- a runbook in use in a conversation ----
 
-// currentStep is the first step not done or skipped, or -1.
 func currentStep(run *keelclient.ChatRunbook) int {
 	if run == nil {
 		return -1
 	}
 	for i, s := range run.Steps {
-		if s.State != "done" && s.State != "skipped" {
+		if s.State != wire.StepDone && s.State != wire.StepSkipped {
 			return i
 		}
 	}
 	return -1
 }
 
-// runRow is one row of the progress list: its state for the marks, the mark, and a short note.
 type runRow struct{ state, mark, note string }
 
-// stepRow is runbooks.js stepRow.
 func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 	st := run.Steps[i]
 	cur := currentStep(run)
@@ -374,15 +352,15 @@ func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 		exit = fmt.Sprintf("exit %d", *st.Exit)
 	}
 	reported := ""
-	if st.Result == "reported" {
+	if st.Result == wire.ResultReported {
 		reported = exit + " · reported"
 	}
 	n := fmt.Sprint(i + 1)
 	switch st.State {
-	case "done":
+	case wire.StepDone:
 		note := "done"
 		switch {
-		case st.Result == "user":
+		case st.Result == wire.ResultUser:
 			note = "marked done"
 		case reported != "":
 			note = reported
@@ -391,15 +369,15 @@ func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 			note += " · edited"
 		}
 		return runRow{"done", "✓", note}
-	case "skipped":
+	case wire.StepSkipped:
 		return runRow{"skipped", "–", "skipped"}
-	case "failed":
+	case wire.StepFailed:
 		note := reported
-		if st.Result == "user" {
+		if st.Result == wire.ResultUser {
 			note = "failed"
 		}
 		return runRow{"failed", "✗", note}
-	case "typed":
+	case wire.StepTyped:
 		t := "typed"
 		if st.TypedAt != nil {
 			t = "typed " + stampLabel(*st.TypedAt, now)
@@ -408,15 +386,15 @@ func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 			t += " · edited"
 		}
 		switch {
-		case st.Result == "reported" && st.Exit != nil && *st.Exit == 0:
+		case st.Result == wire.ResultReported && st.Exit != nil && *st.Exit == 0:
 			return runRow{"now", n, "exit 0 · reported — confirm"}
-		case st.Result == "abandoned":
+		case st.Result == wire.ResultAbandoned:
 			return runRow{"now", n, t + " · shell went away"}
-		case st.Result == "unreported":
+		case st.Result == wire.ResultUnreported:
 			return runRow{"now", n, t + " · no exit status"}
 		}
 		return runRow{"now", n, t}
-	case "proposed":
+	case wire.StepProposed:
 		if i == cur {
 			return runRow{"now", n, "proposed"}
 		}
@@ -428,7 +406,6 @@ func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
 	return runRow{"next", n, ""}
 }
 
-// runAction is what the run card offers for the current step (runbooks.js nextAction).
 type runAction struct {
 	kind string // propose | proposed | confirm | waiting | noexit | failed | check | finished | stopped | none
 	step runStepRef
@@ -446,27 +423,27 @@ func nextAction(run *keelclient.ChatRunbook, live func(id string) bool) runActio
 	if run == nil {
 		return runAction{kind: "none"}
 	}
-	if run.Status == "stopped" {
+	if run.Status == wire.RunStopped {
 		return runAction{kind: "stopped"}
 	}
 	i := currentStep(run)
-	if i < 0 || run.Status == "finished" {
+	if i < 0 || run.Status == wire.RunFinished {
 		return runAction{kind: "finished"}
 	}
 	st := run.Steps[i]
 	step := runStepRef{index: i, n: i + 1, of: len(run.Steps), title: st.Title, id: st.ID}
 	switch {
-	case st.State == "failed":
+	case st.State == wire.StepFailed:
 		return runAction{kind: "failed", step: step, exit: st.Exit}
-	case st.State == "typed" && st.Result == "reported" && st.Exit != nil && *st.Exit == 0:
+	case st.State == wire.StepTyped && st.Result == wire.ResultReported && st.Exit != nil && *st.Exit == 0:
 		return runAction{kind: "confirm", step: step}
-	case st.State == "typed" && (st.Result == "abandoned" || st.Result == "unreported"):
+	case st.State == wire.StepTyped && (st.Result == wire.ResultAbandoned || st.Result == wire.ResultUnreported):
 		return runAction{kind: "noexit", step: step}
-	case st.State == "typed":
+	case st.State == wire.StepTyped:
 		return runAction{kind: "waiting", step: step}
 	case st.Command == "":
 		return runAction{kind: "check", step: step}
-	case st.State == "proposed" && live != nil && live(st.ProposalRef):
+	case st.State == wire.StepProposed && live != nil && live(st.ProposalRef):
 		return runAction{kind: "proposed", step: step}
 	}
 	return runAction{kind: "propose", step: step}
@@ -475,18 +452,17 @@ func nextAction(run *keelclient.ChatRunbook, live func(id string) bool) runActio
 // waitingForShell is true while a typed step has no result: the window reads the run again for the exit status the pane's
 // shell reports.
 func waitingForShell(run *keelclient.ChatRunbook) bool {
-	if run == nil || run.Status != "active" {
+	if run == nil || run.Status != wire.RunActive {
 		return false
 	}
 	for _, s := range run.Steps {
-		if s.State == "typed" && s.Result == "" {
+		if s.State == wire.StepTyped && s.Result == "" {
 			return true
 		}
 	}
 	return false
 }
 
-// runWhyLine is the run card's second line.
 func runWhyLine(run *keelclient.ChatRunbook) string {
 	if run.PickedBy == "agent" {
 		if run.Why != "" {
@@ -497,12 +473,10 @@ func runWhyLine(run *keelclient.ChatRunbook) string {
 	return "You picked this runbook."
 }
 
-// continueQuestion is what Propose step N asks the agent.
 func continueQuestion(step runStepRef) string {
 	return fmt.Sprintf("Continue with step %d of %d: %s", step.n, step.of, step.title)
 }
 
-// startQuestion is what starting a runbook asks.
 func startQuestion(name string) string {
 	return "Walk me through the runbook “" + cleanLine(name) + "”."
 }
@@ -524,9 +498,9 @@ func runbookProposalWarning(p keelclient.RunbookProposal) string {
 
 func runbookProposalDone(p keelclient.RunbookProposal) string {
 	switch p.Status {
-	case "saved":
+	case wire.CardSaved:
 		return "Saved to Runbooks. The agent may not pick it until you review it and turn it on."
-	case "dismissed":
+	case wire.CardDismissed:
 		return "Dismissed. Nothing was saved."
 	}
 	return ""

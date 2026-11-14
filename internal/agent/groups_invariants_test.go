@@ -18,24 +18,88 @@ import (
 // command.
 func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 	allowed := map[string][]string{
-		"authorizeGroupType": {"Service.AuthorizeType"},
-		"GroupTypeDoneAt":    {},
-		// §6 rule 13: a type without the dialog goes through the same
-		// checks and the same claim as the approved one; only keel serve's
-		// session socket calls AuthorizeDirect.
+		// The one gate (authorize.go): reached only from the three entry
+		// points keel serve's session socket calls. §6 rule 13: a type
+		// without the dialog goes through the same checks and the same
+		// claim as the approved one.
+		"authorize":       {"Service.AuthorizeType", "Service.AuthorizeDirect", "Service.AuthorizeInsert"},
+		"GroupTypeDoneAt": {},
 		"AuthorizeDirect": {},
-		"groupTypeTarget": {"Service.authorizeGroupType", "Service.AuthorizeDirect"},
-		"claimGroupType":  {"Service.authorizeGroupType", "Service.AuthorizeDirect"},
+		"AuthorizeType":   {},
+		// A group run's host is found, checked and claimed only by the
+		// gate's group subject.
 		"groupProposalLocked": {
-			"Service.groupTypeTarget", "Service.claimGroupType", "Service.GroupTypeDoneAt", "Service.GroupTypeFailed", "Service.fillProposal",
+			"groupSubject.find", "groupSubject.host", "groupSubject.claim", "Service.GroupTypeDoneAt", "Service.GroupTypeFailed", "Service.fillProposal",
 		},
 		// Part 2 (groupvars.go): values are filled in only for the approve
 		// dialog (FillGroupProposals, which writes nothing) and in the
 		// Type gate itself; a step's output is read for a capture only by
 		// runCaptures, called only where a typed host's result comes in.
-		"fillProposal":  {"Service.groupTypeTarget", "Service.FillGroupProposals"},
+		"fillProposal":  {"groupSubject.fill", "Service.FillGroupProposals"},
 		"runCaptures":   {"Service.refreshGroupRun"},
 		"CommandOutput": {"Service.runCaptures"},
+	}
+	// The gate's subjects are built only where a request names one, and
+	// their steps are called only by the gate (and by each other).
+	subjects := map[string]bool{"convSubject": true, "groupSubject": true, "suggestionSubject": true}
+	gateSteps := map[string]bool{"find": true, "fill": true, "host": true, "askJev": true, "claim": true}
+	built, stepped := map[string]int{}, map[string]int{}
+	for _, f := range parseModule(t) {
+		if f.test || f.pkg != module+"/internal/agent/service" {
+			continue
+		}
+		for _, decl := range f.ast.Decls {
+			fd, _ := decl.(*ast.FuncDecl)
+			if fd == nil {
+				continue
+			}
+			recv := ""
+			if fd.Recv != nil && len(fd.Recv.List) > 0 {
+				typ := fd.Recv.List[0].Type
+				if star, ok := typ.(*ast.StarExpr); ok {
+					typ = star.X
+				}
+				if id, ok := typ.(*ast.Ident); ok {
+					recv = id.Name
+				}
+			}
+			ast.Inspect(fd, func(n ast.Node) bool {
+				switch n := n.(type) {
+				case *ast.CompositeLit:
+					if id, ok := n.Type.(*ast.Ident); ok && subjects[id.Name] {
+						built[id.Name]++
+						if where := recv + "." + fd.Name.Name; where != "TypeRequest.subject" && where != "Service.AuthorizeInsert" {
+							t.Errorf("%s: %s built in %s; only TypeRequest.subject and Service.AuthorizeInsert may", f.rel, id.Name, where)
+						}
+					}
+				case *ast.CallExpr:
+					sel, ok := n.Fun.(*ast.SelectorExpr)
+					if !ok || !gateSteps[sel.Sel.Name] {
+						return true
+					}
+					if x, ok := sel.X.(*ast.Ident); ok && (x.Name == "sub" || x.Name == "c" || x.Name == "g" || x.Name == "u") {
+						if fd.Name.Name == "authorize" {
+							stepped[sel.Sel.Name]++
+						}
+						if fd.Name.Name != "authorize" && !subjects[recv] {
+							t.Errorf("%s: a gate step (%s) is called in %s.%s; only Service.authorize may", f.rel, sel.Sel.Name, recv, fd.Name.Name)
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+	// The rule above looks at things that exist: each subject is built and each step is called by the gate.
+	for name := range subjects {
+		if built[name] == 0 {
+			t.Errorf("%s is never built: the check is out of date", name)
+		}
+	}
+	for name := range gateSteps {
+		if stepped[name] == 0 {
+			t.Errorf("the gate never calls %s on its subject: the check is out of date", name)
+		}
 	}
 	seen := map[string]int{}
 	for _, f := range parseModule(t) {
@@ -82,11 +146,12 @@ func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 			})
 		}
 	}
-	for _, name := range []string{"authorizeGroupType", "groupTypeTarget", "claimGroupType", "groupProposalLocked", "fillProposal", "runCaptures", "CommandOutput"} {
+	for _, name := range []string{"authorize", "groupProposalLocked", "fillProposal", "runCaptures", "CommandOutput"} {
 		if seen[name] == 0 {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}
 	}
+	noValueUses(t, allowed, func(f goFile) bool { return inAgentTree(f.pkg) })
 	// A runbook step's proposal is built only in the two places that turn
 	// a saved step into a proposal (and in expiredView, which shows a saved
 	// one that can no longer be typed).

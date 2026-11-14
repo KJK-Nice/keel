@@ -12,7 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notes for the agent on the fake backend: each list and action sends the app's request; a proposal is kept only by its
+// Notes for the agent on the fake backend: each list and action sends its request; a proposal is kept only by its
 // card's Save; Dismiss keeps nothing; Delete all notes asks first; and nothing is written to disk by the client. Every text
 // is made up.
 
@@ -80,10 +80,10 @@ func TestHostNotesInEditHostAddEditDeleteAreSavedAtOnce(t *testing.T) {
 	if !r.tt.HasText("deploys run from /srv/app with make deploy") {
 		t.Error("the edit is not listed")
 	}
-	// Delete asks nothing, as the app does.
+	// Delete asks nothing.
 	r.click(t, "Delete note")
-	if got := r.fb.mem.noteReqs; got[len(got)-1] != "delete n1" || r.w.confirm != nil {
-		t.Fatalf("requests %v, confirm %v", got, r.w.confirm)
+	if got := r.fb.mem.noteReqs; got[len(got)-1] != "delete n1" || r.w.confirmOpen() {
+		t.Fatalf("requests %v, confirm %v", got, r.w.confirmDlg())
 	}
 	if !r.tt.HasText("No notes. Add what the agent should know about this host.") || r.w.hostDlg == nil {
 		t.Error("the list is not empty, or the dialog closed")
@@ -169,10 +169,10 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 	if !r.tt.HasText("2 notes · 30 chars") {
 		t.Error("count")
 	}
-	// Delete all notes asks first, with the app's words; Cancel keeps them.
+	// Delete all notes asks first; Cancel keeps them.
 	r.click(t, "Delete all notes…")
-	r.settleFrames()
-	cf := r.w.confirm
+	r.settle()
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Delete all notes?" || cf.action != "Delete all notes" ||
 		cf.message != "Every host note and every note about you is deleted from the vault. Conversations and the log stay." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
@@ -181,14 +181,14 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 		t.Fatal("it deleted before it asked")
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
-	if r.fb.mem.gone != 0 || r.w.confirm != nil || len(r.fb.mem.notes) != 3 {
+	r.settle()
+	if r.fb.mem.gone != 0 || r.w.confirmOpen() || len(r.fb.mem.notes) != 3 {
 		t.Fatalf("Cancel: deleted %d, notes %d", r.fb.mem.gone, len(r.fb.mem.notes))
 	}
 	r.click(t, "Delete all notes…")
-	r.settleFrames()
-	r.w.confirm.run() // the dialog's action (its button shares its words with the row's)
-	r.settleFrames()
+	r.settle()
+	r.w.confirmDlg().run() // the dialog's action (its button shares its words with the row's)
+	r.settle()
 	if r.fb.mem.gone != 1 || len(r.fb.mem.notes) != 0 || !r.tt.HasText("Notes deleted") {
 		t.Fatalf("deleted %d, notes %v", r.fb.mem.gone, r.fb.mem.notes)
 	}
@@ -334,7 +334,7 @@ func TestNotesAndRunbooksAreNeverWrittenToDisk(t *testing.T) {
 	r.tt.Frame()
 	r.addNoteTo(t, "a host note nobody writes down")
 	r.w.closeHostDialog()
-	r.w.openPage("runbooks")
+	r.w.showPage("runbooks")
 	r.tt.Frame()
 	r.w.newRunbook()
 	r.tt.Frame()

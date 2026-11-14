@@ -10,7 +10,7 @@ import (
 	"keel/internal/paths"
 )
 
-// Plan 029's guards: MyGo's automation plugin (a socket that can type into the app) is linked only with the tag
+// The automation guards: MyGo's automation plugin (a socket that can type into the app) is linked only with the tag
 // keelautomation, no release path passes the tag, and a tagged build refuses real data.
 
 const automationPkg = "github.com/egoist/mygo/plugins/automation"

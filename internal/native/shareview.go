@@ -5,14 +5,15 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"keel/internal/wire"
 )
 
-// The Share controls and popover (§5.6): the words, the order and the rules are lib/share.js sharePopoverHTML and
-// ui/sharepop.js; the prompts are ui/joinprompt.js and ui/sharecontrol.js.
+// The Share controls and popover (§5.6), and the Allow / Deny and control-request prompts.
 
 const (
-	sharePopPx = 400 // .k-share-pop width, min(30.769rem, …)
-	avatarPx   = 26  // .k-avatar 2rem
+	sharePopPx = 400 // width, min(30.769rem, …)
+	avatarPx   = 26  // 2rem
 )
 
 // shareControls is the right of the title bar: the "N watching" badge and the Share button of a session tab.
@@ -22,7 +23,7 @@ func (w *workspace) shareControls(c *ui.Context) {
 		return
 	}
 	st := p.conn.Snapshot()
-	if n := watchingCount(st.Attached); n > 0 { // k-badge--haze k-watching: opens the popover with the people list
+	if n := watchingCount(st.Attached); n > 0 { // opens the popover with the people list
 		b := ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).
 			Background(hazeSoft).Label(fmt.Sprintf("%d watching", n)).Cursor(ui.CursorPointer)
 		b.Children(func() {
@@ -142,7 +143,7 @@ func (w *workspace) shareBody(c *ui.Context, s *sharePop) {
 				ui.Row(c).Height(sizeControlSm).Padding(0, space2).Opacity(disabledAlpha).Disabled(true).Label(name).Children(func() { label(c, name, inkMuted) })
 			} else if textBtn(c, name, btnGhost) {
 				url := s.link.url
-				w.act(func() { c.WriteClipboard(url); s.copied = true })
+				w.act(func() { w.copyQuiet(url); s.copied = true })
 			}
 		})
 		help(c, "Works until you stop sharing or close this pane, 24 hours at most. You are asked before anyone joins; a request you do not answer is turned away after 2 minutes. Peer-to-peer over WebRTC; your loopback API stays private.")
@@ -167,7 +168,7 @@ func (w *workspace) personRow(c *ui.Context, p *pane, r person, s seat, grantOne
 			}
 		})
 		roleChip(c, r.role)
-		if (s.driving || s.owner) && !r.you && r.role != "driver" && !grantOne {
+		if (s.driving || s.owner) && !r.you && r.role != wire.RoleDriver && !grantOne {
 			if textBtnIcon(c, "steering", "Pass control to "+r.name, btnGhost) {
 				w.act(func() { w.passControl(p, r.id) })
 			}
@@ -251,7 +252,7 @@ func (w *workspace) shareFrame(c *ui.Context) {
 	w.syncShare()
 	if s := w.share; s != nil && s.wantCopy {
 		s.wantCopy = false
-		c.WriteClipboard(s.link.url)
+		w.copyQuiet(s.link.url)
 		s.copied = true
 	}
 }

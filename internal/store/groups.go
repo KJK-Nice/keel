@@ -13,15 +13,9 @@ func (s *Store) ListGroups() ([]Group, error) {
 	if s.locked.Load() {
 		return nil, ErrLocked
 	}
-	dirty := s.migrateGroupsLocked()
 	out := make([]Group, len(s.data.Groups))
 	for i, g := range s.data.Groups {
 		out[i] = copyGroup(g, s.groupSubtreeLocked(g.ID), s.data.Hosts)
-	}
-	if dirty {
-		if err := s.saveLocked(); err != nil {
-			return nil, err
-		}
 	}
 	return out, nil
 }
@@ -38,7 +32,6 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 		g.Name = "Folder"
 	}
 	g.ParentID = strings.TrimSpace(g.ParentID)
-	s.migrateGroupsLocked()
 	if err := s.validateNestLocked(g.ID, g.ParentID); err != nil {
 		return Group{}, err
 	}
@@ -163,16 +156,17 @@ func (s *Store) resolveGroupRefLocked(groupID, groupName string) (string, error)
 	return g.ID, nil
 }
 
-// migrateGroupsLocked turns host group names from older files into group
-// IDs, creating groups as needed, and reports whether s.data changed. It does
-// not save: saveLocked releases mu, so the caller saves as its last step.
-func (s *Store) migrateGroupsLocked() bool {
-	if s.data.Groups == nil {
-		s.data.Groups = []Group{}
+// migrateGroups turns host group names (older files, and the first run's
+// own host) into group IDs, creating groups as needed, and reports whether
+// d changed. New runs it once, when the data is loaded: after that a host's
+// group is always an ID.
+func migrateGroups(d *persistData) bool {
+	if d.Groups == nil {
+		d.Groups = []Group{}
 	}
 	byID := map[string]struct{}{}
 	byName := map[string]string{}
-	for _, g := range s.data.Groups {
+	for _, g := range d.Groups {
 		byID[g.ID] = struct{}{}
 		key := strings.ToLower(strings.TrimSpace(g.Name))
 		if key != "" {
@@ -183,7 +177,7 @@ func (s *Store) migrateGroupsLocked() bool {
 	}
 	dirty := false
 	now := time.Now().UTC()
-	for i, h := range s.data.Hosts {
+	for i, h := range d.Hosts {
 		name := strings.TrimSpace(h.Group)
 		if name == "" {
 			continue
@@ -193,17 +187,17 @@ func (s *Store) migrateGroupsLocked() bool {
 		}
 		key := strings.ToLower(name)
 		if id, ok := byName[key]; ok {
-			s.data.Hosts[i].Group = id
+			d.Hosts[i].Group = id
 			dirty = true
 			continue
 		}
 		id := newID()
-		s.data.Groups = append(s.data.Groups, Group{
+		d.Groups = append(d.Groups, Group{
 			ID: id, Name: name, CreatedAt: now, UpdatedAt: now,
 		})
 		byID[id] = struct{}{}
 		byName[key] = id
-		s.data.Hosts[i].Group = id
+		d.Hosts[i].Group = id
 		dirty = true
 	}
 	return dirty
@@ -267,7 +261,6 @@ func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
-	s.migrateGroupsLocked()
 	groupID = strings.TrimSpace(groupID)
 	if groupID != "" {
 		if _, ok := s.groupByIDLocked(groupID); !ok {

@@ -6,6 +6,7 @@ import (
 
 	"keel/internal/agent/redact"
 	"keel/internal/applog"
+	"keel/internal/limits"
 )
 
 // Notebooks (docs/ui-redesign.md §18, §6 rule 12). The agent sees the
@@ -17,16 +18,11 @@ import (
 // a frame. Each read is logged as agent.read with the notebook's id and the
 // byte count, never its name or text.
 
-// EventNotebook is logged for what the agent did to a notebook (created,
-// edited, a delete it proposed) and what the user did with it (undo,
-// confirm, restore): ids and counts only.
-const EventNotebook = "agent.notebook"
-
-// MaxNotebookBytes caps one notebook's text as sent, after redaction. A
+// MaxSentNotebookBytes caps one notebook's text as sent, after redaction. A
 // longer notebook is cut at a line and ends with a marker.
-const MaxNotebookBytes = 32 * 1024
+const MaxSentNotebookBytes = 32 * 1024
 
-const maxNotebookNameBytes = 120
+const maxNotebookNameBytes = limits.MaxNotebookNameBytes
 
 // NotebookExcerpt is one notebook, redacted and framed for one request.
 // Bytes is the size of the notebook text sent (after redaction and the
@@ -69,9 +65,9 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 	text := strings.ReplaceAll(r.Text(body).String(), "\r\n", "\n")
 	total := len(text)
 	truncated := false
-	if len(text) > MaxNotebookBytes {
-		cut := text[:MaxNotebookBytes]
-		if i := strings.LastIndexByte(cut, '\n'); i > MaxNotebookBytes/2 {
+	if len(text) > MaxSentNotebookBytes {
+		cut := text[:MaxSentNotebookBytes]
+		if i := strings.LastIndexByte(cut, '\n'); i > MaxSentNotebookBytes/2 {
 			cut = cut[:i]
 		}
 		for len(cut) > 0 && cut[len(cut)-1]&0xC0 == 0x80 {
@@ -99,7 +95,7 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 	}
 	fmt.Fprintf(&b, "--- end notebook %d ---", n)
 	safe := r.Text(b.String())
-	rep := diff(before, r.Report())
+	rep := Diff(before, r.Report())
 	what := "sent notebook %s (%s) with a question"
 	if rd.Asked {
 		what = "read notebook %s (%s) at its own request"
@@ -108,13 +104,15 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 	if truncated {
 		size = fmt.Sprintf("%d of %d bytes, cut", sent, total)
 	}
-	a.log.Append(applog.Entry{
+	if err := a.gate(applog.Entry{
 		Kind:       EventRead,
 		Message:    "agent " + fmt.Sprintf(what, id, size) + " · " + redactionNote(rep),
 		Bytes:      sent,
 		Redactions: rep.Strings(),
 		Source:     "notebook",
-	})
+	}); err != nil {
+		return NotebookExcerpt{}, err
+	}
 	return NotebookExcerpt{ID: id, Name: safeName, Text: safe, Bytes: sent, Total: total, Truncated: truncated, Report: rep}, nil
 }
 
@@ -163,14 +161,16 @@ func (a *Auditor) NotebookIndex(entries []NotebookIndexEntry, r *redact.Redactor
 	}
 	b.WriteString("--- end notebooks ---")
 	safe := r.Text(b.String())
-	rep := diff(before, r.Report())
-	a.log.Append(applog.Entry{
+	rep := Diff(before, r.Report())
+	if err := a.gate(applog.Entry{
 		Kind:       EventRead,
 		Message:    fmt.Sprintf("agent sent the titles of %d notebooks (not private) with a question (%s) · %s", len(entries), strings.Join(ids, ", "), redactionNote(rep)),
 		Bytes:      len(safe.String()),
 		Redactions: rep.Strings(),
 		Source:     "notebook-index",
-	})
+	}); err != nil {
+		return redact.Static(""), err
+	}
 	return safe, nil
 }
 
@@ -200,7 +200,7 @@ func (a *Auditor) NotebookEvent(what string, ids []string, rep redact.Report) {
 	if len(rep.Counts) > 0 {
 		msg += " · " + redactionNote(rep)
 	}
-	a.log.Append(applog.Entry{
+	_ = a.note(applog.Entry{
 		Kind:       EventNotebook,
 		Message:    msg,
 		Redactions: rep.Strings(),

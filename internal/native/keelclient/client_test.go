@@ -66,7 +66,7 @@ func newFake(t *testing.T) *fake {
 		ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"status","status":"connecting","id":"s1"}`))
 		ws.WriteMessage(websocket.BinaryMessage, []byte("snapshot"))
 		ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"unknown","x":1}`))
-		ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"ready","id":"s1","title":"api","status":"ready"}`))
+		ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"ready","id":"s1","title":"api","status":"ready","driverId":1,"you":{"id":1,"role":"driver"}}`))
 		ws.WriteMessage(websocket.BinaryMessage, []byte("live"))
 		for {
 			typ, d, err := ws.ReadMessage()
@@ -152,7 +152,8 @@ func TestSpawnAndAttachQuery(t *testing.T) {
 	f.mu.Lock()
 	q := f.query
 	f.mu.Unlock()
-	if q["hostId"][0] != "h1" || q["id"] != nil || q["cols"][0] != "80" || q["rows"][0] != "24" || q["name"][0] != "tester" || q["kind"][0] != "web" {
+	if q["hostId"][0] != "h1" || q["id"] != nil || q["cols"][0] != "80" || q["rows"][0] != "24" || q["name"][0] != "tester" || q["kind"] != nil { // no kind: keel serve says a WebSocket is the window
+
 		t.Fatalf("spawn query %v", q)
 	}
 	c, err := f.c.Attach("s9", 100, 30)
@@ -185,12 +186,18 @@ func TestReadOrderAcrossShortReads(t *testing.T) {
 	}
 }
 
+// Keystrokes go out as binary once keel serve has said this client drives; before that (no ready frame read yet) they
+// are dropped, and not counted as a follower's.
 func TestWriteBinary(t *testing.T) {
 	f := newFake(t)
 	c := spawn(t, f)
+	if n, err := c.Write([]byte("early")); n != 5 || err != nil || c.Snapshot().Blocked != 0 {
+		t.Fatalf("a write before the ready frame: %d %v, blocked %d", n, err, c.Snapshot().Blocked)
+	}
+	readN(t, c, len("snapshotlive")) // the ready frame is read on the way: this client drives
 	c.Write([]byte("ls\n"))
 	if fr := <-f.got; fr.typ != websocket.BinaryMessage || string(fr.data) != "ls\n" {
-		t.Fatalf("%v %q", fr.typ, fr.data)
+		t.Fatalf("%v %q: want only the driver's keys, after the ready frame", fr.typ, fr.data)
 	}
 }
 

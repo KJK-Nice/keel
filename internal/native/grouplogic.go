@@ -2,17 +2,17 @@ package native
 
 import (
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/runvars"
+	"keel/internal/wire"
 )
 
-// The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17): the words and decisions
-// of cmd/keel/web/js/lib/grouprun.js (roles) and lib/groupvars.js, pinned there by test/grouprun.test.mjs and
-// test/groupvars.test.mjs and here by grouplogic_test.go. They mirror internal/runvars, which keel serve enforces; these only
+// The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17), pinned by
+// grouplogic_test.go. They mirror internal/runvars, which keel serve enforces; these only
 // shape what the window shows and decide whether a request is worth sending. Nothing here talks to keel serve, draws or
 // types, and nothing here ever holds a variable's value except the one the user is typing.
 
@@ -77,7 +77,7 @@ func groupLine(members []keelclient.GroupMember, hosts []keelclient.Host) string
 	prod := 0
 	for _, m := range members {
 		for _, h := range hosts {
-			if h.ID == m.HostID && h.Production != nil && *h.Production {
+			if h.ID == m.HostID && h.IsProduction() {
 				prod++
 				break
 			}
@@ -93,48 +93,21 @@ func groupLine(members []keelclient.GroupMember, hosts []keelclient.Host) string
 	return strings.Join(parts, " · ")
 }
 
-// ---- group variables (lib/groupvars.js) ----
+// ---- group variables ----
 
-var varNameRE = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,31}$`)
-
-// reservedVarWords are the words Go templates write alone in braces ({{end}}): never variables.
-var reservedVarWords = map[string]bool{"end": true, "else": true, "break": true, "continue": true, "nil": true, "true": true, "false": true}
-
+// The limits and the reference syntax are internal/runvars's.
 const (
-	maxCaptures    = 4
-	maxPattern     = 256
-	maxVarValue    = 256
-	varNameHelp    = "A name is lower-case letters, digits and _, not starting with a digit (for example api_vip)."
-	varValueOneLn  = "A value is one line of visible characters."
-	varValueTooBig = "A value is at most 256 bytes."
+	maxCaptures   = runvars.MaxCapturesPerStep
+	maxPattern    = runvars.MaxPatternBytes
+	maxVarValue   = runvars.MaxGroupValueBytes
+	varNameHelp   = "A name is lower-case letters, digits and _, not starting with a digit (for example api_vip)."
+	varValueOneLn = "A value is one line of visible characters."
 )
 
-// varRefRE is a reference to a variable in a command: {{name}} or {{name|q}}. No space is allowed inside the braces, so Go
-// templates ({{.Names}}) and Jinja ({{ x }}) are never variables.
-var varRefRE = regexp.MustCompile(`\{\{([A-Za-z_][A-Za-z0-9_]{0,31})(\|q)?\}\}`)
-
-// varRef is one reference in a command, with where it is.
-type varRef struct {
-	name       string
-	quoted     bool
-	start, end int
-}
-
-// varRefs lists the variable references in a command, in order.
-func varRefs(cmd string) (out []varRef) {
-	for _, m := range varRefRE.FindAllStringSubmatchIndex(cmd, -1) {
-		name := cmd[m[2]:m[3]]
-		quoted := m[4] >= 0
-		if reservedVarWords[name] && !quoted {
-			continue
-		}
-		out = append(out, varRef{name: name, quoted: quoted, start: m[0], end: m[1]})
-	}
-	return out
-}
+var varValueTooBig = fmt.Sprintf("A value is at most %d bytes.", maxVarValue)
 
 // validVarName is a variable name as keel serve accepts one.
-func validVarName(name string) bool { return varNameRE.MatchString(name) && !reservedVarWords[name] }
+func validVarName(name string) bool { return runvars.ValidName(name) }
 
 // badValueChar: a control, C1, zero-width, bidi, separator or BOM character (keel serve refuses them; runvars.CheckValue).
 func badValueChar(v string) bool {
@@ -168,15 +141,16 @@ type varSeg struct {
 	isName bool // text is "{{name}}" or "{{name|q}}"
 }
 
-// splitVars cuts bytes at every {{name}}: the references are drawn as chips and every other piece as the app's bytes.
+// splitVars cuts bytes at every {{name}}: the references are drawn as chips and every other piece as bytes.
 func splitVars(bytes string) (out []varSeg) {
 	last := 0
-	for _, r := range varRefs(bytes) {
-		if r.start > last {
-			out = append(out, varSeg{text: bytes[last:r.start]})
+	for _, r := range runvars.Refs(bytes) {
+		start, end := r.Span()
+		if start > last {
+			out = append(out, varSeg{text: bytes[last:start]})
 		}
-		out = append(out, varSeg{text: bytes[r.start:r.end], isName: true})
-		last = r.end
+		out = append(out, varSeg{text: bytes[start:end], isName: true})
+		last = end
 	}
 	if last < len(bytes) {
 		out = append(out, varSeg{text: bytes[last:]})
@@ -228,14 +202,14 @@ func usesLine(step keelclient.GroupRunStep, steps []keelclient.GroupRunStep, i i
 }
 
 var captureText = map[string]string{
-	"captured":  "captured",
-	"no-match":  "no match in the output",
-	"blocked":   "not kept: it holds a value from the vault",
-	"refused":   "not kept: a line break, control character or over 512 bytes",
-	"too-short": "not kept: under 3 bytes, too short to keep from the agent",
-	"full":      "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
-	"no-output": "not captured: the shell sent no command marks (OSC 133)",
-	"expired":   "expired",
+	wire.CaptureCaptured: "captured",
+	wire.CaptureNoMatch:  "no match in the output",
+	wire.CaptureBlocked:  "not kept: it holds a value from the vault",
+	wire.CaptureRefused:  "not kept: a line break, control character or over 512 bytes",
+	wire.CaptureTooShort: "not kept: under 3 bytes, too short to keep from the agent",
+	wire.CaptureFull:     "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
+	wire.CaptureNoOutput: "not captured: the shell sent no command marks (OSC 133)",
+	wire.CaptureExpired:  "expired",
 }
 
 // captureMask is what stands where a captured value would: never the value.
@@ -246,7 +220,7 @@ func captureView(cv *keelclient.CaptureView) (mask, text, state string) {
 	if cv == nil {
 		return "", "not captured yet", "waiting"
 	}
-	if cv.State == "captured" {
+	if cv.State == wire.CaptureCaptured {
 		return captureMask, countWord(cv.Bytes, "byte", "bytes"), "captured"
 	}
 	if t, ok := captureText[cv.State]; ok {
@@ -261,7 +235,7 @@ func expiryLine(step keelclient.GroupRunStep) string {
 	for _, c := range step.Cells {
 		for i := range c.Captures {
 			cv := &c.Captures[i]
-			if cv.State != "captured" || cv.ExpiresAt == nil {
+			if cv.State != wire.CaptureCaptured || cv.ExpiresAt == nil {
 				continue
 			}
 			if first == nil || cv.ExpiresAt.Before(*first.ExpiresAt) {
@@ -315,7 +289,7 @@ func checkCaptures(steps []keelclient.RunbookStepInput) string {
 				return fmt.Sprintf("Step %d: a capture's name is lower-case letters, digits and _ (for example join_token).", i+1)
 			case c.Pattern == "":
 				return fmt.Sprintf("Step %d: %s needs a pattern with a group around the value, such as --token\\s+(\\S+).", i+1, c.Name)
-			case utf8.RuneCountInString(c.Pattern) > maxPattern: // JS .length counts UTF-16 units; keel serve checks bytes
+			case utf8.RuneCountInString(c.Pattern) > maxPattern: // keel serve checks bytes
 				return fmt.Sprintf("Step %d: a pattern is at most %d characters.", i+1, maxPattern)
 			case seen[c.Name]:
 				return fmt.Sprintf("Step %d: %s is captured by another step already.", i+1, c.Name)

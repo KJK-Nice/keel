@@ -9,8 +9,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The cases of cmd/keel/web/js/test/onboard.test.mjs that concern the import rules.
-
 const (
 	pathWeb = "/h/.ssh/id_web"
 	pathDB  = "/h/.ssh/id_db"

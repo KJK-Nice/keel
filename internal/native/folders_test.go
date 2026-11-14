@@ -12,11 +12,11 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The rules of cmd/keel/web/js/lib/groups.js, case for case from test/groups.test.mjs, and the folder tree, menus, dialog
+// The folder rules, and the folder tree, menus, dialog
 // and drops of the window.
 
-// infra > db > replicas ; apps (the JS test's forest)
-var jsGroups = []keelclient.Group{
+// infra > db > replicas ; apps (the forest the tests use)
+var testGroups = []keelclient.Group{
 	{ID: "infra", Name: "Infra"},
 	{ID: "db", Name: "db", ParentID: "infra"},
 	{ID: "rep", Name: "Replicas", ParentID: "db"},
@@ -46,26 +46,26 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-func TestFolderRulesDepthsAndAncestry(t *testing.T) { // groups.test.mjs "depths and ancestry"
-	if got := groupDepth(jsGroups, "rep"); got != 3 {
+func TestFolderRulesDepthsAndAncestry(t *testing.T) {
+	if got := groupDepth(testGroups, "rep"); got != 3 {
 		t.Errorf("groupDepth rep = %d", got)
 	}
-	if got := groupDepth(jsGroups, ""); got != 0 {
+	if got := groupDepth(testGroups, ""); got != 0 {
 		t.Errorf("groupDepth of no folder = %d", got)
 	}
-	if got := groupDescendantDepth(jsGroups, "infra"); got != 2 {
+	if got := groupDescendantDepth(testGroups, "infra"); got != 2 {
 		t.Errorf("groupDescendantDepth infra = %d", got)
 	}
-	if !isGroupUnder(jsGroups, "rep", "infra") {
+	if !isGroupUnder(testGroups, "rep", "infra") {
 		t.Error("rep is under infra")
 	}
-	if isGroupUnder(jsGroups, "apps", "infra") {
+	if isGroupUnder(testGroups, "apps", "infra") {
 		t.Error("apps is not under infra")
 	}
-	if got := sortedKeys(subtreeGroupIDs(jsGroups, "db")); !slices.Equal(got, []string{"db", "rep"}) {
+	if got := sortedKeys(subtreeGroupIDs(testGroups, "db")); !slices.Equal(got, []string{"db", "rep"}) {
 		t.Errorf("subtree of db %v", got)
 	}
-	if subtreeGroupIDs(jsGroups, "") != nil {
+	if subtreeGroupIDs(testGroups, "") != nil {
 		t.Error("no root has no subtree")
 	}
 }
@@ -89,7 +89,7 @@ func TestFolderRulesCyclesDoNotHang(t *testing.T) { // "cycles in group data don
 }
 
 func TestFolderRulesSearchMatchesFoldersAboveTheHostAndTags(t *testing.T) { // "search matches group names above the host and tags"
-	if got := hostSearchHay(jsGroups, jsHosts[1]); !strings.Contains(got, "replicas db infra") {
+	if got := hostSearchHay(testGroups, jsHosts[1]); !strings.Contains(got, "replicas db infra") {
 		t.Errorf("hay %q", got)
 	}
 	for _, c := range []struct {
@@ -100,20 +100,20 @@ func TestFolderRulesSearchMatchesFoldersAboveTheHostAndTags(t *testing.T) { // "
 		{"", "postgres", []string{"h1"}},
 		{"", "INFRA", []string{"h1", "h2"}},
 	} {
-		if got := hostIDs(hostsInSubtree(jsGroups, jsHosts, c.focus, c.query)); !slices.Equal(got, c.want) {
+		if got := hostIDs(hostsInSubtree(testGroups, jsHosts, c.focus, c.query)); !slices.Equal(got, c.want) {
 			t.Errorf("hostsInSubtree(%q, %q) = %v, want %v", c.focus, c.query, got, c.want)
 		}
 	}
 }
 
 func TestFolderRulesParentPickerLabelsPathsAndExcludesTheSubtree(t *testing.T) { // "parent picker labels paths and excludes …"
-	got := groupOptionEntries(jsGroups, "db")
+	got := groupOptionEntries(testGroups, "db")
 	want := []pickEntry{{value: "apps", label: "Apps"}, {value: "infra", label: "Infra"}}
 	if !slices.Equal(got, want) {
 		t.Errorf("entries %v, want %v", got, want)
 	}
 	found := false
-	for _, o := range groupOptionEntries(jsGroups, "") {
+	for _, o := range groupOptionEntries(testGroups, "") {
 		found = found || o.label == "Infra / db / Replicas"
 	}
 	if !found {
@@ -137,7 +137,7 @@ func TestFolderRulesTagsAndSubtitles(t *testing.T) { // "tags and subtitles" (pa
 }
 
 func TestFolderRulesRefusals(t *testing.T) {
-	// A folder cannot go under itself or under one of its own, and the nest stops at 8 (term.js drop handler, createGroup).
+	// A folder cannot go under itself or under one of its own, and the nest stops at 8.
 	for _, c := range []struct{ id, dest, want string }{
 		{"infra", "infra", msgGroupCycle},
 		{"infra", "rep", msgGroupCycle},
@@ -145,7 +145,7 @@ func TestFolderRulesRefusals(t *testing.T) {
 		{"rep", "", ""},
 		{"apps", "rep", ""},
 	} {
-		if got := folderMoveRefusal(jsGroups, c.id, c.dest); got != c.want {
+		if got := folderMoveRefusal(testGroups, c.id, c.dest); got != c.want {
 			t.Errorf("move %s -> %q: %q, want %q", c.id, c.dest, got, c.want)
 		}
 	}
@@ -159,7 +159,7 @@ func TestFolderRulesRefusals(t *testing.T) {
 	if folderCreateRefusal(deep, "h") != msgGroupDepth || folderCreateRefusal(deep, "g") != "" || folderCreateRefusal(deep, "zz") != "Group not found" {
 		t.Error("the depth rule of New subgroup is not the app's")
 	}
-	if got := folderMoveRefusal(append(deep, jsGroups...), "infra", "h"); got != msgGroupDepth {
+	if got := folderMoveRefusal(append(deep, testGroups...), "infra", "h"); got != msgGroupDepth {
 		t.Errorf("a move past 8 levels says %q", got)
 	}
 }
@@ -169,7 +169,7 @@ func TestFolderRulesRefusals(t *testing.T) {
 func folderRig(t *testing.T) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.groups = slices.Clone(jsGroups)
+	fb.groups = slices.Clone(testGroups)
 	fb.hosts = append(slices.Clone(jsHosts), keelclient.Host{ID: "h-local", Name: "Local Shell", AuthType: "local"})
 	for i := range fb.hosts {
 		fb.hosts[i].Group = fb.groupName(fb.hosts[i].GroupID)
@@ -218,7 +218,7 @@ func TestSidebarDrawsTheNestedTreeLooseHostsFirst(t *testing.T) {
 	}
 	// Clicking a folder collapses it, and again opens it.
 	r.click(t, "folder Infra")
-	if _, ok := r.tt.Find("host pg-1"); ok || !r.w.collapsed["infra"] {
+	if _, ok := r.tt.Find("host pg-1"); ok || !r.w.prefs.Collapsed["infra"] {
 		t.Error("Infra did not collapse")
 	}
 	r.click(t, "folder Infra")
@@ -227,8 +227,7 @@ func TestSidebarDrawsTheNestedTreeLooseHostsFirst(t *testing.T) {
 	}
 }
 
-// The closed folders are kept across a restart as groupCollapsed in keel-native.json (the app: localStorage
-// keel-group-collapsed); the file's other fields stay as they are.
+// The closed folders are kept across a restart as groupCollapsed in keel-native.json; the file's other fields stay as they are.
 func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	r := folderRig(t)
 	r.w.useDataDir(t, t.TempDir())
@@ -237,11 +236,11 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	}
 	r.click(t, "folder Infra")
 	r.click(t, "folder Apps")
-	if got := loadCollapsed(r.w.dataDir); len(got) != 2 || !got["infra"] || !got["apps"] {
+	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 2 || !got["infra"] || !got["apps"] {
 		t.Fatalf("kept %v", got)
 	}
-	r.click(t, "folder Apps") // opened again: no longer kept
-	if got := loadCollapsed(r.w.dataDir); len(got) != 1 || !got["infra"] {
+	r.click(t, "folder Apps") // opened again: not kept
+	if got := loadPrefs(r.w.dataDir).Collapsed; len(got) != 1 || !got["infra"] {
 		t.Fatalf("kept after opening Apps: %v", got)
 	}
 	if b, _ := os.ReadFile(filepath.Join(r.w.dataDir, "keel-native.json")); !strings.Contains(string(b), `"termSize": 14`) {
@@ -251,7 +250,7 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	fb := r.fb
 	w2 := newRig(t, fb)
 	w2.w.useDataDir(t, r.w.dataDir)
-	w2.w.collapsed = loadCollapsed(w2.w.dataDir) // what start reads
+	w2.w.prefs = loadPrefs(w2.w.dataDir) // what RunWith does
 	w2.tt.Frame()
 	if _, ok := w2.tt.Find("host pg-1"); ok {
 		t.Error("Infra is open again after a restart")
@@ -284,7 +283,7 @@ func TestSidebarFilterReadsFoldersAboveTheHost(t *testing.T) {
 	}
 }
 
-func TestFolderMenuItemsAndOrder(t *testing.T) { // groupRowMenu in rowmenus.templ, for the items whose feature exists here
+func TestFolderMenuItemsAndOrder(t *testing.T) {
 	r := folderRig(t)
 	want := []string{"Roles and runbooks", "Run a runbook…", "New host", "New subgroup", "Edit", "Rename", "Move into…", "Delete"}
 	if got := r.menuOf(t, "folder Infra"); !slices.Equal(got, want) {
@@ -436,7 +435,7 @@ func TestDeleteFolderAsksWithTheAppsWordsAndHostsMoveUp(t *testing.T) {
 	r := folderRig(t)
 	r.menuOf(t, "folder db")
 	r.pick(t, "Delete")
-	if !r.hasText("Remove group db? Hosts and subgroups move up one level.") || !r.hasText("Confirm") || len(r.fb.fold.reqs) != 0 {
+	if !r.tt.HasText("Remove group db? Hosts and subgroups move up one level.") || !r.tt.HasText("Confirm") || len(r.fb.fold.reqs) != 0 {
 		t.Fatalf("no confirm, or a request before it: %v %v", r.tt.Texts(), r.fb.fold.reqs)
 	}
 	r.click(t, "Cancel")
@@ -519,7 +518,7 @@ func TestDraggingAFolderOntoAFolderNestsItAndTheRefusalsAreTheApps(t *testing.T)
 	if want := []string{"put apps Apps infra"}; !slices.Equal(r.fb.fold.reqs, want) {
 		t.Fatalf("requests %v, want %v", r.fb.fold.reqs, want)
 	}
-	// A folder onto its own descendant, and onto itself: the app's words, no request.
+	// A folder onto its own descendant, and onto itself: refused, no request.
 	r.fb.fold.reqs = nil
 	r.drag(t, "folder Infra", "folder Replicas")
 	r.tt.Frame()
@@ -536,4 +535,19 @@ func TestFolderRequestsFailWithTheServersWords(t *testing.T) {
 	if _, ok := r.tt.Find("toast group nest is deeper than 8"); !ok {
 		t.Errorf("no toast: %v", r.tt.Texts())
 	}
+}
+
+// hostsInSubtree is the hosts in focus's subtree (all hosts with no focus) that match query.
+func hostsInSubtree(groups []keelclient.Group, hosts []keelclient.Host, focus, query string) (out []keelclient.Host) {
+	q := strings.ToLower(strings.TrimSpace(query))
+	allow := subtreeGroupIDs(groups, focus)
+	for _, h := range hosts {
+		if allow != nil && !allow[h.GroupID] {
+			continue
+		}
+		if q == "" || strings.Contains(hostSearchHay(groups, h), q) {
+			out = append(out, h)
+		}
+	}
+	return out
 }

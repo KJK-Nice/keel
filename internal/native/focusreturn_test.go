@@ -9,20 +9,20 @@ import (
 	"keel/internal/native/layout"
 )
 
-// Plan 031 step 2, group 7: a confirm opens with the keyboard on Cancel, so ↵ on open asks nothing of the destructive action,
+// A confirm opens with the keyboard on Cancel, so ↵ on open asks nothing of the destructive action,
 // whichever way the confirm was asked; the action is a click, or Tab and ↵.
 func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 	for _, name := range []string{"standalone", "inside the host dialog"} {
 		t.Run(name, func(t *testing.T) {
 			r := approveRig(t)
 			ran := false
-			cf := &hostConfirm{title: "Confirm", message: "Remove x?", action: "Remove", run: func() { ran = true }}
+			cf := &confirmDialog{title: "Confirm", message: "Remove x?", action: "Remove", run: func() { ran = true }}
 			if name == "standalone" {
 				r.w.askConfirm(cf)
 			} else {
 				r.w.newHost()
 				r.tt.Frame()
-				r.w.hostDlg.confirm = cf
+				r.w.askConfirm(cf)
 			}
 			r.tt.Frame()
 			r.tt.Frame()
@@ -36,14 +36,14 @@ func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 			if ran {
 				t.Fatal("↵ on open ran the destructive action")
 			}
-			if r.w.confirm != nil || (r.w.hostDlg != nil && r.w.hostDlg.confirm != nil) {
+			if r.w.confirmOpen() {
 				t.Error("↵ on Cancel did not close the confirm")
 			}
 		})
 	}
 }
 
-// Plan 032 step 4: the same, closing by a button, by a click outside, and by choosing a menu entry that opens nothing.
+// The same, closing by a button, by a click outside, and by choosing a menu entry that opens nothing.
 func TestClosingByButtonClickOrMenuGivesTheKeyboardBackToThePane(t *testing.T) {
 	local := keelclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}
 	for _, c := range []struct {
@@ -95,7 +95,7 @@ func TestClosingByButtonClickOrMenuGivesTheKeyboardBackToThePane(t *testing.T) {
 	})
 }
 
-// Plan 032 step 4: the pane has the keyboard right after a session opens, after a split (the new pane), and after the
+// The pane has the keyboard right after a session opens, after a split (the new pane), and after the
 // sidebar was clicked and then the terminal. (The headless tester does not deliver typed text to a fake session, so the
 // keyboard owner is what can be checked here; text reaching the session needs the real window.)
 func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
@@ -110,11 +110,11 @@ func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
 	})
 	t.Run("after a split", func(t *testing.T) {
 		r := approveRig(t)
-		r.w.act(func() { r.w.split(r.w.tab(), r.w.tab().focused, layout.Row) })
+		r.w.act(func() { r.w.split(r.w.activeTab(), r.w.activeTab().focused, layout.Row) })
 		r.tt.Frame()
 		r.tt.Frame()
 		if len(r.fb.conns) < 2 {
-			t.Skip("the split opened no second session in this rig")
+			t.Fatal("the split opened no second session")
 		}
 		r.tt.Frame()
 		if !r.tt.Focused("body 2") {
@@ -131,7 +131,7 @@ func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
 	})
 }
 
-// Plan 032 step 4, found in a real window: a drag on a sash gave the sash the keyboard and kept it, so the next typing (text
+// Found in a real window: a drag on a sash gave the sash the keyboard and kept it, so the next typing (text
 // goes to the focused element) reached nothing until the terminal was clicked. A pointer drag gives the pane the keyboard back;
 // a sash reached by Tab keeps it for its arrow keys.
 func TestDraggingASashGivesTheKeyboardBackToThePane(t *testing.T) {
@@ -153,7 +153,7 @@ func TestDraggingASashGivesTheKeyboardBackToThePane(t *testing.T) {
 	}
 }
 
-// Plan 031 step 0: whatever opens over a terminal pane (a dialog, a popover, a menu, the palette, a confirm), closing it
+// Whatever opens over a terminal pane (a dialog, a popover, a menu, the palette, a confirm), closing it
 // by Escape gives the keyboard back to the pane that had it. Typing then reaches the terminal, not the page behind it.
 func TestEscapeGivesTheKeyboardBackToThePane(t *testing.T) {
 	local := keelclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}

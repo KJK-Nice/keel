@@ -3,25 +3,32 @@ package keelclient
 import (
 	"regexp"
 	"strings"
+
+	"keel/internal/wire"
 )
 
 // LogLine is one line of a pane's connection log: Kind is "user" (what the user asked for), "work" (a step) or "fail".
 type LogLine struct{ Kind, Text string }
 
-// logMax is lib/workspace.js FAIL_LOG_MAX.
 const logMax = 40
 
 var (
-	logNoise = map[string]bool{"": true, "attached": true, "attaching…": true, "attaching...": true, "joined": true, "left": true,
-		"connected": true, "control passed": true, "took control": true}
+	// logNoise is keel serve's words that are no news (wire.Msg…), in lower case.
+	logNoise = func() map[string]bool {
+		m := map[string]bool{"": true}
+		for _, s := range []string{wire.MsgAttached, wire.MsgAttaching, wire.MsgJoined, wire.MsgLeft, wire.MsgConnected, wire.MsgControlPassed, wire.MsgTookControl} {
+			m[strings.ToLower(s)] = true
+		}
+		return m
+	}()
 	logFail = regexp.MustCompile(`(?i)fail|error|refused|timed out|timeout`)
 )
 
-// recordLog is term.js recordFailStatus and lib/workspace.js logPane: a status frame adds a line to the log. A pane that
+// recordLog: a status frame adds a line to the log. A pane that
 // is ready forgets its log; a pane that starts connecting again after a failure begins a new one; noise (attached, joined,
 // …) and a repeat of the last line add nothing; the last 40 lines are kept. prev is the status before this frame.
-func (s *State) recordLog(prev, status, message string) {
-	if status == "ready" {
+func (s *State) recordLog(prev, status wire.Status, message string) {
+	if status == wire.StatusReady {
 		s.Log = nil
 		return
 	}
@@ -31,14 +38,14 @@ func (s *State) recordLog(prev, status, message string) {
 	}
 	kind := "fail"
 	switch status {
-	case "connecting":
-		if prev == "error" || prev == "exited" { // a reconnect: term.js clears the log when it starts one
+	case wire.StatusConnecting:
+		if prev == wire.StatusError || prev == wire.StatusExited { // a reconnect begins a new log
 			s.Log = nil
 		}
 		if kind = "work"; logFail.MatchString(line) {
 			kind = "fail"
 		}
-	case "exited", "error":
+	case wire.StatusExited, wire.StatusError:
 	default:
 		return
 	}

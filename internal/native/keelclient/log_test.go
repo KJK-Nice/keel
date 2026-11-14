@@ -4,13 +4,15 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"keel/internal/wire"
 )
 
-// The connection log follows term.js recordFailStatus and lib/workspace.js logPane.
 func TestTheConnectionLogKeepsStepsAndFailuresAndDropsNoise(t *testing.T) {
 	var s State
 	steps := []struct {
-		prev, status, msg string
+		prev, status wire.Status
+		msg          string
 	}{
 		{"", "connecting", "Connecting…"},
 		{"connecting", "connecting", "  Connecting…  "}, // a repeat of the last line, whitespace folded

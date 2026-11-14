@@ -2,7 +2,6 @@ package native
 
 import (
 	"math"
-	"runtime"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -34,7 +33,7 @@ func gridFor(family string, size, scale float32) cellGrid {
 		family = "monospace"
 	}
 	f := ui.Font{Family: family, Size: size, Weight: 400}
-	if runtime.GOOS == "darwin" {
+	if isMac() {
 		f.Features = "kern=0" // the plugin turns kerning off on macOS so that each character keeps its cell
 	}
 	adv := float32(0)

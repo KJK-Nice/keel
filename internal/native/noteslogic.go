@@ -7,14 +7,18 @@ import (
 	"unicode"
 	"unicode/utf16"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The pure rules of notes for the agent (docs/ui-redesign.md §15): the words a note and a proposed note carry. They are
-// cmd/keel/web/js/lib/notes.js, pinned there by test/notes.test.mjs and here by noteslogic_test.go. Nothing here talks to
+// pinned by noteslogic_test.go. Nothing here talks to
 // keel serve, draws or types.
 
-const maxNoteBytes = 1000 // MAX_NOTE_BYTES: keel serve's own limit
+const maxNoteBytes = limits.MaxAgentNoteBytes
+
+var noteTooLong = fmt.Sprintf("A note is at most %d bytes.", maxNoteBytes)
 
 // dayLabel is "Oct 12" for a timestamp, "" for none.
 func dayLabel(t time.Time) string {
@@ -52,7 +56,7 @@ func noteSourceLabel(n keelclient.Note) string {
 	return joinNonEmpty(" · ", from, day, state)
 }
 
-// notesCountLabel is the notes list's head: "4 notes · 412 chars". A character counts as JavaScript counts it (UTF-16).
+// notesCountLabel is the notes list's head: "4 notes · 412 chars". A character is a UTF-16 unit, as keel serve counts it.
 func notesCountLabel(notes []keelclient.Note) string {
 	chars := 0
 	for _, n := range notes {
@@ -113,7 +117,7 @@ func userNotesOf(notes []keelclient.Note) (out []keelclient.Note) {
 
 // noteProposalTarget is the badge on a proposed note: whose notes it joins.
 func noteProposalTarget(p keelclient.NoteProposal) string {
-	if p.For == "user" {
+	if p.For == wire.NoteUser {
 		return "Your notes · every host"
 	}
 	return "Host notes · " + orElse(p.Host, "this host")
@@ -132,7 +136,7 @@ func noteProposalSource(p keelclient.NoteProposal) string {
 
 // noteProposalScope says when a saved note would be sent.
 func noteProposalScope(p keelclient.NoteProposal) string {
-	if p.For == "user" {
+	if p.For == wire.NoteUser {
 		return "Sent with questions that read a pane the agent may read"
 	}
 	return "Sent when " + orElse(p.Host, "this host") + " is in scope"
@@ -141,12 +145,12 @@ func noteProposalScope(p keelclient.NoteProposal) string {
 // noteProposalDone is the line a closed proposal leaves.
 func noteProposalDone(p keelclient.NoteProposal) string {
 	switch p.Status {
-	case "saved":
-		if p.For == "user" {
+	case wire.CardSaved:
+		if p.For == wire.NoteUser {
 			return "Saved to your notes"
 		}
 		return "Saved to host notes · " + orElse(p.Host, "")
-	case "dismissed":
+	case wire.CardDismissed:
 		return "Dismissed. Nothing was saved."
 	}
 	return ""
@@ -166,7 +170,7 @@ func noteProposalWarning(p keelclient.NoteProposal) string {
 	switch {
 	case !noteProposalWarn(p):
 		return ""
-	case p.For == "user":
+	case p.For == wire.NoteUser:
 		return "The agent read terminal output for this answer, and this note may come from it, not from you. A note about you is sent with questions on every host the agent may read. Save it only if you would have written it yourself."
 	case p.FromPane:
 		return noteFromPaneWarning
@@ -190,7 +194,7 @@ func noteProposalOrigin(p keelclient.NoteProposal) string {
 	case len(read) == 1:
 		list = read[0]
 	}
-	if p.For == "user" {
+	if p.For == wire.NoteUser {
 		if list == "" {
 			return ""
 		}
@@ -219,7 +223,7 @@ func redactedToast(n int) string {
 	return fmt.Sprintf("%d secret-looking values were replaced before saving.", n)
 }
 
-// savedRedactedToast is the toast after a proposal's Save or a runbook's Save (agentpanel.js saveNote).
+// savedRedactedToast is the toast after a proposal's Save or a runbook's Save.
 func savedRedactedToast(n int) string {
 	switch {
 	case n <= 0:

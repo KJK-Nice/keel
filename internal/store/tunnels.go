@@ -100,11 +100,11 @@ func validateTunnel(tn Tunnel) error {
 		return fmt.Errorf("hostId is required")
 	}
 	switch tn.Kind {
-	case "local", "remote":
+	case TunnelLocal, TunnelRemote:
 		if strings.TrimSpace(tn.DestHost) == "" || tn.DestPort < 1 {
 			return fmt.Errorf("destHost and destPort are required")
 		}
-	case "dynamic":
+	case TunnelDynamic:
 		// The SOCKS5 proxy has no authentication: bound beyond loopback
 		// it would be an open proxy into the remote network.
 		if !IsLoopbackAddr(tn.BindAddr) {
@@ -123,11 +123,14 @@ func validateTunnel(tn Tunnel) error {
 // no authentication, so it would be open to the network.
 var ErrOpenSOCKS = errors.New("a dynamic (SOCKS) tunnel must bind to 127.0.0.1, ::1 or localhost: it has no authentication")
 
-// IsLoopbackAddr reports whether a bind address is loopback-only.
 func IsLoopbackAddr(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
-	ip := net.ParseIP(strings.Trim(host, "[]"))
+	// One bracket pair only: "[[::1]]" is not an address any client sends.
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }

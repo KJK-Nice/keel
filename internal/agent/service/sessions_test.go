@@ -324,7 +324,7 @@ func TestProposeAgain(t *testing.T) {
 	if err := f.svc.AuthorizeType(req); err != nil {
 		t.Fatalf("⇧ Type: %v", err)
 	}
-	f.svc.TypeDone(conv, again.ID)
+	f.svc.TypeDoneAt(conv, again.ID, 0)
 	if n := len(f.logKinds(agent.EventSuggest)); n < 2 {
 		t.Fatalf("agent.suggest entries = %d, want the original and the new one", n)
 	}
@@ -559,7 +559,7 @@ func TestTypeDoneDoesNotWaitForTheSave(t *testing.T) {
 	chats.gate = gate
 	done := make(chan struct{})
 	go func() {
-		f.svc.TypeDone(conv, p.ID)
+		f.svc.TypeDoneAt(conv, p.ID, 0)
 		close(done)
 	}()
 	select {

@@ -34,14 +34,12 @@ func (f *sfix) egress() []applog.Entry {
 	return out
 }
 
-// setPane replaces a pane's scrollback.
 func (f *sfix) setPane(id, host, text string) {
 	f.panes.mu.Lock()
 	defer f.panes.mu.Unlock()
 	f.panes.panes[id] = pane{host: host, text: text}
 }
 
-// historyRequests is the Jev requests that were history picks.
 func (f *sfix) historyRequests() []provider.JudgeRequest {
 	var out []provider.JudgeRequest
 	for _, r := range f.judge.Requests() {
@@ -52,7 +50,6 @@ func (f *sfix) historyRequests() []provider.JudgeRequest {
 	return out
 }
 
-// confident makes the fake Jev sure of candidate key.
 func (f *sfix) confident(key string) {
 	f.judge.Choices["pick"] = provider.ChoiceAnswer{Choice: key, Probabilities: map[string]float64{key: 0.97, historyNone: 0.03}}
 	f.judge.Nouls["exists"] = 0.95
@@ -232,7 +229,7 @@ func TestHistoryRequestShapeOnTheWire(t *testing.T) {
 				answers[id] = map[string]any{"type": "choice", "choice": "readonly", "probabilities": map[string]float64{"readonly": 1}}
 			}
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"model": jev.Model, "answers": answers, "usage": map[string]int{"input_tokens": 100}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": provider.JevModel, "answers": answers, "usage": map[string]int{"input_tokens": 100}})
 	}))
 	defer srv.Close()
 
@@ -260,7 +257,7 @@ func TestHistoryRequestShapeOnTheWire(t *testing.T) {
 		t.Fatalf("%d Jev requests, want the pick and the risk check", len(bodies))
 	}
 	b := bodies[0]
-	if b["model"] != jev.Model {
+	if b["model"] != provider.JevModel {
 		t.Fatalf("model = %v", b["model"])
 	}
 	state := b["state"].(map[string]any)
@@ -673,12 +670,12 @@ func TestAuthorizeInsertRereadsTheRatingBeforeReserving(t *testing.T) {
 	if s.Options[0].NeedsShift {
 		t.Fatalf("code rating already needs ⇧: %+v", s.Options[0])
 	}
-	f.svc.beforeReserve = func() { check.Run(context.Background()) }
+	// The host's flag is read between the snapshot and the reserve.
+	f.st.onListHosts = func() { check.Run(context.Background()) }
 	_, err = f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes})
 	if !errors.Is(err, ErrNeedsShiftJudged) {
 		t.Fatalf("plain ⇥ after a late stricter rating → %v", err)
 	}
-	f.svc.beforeReserve = nil
 	if _, err := f.svc.AuthorizeInsert(InsertRequest{SuggestionID: s.ID, SessionID: "s-web", Role: agent.RoleDriver, Bytes: s.Options[0].Bytes, Shift: true}); err != nil {
 		t.Fatalf("⇧⇥ → %v", err)
 	}

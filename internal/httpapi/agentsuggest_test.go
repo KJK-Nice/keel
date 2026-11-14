@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/agent"
-	"keel/internal/agent/service"
 	"keel/internal/applog"
 	"keel/internal/store"
 )
@@ -265,10 +264,8 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 	// A frozen clock: every call in the bursts below lands in the same
 	// instant, however slow the machine is.
 	frozen := time.Now()
-	suggestNow = func() time.Time { return frozen }
-	// Registered first, so it runs after the fixture's server is closed.
-	t.Cleanup(func() { suggestNow = time.Now })
 	f := newAskFixture(t, true)
+	f.server.now = func() time.Time { return frozen } // before any socket is open
 	f.detectAuto(t)
 	if err := f.st.SetAgentKey("jev", "jev-test-key-0123"); err != nil {
 		t.Fatal(err)
@@ -305,10 +302,11 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 }
 
 // A provider that never answers still gets an answer: keel serve ends the call at its own bound and sends the card's
-// error, so the window is never left loading (plan 036).
+// error, so the window is never left loading.
 func TestSuggestAlwaysAnswersWhenTheModelHangs(t *testing.T) {
-	defer service.SetSuggestTimeoutForTest(300 * time.Millisecond)()
+	askSuggestTimeout = 300 * time.Millisecond
 	f := newAskFixture(t, true)
+	askSuggestTimeout = 0
 	web := f.open(t, f.webID, "ready\n")
 	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
 	defer driver.Close()

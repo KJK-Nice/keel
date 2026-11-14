@@ -8,8 +8,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Test ports of cmd/keel/web/js/test/notebooks.test.mjs: the trace words, attaching, and the card words and actions. (The
-// panel cases of that file, which drive createAgentPanel with a fake DOM, are agentnotebooks_test.go.)
+// The trace words, attaching, and the card words and actions. (The panel cases are agentnotebooks_test.go.)
 
 func TestTheTraceSaysWhichNotebooksWereSentReadOrNotSent(t *testing.T) {
 	for _, c := range []struct {
@@ -126,7 +125,7 @@ func TestCardWordsAndActionsFollowWhatKeelServeDid(t *testing.T) {
 	}
 }
 
-// Every kind and status the service writes has a head, a status line (or none) and the buttons the app's table gives.
+// Every kind and status the service writes has a head, a status line (or none) and its buttons.
 func TestEveryKindAndStatusHasItsHeadStatusAndButtons(t *testing.T) {
 	type row struct {
 		kind, status, head string

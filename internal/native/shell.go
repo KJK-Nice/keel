@@ -3,19 +3,16 @@ package native
 import (
 	_ "embed"
 	"fmt"
-	"runtime"
 	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
 
 	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
 )
 
 // The app shell around the window: the menu bar, the menu bar item (tray) and keeping Keel there when the window is
-// closed. They are internal/desktop/desktop.go and tray.go of the webview app: the same items, labels and chords.
-// Every item runs a workspace function the window already has (as the chord does), and none types into a session.
+// closed. Every item runs a workspace function the window already has (as the chord does), and none types into a session.
 
 //go:embed macos/tray-template.png
 var trayIcon []byte
@@ -25,57 +22,6 @@ type menuEntry struct {
 	label string
 	accel string
 	run   func(w *workspace)
-}
-
-// agentPanelAccel is desktop.go agentPanelAccel: ⌘I on macOS, Ctrl+Shift+I elsewhere (Ctrl+I is Tab in a terminal).
-func agentPanelAccel(goos string) string {
-	if goos == "darwin" {
-		return "CmdOrCtrl+i"
-	}
-	return "Ctrl+Shift+i"
-}
-
-// fileMenu is desktop.go fileMenu. Find Host, Split Notebook and Stop Keel runtime are there too; Close Window is the
-// shell's own (hide or quit), not a workspace action, so it is added by shell.menu.
-func fileMenu() []menuEntry {
-	return []menuEntry{
-		{"New Tab", "CmdOrCtrl+t", (*workspace).newTabKey},
-		{"Close Tab", "CmdOrCtrl+w", (*workspace).closeFocused},
-		{"Reopen Tab", "CmdOrCtrl+Shift+t", (*workspace).reopenClosed},
-		{},
-		{"New Host", "CmdOrCtrl+n", (*workspace).newItem},
-		{"Quick Connect", "CmdOrCtrl+Shift+o", func(w *workspace) { w.openQuick("", nil) }},
-		{"Join Session", "CmdOrCtrl+j", (*workspace).openJoin},
-		{},
-		{"Split Right", "CmdOrCtrl+Shift+d", func(w *workspace) { w.splitFocused(layout.Row) }},
-		{"Split Down", "CmdOrCtrl+Shift+e", func(w *workspace) { w.splitFocused(layout.Col) }},
-		{"Split Notebook", "", (*workspace).splitNotebook},
-	}
-}
-
-// stopRuntimeEntry is File → Stop Keel runtime, after Close Window.
-var stopRuntimeEntry = menuEntry{"Stop Keel runtime", "", (*workspace).askStopRuntime}
-
-// viewMenu is desktop.go viewMenu.
-func viewMenu(goos string) []menuEntry {
-	return []menuEntry{
-		{"Find in Terminal", "CmdOrCtrl+f", func(w *workspace) { w.openFind(w.focusedPane()) }},
-		{"Toggle Vault Sidebar", "CmdOrCtrl+b", (*workspace).toggleSidebar},
-		{"Toggle Agent Panel", agentPanelAccel(goos), (*workspace).toggleAgent},
-		{},
-		{"Focus View", "CmdOrCtrl+Shift+enter", (*workspace).zoomFocused},
-		{},
-		{"Zoom In", "CmdOrCtrl+=", func(w *workspace) { w.setTermSize(w.termSize + 1) }},
-		{"Zoom Out", "CmdOrCtrl+-", func(w *workspace) { w.setTermSize(w.termSize - 1) }},
-		{"Actual Size", "CmdOrCtrl+0", func(w *workspace) { w.setTermSize(termSizeDefault) }},
-	}
-}
-
-// toggleSidebar is ⌘B: no toggle in a joined tab.
-func (w *workspace) toggleSidebar() {
-	if !w.joinedActive() {
-		w.sidebar = !w.sidebar
-	}
 }
 
 // shell is the menu bar, the tray and the keep-in-menu-bar behaviour of one window.
@@ -90,7 +36,7 @@ type shell struct {
 	claude   *mygo.MenuItem
 }
 
-// Tray labels (desktop/tray.go).
+// Tray labels.
 const (
 	trayShow       = "Show Keel"
 	trayHide       = "Hide Keel"
@@ -103,9 +49,6 @@ const (
 	// window's own poll, pollEvery, is what notices a locked vault). Showing or hiding the window refreshes it at once.
 	trayRefresh = 20 * time.Second
 )
-
-// menuBarItem is desktop.menuBarItem: Keel lives in the menu bar on macOS.
-func menuBarItem(goos string) bool { return goos == "darwin" }
 
 // statusLabel is desktop.statusLabel.
 func statusLabel(running, locked bool, sessions int) string {
@@ -139,22 +82,22 @@ func (s *shell) items(entries []menuEntry) []*mygo.MenuItem {
 	return out
 }
 
-// menu is desktop.go appMenu: the app menu, File, View and the Window menu. No Edit menu: its ⌘C and ⌘V would
+// menu is the app menu, File, View and the Window menu. No Edit menu: its ⌘C and ⌘V would
 // take the keys from the terminal's own copy and paste (the editing roles are for a page's text).
 func (s *shell) menu() *mygo.Menu {
-	file := s.items(fileMenu())
+	file := s.items(menuEntries("File"))
 	file = append(file, mygo.Separator(),
 		&mygo.MenuItem{Label: "Close Window", Accelerator: "CmdOrCtrl+Shift+w", Click: func(*mygo.MenuItem, *mygo.Window) { s.closeWindow() }})
-	file = append(file, s.items([]menuEntry{stopRuntimeEntry})...)
+	file = append(file, s.items(menuEntries("Stop"))...)
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: file},
-		{Label: "View", Submenu: s.items(viewMenu(runtime.GOOS))},
+		{Label: "View", Submenu: s.items(menuEntries("View"))},
 		{Role: mygo.RoleWindowMenu},
 	})
 }
 
-// closeWindow is File → Close Window: it hides the window in the menu bar, else quits (desktop.go actionQuit).
+// closeWindow is File → Close Window: it hides the window in the menu bar, else quits.
 func (s *shell) closeWindow() {
 	if s.menuBar {
 		s.hide()
@@ -176,10 +119,10 @@ func (s *shell) show() {
 	s.refreshTray()
 }
 
-// start installs the menu bar, and on macOS the menu bar item and keep-in-menu-bar. Called when the app is ready.
+// start installs the menu bar, and on macOS the menu bar item and keep-in-menu-bar.
 func (s *shell) start() {
 	mygo.App.SetMenu(s.menu())
-	s.menuBar = menuBarItem(runtime.GOOS)
+	s.menuBar = isMac() // Keel lives in the menu bar on macOS
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { s.quitting.Store(true) })
 	if !s.menuBar {
 		return

@@ -16,7 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/applog"
-	"keel/internal/inject"
+	"keel/internal/authtoken"
 	"keel/internal/runtime"
 	"keel/internal/session"
 	"keel/internal/store"
@@ -53,8 +53,7 @@ func (f *fakeBridge) Close() error {
 func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,9 +61,22 @@ func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store,
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return fb, nil
 	})
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 	return srv, rt, st, fb
+}
+
+// openHandler is the server's handler for tests that are not about the
+// token: the server holds testToken, and a request that carries no token is
+// given it, as the window gives it to every request.
+func (s *Server) openHandler() http.Handler {
+	h := s.WithAuth(testToken).Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(authtoken.Header) == "" {
+			r.Header.Set(authtoken.Header, testToken)
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func firstHost(t *testing.T, st *store.Store) store.Host {
@@ -214,14 +226,13 @@ func TestHostTagsAPI(t *testing.T) {
 
 func TestRuntimeStop(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	stopped := make(chan struct{}, 1)
-	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithStop(func() { stopped <- struct{}{} }).openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Post(srv.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -237,7 +248,7 @@ func TestRuntimeStop(t *testing.T) {
 		t.Fatal("onStop was not called")
 	}
 
-	bare := httptest.NewServer(New(st, rt, nil).Handler())
+	bare := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(bare.Close)
 	res2, err := http.Post(bare.URL+"/api/runtime/stop", "application/json", strings.NewReader("{}"))
 	if err != nil {
@@ -254,16 +265,15 @@ func TestVaultLockBlocksAPI(t *testing.T) {
 	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
 	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !st.Locked() {
 		t.Skip("OS keychain auto-unlocked the vault")
 	}
-	rt := runtime.New(st, nil)
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	rt := runtime.New(st, runtime.DefaultOpener(st))
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/hosts")
 	if err != nil {
@@ -356,7 +366,7 @@ func TestSessionControlAndFanout(t *testing.T) {
 	}
 }
 
-func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
+func TestLiveKeysAndApprovedInjectOverTheSocket(t *testing.T) {
 	srv, _, st, fb := testServer(t)
 	host := firstHost(t, st)
 	info := spawn(t, srv.URL, host.ID)
@@ -373,9 +383,6 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 		}()
 	}
 
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "palette"}); err != nil {
-		t.Fatal(err)
-	}
 	readPTY()
 	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("live")); err != nil {
 		t.Fatal(err)
@@ -383,10 +390,10 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	select {
 	case hit := <-got:
 		if hit != "live" {
-			t.Fatalf("live WS Write while palette focused got %q", hit)
+			t.Fatalf("live WS Write got %q", hit)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("live websocket binary must still use ungated Session.Write")
+		t.Fatal("the driver's live websocket binary must reach Session.Write")
 	}
 
 	readPTY()
@@ -428,9 +435,6 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 		t.Fatal("timeout waiting for ticket inject")
 	}
 
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
-		t.Fatal(err)
-	}
 	readPTY()
 	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
 		t.Fatal(err)
@@ -438,10 +442,10 @@ func TestPaletteWSFocusAndApprovedInject(t *testing.T) {
 	select {
 	case hit := <-got:
 		if hit != "x" {
-			t.Fatalf("restored live WS got %q", hit)
+			t.Fatalf("live WS after an inject got %q", hit)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
+		t.Fatal("timeout waiting for live Write after an inject")
 	}
 }
 
@@ -449,8 +453,7 @@ func TestInjectNonceOneShotRejectsClientApprovedReplay(t *testing.T) {
 	assertInjectNonceOneShotReplay(t)
 }
 
-// TestInjectNonceOneShotReplay is the #46-visible name for the #45 gate:
-// client-forged approved:true never writes the PTY; a server nonce writes once; replay is blocked.
+// TestInjectNonceOneShotReplay: client-forged approved:true never writes the PTY; a server nonce writes once; replay is blocked.
 func TestInjectNonceOneShotReplay(t *testing.T) {
 	assertInjectNonceOneShotReplay(t)
 }
@@ -515,122 +518,34 @@ func assertInjectNonceOneShotReplay(t *testing.T) {
 	}
 }
 
-func TestChromeWSFocusAndNoUnapprovedInject(t *testing.T) {
-	srv, rt, st, fb := testServer(t)
-	host := firstHost(t, st)
-	info := spawn(t, srv.URL, host.ID)
-	alice := dialSession(t, srv.URL, info.ID, "alice", "web")
-	defer alice.Close()
-	ready := waitJSON(t, alice, "ready")
-	waitBridgeReady(t, alice, ready)
-	aliceID := uint64(ready["you"].(map[string]any)["id"].(float64))
-	sess, err := rt.Get(info.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitFocus := func(want inject.Surface) {
-		t.Helper()
-		deadline := time.Now().Add(time.Second)
-		for time.Now().Before(deadline) {
-			if sess.Focus(aliceID) == want {
-				return
+// The window's injects, by source: every way the typist writes for the
+// window consumes a server ticket, and nothing mints an approval from what
+// the client sent. (The socket's own rules, live keys and the nonce
+// challenge, are checked where they now live: internal/sessionsock's
+// TestTheSocketsWritePathsBySource. The native client's are
+// internal/native/guard_test.go and keelclient/noforgedapproval_test.go.)
+func TestTheWindowsInjectsConsumeAServerTicket(t *testing.T) {
+	for file, min := range map[string]int{"httpapi.go": 3, "typedirect.go": 1} {
+		src, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := string(src)
+		if n := strings.Count(body, "sess.InjectTicket(clientID, "); n < min {
+			t.Fatalf("%s consumes a server ticket %d times, want at least %d", file, n, min)
+		}
+		for _, bad := range []string{"Approved", "inject.Approve()", "inject.Approval{", ".Inject(clientID", "sess.Write(", ".Keys("} {
+			if file == "httpapi.go" && bad == ".Keys(" {
+				// The read loop hands live keys to sessionsock, once.
+				if n := strings.Count(body, "c.Keys(msg)"); n != 1 || strings.Count(body, ".Keys(") != 1 {
+					t.Fatalf("httpapi.go hands live keys over %d times, want once, from the read loop", n)
+				}
+				continue
 			}
-			time.Sleep(5 * time.Millisecond)
+			if strings.Contains(body, bad) {
+				t.Fatalf("%s holds %q: the window's bytes reach a PTY only through InjectTicket", file, bad)
+			}
 		}
-		t.Fatalf("focus = %q want %q", sess.Focus(aliceID), want)
-	}
-
-	got := make(chan string, 1)
-	readPTY := func() {
-		go func() {
-			buf := make([]byte, 32)
-			n, _ := fb.inR.Read(buf)
-			got <- string(buf[:n])
-		}()
-	}
-
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "chrome"}); err != nil {
-		t.Fatal(err)
-	}
-	waitFocus(inject.SurfaceChrome)
-	if err := sess.Keystroke(aliceID, []byte("i"), sess.Focus(aliceID)); !errors.Is(err, inject.ErrNotTerminalFocus) {
-		t.Fatalf("chrome keystroke err = %v", err)
-	}
-	readPTY()
-	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("live")); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case hit := <-got:
-		if hit != "live" {
-			t.Fatalf("live WS Write while chrome focused got %q", hit)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("live websocket binary must still use ungated Session.Write")
-	}
-
-	readPTY()
-	if err := alice.WriteJSON(map[string]any{"type": "inject", "command": "rm\n", "approved": false}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case leak := <-got:
-		t.Fatalf("PTY received unapproved inject %q", leak)
-	case <-time.After(80 * time.Millisecond):
-	}
-
-	if err := alice.WriteJSON(map[string]any{"type": "focus", "surface": "term"}); err != nil {
-		t.Fatal(err)
-	}
-	waitFocus(inject.SurfaceTerm)
-	if err := sess.Keystroke(aliceID, []byte("k"), sess.Focus(aliceID)); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case hit := <-got:
-		if hit != "k" {
-			t.Fatalf("restored Keystroke got %q", hit)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for Keystroke after SurfaceTerm restore")
-	}
-
-	readPTY()
-	if err := alice.WriteMessage(websocket.BinaryMessage, []byte("x")); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case hit := <-got:
-		if hit != "x" {
-			t.Fatalf("restored live WS got %q", hit)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for live Write after SurfaceTerm restore")
-	}
-}
-
-// The session socket's write paths, by source (the web page's own JS checks went with the webview; the native
-// client's are internal/native/guard_test.go and keelclient/noforgedapproval_test.go).
-func TestSessionWSKeepsWriteUngated(t *testing.T) {
-	src, err := os.ReadFile("httpapi.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := string(src)
-	if !strings.Contains(body, "sess.Write(cl.ID, msg)") {
-		t.Fatal("live websocket binary must call Session.Write")
-	}
-	if strings.Contains(body, "sess.Keystroke(cl.ID, msg") {
-		t.Fatal("live websocket binary must not be routed through Keystroke")
-	}
-	if !strings.Contains(body, "sess.SetFocus(cl.ID") {
-		t.Fatal("focus JSON must call Session.SetFocus")
-	}
-	if !strings.Contains(body, "sess.IssueInjectTicket(cl.ID") || !strings.Contains(body, "sess.InjectTicket(cl.ID") {
-		t.Fatal("palette/chrome inject JSON must issue and consume a server ticket")
-	}
-	if strings.Contains(body, "if ctl.Approved") || strings.Contains(body, "approved = inject.Approve()") {
-		t.Fatal("inject must not mint Approve from a client approved flag")
 	}
 }
 
@@ -771,8 +686,7 @@ func TestNotebookAPI(t *testing.T) {
 
 func TestSessionReconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -785,7 +699,7 @@ func TestSessionReconnect(t *testing.T) {
 		bridges = append(bridges, fb)
 		return fb, nil
 	})
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 
 	host := firstHost(t, st)
@@ -925,8 +839,7 @@ func TestReadScrollbackAPINotFound(t *testing.T) {
 
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -939,7 +852,7 @@ func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 		bridges = append(bridges, fb)
 		return fb, nil
 	})
-	srv := httptest.NewServer(New(st, rt, nil).Handler())
+	srv := httptest.NewServer(New(st, rt, nil).openHandler())
 	t.Cleanup(srv.Close)
 
 	host := firstHost(t, st)
@@ -1080,7 +993,7 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) {
 		return newFakeBridge(), nil
 	})
-	srv2 := httptest.NewServer(New(st, rt, nil).WithTunnels(tnRT).WithLogs(logs).Handler())
+	srv2 := httptest.NewServer(New(st, rt, nil).WithTunnels(tnRT).WithLogs(logs).openHandler())
 	t.Cleanup(srv2.Close)
 
 	body := `{"name":"deploy","kind":"password","username":"ubuntu","password":"pw"}`
@@ -1106,7 +1019,7 @@ func TestIdentityTunnelLogsAPI(t *testing.T) {
 	if err := st.CheckHostKeyType("box:22", "ssh-ed25519", boxFP); !errors.As(err, &unk) {
 		t.Fatal(err)
 	}
-	body2 := `{"token":"` + unk.Token + `","hostname":"box:22","fingerprint":"` + boxFP + `"}`
+	body2 := `{"trustToken":"` + unk.Token + `","hostname":"box:22","fingerprint":"` + boxFP + `"}`
 	resKH, err := http.Post(srv2.URL+"/api/known-hosts", "application/json", strings.NewReader(body2))
 	if err != nil {
 		t.Fatal(err)
@@ -1383,48 +1296,39 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 	}
 }
 
-// TestManualServe binds the API on a fixed address for poking at it by hand (the native client attaches to it).
-func TestManualServe(t *testing.T) {
-	if os.Getenv("KEEL_SERVE") != "1" {
-		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")
-	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	dir := t.TempDir()
-	st, err := store.New(dir + "/keel.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, nil)
-	logs := applog.New(dir + "/keel.log")
-	tn := tunnel.New(st, tunnel.DefaultFactory(st))
-	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).Handler()
-	addr := "127.0.0.1:47241"
-	if v := os.Getenv("KEEL_SERVE_ADDR"); v != "" {
-		addr = v
-	}
-	t.Log("keel api http://" + addr)
-	if err := http.ListenAndServe(addr, h); err != nil {
-		t.Fatal(err)
-	}
-}
-
+// spawn starts a session on hostID the way the window does (the session
+// socket with hostId), detaches, and returns once the session has no client
+// again, so the test's first dial is the owner and driver.
 func spawn(t *testing.T, base, hostID string) runtime.Info {
 	t.Helper()
-	res, err := http.Post(base+"/api/sessions", "application/json", strings.NewReader(`{"hostId":"`+hostID+`","cols":80,"rows":24}`))
+	u := "ws" + strings.TrimPrefix(base, "http") + "/ws/session?hostId=" + hostID + "&cols=80&rows=24&name=spawn"
+	conn, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("spawn: %v", err)
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		b, _ := io.ReadAll(res.Body)
-		t.Fatalf("spawn %d %s", res.StatusCode, b)
+	id, _ := waitJSON(t, conn, "ready")["id"].(string)
+	_ = conn.Close()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		res, err := http.Get(base + "/api/sessions")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var list []runtime.Info
+		err = json.NewDecoder(res.Body).Decode(&list)
+		res.Body.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, info := range list {
+			if info.ID == id && info.Clients == 0 {
+				return info
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	var info runtime.Info
-	if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
-		t.Fatal(err)
-	}
-	return info
+	t.Fatalf("spawn: session %q did not come up without a client", id)
+	return runtime.Info{}
 }
 
 func dialSession(t *testing.T, base, id, name, kind string) *websocket.Conn {
@@ -1550,14 +1454,13 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 
 func TestRuntimeInfo(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt := runtime.New(st, nil)
+	rt := runtime.New(st, runtime.DefaultOpener(st))
 	api := New(st, rt, nil).WithBuild("abc-123").WithRuntimeInfo("127.0.0.1:9", "/data/keel").WithStop(func() {})
-	srv := httptest.NewServer(api.Handler())
+	srv := httptest.NewServer(api.openHandler())
 	t.Cleanup(srv.Close)
 	res, err := http.Get(srv.URL + "/api/runtime")
 	if err != nil {

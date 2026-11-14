@@ -1,15 +1,16 @@
 package native
 
 import (
+	"context"
+
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/sshparse"
 )
 
-// Quick connect, and "Connect once" on the New tab page, which is the same dialog (term.js openQuick,
-// saveQuick; quickDialog in internal/ui/dialogs.templ). It saves a password host under the group "Quick
-// connect" with POST /api/hosts, as the webview does, and opens a session on it; the host key dialog and the
+// Quick connect, and "Connect once" on the New tab page, which is the same dialog. It saves a password host under the group "Quick
+// connect" with POST /api/hosts and opens a session on it; the host key dialog and the
 // failure banner then work as for any host. The password is typed here, never read from the pasted command.
 
 type quickDialog struct {
@@ -27,16 +28,10 @@ func (w *workspace) openQuick(target string, notes *sshparse.Result) {
 
 func (w *workspace) closeQuick() {
 	w.quick = nil
-	if t := w.tab(); t != nil {
-		if t.panes[t.focused] != nil {
-			w.wantFocus = t.focused
-		} else if t.page != nil {
-			t.page.focus = true
-		}
-	}
+	w.returnKeyboard(true)
 }
 
-// quickColor is the colour the webview gives a quick host.
+// quickColor is the colour of a quick host.
 const quickColor = "var(--ansi-12)"
 
 // submitQuick saves the host and opens it. The target must read as user@host (or user@host:port): the same
@@ -54,21 +49,16 @@ func (w *workspace) submitQuick() {
 	}
 	h := keelclient.NewHost{
 		Name: r.User + "@" + r.Host, Group: "Quick connect", Address: r.Host, Port: r.Port, Username: r.User,
-		AuthType: "password", Password: q.password, Color: quickColor,
+		AuthType: keelclient.AuthPassword, Password: q.password, Color: quickColor,
 	}
 	w.quick = nil // the password leaves the dialog with the request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		saved, err := w.be.CreateHost(c, h)
-		w.post(func() {
-			if err != nil {
-				w.fail("quick connect", err)
-				return
-			}
-			w.hosts = append(w.hosts, saved)
-			w.openHost(saved)
-		})
+	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved keelclient.Host, err error) {
+		if err != nil {
+			w.fail("quick connect", err)
+			return
+		}
+		w.hosts = append(w.hosts, saved)
+		w.openHost(saved)
 	})
 }
 

@@ -8,49 +8,83 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
-// The pane menu and the tab menu. Their items, order and words are the webview's: PaneMenu in
-// internal/ui/rowmenus.templ with which items show from lib/termmenu.js paneMenuItems (for a terminal pane
-// of this window, opened from its bar), and #tab-ctx in internal/ui/parts.templ with which are disabled
-// from ui/tabmenu.js. A menu never types into a session.
+// The pane menu and the tab menu. A menu never types into a session.
 
 // paneMenu fills the menu of pane p of tab t, opened from its bar.
 func (w *workspace) paneMenu(t *tab, p *pane) func(m *ui.Menu) { return w.paneMenuFor(t, p, false) }
 
 // paneMenuFor is paneMenu for a bar (row false) or for a row of the sidebar's Panes section (row true): a row has
-// Focus and no Focus view (lib/termmenu.js paneMenuItems).
+// Focus and no Focus view.
 func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		st := p.conn.Snapshot()
 		if row && menuItem(m, "Focus").Chosen() {
 			w.act(func() { w.pickPane(t, p.id) })
 		}
-		if !p.remote { // splits need a pane of this window, not a joined one (lib/termmenu.js paneMenuItems)
-			if menuItem(m, "Split right").Shortcut(ui.Cmd|ui.Shift, ui.KeyD).Chosen() {
-				w.act(func() { w.split(t, p.id, layout.Row) })
-			}
-			if menuItem(m, "Split down").Shortcut(ui.Cmd|ui.Shift, ui.KeyE).Chosen() {
-				w.act(func() { w.split(t, p.id, layout.Col) })
+		if !p.remote { // splits need a pane of this window, not a joined one
+			for _, s := range paneSplits {
+				if menuItem(m, s.label).Shortcut(shortcutOf(s.id)).Chosen() {
+					w.act(func() { w.split(t, p.id, s.dir) })
+				}
 			}
 		}
 		if !row && (len(t.panes) > 1 || t.zoomed != "") {
-			if menuItem(m, "Focus view").Shortcut(ui.Cmd|ui.Shift, ui.KeyEnter).Chosen() {
+			if menuItem(m, labelFocusView).Shortcut(shortcutOf("pane.zoom")).Chosen() {
 				w.act(func() { w.toggleZoom(t, p.id) })
 			}
 		}
 		if !p.remote && p.sessionID() != "" && menuItem(m, "Share").Chosen() { // a live terminal of this window
 			w.act(func() { w.pickPane(t, p.id); w.openShare() })
 		}
-		if (st.Status == "error" || st.Status == "exited") && p.sessionID() != "" {
+		if (st.Status == wire.StatusError || st.Status == wire.StatusExited) && p.sessionID() != "" {
 			if menuItem(m, "Reconnect").Chosen() {
 				w.act(func() { w.reconnect(p) })
 			}
 		}
 		m.Separator()
-		if menuItem(m, "Close pane").Shortcut(ui.Cmd, ui.KeyW).Chosen() {
+		if menuItem(m, labelClosePane).Shortcut(shortcutOf("tab.close")).Chosen() {
 			w.act(func() { w.closePane(t, p.id) })
 		}
+	}
+}
+
+// The pane actions as a pane's bar and its menu name them.
+const (
+	labelFocusView = "Focus view"
+	labelClosePane = "Close pane"
+)
+
+// paneSplits are a pane's two splits: the command, the label (the tool's tip and the menu item) and the tool's glyph.
+var paneSplits = []struct {
+	id, label, glyph string
+	dir              layout.Dir
+}{
+	{"pane.splitr", "Split right", "split-h", layout.Row},
+	{"pane.splitd", "Split down", "split-v", layout.Col},
+}
+
+// paneTools are the tools at the end of a pane's bar, a terminal's or a notebook's: the splits, focus view, the menu and
+// close. Only the focused pane's tools show caps.
+func (w *workspace) paneTools(c *ui.Context, t *tab, p *pane, focused bool) {
+	for _, s := range paneSplits {
+		if w.paneCapBtn(c, focused, capLabel(s.id), s.glyph, s.label, false, false) {
+			w.act(func() { w.split(t, p.id, s.dir) })
+		}
+	}
+	zoomed := t.zoomed == p.id
+	zoomTip, zoomGlyph := labelFocusView, "zoom"
+	if zoomed {
+		zoomTip, zoomGlyph = "Exit focus view", "unzoom"
+	}
+	if w.paneCapBtn(c, focused, capLabel("pane.zoom"), zoomGlyph, zoomTip, zoomed, len(t.panes) < 2 && !zoomed) { // needs another pane to zoom out of
+		w.act(func() { w.toggleZoom(t, p.id) })
+	}
+	iconMenuBtn(c, "more", "More pane actions", sizeControlSm, w.paneMenu(t, p))
+	if iconBtn(c, "cancel-01", labelClosePane, sizeControlSm, false) {
+		w.act(func() { w.closePane(t, p.id) })
 	}
 }
 
@@ -77,7 +111,7 @@ func (w *workspace) tabMenu(t *tab) func(m *ui.Menu) {
 	}
 }
 
-// menuIconFor names the icon of each menu entry, by its label; the webview's menus had a leading icon on every entry.
+// menuIconFor names the icon of each menu entry, by its label; every entry has a leading icon.
 var menuIconFor = map[string]string{
 	"Roles and runbooks": "group", "Run a runbook…": "group-run", "New host": "add-01", "New subgroup": "add-01",
 	"Edit": "agent-pencil", "Rename": "agent-pencil", "Rename tab": "agent-pencil", "Edit command": "agent-pencil",

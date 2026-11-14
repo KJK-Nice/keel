@@ -138,11 +138,6 @@ func TestGroupRunRequestsAreTheAppsAndNoneHoldsAValueInItsError(t *testing.T) {
 			t.Errorf("%s %s, want %s %s", got, body, c.method, c.body)
 		}
 	}
-	r.reply = `{"runs":[{"id":"gr1","name":"Print"}]}`
-	runs, err := r.c.GroupRuns(ctx)
-	if err != nil || len(runs) != 1 || runs[0].ID != "gr1" {
-		t.Fatalf("GroupRuns: %v %+v", err, runs)
-	}
 }
 
 func TestTheFillIsTheOnlyPlaceAValueArrivesAndItIsNeverPrinted(t *testing.T) {

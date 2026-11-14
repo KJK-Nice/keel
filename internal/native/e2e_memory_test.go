@@ -293,7 +293,7 @@ func TestE2EYourNotesAndDeleteAll(t *testing.T) {
 	}
 	cancel()
 	e.openLocal()
-	e.w.openPage("settings")
+	e.w.showPage("settings")
 	e.pump(func() bool { return e.hasLabel("settings nav Agent") }, "Settings")
 	e.click("settings nav Agent")
 	e.pump(func() bool { return e.tt.HasText("Notes for the agent") }, "Settings · Agent")
@@ -305,7 +305,7 @@ func TestE2EYourNotesAndDeleteAll(t *testing.T) {
 	e.shot("TestE2EYourNotesAndDeleteAll")
 
 	e.click("Delete all notes…")
-	e.pump(func() bool { return e.w.confirm != nil }, "the confirm")
+	e.pump(func() bool { return e.w.confirmOpen() }, "the confirm")
 	if !e.tt.HasText("Delete all notes?") || !e.tt.HasText("Every host note and every note about you is deleted from the vault. Conversations and the log stay.") {
 		t.Error("the confirm is not the app's")
 	}
@@ -315,7 +315,7 @@ func TestE2EYourNotesAndDeleteAll(t *testing.T) {
 		t.Fatal("Cancel deleted notes")
 	}
 	e.click("Delete all notes…")
-	e.pump(func() bool { return e.w.confirm != nil }, "the confirm again")
+	e.pump(func() bool { return e.w.confirmOpen() }, "the confirm again")
 	// The row's title and the dialog's action share their words, and Find gives the title under the scrim: press the action at
 	// the dialog's bottom right, where its danger button is.
 	dlg, ok := e.tt.Find("alertdialog Delete all notes?")
@@ -335,10 +335,10 @@ func TestE2EYourNotesAndDeleteAll(t *testing.T) {
 func (e *win) typeStepCard(sid, want string) {
 	e.t.Helper()
 	e.click("Type into pane…")
-	e.pump(func() bool { return e.w.approve != nil || strings.Contains(e.scrollback(sid), want) }, "the dialog, or the step typed")
-	if e.w.approve != nil {
+	e.pump(func() bool { return e.w.approveOpen() || strings.Contains(e.scrollback(sid), want) }, "the dialog, or the step typed")
+	if e.w.approveOpen() {
 		e.click("Type")
-		e.pump(func() bool { return e.w.approve == nil }, "the dialog to close")
+		e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close")
 	}
 	e.waitScrollback(sid, want)
 }
@@ -433,10 +433,10 @@ func TestE2ERunbookPageAndWalk(t *testing.T) {
 func (e *win) typeStepCardLast(sid, want string) {
 	e.t.Helper()
 	e.w.typeAgentProposal(e.lastProposalID(), false) // the Type button of that card: the same function a press calls
-	e.pump(func() bool { return e.w.approve != nil || strings.Contains(e.scrollback(sid), want) }, "the dialog, or the step typed")
-	if e.w.approve != nil {
+	e.pump(func() bool { return e.w.approveOpen() || strings.Contains(e.scrollback(sid), want) }, "the dialog, or the step typed")
+	if e.w.approveOpen() {
 		e.click("Type")
-		e.pump(func() bool { return e.w.approve == nil }, "the dialog to close")
+		e.pump(func() bool { return !e.w.approveOpen() }, "the dialog to close")
 	}
 	e.waitScrollback(sid, want)
 }
@@ -445,7 +445,7 @@ func (e *win) typeStepCardLast(sid, want string) {
 func (e *win) lastProposalID() string {
 	e.t.Helper()
 	var id string
-	for _, t := range e.w.agent.turns {
+	for _, t := range e.w.agentState().turns {
 		for _, p := range t.props {
 			id = p
 		}
@@ -487,12 +487,12 @@ func TestE2ERunbookProposalAndPlaceholder(t *testing.T) {
 
 	// A step whose command holds [secret:1] cannot exist in keel serve: it refuses to keep one, from the API and from the editor,
 	// so a step proposal never carries a placeholder from a saved runbook. The card for one that does (an ordinary proposal
-	// that holds a placeholder) is runbooks_test.go's: no Type button, the app's sentence, nothing typed.
+	// that holds a placeholder) is runbooks_test.go's: no Type button, the explanatory sentence, nothing typed.
 	if code, body := e.raw("POST", "/api/agent/runbooks", map[string]any{"name": "keel-rb-e2e placeholder", "agentMayPick": true,
 		"steps": []map[string]string{{"title": "Uses a placeholder", "command": "echo [secret:1]"}}}); code != 400 || !strings.Contains(body, "a step command holds a secret") {
 		t.Fatalf("keel serve kept, or did not explain refusing, a step with a placeholder: %d", code)
 	}
-	e.w.openPage("runbooks")
+	e.w.showPage("runbooks")
 	e.pump(func() bool { return e.hasLabel("Runbook name") == false && e.tt.HasText("No runbooks yet") }, "the Runbooks page")
 	e.key(ui.Cmd, ui.KeyN)
 	e.pump(func() bool { return e.hasLabel("Runbook name") }, "the editor")
@@ -528,7 +528,7 @@ func TestE2ERunbooksPageComesBack(t *testing.T) {
 
 	e2 := newWin(t, addr, dir, nil)
 	e2.pump(func() bool { return e2.w.pageTab("runbooks") != nil && e2.hasLabel("Open keel-rb-e2e kept") }, "the Runbooks tab to come back")
-	if e2.w.tab().name() != "Runbooks" {
-		t.Errorf("the page that was shown is not shown again: %s", e2.w.tab().name())
+	if e2.w.activeTab().name() != "Runbooks" {
+		t.Errorf("the page that was shown is not shown again: %s", e2.w.activeTab().name())
 	}
 }

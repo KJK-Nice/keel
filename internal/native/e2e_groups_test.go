@@ -108,7 +108,7 @@ func (e *win) openHostPane(name string) string {
 }
 
 func (e *win) sidOfHost(name string) string {
-	for _, t := range e.w.tabs {
+	for _, t := range e.w.allTabs() {
 		for _, p := range t.panes {
 			if p.host.Name == name && p.sessionID() != "" {
 				return p.sessionID()
@@ -148,7 +148,7 @@ func (e *win) startRunFromGroupPage(folder, runbook string) {
 	e.click("Run a runbook on this group")
 	e.pump(func() bool { return e.hasLabel("run runbook " + runbook) }, "the runbook in the list")
 	e.click("run runbook " + runbook)
-	e.pump(func() bool { return e.groupRun() != nil && e.w.tab() == e.w.pageTab("grouprun") }, "the run page")
+	e.pump(func() bool { return e.groupRun() != nil && e.w.activeTab() == e.w.pageTab("grouprun") }, "the run page")
 }
 
 func (e *win) backToRun() {
@@ -207,7 +207,7 @@ func TestE2EFolders(t *testing.T) {
 	e.drag("host fx-host", "folder fx-sub")
 	e.pump(func() bool { h, _ := e.hostNamed("fx-host"); return h.GroupID == sub.ID }, "the host in fx-sub after the drag")
 
-	// A folder dragged onto its own descendant is refused with the app's words and nothing changes.
+	// A folder dragged onto its own descendant is refused and nothing changes.
 	e.drag("folder fx-top", "folder fx-sub")
 	e.pump(func() bool { return e.hasLabel("toast " + msgGroupCycle) }, "the refusal")
 	if g, _ := e.apiGroupNamed("fx-top"); g.ParentID != "" {
@@ -217,16 +217,16 @@ func TestE2EFolders(t *testing.T) {
 	// A closed folder is kept across a restart: close fx-top, reopen the window on the same data, and it is closed there.
 	topID, _ := e.apiGroupNamed("fx-top")
 	e.click("folder fx-top")
-	e.pump(func() bool { return loadCollapsed(dir)[topID.ID] }, "the closed folder in keel-native.json")
+	e.pump(func() bool { return loadPrefs(dir).Collapsed[topID.ID] }, "the closed folder in keel-native.json")
 	e.settle(300 * time.Millisecond)
 	e.w.closeWindow()
 	e = newWin(t, addr, dir, nil)
 	e.pump(func() bool { return e.hasLabel("folder fx-top") }, "the folders after a restart")
-	if !e.w.collapsed[topID.ID] {
+	if !e.w.prefs.Collapsed[topID.ID] {
 		t.Error("fx-top is open again after a restart")
 	}
 	e.click("folder fx-top")
-	e.pump(func() bool { return !loadCollapsed(dir)[topID.ID] }, "the folder opened and forgotten")
+	e.pump(func() bool { return !loadPrefs(dir).Collapsed[topID.ID] }, "the folder opened and forgotten")
 
 	// Rename in the tree.
 	e.menuPick("folder fx-top", "Rename")
@@ -467,10 +467,10 @@ func (e *win) waitTypeAll(n int) {
 
 // rowsOf are the open group dialog's rows.
 func (e *win) dialogRows() []*groupRow {
-	if e.w.approve == nil || e.w.approve.group == nil {
+	if !e.w.approveOpen() || e.w.approveDlg().group() == nil {
 		return nil
 	}
-	return e.w.approve.group.rows
+	return e.w.approveDlg().group().rows
 }
 
 func (e *win) holds(sid, s string) bool { return strings.Contains(e.scrollback(sid), s) }
@@ -503,7 +503,7 @@ func TestE2EGroupRunParallel(t *testing.T) {
 	// Tick wk-1 only: only its scrollback gets grp-1.
 	e.click("Type into wk-1")
 	e.click("Type into 1 pane")
-	e.pump(func() bool { return e.holds(sids[0], "grp-1") && e.w.approve == nil }, "grp-1 in wk-1 and the dialog closed")
+	e.pump(func() bool { return e.holds(sids[0], "grp-1") && !e.w.approveOpen() }, "grp-1 in wk-1 and the dialog closed")
 	e.settle(300 * time.Millisecond)
 	if e.holds(sids[1], "grp-1") {
 		t.Fatal("the unticked wk-2 received the command")
@@ -518,7 +518,7 @@ func TestE2EGroupRunParallel(t *testing.T) {
 		t.Fatalf("the one-host dialog: %+v", e.dialogRows()[0])
 	}
 	e.click("Type into 1 pane")
-	e.pump(func() bool { return e.holds(sids[1], "grp-1") && e.w.approve == nil }, "grp-1 in wk-2")
+	e.pump(func() bool { return e.holds(sids[1], "grp-1") && !e.w.approveOpen() }, "grp-1 in wk-2")
 
 	// No shell sends marks: the user marks each host done, and step 2 is proposed to both.
 	e.pump(func() bool { return e.cellState(0, "wk-1") == "typed" && e.cellState(0, "wk-2") == "typed" }, "both typed")
@@ -535,7 +535,7 @@ func TestE2EGroupRunParallel(t *testing.T) {
 	e.click("Type into wk-1")
 	e.click("Type into wk-2")
 	e.click("Type into 2 panes")
-	e.pump(func() bool { return e.holds(sids[0], "grp-2") && e.holds(sids[1], "grp-2") && e.w.approve == nil }, "grp-2 in both")
+	e.pump(func() bool { return e.holds(sids[0], "grp-2") && e.holds(sids[1], "grp-2") && !e.w.approveOpen() }, "grp-2 in both")
 
 	// One agent.type per host × step, and no text in the log.
 	e.pump(func() bool { return len(e.logTypes()) == 4 }, "four agent.type rows")
@@ -565,7 +565,7 @@ func TestE2EGroupRunRolling(t *testing.T) {
 		return len(e.dialogRows()) == 1 && e.dialogRows()[0].host == "wk-1" && e.dialogRows()[0].checked
 	}, "the one-host dialog for wk-1")
 	e.click("Type into 1 pane")
-	e.pump(func() bool { return e.holds(sids[0], "grp-1") && e.w.approve == nil }, "grp-1 in wk-1")
+	e.pump(func() bool { return e.holds(sids[0], "grp-1") && !e.w.approveOpen() }, "grp-1 in wk-1")
 	e.settle(600 * time.Millisecond)
 	if e.cellState(0, "wk-2") == "proposed" || e.holds(sids[1], "grp-1") {
 		t.Fatal("the second host was offered, or typed, while the first was still waiting for its result")
@@ -609,7 +609,7 @@ func TestE2EGroupRunVariables(t *testing.T) {
 	}
 	e.shot("TestE2EGroupRunVariables-dialog")
 	e.click("Type into 1 pane")
-	e.pump(func() bool { return e.holds(sids[0], "port-"+value) && e.w.approve == nil }, "the filled command in the scrollback")
+	e.pump(func() bool { return e.holds(sids[0], "port-"+value) && !e.w.approveOpen() }, "the filled command in the scrollback")
 	// After the dialog the page is back to names; the log holds the number of values, never one.
 	e.pump(func() bool { return len(e.logTypes()) == 1 }, "agent.type")
 	if strings.Contains(e.texts(), value) {
@@ -647,7 +647,7 @@ func TestE2EGroupRunFollowerAndClosedPane(t *testing.T) {
 	// This window owns the session, so it passes control to the other client (as TestE2EFollowerAndTakeControl does): from
 	// then on this window follows wk-2's pane.
 	var wk2 *pane
-	for _, tb := range e.w.tabs {
+	for _, tb := range e.w.allTabs() {
 		for _, p := range tb.panes {
 			if p.host.Name == "wk-2" {
 				wk2 = p
@@ -660,7 +660,7 @@ func TestE2EGroupRunFollowerAndClosedPane(t *testing.T) {
 	}
 	var wk3 *pane
 	var wk3tab *tab
-	for _, tb := range e.w.tabs {
+	for _, tb := range e.w.allTabs() {
 		for _, p := range tb.panes {
 			if p.host.Name == "wk-3" {
 				wk3, wk3tab = p, tb
@@ -678,7 +678,7 @@ func TestE2EGroupRunFollowerAndClosedPane(t *testing.T) {
 	}
 	e.pump(func() bool { return e.hasLabel("Type into 1 pane") }, "the button counting only wk-1")
 	e.click("Type into 1 pane")
-	e.pump(func() bool { return e.holds(sids[0], "grp-1") && e.w.approve == nil }, "grp-1 in wk-1")
+	e.pump(func() bool { return e.holds(sids[0], "grp-1") && !e.w.approveOpen() }, "grp-1 in wk-1")
 	e.settle(400 * time.Millisecond)
 	if e.holds(sids[1], "grp-1") {
 		t.Error("the followed pane was typed into")
@@ -728,7 +728,7 @@ func TestE2EAnsibleExport(t *testing.T) {
 	if inv.Name != "inventory.ini" || !strings.Contains(inv.Content, "an-1") || !strings.Contains(inv.Content, "k8s_version") {
 		t.Fatalf("inventory %+v", inv)
 	}
-	// What the server withheld is not in the export. (The page's own variables list still shows the value, as the app's does:
+	// What the server withheld is not in the export. (The page's own variables list still shows the value:
 	// a variable is config until the vault holds the same value, and the list is not the export.)
 	if strings.Contains(inv.Content, old) {
 		t.Fatal("a withheld value is in the export")

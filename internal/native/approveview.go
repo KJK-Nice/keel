@@ -2,9 +2,8 @@ package native
 
 import "github.com/egoist/mygo/ui"
 
-// The Approve before type dialog drawn as ptyInjectDialog (internal/ui/dialogs.templ) with .modal and
-// .pty-inject-preview (keel.css): the title and its sentence, the session, the exact text in the mono font, an error
-// line, Cancel and Type. As in the webview the keyboard starts on Cancel, so a stray ↵ never types; Type is a click, or
+// The Approve before type dialog drawn: the title and its sentence, the session, the exact text in the mono font, an error
+// line, Cancel and Type. The keyboard starts on Cancel, so a stray ↵ never types; Type is a click, or
 // Tab and ↵. Esc, Cancel and a click outside close it and send nothing.
 
 // dialogBtn is textBtn that takes the keyboard (↵ presses it) and can be switched off.
@@ -35,10 +34,11 @@ func (w *workspace) approveView(c *ui.Context) {
 	if d == nil {
 		return
 	}
-	if d.group != nil {
+	if d.group() != nil {
 		w.groupApproveView(c, d)
 		return
 	}
+	hint, note, glyphs := d.src.words()
 	open := true
 	why := d.blocked() // driver only, and the session ready: else Type is off and this says why
 	shown := d.shown() // what is typed after Ctrl-U: the same call as Type makes
@@ -46,25 +46,21 @@ func (w *workspace) approveView(c *ui.Context) {
 		modalChrome(c, backdrop, panel)
 		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("dialog " + approveTitle)
 		text(c, approveTitle, ink, titleSize, weightSemibold)
-		hint := approveHint
-		if d.notebook {
-			hint = approveHintNotebook
-		}
 		ui.Text(c, hint).TextColor(inkMuted).FontSize(uiFontSize)
 		ui.Row(c).FillWidth().Gap(space1).Children(func() {
 			caption(c, "Session:", inkMuted)
 			caption(c, d.session(), inkMuted).MinWidth(0)
 		})
 		ui.Scroll(c).FillWidth().MaxHeight(approvePreviewMax).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("approve preview").Children(func() {
-			if d.agent != nil { // the bytes as the proposal card draws them: ^U, the command, ↵
+			if glyphs {
 				bytesView(c, shown)
 			} else {
 				ui.Text(c, shown).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 			}
 		})
-		if d.note != "" { // .k-review.pty-inject-agent, after the preview as the app has it
+		if note != "" { // after the preview
 			ui.Row(c).FillWidth().Padding(space2, space3).Radius(radiusMd).Background(hoverGround).Label("approve note").Children(func() {
-				ui.Text(c, d.note).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
+				ui.Text(c, note).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
 			})
 		}
 		switch {

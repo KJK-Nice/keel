@@ -1,49 +1,23 @@
-// Package inject is the PTY input seam: live keystrokes only when the
-// terminal is focused, and scripted inject only after explicit approve.
+// Package inject is the PTY input seam for what Keel types for the user:
+// scripted inject only after explicit approve. Live keystrokes do not come
+// through here: the session writes them for its driver alone.
 package inject
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"io"
 	"sync"
 	"time"
+
+	"keel/internal/randid"
 )
 
 var (
-	ErrNotApproved      = errors.New("inject: write requires explicit approve")
-	ErrNotTerminalFocus = errors.New("keystroke: focused surface is not the terminal")
-	ErrBadTicket        = errors.New("inject: missing or spent approve ticket")
+	ErrNotApproved = errors.New("inject: write requires explicit approve")
+	ErrBadTicket   = errors.New("inject: missing or spent approve ticket")
 )
 
 const ticketTTL = 60 * time.Second
-
-// Surface is the UI that currently owns keyboard focus.
-type Surface string
-
-const (
-	SurfaceTerm    Surface = "term"
-	SurfacePalette Surface = "palette"
-	SurfaceChrome  Surface = "chrome"
-)
-
-func CanType(focused Surface) error {
-	if focused != SurfaceTerm {
-		return ErrNotTerminalFocus
-	}
-	return nil
-}
-
-func Keystroke(w io.Writer, p []byte, focused Surface) (int, error) {
-	if err := CanType(focused); err != nil {
-		return 0, err
-	}
-	if w == nil {
-		return 0, errors.New("inject: missing writer")
-	}
-	return w.Write(p)
-}
 
 // Approval is an explicit user confirmation. The zero value is not approved.
 type Approval struct {
@@ -87,11 +61,7 @@ func (i *Issuer) Issue(clientID uint64, command string) (string, error) {
 	if command == "" {
 		return "", ErrNotApproved
 	}
-	var raw [16]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		return "", err
-	}
-	nonce := hex.EncodeToString(raw[:])
+	nonce := randid.Hex(16)
 	now := time.Now()
 	i.mu.Lock()
 	defer i.mu.Unlock()

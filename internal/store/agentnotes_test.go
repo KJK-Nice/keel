@@ -47,7 +47,7 @@ func TestAgentNotesSavedEncryptedAndReloaded(t *testing.T) {
 		t.Fatalf("keel.memory mode %v, want 0600", fi.Mode().Perm())
 	}
 
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestAgentNotesNeedTheVault(t *testing.T) {
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
 	t.Setenv("KEEL_KEYRING", "off")
-	locked, err := New(st.path)
+	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestAgentNotesUnreadableAndDeleteAll(t *testing.T) {
 	if err := os.WriteFile(path, []byte("not age"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestHostAgentNotesSwitch(t *testing.T) {
 	if !bytes.Contains(js, []byte(`"agentNotesOff": true`)) {
 		t.Fatalf("keel.json: %s", js)
 	}
-	st2, _ := New(st.path)
+	st2, _ := New(st.path, TestVault())
 	got, _ := st2.GetHost(h.ID)
 	if got.ProposesNotes() {
 		t.Fatal("reloaded host lets the agent propose notes")

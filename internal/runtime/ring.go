@@ -37,7 +37,6 @@ func (r *ring) Bytes() []byte {
 	return append([]byte(nil), r.buf...)
 }
 
-// Mark returns the current write position.
 func (r *ring) Mark() uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
-	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,12 +17,15 @@ import (
 
 	"keel/internal/agent/service"
 	"keel/internal/applog"
-	"keel/internal/inject"
+	"keel/internal/authtoken"
+	"keel/internal/cmdrule"
 	"keel/internal/runtime"
 	"keel/internal/session"
+	"keel/internal/sessionsock"
 	"keel/internal/share"
 	"keel/internal/store"
 	"keel/internal/tunnel"
+	"keel/internal/wire"
 )
 
 var upgrader = websocket.Upgrader{
@@ -45,7 +45,7 @@ type Server struct {
 	started time.Time
 	addr    string
 	dataDir string
-	// authToken, when set, is required on privileged routes (auth.go).
+	// authToken is required on privileged routes (auth.go).
 	authToken string
 	build     string
 	// mcpToken is keel mcp's token: it alone opens /api/mcp/ (auth.go).
@@ -57,18 +57,30 @@ type Server struct {
 	agentFactory service.Factory
 	agentTest    bool
 	// agentJudge builds the detector (Jev) for in-pane suggestions.
-	agentJudge        service.JudgeFactory
-	agentDetectWindow time.Duration
+	agentJudge service.JudgeFactory
+	// agentSuggestTimeout bounds the model call of one in-pane suggestion; 0 is the service's default.
+	agentSuggestTimeout time.Duration
+	// now is the clock of the session socket's rate limits: time.Now, set
+	// in New (a test of the limits freezes it).
+	now func() time.Time
+	// agentOff says why agent is nil, for the routes that need it.
+	agentOff string
+	// closed is closed by Close: the agent's retention timer stops on it.
+	closed    chan struct{}
+	closeOnce sync.Once
+	// anytime holds the paths that answer while the vault is locked, as
+	// Handler registered them.
+	anytime map[string]bool
 	// vault counts store and tunnel changes: GET /api/vault reports it as "rev" (vaultrev.go).
 	vault *vaultRev
 	// sockets counts the open session sockets and the work they start
-	// off their read loop (suggestions, type-checks, direct types), which
+	// off their read loop (suggestions, direct types), which
 	// can still be logging after the socket closes (waitSockets).
 	sockets sync.WaitGroup
 }
 
 func New(st *store.Store, rt *runtime.Runtime, sh *share.Hub) *Server {
-	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev()}
+	s := &Server{store: st, rt: rt, share: sh, started: time.Now(), vault: newVaultRev(), closed: make(chan struct{}), now: time.Now}
 	if st != nil {
 		st.OnChange(s.vault.bump)
 	}
@@ -112,15 +124,30 @@ func (s *Server) WithStop(fn func()) *Server {
 	return s
 }
 
+// Handler is the API. It panics when no token was set (WithAuth): keel
+// serve never runs open.
 func (s *Server) Handler() http.Handler {
+	if s.authToken == "" {
+		panic("httpapi: Handler needs WithAuth: there is no server without a token")
+	}
 	s.initAgent()
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", s.health)
+	// anytime registers a route that answers while the vault is locked;
+	// withVault refuses every other one then. agentRoute registers one that
+	// needs the agent service and answers 503 with the reason without it.
+	s.anytime = map[string]bool{}
+	anytime := func(pattern string, h http.HandlerFunc) {
+		_, path, _ := strings.Cut(pattern, " ")
+		s.anytime[path] = true
+		mux.HandleFunc(pattern, h)
+	}
+	agentRoute := func(pattern string, h http.HandlerFunc) { mux.HandleFunc(pattern, s.withAgent(h)) }
+	anytime("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/runtime", s.runtimeInfo)
-	mux.HandleFunc("POST /api/runtime/stop", s.stopRuntime)
-	mux.HandleFunc("POST /api/vault/unlock", s.vaultUnlock)
-	mux.HandleFunc("POST /api/vault/setup", s.vaultSetup)
-	mux.HandleFunc("GET /api/vault", s.vaultState)
+	anytime("POST /api/runtime/stop", s.stopRuntime)
+	anytime("POST /api/vault/unlock", s.vaultUnlock)
+	anytime("POST /api/vault/setup", s.vaultSetup)
+	anytime("GET /api/vault", s.vaultState)
 	mux.HandleFunc("POST /api/first-run/done", s.finishFirstRun)
 	mux.HandleFunc("GET /api/ssh-config/preview", s.sshConfigPreview)
 	mux.HandleFunc("POST /api/ssh-config/import", s.sshConfigImport)
@@ -130,7 +157,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/share/{id}/admit", s.admitShare)
 	mux.HandleFunc("GET /api/hosts", s.listHosts)
 	mux.HandleFunc("POST /api/hosts", s.upsertHost)
-	mux.HandleFunc("PUT /api/hosts/{id}", s.updateHost)
+	mux.HandleFunc("PUT /api/hosts/{id}", s.upsertHost)
 	mux.HandleFunc("POST /api/hosts/{id}/duplicate", s.duplicateHost)
 	mux.HandleFunc("PUT /api/hosts/{id}/agent-readable", s.setHostAgentReadable)
 	mux.HandleFunc("POST /api/hosts/move", s.moveHosts)
@@ -140,15 +167,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/hosts/{id}", s.deleteHost)
 	mux.HandleFunc("GET /api/groups", s.listGroups)
 	mux.HandleFunc("POST /api/groups", s.upsertGroup)
-	mux.HandleFunc("PUT /api/groups/{id}", s.updateGroup)
+	mux.HandleFunc("PUT /api/groups/{id}", s.upsertGroup)
 	mux.HandleFunc("DELETE /api/groups/{id}", s.deleteGroup)
 	mux.HandleFunc("GET /api/groups/{id}/members", s.groupMembers)
 	mux.HandleFunc("PUT /api/groups/{id}/roles", s.setGroupRole)
-	mux.HandleFunc("PUT /api/groups/{id}/vars", s.setGroupVar)
+	agentRoute("PUT /api/groups/{id}/vars", s.setGroupVar)
 	mux.HandleFunc("GET /api/groups/{id}/ansible", s.groupAnsible)
 	mux.HandleFunc("GET /api/snippets", s.listSnippets)
 	mux.HandleFunc("POST /api/snippets", s.upsertSnippet)
-	mux.HandleFunc("PUT /api/snippets/{id}", s.updateSnippet)
+	mux.HandleFunc("PUT /api/snippets/{id}", s.upsertSnippet)
 	mux.HandleFunc("DELETE /api/snippets/{id}", s.deleteSnippet)
 	mux.HandleFunc("GET /api/notebooks", s.listNotebooks)
 	mux.HandleFunc("POST /api/notebooks", s.upsertNotebook)
@@ -167,11 +194,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/notebook-trash/{vid}/restore", s.restoreDeletedNotebook)
 	mux.HandleFunc("GET /api/identities", s.listIdentities)
 	mux.HandleFunc("POST /api/identities", s.upsertIdentity)
-	mux.HandleFunc("PUT /api/identities/{id}", s.updateIdentity)
+	mux.HandleFunc("PUT /api/identities/{id}", s.upsertIdentity)
 	mux.HandleFunc("DELETE /api/identities/{id}", s.deleteIdentity)
 	mux.HandleFunc("GET /api/tunnels", s.listTunnels)
 	mux.HandleFunc("POST /api/tunnels", s.upsertTunnel)
-	mux.HandleFunc("PUT /api/tunnels/{id}", s.updateTunnel)
+	mux.HandleFunc("PUT /api/tunnels/{id}", s.upsertTunnel)
 	mux.HandleFunc("DELETE /api/tunnels/{id}", s.deleteTunnel)
 	mux.HandleFunc("POST /api/tunnels/{id}/start", s.startTunnel)
 	mux.HandleFunc("POST /api/tunnels/{id}/stop", s.stopTunnel)
@@ -181,54 +208,52 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/agent/providers", s.listAgentProviders)
 	mux.HandleFunc("PUT /api/agent/keys/{provider}", s.putAgentKey)
 	mux.HandleFunc("DELETE /api/agent/keys/{provider}", s.deleteAgentKey)
-	mux.HandleFunc("POST /api/agent/ask", s.agentAsk)
-	mux.HandleFunc("GET /api/mcp/panes", s.mcpPanes)
-	mux.HandleFunc("POST /api/mcp/read", s.mcpRead)
-	mux.HandleFunc("POST /api/mcp/propose", s.mcpPropose)
-	mux.HandleFunc("GET /api/mcp/proposals/{id}", s.mcpProposal)
-	mux.HandleFunc("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
+	agentRoute("POST /api/agent/ask", s.agentAsk)
+	agentRoute("GET /api/mcp/panes", s.mcpPanes)
+	agentRoute("POST /api/mcp/read", s.mcpRead)
+	agentRoute("POST /api/mcp/propose", s.mcpPropose)
+	agentRoute("GET /api/mcp/proposals/{id}", s.mcpProposal)
+	agentRoute("PUT /api/agent/conversations/{id}/proposals/{pid}", s.agentEditProposal)
 	mux.HandleFunc("GET /api/agent/conversations", s.agentSessions)
 	mux.HandleFunc("GET /api/agent/conversations/{id}", s.agentTranscript)
-	mux.HandleFunc("PATCH /api/agent/conversations/{id}", s.agentRename)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/proposals/{pid}/again", s.agentProposeAgain)
+	agentRoute("PATCH /api/agent/conversations/{id}", s.agentRename)
+	agentRoute("POST /api/agent/conversations/{id}/proposals/{pid}/again", s.agentProposeAgain)
 	mux.HandleFunc("DELETE /api/agent/conversations/{id}", s.agentReset)
 	mux.HandleFunc("DELETE /api/agent/conversations", s.agentResetAll)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notes/{nid}", s.agentSaveNoteProposal)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notes/{nid}", s.agentDismissNoteProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notes/{nid}/undo", s.agentUndoNoteProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notes/{nid}", s.agentSaveNoteProposal)
+	agentRoute("DELETE /api/agent/conversations/{id}/notes/{nid}", s.agentDismissNoteProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notes/{nid}/undo", s.agentUndoNoteProposal)
 	mux.HandleFunc("GET /api/agent/notes", s.agentNotes)
-	mux.HandleFunc("POST /api/agent/notes", s.agentAddNote)
-	mux.HandleFunc("PUT /api/agent/notes/{id}", s.agentEditNote)
-	mux.HandleFunc("DELETE /api/agent/notes/{id}", s.agentDeleteNote)
-	mux.HandleFunc("DELETE /api/agent/notes", s.agentDeleteAllNotes)
+	agentRoute("POST /api/agent/notes", s.agentAddNote)
+	agentRoute("PUT /api/agent/notes/{id}", s.agentEditNote)
+	agentRoute("DELETE /api/agent/notes/{id}", s.agentDeleteNote)
+	agentRoute("DELETE /api/agent/notes", s.agentDeleteAllNotes)
 	mux.HandleFunc("GET /api/agent/runbooks", s.agentRunbooks)
-	mux.HandleFunc("POST /api/agent/runbooks", s.agentAddRunbook)
-	mux.HandleFunc("POST /api/agent/runbooks/draft", s.agentRunbookDraft)
-	mux.HandleFunc("PUT /api/agent/runbooks/{id}", s.agentUpdateRunbook)
-	mux.HandleFunc("PUT /api/agent/runbooks/{id}/pick", s.agentRunbookPick)
-	mux.HandleFunc("DELETE /api/agent/runbooks/{id}", s.agentDeleteRunbook)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookChange)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/delete", s.agentConfirmNotebookDelete)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/notebooks/{nid}/restore", s.agentRestoreNotebookChange)
+	agentRoute("POST /api/agent/runbooks", s.agentAddRunbook)
+	agentRoute("POST /api/agent/runbooks/draft", s.agentRunbookDraft)
+	agentRoute("PUT /api/agent/runbooks/{id}", s.agentUpdateRunbook)
+	agentRoute("PUT /api/agent/runbooks/{id}/pick", s.agentRunbookPick)
+	agentRoute("DELETE /api/agent/runbooks/{id}", s.agentDeleteRunbook)
+	agentRoute("POST /api/agent/conversations/{id}/runbooks/{rid}", s.agentSaveRunbookProposal)
+	agentRoute("DELETE /api/agent/conversations/{id}/runbooks/{rid}", s.agentDismissRunbookProposal)
+	agentRoute("POST /api/agent/conversations/{id}/runbooks/{rid}/undo", s.agentUndoRunbookProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notebooks/{nid}/undo", s.agentUndoNotebookChange)
+	agentRoute("POST /api/agent/conversations/{id}/notebooks/{nid}/delete", s.agentConfirmNotebookDelete)
+	agentRoute("DELETE /api/agent/conversations/{id}/notebooks/{nid}", s.agentDismissNotebookProposal)
+	agentRoute("POST /api/agent/conversations/{id}/notebooks/{nid}/restore", s.agentRestoreNotebookChange)
 	mux.HandleFunc("GET /api/agent/conversations/{id}/runbook", s.agentRunState)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
-	mux.HandleFunc("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
-	mux.HandleFunc("POST /api/agent/conversations/{id}/runbook/move", s.agentMoveRunbook)
-	mux.HandleFunc("GET /api/agent/groupruns", s.agentGroupRuns)
-	mux.HandleFunc("POST /api/agent/groupruns", s.agentStartGroupRun)
-	mux.HandleFunc("GET /api/agent/groupruns/{id}", s.agentGroupRun)
-	mux.HandleFunc("POST /api/agent/groupruns/{id}/propose", s.agentProposeGroupStep)
-	mux.HandleFunc("POST /api/agent/groupruns/{id}/fill", s.agentFillGroupRun)
-	mux.HandleFunc("POST /api/agent/groupruns/{id}/steps/{sid}", s.agentGroupHostAction)
-	mux.HandleFunc("PUT /api/agent/groupruns/{id}/mode", s.agentGroupRunMode)
-	mux.HandleFunc("DELETE /api/agent/groupruns/{id}", s.agentStopGroupRun)
+	agentRoute("POST /api/agent/conversations/{id}/runbook/steps/{sid}", s.agentStepAction)
+	agentRoute("DELETE /api/agent/conversations/{id}/runbook", s.agentStopRunbook)
+	agentRoute("POST /api/agent/conversations/{id}/runbook/move", s.agentMoveRunbook)
+	agentRoute("POST /api/agent/groupruns", s.agentStartGroupRun)
+	agentRoute("GET /api/agent/groupruns/{id}", s.agentGroupRun)
+	agentRoute("POST /api/agent/groupruns/{id}/propose", s.agentProposeGroupStep)
+	agentRoute("POST /api/agent/groupruns/{id}/fill", s.agentFillGroupRun)
+	agentRoute("POST /api/agent/groupruns/{id}/steps/{sid}", s.agentGroupHostAction)
+	agentRoute("PUT /api/agent/groupruns/{id}/mode", s.agentGroupRunMode)
+	agentRoute("DELETE /api/agent/groupruns/{id}", s.agentStopGroupRun)
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
-	mux.HandleFunc("POST /api/sessions", s.spawnSession)
 	mux.HandleFunc("GET /api/sessions/{id}/scrollback", s.readScrollback)
 	mux.HandleFunc("POST /api/sessions/{id}/reconnect", s.reconnectSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
@@ -253,18 +278,10 @@ func allowLocalOrigin(r *http.Request) bool {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
-	if !isLoopbackHost(u.Hostname()) {
+	if !store.IsLoopbackAddr(u.Hostname()) {
 		return false
 	}
 	return originHostPort(u) == requestHostPort(r)
-}
-
-func isLoopbackHost(host string) bool {
-	if strings.EqualFold(host, "localhost") {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
 }
 
 func originHostPort(u *url.URL) string {
@@ -295,11 +312,9 @@ func requestHostPort(r *http.Request) string {
 
 func withLocalOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
-			if !allowLocalOrigin(r) {
-				writeError(w, http.StatusForbidden, "origin not allowed")
-				return
-			}
+		if apiPath(r.URL.Path) && !allowLocalOrigin(r) {
+			writeError(w, http.StatusForbidden, "origin not allowed")
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -307,16 +322,8 @@ func withLocalOrigin(next http.Handler) http.Handler {
 
 func (s *Server) withVault(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/health" || r.URL.Path == "/api/runtime/stop" || r.URL.Path == "/api/vault/unlock" || r.URL.Path == "/api/vault/setup" || r.URL.Path == "/api/vault" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") {
-			next.ServeHTTP(w, r)
-			return
-		}
-		if s.store.Locked() {
-			writeError(w, http.StatusLocked, "vault locked")
+		if !s.anytime[r.URL.Path] && apiPath(r.URL.Path) && s.store.Locked() {
+			writeErr(w, store.ErrLocked)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -324,26 +331,15 @@ func (s *Server) withVault(next http.Handler) http.Handler {
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
-	out := map[string]any{
-		"status":     "ok",
-		"role":       "runtime",
-		"sessions":   s.rt.Count(),
-		"pid":        os.Getpid(),
-		"locked":     s.store.Locked(),
-		"needsSetup": s.store.NeedsSetup(),
-		"signal":     s.share != nil && s.share.Enabled(),
-	}
+	out := map[string]any{"pid": os.Getpid()}
 	if s.build != "" {
 		out["build"] = s.build
 	}
-	if s.share != nil && s.share.Enabled() {
-		out["signalURL"] = s.share.URL()
-	}
 	if proof, ok := s.healthProof(r); ok {
-		out["proof"] = proof
+		out[authtoken.WindowChallenge.Field] = proof
 	}
 	if proof, ok := s.mcpHealthProof(r); ok {
-		out["mcpProof"] = proof
+		out[authtoken.MCPChallenge.Field] = proof
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -390,7 +386,7 @@ func (s *Server) putSignal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		URL string `json:"url"`
 	}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&req); err != nil {
+	if err := decode(w, r, bodyNote, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
@@ -400,14 +396,14 @@ func (s *Server) putSignal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.SetSignalURL(u); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	s.share.SetSaved(u)
 	if u == "" {
-		s.note("share", "signal server removed", "", "", "")
+		s.note(wire.LogShare, "signal server removed", "", "", "")
 	} else {
-		s.note("share", "signal server set to "+u, "", "", "")
+		s.note(wire.LogShare, "signal server set to "+u, "", "", "")
 	}
 	writeJSON(w, http.StatusOK, s.signalInfo())
 }
@@ -425,19 +421,15 @@ func (s *Server) vaultUnlock(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
 	if err := s.store.Unlock(req.Passphrase); err != nil {
-		if errors.Is(err, store.ErrPassphrase) {
-			writeError(w, http.StatusForbidden, "incorrect passphrase")
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
-	s.note("vault", "vault unlocked", "", "", "")
+	s.note(wire.LogVault, "vault unlocked", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -445,19 +437,15 @@ func (s *Server) vaultSetup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Passphrase string `json:"passphrase"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid payload")
 		return
 	}
 	if err := s.store.Setup(req.Passphrase); err != nil {
-		if errors.Is(err, store.ErrVaultExists) {
-			writeError(w, http.StatusConflict, err.Error())
-			return
-		}
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeErr(w, otherwise(err, http.StatusBadRequest))
 		return
 	}
-	s.note("vault", "vault created", "", "", "")
+	s.note(wire.LogVault, "vault created", "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"locked": false})
 }
 
@@ -469,21 +457,15 @@ func (s *Server) shareSession(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SessionID string `json:"sessionId"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+	if err := decode(w, r, bodyForm, &req); err != nil || req.SessionID == "" {
 		writeError(w, http.StatusBadRequest, "sessionId is required")
 		return
 	}
 	join, err := s.share.Share(req.SessionID)
 	if err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusBadGateway, err.Error())
+		writeErr(w, otherwise(err, http.StatusBadGateway))
 		return
 	}
-	// WKWebView clipboard dies after await fetch (user gesture gone).
-	pasteboardWrite(join)
 	writeJSON(w, http.StatusOK, map[string]string{"url": join})
 }
 
@@ -494,7 +476,7 @@ func (s *Server) admitShare(w http.ResponseWriter, r *http.Request) {
 		PeerID string `json:"peerId"`
 		Allow  bool   `json:"allow"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeerID == "" {
+	if err := decode(w, r, bodyForm, &req); err != nil || req.PeerID == "" {
 		writeError(w, http.StatusBadRequest, "peerId is required")
 		return
 	}
@@ -503,14 +485,8 @@ func (s *Server) admitShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.share.Admit(r.PathValue("id"), req.PeerID, req.Allow); err != nil {
-		status := http.StatusConflict // the request expired or was already answered
-		switch {
-		case errors.Is(err, share.ErrNotShared):
-			status = http.StatusNotFound
-		case errors.Is(err, share.ErrNotResponding):
-			status = http.StatusServiceUnavailable
-		}
-		writeError(w, status, err.Error())
+		// Anything else: the request expired or was already answered.
+		writeErr(w, otherwise(err, http.StatusConflict))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -525,85 +501,47 @@ func (s *Server) stopShare(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func pasteboardWrite(s string) {
-	var cmd *exec.Cmd
-	switch goruntime.GOOS {
-	case "darwin":
-		cmd = exec.Command("pbcopy")
-	case "windows":
-		cmd = exec.Command("cmd", "/c", "clip")
-	default:
-		if _, err := exec.LookPath("wl-copy"); err == nil {
-			cmd = exec.Command("wl-copy")
-		} else {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
-		}
-	}
-	cmd.Stdin = strings.NewReader(s)
-	if err := cmd.Run(); err != nil {
-		log.Printf("clipboard: %v", err)
-	}
-}
-
 func (s *Server) listHosts(w http.ResponseWriter, _ *http.Request) {
 	hosts, err := s.store.ListHosts()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	out := make([]store.Host, len(hosts))
 	for i, h := range hosts {
-		out[i] = redactHost(h)
+		out[i] = h.Redacted()
 	}
 	writeJSON(w, http.StatusOK, out)
 }
 
+// The saves of hosts, groups, snippets, identities and forwards have one
+// handler each for POST (create: the id in the body is ignored, 201) and
+// PUT /{id} (update: the id is the path's, 200). savedStatus picks the
+// status.
+
 func (s *Server) upsertHost(w http.ResponseWriter, r *http.Request) {
 	var h store.Host
-	if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid host payload")
-		return
-	}
-	h.ID = ""
-	saved, err := s.saveHost(h)
-	if err != nil {
-		writeSaveErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, redactHost(saved))
-}
-
-func (s *Server) updateHost(w http.ResponseWriter, r *http.Request) {
-	var h store.Host
-	if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
+	if err := decode(w, r, bodyHost, &h); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid host payload")
 		return
 	}
 	h.ID = r.PathValue("id")
 	saved, err := s.saveHost(h)
 	if err != nil {
-		writeSaveErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, redactHost(saved))
+	writeJSON(w, savedStatus(r.PathValue("id")), saved.Redacted())
 }
 
 func (s *Server) duplicateHost(w http.ResponseWriter, r *http.Request) {
 	saved, err := s.store.DuplicateHost(r.PathValue("id"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		if strings.Contains(err.Error(), "cannot be duplicated") {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
-	writeJSON(w, http.StatusCreated, redactHost(saved))
-	s.note("host", "host duplicated: "+saved.Name, saved.ID, "", "")
+	writeJSON(w, http.StatusCreated, saved.Redacted())
+	s.note(wire.LogHost, "host duplicated: "+saved.Name, saved.ID, "", "")
 }
 
 // setHostAgentReadable is a host menu's "Agent can read" (the Edit host
@@ -613,32 +551,28 @@ func (s *Server) setHostAgentReadable(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Readable *bool `json:"readable"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Readable == nil {
+	if err := decode(w, r, bodyForm, &req); err != nil || req.Readable == nil {
 		writeError(w, http.StatusBadRequest, "readable is required")
 		return
 	}
 	h, err := s.store.GetHost(r.PathValue("id"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		writeStoreErr(w, err)
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
 	v := *req.Readable
 	h.AgentReadable = &v
 	saved, err := s.store.UpsertHost(h)
 	if err != nil {
-		writeSaveErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	state := "off"
 	if v {
 		state = "on"
 	}
-	s.note("host", "agent can read "+state+": "+saved.Name, saved.ID, "", "")
-	writeJSON(w, http.StatusOK, redactHost(saved))
+	s.note(wire.LogHost, "agent can read "+state+": "+saved.Name, saved.ID, "", "")
+	writeJSON(w, http.StatusOK, saved.Redacted())
 }
 
 type moveHostsReq struct {
@@ -648,22 +582,22 @@ type moveHostsReq struct {
 
 func (s *Server) moveHosts(w http.ResponseWriter, r *http.Request) {
 	var req moveHostsReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decode(w, r, bodyForm, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid move payload")
 		return
 	}
 	if err := s.store.AssignHostsGroup(req.IDs, req.GroupID); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("group", "hosts moved", "", "", "")
+	s.note(wire.LogGroup, "hosts moved", "", "", "")
 }
 
 func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {
 	groups, err := s.store.ListGroups()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, groups)
@@ -671,27 +605,7 @@ func (s *Server) listGroups(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) upsertGroup(w http.ResponseWriter, r *http.Request) {
 	var g store.Group
-	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid group payload")
-		return
-	}
-	g.ID = ""
-	if strings.TrimSpace(g.Name) == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	saved, err := s.store.UpsertGroup(g)
-	if err != nil {
-		writeStoreErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, saved)
-	s.note("group", "group created: "+saved.Name, "", "", "")
-}
-
-func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
-	var g store.Group
-	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
+	if err := decode(w, r, bodyForm, &g); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid group payload")
 		return
 	}
@@ -702,59 +616,55 @@ func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := s.store.UpsertGroup(g)
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, saved)
-	s.note("group", "group updated: "+saved.Name, "", "", "")
+	writeJSON(w, savedStatus(r.PathValue("id")), saved)
+	if r.PathValue("id") == "" {
+		s.note(wire.LogGroup, "group created: "+saved.Name, "", "", "")
+	} else {
+		s.note(wire.LogGroup, "group updated: "+saved.Name, "", "", "")
+	}
 }
 
 func (s *Server) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteGroup(r.PathValue("id")); err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("group", "group deleted", "", "", "")
+	s.note(wire.LogGroup, "group deleted", "", "", "")
 }
 
 func (s *Server) deleteHost(w http.ResponseWriter, r *http.Request) {
 	host, err := s.store.GetHost(r.PathValue("id"))
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
-	if host.AuthType == "local" {
-		writeError(w, http.StatusBadRequest, "the local shell host cannot be removed")
+	if host.IsLocal() {
+		writeErr(w, badInput("the local shell host cannot be removed"))
 		return
 	}
 	if err := s.store.DeleteHost(r.PathValue("id")); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrNotFound, "host not found"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("host", "host deleted: "+host.Name, host.ID, "", "")
+	s.note(wire.LogHost, "host deleted: "+host.Name, host.ID, "", "")
 }
 
 func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
 	snips, err := s.store.ListSnippets()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, snips)
 }
 
 // snippetPayload is a snippet as a client sends it. AgentUsable is a
-// pointer: a client that does not send it (the old edit modal) leaves the
+// pointer: a client that does not send it leaves the
 // flag as it is, so a stale list can never clear it by accident.
 type snippetPayload struct {
 	Name        string `json:"name"`
@@ -772,54 +682,36 @@ func (s *Server) noteSnippetFlag(name string, before, after bool) {
 	if after {
 		msg = "snippet \"" + name + "\" may be suggested by the agent; its command is sent, redacted, to TypeSafe Jev"
 	}
-	s.note("agent", msg, "", "", "")
+	s.note(wire.LogAgent, msg, "", "", "")
 }
 
 func (s *Server) upsertSnippet(w http.ResponseWriter, r *http.Request) {
 	var p snippetPayload
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid snippet payload")
-		return
-	}
-	saved, err := s.saveSnippet("", p.Name, p.Command, p.AgentUsable)
-	if err != nil {
-		writeSaveErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, saved)
-}
-
-func (s *Server) updateSnippet(w http.ResponseWriter, r *http.Request) {
-	var p snippetPayload
-	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+	if err := decode(w, r, bodyForm, &p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid snippet payload")
 		return
 	}
 	saved, err := s.saveSnippet(r.PathValue("id"), p.Name, p.Command, p.AgentUsable)
 	if err != nil {
-		writeSaveErr(w, err)
+		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, saved)
+	writeJSON(w, savedStatus(r.PathValue("id")), saved)
 }
 
 func (s *Server) deleteSnippet(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteSnippet(r.PathValue("id")); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "snippet not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrNotFound, "snippet not found"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("snippet", "snippet deleted", "", "", "")
+	s.note(wire.LogSnippet, "snippet deleted", "", "", "")
 }
 
 func (s *Server) listNotebooks(w http.ResponseWriter, _ *http.Request) {
 	nbs, err := s.store.ListNotebooks()
 	if err != nil {
-		writeStoreErr(w, err)
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, nbs)
@@ -827,23 +719,23 @@ func (s *Server) listNotebooks(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) upsertNotebook(w http.ResponseWriter, r *http.Request) {
 	var nb store.Notebook
-	if err := json.NewDecoder(r.Body).Decode(&nb); err != nil {
+	if err := decode(w, r, bodyBulk, &nb); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid notebook payload")
 		return
 	}
 	nb.ID = ""
 	saved, err := s.store.UpsertNotebook(nb)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, saved)
-	s.note("notebook", "notebook created: "+saved.Name, "", "", "")
+	s.note(wire.LogNotebook, "notebook created: "+saved.Name, "", "", "")
 }
 
 func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 	var nb store.Notebook
-	if err := json.NewDecoder(r.Body).Decode(&nb); err != nil {
+	if err := decode(w, r, bodyBulk, &nb); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid notebook payload")
 		return
 	}
@@ -853,64 +745,26 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 	// version in History (store.SaveUserNotebook).
 	saved, replaced, err := s.store.SaveUserNotebook(nb)
 	if err != nil {
-		if errors.Is(err, store.ErrHistoryUnavailable) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page.", "reason": "history"})
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page."))
 		return
 	}
 	writeJSON(w, http.StatusOK, savedNotebook{Notebook: saved, ReplacedAgentEdit: replaced})
-	s.note("notebook", "notebook updated: "+saved.Name, "", "", "")
+	s.note(wire.LogNotebook, "notebook updated: "+saved.Name, "", "", "")
 }
 
 func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
 	permanent := r.URL.Query().Get("permanent") == "1"
 	if err := s.store.DeleteNotebook(r.PathValue("id"), permanent); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "notebook not found")
-			return
-		}
-		if errors.Is(err, store.ErrHistoryUnavailable) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?", "reason": "history"})
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		err = worded(err, store.ErrNotFound, "notebook not found")
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
-	s.note("notebook", "notebook deleted", "", "", "")
+	s.note(wire.LogNotebook, "notebook deleted", "", "", "")
 }
 
 func (s *Server) listSessions(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.rt.List())
-}
-
-func (s *Server) spawnSession(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		HostID string `json:"hostId"`
-		Cols   int    `json:"cols"`
-		Rows   int    `json:"rows"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid session payload")
-		return
-	}
-	info, err := s.rt.Spawn(req.HostID, req.Cols, req.Rows)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "host not found")
-			return
-		}
-		if errors.Is(err, store.ErrHostField) {
-			writeError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	s.note("session", "session spawned: "+info.Title, info.HostID, info.ID, "")
-	writeJSON(w, http.StatusCreated, info)
 }
 
 // readScrollback is the inspection path for clients (and later AI). It always
@@ -920,11 +774,7 @@ func (s *Server) readScrollback(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	text, err := s.rt.ReadScrollback(id)
 	if err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -938,31 +788,23 @@ func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	info, err := s.rt.Reconnect(id)
 	if err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
-	s.note("session", "session reconnect: "+info.Title, info.HostID, info.ID, "")
+	s.note(wire.LogSession, "session reconnect: "+info.Title, info.HostID, info.ID, "")
 	writeJSON(w, http.StatusOK, info)
 }
 
 func (s *Server) killSession(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.rt.Kill(id); err != nil {
-		if errors.Is(err, runtime.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "session not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, err)
 		return
 	}
 	if s.share != nil {
 		s.share.Stop(id)
 	}
-	s.note("session", "session killed", "", id, "")
+	s.note(wire.LogSession, "session killed", "", id, "")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -976,13 +818,14 @@ const (
 	wsPongWait   = 60 * time.Second
 )
 
-func (w *wsConn) writeJSON(v any) error {
+// SendJSON and SendBytes make a wsConn a sessionsock.Transport.
+func (w *wsConn) SendJSON(v any) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.conn.WriteJSON(v)
 }
 
-func (w *wsConn) writeBinary(p []byte) error {
+func (w *wsConn) SendBytes(p []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.conn.WriteMessage(websocket.BinaryMessage, p)
@@ -1037,12 +880,8 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	s.sockets.Add(1)
 	defer s.sockets.Done()
 	id := r.URL.Query().Get("id")
-	if id == "" {
-		id = r.URL.Query().Get("sessionId")
-	}
 	cols, rows := session.ParseSize(r.URL.Query().Get("cols"), r.URL.Query().Get("rows"))
 	name := r.URL.Query().Get("name")
-	kind := r.URL.Query().Get("kind")
 
 	if id == "" {
 		hostID := r.URL.Query().Get("hostId")
@@ -1071,70 +910,26 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	ws := &wsConn{conn: conn}
 	defer conn.Close()
 	info := sess.Info()
-	_ = ws.writeJSON(map[string]any{
-		"type":    "status",
-		"message": "Attaching…",
-		"id":      info.ID,
-		"status":  info.Status,
+	_ = ws.SendJSON(wire.State{Type: wire.TypeStatus, Message: wire.MsgAttaching, ID: info.ID, Status: info.Status})
+	// What the socket starts off its read loop (suggestions, direct types)
+	// stops with the socket.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	// A WebSocket is the window on this machine: the one client keel serve
+	// types for. The kind is the transport's, never the client's word.
+	c := sessionsock.Attach(sess, ws, sessionsock.Options{
+		Name: name, Kind: wire.KindWindow, Caps: sessionsock.Local, Cols: cols, Rows: rows,
+		Typist: func(c *sessionsock.Conn) sessionsock.Typist { return s.newTypist(ctx, c) },
 	})
-	cl, events, snap := sess.Subscribe(runtime.Join{Name: name, Kind: kind})
-	defer sess.Unsubscribe(cl.ID)
-	if cl.Role == runtime.RoleDriver {
-		_ = sess.Resize(cl.ID, cols, rows)
-	}
-	if len(snap) > 0 {
-		_ = ws.writeBinary(snap)
-	}
-	info = sess.Info()
-	_ = ws.writeJSON(sessionPayload("ready", "attached", info, cl, 0, 0))
+	defer c.Detach()
 
 	pingDone := make(chan struct{})
 	defer close(pingDone)
 	ws.startPings(pingDone)
-	// In-pane suggestions (agentsuggest.go) run off this loop and stop
-	// with the socket.
-	sugCtx, sugCancel := context.WithCancel(r.Context())
-	defer sugCancel()
-	sug := newSuggestConn(sugCtx, s, ws, sess, cl.ID)
-	// Type-checks and direct types are bounded per socket (typedirect.go).
-	directLim := newDirectLimiter()
 
 	go func() {
 		defer conn.Close()
-		for ev := range events {
-			if ev.Kind == "bytes" {
-				if err := ws.writeBinary(ev.Bytes); err != nil {
-					return
-				}
-				continue
-			}
-			if ev.Kind == "join-request" || ev.Kind == "join-resolved" || ev.Kind == "join-failed" {
-				// From the share hub (Session.Announce): someone asked to
-				// watch, or that request was answered. No session state.
-				_ = ws.writeJSON(map[string]any{"type": ev.Kind, "id": info.ID, "peerId": ev.Peer, "message": ev.Message})
-				continue
-			}
-			msg := sessionPayload(ev.Kind, ev.Message, ev.Info, cl, ev.FromID, ev.TargetID)
-			if ev.Kind == "status" {
-				msg["status"] = ev.Status
-				msg["id"] = info.ID
-			}
-			if ev.Status == runtime.StatusError {
-				errMsg := map[string]any{"type": "error", "message": ev.Message}
-				if ev.Info.ErrorKind != "" {
-					errMsg["errorKind"] = ev.Info.ErrorKind
-					errMsg["hostname"] = ev.Info.HostKeyHost
-					errMsg["fingerprint"] = ev.Info.HostKeyFingerprint
-					errMsg["expected"] = ev.Info.HostKeyExpected
-					errMsg["keyType"] = ev.Info.HostKeyType
-					errMsg["trustToken"] = ev.Info.HostKeyToken
-					errMsg["hostId"] = ev.Info.HostID
-					errMsg["sessionId"] = ev.Info.ID
-				}
-				_ = ws.writeJSON(errMsg)
-			}
-			_ = ws.writeJSON(msg)
-		}
+		c.Forward()
 	}()
 
 	for {
@@ -1144,162 +939,12 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 		if mt == websocket.TextMessage {
-			var ctl struct {
-				Type     string `json:"type"`
-				Surface  string `json:"surface"`
-				Command  string `json:"command"`
-				Nonce    string `json:"nonce"`
-				Approved bool   `json:"approved"`
-				Cols     int    `json:"cols"`
-				Rows     int    `json:"rows"`
-				TargetID uint64 `json:"targetId"`
-				// Agent marks an inject as the user's Type into pane on an
-				// agent proposal (agentask.go).
-				Agent *agentTypeMsg `json:"agent"`
-				// Suggestion marks an inject as the user's ⇥ / ⇧⇥ on an
-				// in-pane suggestion (agentsuggest.go).
-				Suggestion *agentInsertMsg `json:"suggestion"`
-				// Notebook marks an inject as a notebook fence's Type
-				// (§13, §18): one holding a redaction placeholder such as
-				// [secret:1] is refused, as an agent proposal is.
-				Notebook bool   `json:"notebook"`
-				Seq      int    `json:"seq"`
-				Line     string `json:"line"`
-				// Direct marks a type without the approve dialog (§6 rule
-				// 13, typedirect.go): on type-check and on inject.
-				Direct *directTypeMsg `json:"direct"`
-			}
-			if json.Unmarshal(msg, &ctl) != nil {
-				continue
-			}
-			var err error
-			switch ctl.Type {
-			case "resize":
-				err = sess.Resize(cl.ID, ctl.Cols, ctl.Rows)
-			case "request-control":
-				err = sess.RequestControl(cl.ID)
-			case "grant-control":
-				err = sess.GrantControl(cl.ID, ctl.TargetID)
-			case "take-control":
-				err = sess.TakeControl(cl.ID)
-			case "focus":
-				err = sess.SetFocus(cl.ID, inject.Surface(ctl.Surface))
-			case "inject-challenge":
-				var nonce string
-				nonce, err = sess.IssueInjectTicket(cl.ID, ctl.Command)
-				if err == nil {
-					_ = ws.writeJSON(map[string]any{"type": "inject-challenge", "nonce": nonce})
-				}
-			case "type-check":
-				if ctl.Direct == nil {
-					break
-				}
-				if !directLim.allow("check") {
-					_ = ws.writeJSON(map[string]any{"type": "type-check", "ref": ctl.Direct.Ref, "ok": false, "direct": false, "dialog": true, "reason": reasonBusy})
-					break
-				}
-				s.goSocket(func() { s.typeCheck(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Direct, ctl.Agent) })
-			case "agent-detect":
-				sug.detect(ctl.Seq, ctl.Line)
-			case "agent-suggest":
-				sug.suggest(ctl.Seq, ctl.Line)
-			case "inject":
-				if ctl.Direct != nil && !directLim.allow("type") {
-					_ = ws.writeJSON(map[string]any{"type": "type-direct", "ref": ctl.Direct.Ref, "ok": false, "dialog": true, "reason": reasonBusy})
-					break
-				}
-				if ctl.Direct != nil {
-					// One click, no dialog, no Enter (§6 rule 13): keel
-					// serve checks again, off this loop (a snippet or a
-					// notebook block may be rated by Jev), then writes.
-					s.goSocket(func() { s.typeDirect(sugCtx, ws, sess, cl.ID, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })
-					break
-				}
-				if ctl.Suggestion != nil {
-					// ⇥ / ⇧⇥ on a suggestion: the agent service checks the
-					// suggestion, the bytes, the ⇧ rule and that this
-					// client drives, and logs agent.insert, before the
-					// ticket writes them (§6.1, §6.5, §6.6, §6.7). The
-					// bytes end without a newline: inserted, not run.
-					// agent.insert is logged only once the write happened.
-					id := ctl.Suggestion.SuggestionID
-					grant, aerr := s.authorizeAgentInsert(sess, cl.ID, ctl.Suggestion, ctl.Command)
-					if aerr != nil {
-						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": aerr.Error()})
-						break
-					}
-					ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
-					s.agent.InsertDone(grant, ierr)
-					if ierr != nil {
-						s.note("agent", "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
-						reason := "the insert expired; press ⇥ again"
-						if errors.Is(ierr, runtime.ErrNotReady) {
-							reason = notReadyTypeMessage
-						}
-						_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": false, "suggestionId": id, "message": reason})
-						break
-					}
-					_ = ws.writeJSON(map[string]any{"type": "agent-insert", "ok": true, "suggestionId": id})
-					break
-				}
-				if ctl.Notebook && ctl.Agent == nil && service.HasPlaceholder(ctl.Command) {
-					// A notebook fence (an agent's draft, or text pasted
-					// from an answer) that still holds a placeholder is a
-					// shell glob, never the value: not typed.
-					s.note("notebook", "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
-					_ = ws.writeJSON(map[string]any{"type": "error", "message": service.ErrPlaceholder.Error()})
-					break
-				}
-				if ctl.Agent == nil {
-					err = sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce)
-					break
-				}
-				// An agent proposal: the agent service checks the ⇧ rule,
-				// that this client drives the session and that the bytes
-				// are the proposal's, and logs agent.type, before the
-				// approved ticket writes them (§6.1, §6.5, §6.6, §6.7).
-				if aerr := s.authorizeAgentType(sess, cl.ID, ctl.Agent, ctl.Command); aerr != nil {
-					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": aerr.Error()})
-					break
-				}
-				// The stream offset before the write: a runbook step's
-				// result is the first command the shell reports after it.
-				mark := sess.StreamMark()
-				if ierr := sess.InjectTicket(cl.ID, ctl.Command, ctl.Nonce); ierr != nil {
-					if ctl.Agent.GroupRunID != "" {
-						// The host goes back to proposed: nothing was written.
-						s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
-					}
-					s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
-					reason := "the approval expired; press Type again"
-					if errors.Is(ierr, runtime.ErrNotReady) {
-						reason = notReadyTypeMessage
-					}
-					_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": false, "proposalId": ctl.Agent.ProposalID, "message": reason})
-					break
-				}
-				if ctl.Agent.GroupRunID != "" {
-					s.agent.GroupTypeDoneAt(ctl.Agent.GroupRunID, ctl.Agent.ProposalID, mark)
-				} else {
-					s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
-				}
-				_ = ws.writeJSON(map[string]any{"type": "agent-type", "ok": true, "proposalId": ctl.Agent.ProposalID})
-			}
-			if err != nil && !errors.Is(err, runtime.ErrReadOnly) && !errors.Is(err, inject.ErrNotApproved) && !errors.Is(err, inject.ErrNotTerminalFocus) && !errors.Is(err, inject.ErrBadTicket) {
-				_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
-			}
+			c.Control(msg)
 			continue
 		}
-		// Live keystrokes stay on Write (ungated). Palette/chrome must not
-		// send binary here; they use type=inject → InjectTicket (server nonce).
-		if err := sess.Write(cl.ID, msg); err != nil {
-			// ErrNotReady: still connecting or reconnecting. The keystroke
-			// is dropped (not buffered, see ErrNotReady) and the socket
-			// stays open. Any other error still closes it.
-			if errors.Is(err, runtime.ErrReadOnly) || errors.Is(err, runtime.ErrNotReady) {
-				continue
-			}
-			_ = ws.writeJSON(map[string]any{"type": "error", "message": err.Error()})
+		// Live keystrokes: written for the driver only, with no approval.
+		// Anything Keel types for the user is an inject frame instead.
+		if c.Keys(msg) != nil {
 			return
 		}
 	}
@@ -1309,91 +954,121 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 // the session was still connecting or reconnecting: nothing was typed.
 const notReadyTypeMessage = "the session is not connected; nothing was typed"
 
-func sessionPayload(kind, message string, info runtime.Info, you runtime.Client, fromID, targetID uint64) map[string]any {
-	you.Role = runtime.RoleFollower
-	if you.ID == info.DriverID {
-		you.Role = runtime.RoleDriver
-	} else if you.ID == info.OwnerID {
-		you.Role = runtime.RoleOwner
-	}
-	out := map[string]any{
-		"type":     kind,
-		"message":  message,
-		"id":       info.ID,
-		"hostId":   info.HostID,
-		"title":    info.Title,
-		"status":   info.Status,
-		"attached": info.Attached,
-		"driverId": info.DriverID,
-		"ownerId":  info.OwnerID,
-		"you":      you,
-	}
-	if info.ErrorKind != "" {
-		out["errorKind"] = info.ErrorKind
-		out["hostname"] = info.HostKeyHost
-		out["fingerprint"] = info.HostKeyFingerprint
-		out["expected"] = info.HostKeyExpected
-		out["keyType"] = info.HostKeyType
-		out["trustToken"] = info.HostKeyToken
-	}
-	if fromID != 0 {
-		out["fromId"] = fromID
-	}
-	if targetID != 0 {
-		out["targetId"] = targetID
-	}
-	return out
+// socketTypist is how keel serve types for one window's socket and answers
+// its suggestion questions (sessionsock.Typist).
+type socketTypist struct {
+	srv *Server
+	ctx context.Context // ends with the socket
+	c   *sessionsock.Conn
+	// In-pane suggestions (agentsuggest.go) run off the read loop.
+	sug *suggestConn
+	// Direct types are bounded per socket (typedirect.go).
+	directLim *directLimiter
 }
 
-func validateHost(h store.Host) error {
-	if strings.TrimSpace(h.Name) == "" {
-		return errors.New("name is required")
-	}
-	switch h.AuthType {
-	case "local":
-		return nil
-	case "identity":
-		if strings.TrimSpace(h.IdentityID) == "" {
-			return errors.New("identity is required")
-		}
-		if strings.TrimSpace(h.Address) == "" {
-			return errors.New("address is required")
-		}
-		if strings.TrimSpace(h.Username) == "" {
-			return errors.New("username is required")
-		}
-		return nil
-	case "password", "key":
-		if strings.TrimSpace(h.Address) == "" {
-			return errors.New("address is required")
-		}
-		if strings.TrimSpace(h.Username) == "" {
-			return errors.New("username is required")
-		}
-		return nil
-	default:
-		return errors.New("authType must be local, password, key, or identity")
-	}
+func (s *Server) newTypist(ctx context.Context, c *sessionsock.Conn) *socketTypist {
+	return &socketTypist{srv: s, ctx: ctx, c: c, sug: newSuggestConn(ctx, s, c), directLim: newDirectLimiter()}
 }
 
-func redactHost(h store.Host) store.Host {
-	if h.Password != "" {
-		h.Password = "__saved__"
+func (t *socketTypist) Detect(seq int, line string)  { t.sug.detect(seq, line) }
+func (t *socketTypist) Suggest(seq int, line string) { t.sug.suggest(seq, line) }
+
+// Inject is an inject frame from the window: the bytes are written only by
+// Session.InjectTicket, with the nonce the session issued for them, after
+// the checks of whatever the frame says the bytes are.
+func (t *socketTypist) Inject(ctl wire.Control) error {
+	s, c := t.srv, t.c
+	sess, clientID := c.Session(), c.ClientID()
+	info := sess.Info()
+	if ctl.Direct != nil && !t.directLim.allow("type") {
+		c.Send(wire.TypeResult{Type: wire.TypeTypeDirect, Ref: ctl.Direct.Ref, Dialog: true, Reason: reasonBusy})
+		return nil
 	}
-	if h.PrivateKey != "" {
-		h.PrivateKey = "__saved__"
+	if ctl.Direct != nil {
+		// One click, no dialog, no Enter (§6 rule 13): keel serve checks
+		// again, off the read loop (a snippet or a notebook block may be
+		// rated by Jev), then writes.
+		s.goSocket(func() { s.typeDirect(t.ctx, c, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })
+		return nil
 	}
-	if h.Passphrase != "" {
-		h.Passphrase = "__saved__"
+	if ctl.Suggestion != nil {
+		// ⇥ / ⇧⇥ on a suggestion: the agent service checks the suggestion,
+		// the bytes, the ⇧ rule and that this client drives, and logs
+		// agent.insert, before the ticket writes them (§6.1, §6.5, §6.6,
+		// §6.7). The bytes end without a newline: inserted, not run.
+		// agent.insert is logged only once the write happened.
+		out := wire.TypeResult{Type: wire.TypeAgentInsert, SuggestionID: ctl.Suggestion.SuggestionID}
+		grant, aerr := s.authorizeAgentInsert(sess, clientID, ctl.Suggestion, ctl.Command)
+		if aerr != nil {
+			out.Message = aerr.Error()
+			c.Send(out)
+			return nil
+		}
+		ierr := sess.InjectTicket(clientID, ctl.Command, ctl.Nonce)
+		s.agent.InsertDone(grant, ierr)
+		if ierr != nil {
+			s.note(wire.LogAgent, "agent suggestion was not inserted: "+ierr.Error(), info.HostID, info.ID, "")
+			out.Message = wire.MsgInsertExpired
+			if errors.Is(ierr, runtime.ErrNotReady) {
+				out.Message = notReadyTypeMessage
+			}
+			c.Send(out)
+			return nil
+		}
+		out.OK = true
+		c.Send(out)
+		return nil
 	}
-	return h
+	if ctl.Notebook && ctl.Agent == nil && cmdrule.HasPlaceholder(ctl.Command) {
+		// A notebook fence (an agent's draft, or text pasted from an
+		// answer) that still holds a placeholder is a shell glob, never
+		// the value: not typed.
+		s.note(wire.LogNotebook, "a notebook command was not typed: it holds a redacted placeholder", info.HostID, info.ID, "")
+		return service.ErrPlaceholder
+	}
+	if ctl.Agent == nil {
+		return sess.InjectTicket(clientID, ctl.Command, ctl.Nonce)
+	}
+	// An agent proposal: the agent service checks the ⇧ rule, that this
+	// client drives the session and that the bytes are the proposal's, and
+	// logs agent.type, before the approved ticket writes them (§6.1, §6.5,
+	// §6.6, §6.7).
+	out := wire.TypeResult{Type: wire.TypeAgentType, ProposalID: ctl.Agent.ProposalID}
+	if aerr := s.authorizeAgentType(sess, clientID, ctl.Agent, ctl.Command); aerr != nil {
+		out.Message = aerr.Error()
+		c.Send(out)
+		return nil
+	}
+	// The stream offset before the write: a runbook step's result is the
+	// first command the shell reports after it.
+	mark := sess.StreamMark()
+	if ierr := sess.InjectTicket(clientID, ctl.Command, ctl.Nonce); ierr != nil {
+		if ctl.Agent.GroupRunID != "" {
+			s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
+		}
+		s.note(wire.LogAgent, "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")
+		out.Message = "the approval expired; press Type again"
+		if errors.Is(ierr, runtime.ErrNotReady) {
+			out.Message = notReadyTypeMessage
+		}
+		c.Send(out)
+		return nil
+	}
+	if ctl.Agent.GroupRunID != "" {
+		s.agent.GroupTypeDoneAt(ctl.Agent.GroupRunID, ctl.Agent.ProposalID, mark)
+	} else {
+		s.agent.TypeDoneAt(ctl.Agent.ConversationID, ctl.Agent.ProposalID, mark)
+	}
+	out.OK = true
+	c.Send(out)
+	return nil
 }
 
 func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
 	if s.logs == nil {
 		return
 	}
-	s.logs.Append(applog.Entry{
+	s.appendLog(applog.Entry{
 		Kind:      kind,
 		Message:   msg,
 		HostID:    hostID,
@@ -1402,20 +1077,12 @@ func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
 	})
 }
 
-func writeStoreErr(w http.ResponseWriter, err error) {
-	if errors.Is(err, store.ErrLocked) {
-		writeError(w, http.StatusLocked, "vault locked")
-		return
+// appendLog writes e to the log. A failed write is reported on stderr and
+// otherwise ignored: what the entry describes has already happened.
+func (s *Server) appendLog(e applog.Entry) {
+	if err := s.logs.Append(e); err != nil {
+		log.Printf("log: %v", err)
 	}
-	if errors.Is(err, store.ErrNotFound) {
-		writeError(w, http.StatusNotFound, "not found")
-		return
-	}
-	if errors.Is(err, store.ErrGroupCycle) || errors.Is(err, store.ErrGroupDepth) || errors.Is(err, store.ErrHostField) {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	writeError(w, http.StatusInternalServerError, err.Error())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

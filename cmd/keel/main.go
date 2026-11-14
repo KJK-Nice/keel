@@ -12,13 +12,13 @@ import (
 )
 
 func init() {
-	// AppKit/WKWebView must run on thread 0. Lock before any other package
+	// AppKit must run on thread 0. Lock before any other package
 	// hops the main goroutine off the main OS thread.
 	runtime.LockOSThread()
 }
 
 // version is the release this binary was built as, set by the release
-// build: make build KEEL_VERSION=v0.2.0 (-X main.version).
+// build: make build KEEL_VERSION=vX.Y.Z (-X main.version).
 var version = "dev"
 
 func main() {
@@ -33,12 +33,8 @@ func main() {
 
 	switch cmd {
 	case "app":
-		if os.Getenv("KEEL_UI") == "webview" || hasArg(args, "--webview") {
-			fmt.Fprintln(os.Stderr, "the webview was removed; Keel opens its native window")
-		}
-		// The native client reads the share name from KEEL_NAME (Settings · Terminal name falls back to it).
-		os.Setenv("KEEL_NAME", parseName(args))
-		if err := app.RunNative(addr, dataDir); err != nil {
+		// The window's display name for sharing (Settings · Sharing's own name comes first).
+		if err := app.RunNative(addr, dataDir, parseName(args)); err != nil {
 			log.Fatal(err)
 		}
 	case "serve":
@@ -66,19 +62,10 @@ func main() {
 	}
 }
 
-func hasArg(args []string, want string) bool {
-	for _, a := range args {
-		if a == want {
-			return true
-		}
-	}
-	return false
-}
-
 func parseName(args []string) string {
 	name := os.Getenv("KEEL_NAME")
 	if name == "" {
-		name = os.Getenv("USER")
+		name = paths.LocalUser()
 	}
 	for i := 0; i < len(args); i++ {
 		switch {

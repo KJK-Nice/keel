@@ -25,6 +25,10 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
+
+	"keel/internal/limits"
+	"keel/internal/wire"
 )
 
 // LatestProtocol is the MCP version keel mcp answers with when the client
@@ -270,17 +274,8 @@ func (s *Server) call(ctx context.Context, name string, args json.RawMessage) (a
 	return nil, &rpcError{Code: codeInvalidParams, Message: "unknown tool: " + name}
 }
 
-type pane struct {
-	PaneID     string `json:"paneId"`
-	Host       string `json:"host"`
-	Production bool   `json:"production"`
-}
-
 func (s *Server) listPanes(ctx context.Context) toolResult {
-	var out struct {
-		Panes      []pane `json:"panes"`
-		NotAllowed int    `json:"notAllowed"`
-	}
+	var out wire.ExternalPaneList
 	if err := s.keel.Do(ctx, "GET", "/api/mcp/panes", nil, &out); err != nil {
 		return errorResult(err)
 	}
@@ -307,18 +302,10 @@ func (s *Server) readPane(ctx context.Context, paneID string, lines int) toolRes
 	if strings.TrimSpace(paneID) == "" {
 		return errorResult(errors.New("name a pane: paneId from list_panes"))
 	}
-	if lines < 0 || lines > 1000 {
-		return errorResult(errors.New("lines is 1 to 1000 (0 or none: Keel's setting)"))
+	if lines < 0 || lines > limits.MaxScrollbackLines {
+		return errorResult(fmt.Errorf("lines is 1 to %d (0 or none: Keel's setting)", limits.MaxScrollbackLines))
 	}
-	var ex struct {
-		PaneID      string         `json:"paneId"`
-		Host        string         `json:"host"`
-		Production  bool           `json:"production"`
-		Lines       int            `json:"lines"`
-		LastCommand string         `json:"lastCommand"`
-		Redactions  map[string]int `json:"redactions"`
-		Text        string         `json:"text"`
-	}
+	var ex wire.ExternalExcerpt
 	if err := s.keel.Do(ctx, "POST", "/api/mcp/read", map[string]any{"paneId": paneID, "lines": lines}, &ex); err != nil {
 		return errorResult(err)
 	}
@@ -349,14 +336,7 @@ func (s *Server) propose(ctx context.Context, paneID, command, why string) toolR
 	if strings.TrimSpace(paneID) == "" || strings.TrimSpace(command) == "" {
 		return errorResult(errors.New("propose_command needs paneId and command"))
 	}
-	var out struct {
-		ProposalID   string `json:"proposalId"`
-		Conversation string `json:"conversation"`
-		Host         string `json:"host"`
-		Risk         string `json:"risk"`
-		NeedsShift   bool   `json:"needsShift"`
-		Placeholders bool   `json:"placeholders"`
-	}
+	var out wire.ExternalProposed
 	if err := s.keel.Do(ctx, "POST", "/api/mcp/propose", map[string]any{"paneId": paneID, "command": command, "why": why}, &out); err != nil {
 		return errorResult(err)
 	}
@@ -374,29 +354,29 @@ func (s *Server) propose(ctx context.Context, paneID, command, why string) toolR
 }
 
 func (s *Server) status(ctx context.Context, id string) toolResult {
-	var out struct {
-		Typed   bool   `json:"typed"`
-		TypedAt string `json:"typedAt"`
-		Edited  bool   `json:"edited"`
-	}
+	var out wire.ExternalProposalState
 	if err := s.keel.Do(ctx, "GET", "/api/mcp/proposals/"+urlPathEscape(id), nil, &out); err != nil {
 		return errorResult(err)
 	}
 	if !out.Typed {
 		return textResult("Not typed yet: it is waiting for the user in Keel's agent panel.")
 	}
-	msg := "Typed by the user at " + out.TypedAt + "."
+	at := ""
+	if out.TypedAt != nil {
+		at = out.TypedAt.Format(time.RFC3339Nano) // as the server wrote it
+	}
+	msg := "Typed by the user at " + at + "."
 	if out.Edited {
 		msg += " The user edited it first, so what ran may differ from what you proposed."
 	}
 	return textResult(msg + " Call read_pane to see the output.")
 }
 
-func riskName(r string) string {
+func riskName(r wire.Risk) string {
 	switch r {
-	case "readonly":
+	case wire.RiskReadOnly:
 		return "read-only"
-	case "destructive":
+	case wire.RiskDestructive:
 		return "destructive"
 	}
 	return "as changing state"

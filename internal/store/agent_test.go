@@ -14,9 +14,8 @@ func agentStore(t *testing.T) (*Store, string) {
 	t.Helper()
 	t.Setenv("KEEL_KEYRING", "off")
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
 	path := filepath.Join(t.TempDir(), "keel.json")
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +24,7 @@ func agentStore(t *testing.T) (*Store, string) {
 
 func reopen(t *testing.T, path string) *Store {
 	t.Helper()
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,8 +301,8 @@ func TestDuplicateKeepsAgentFlags(t *testing.T) {
 	}
 }
 
-// Plan 036: the detection default moved from auto to hash-only. A file written before that holds "auto" for people who never
-// chose it, so it is moved once on load; an "auto" saved by the new build is a choice and stays.
+// The detection default is hash-only. A file written when it was auto holds "auto" for people who never chose it, so it
+// is moved once on load; an "auto" saved by the new build is a choice and stays.
 func TestOldAutoDetectionMovesOnceToHashOnly(t *testing.T) {
 	st, path := agentStore(t)
 	if d, _ := st.AgentSettings(); d.Detection != DetectionHashOnly {
@@ -497,8 +496,8 @@ func contains(list []string, v string) bool {
 	return false
 }
 
-// Google closed gemini-2.5-flash to new keys, so settings saved with the
-// old default read back as the new one.
+// Google closed gemini-2.5-flash to new keys, so settings that name it
+// read back as the current default.
 func TestAgentSettingsRetiredDefaultModel(t *testing.T) {
 	st, path := agentStore(t)
 	old := DefaultAgentSettings()

@@ -1,78 +1,60 @@
-// Package jev is a minimal TypeSafe Jev client (POST /v1/systemone) over
-// net/http, behind provider.Judge. Jev is a judgment model: it answers
-// typed questions (Noul, Choice) about a state with probabilities and never
-// generates text.
+// Package jev is a minimal TypeSafe Jev client (POST /v1/systemone) behind
+// provider.Judge: the endpoint, the key header and the request and
+// response mapping. The HTTP core is provider/transport. Jev is a judgment
+// model: it answers typed questions (Noul, Choice) about a state with
+// probabilities and never generates text.
 //
 // The HTTP contract follows https://docs.typesafe.ai/api.md (checked
 // 2026-10-15, model jev-1.13.0): a JSON body {state, model, questions},
 // "Authorization: Bearer <key>", and answers keyed by the question ids.
 //
 // New is the only way to build one, and only the agent service calls it
-// (service.RealJudge; internal/agent/invariants_test.go). The key travels
-// only in the Authorization header, never in a URL, a log line or an
-// error. There are no retries: detection has a latency budget, and a
-// failed call falls back to #-lines in the caller.
+// (service.RealJudge; internal/agent/invariants_test.go). There are no
+// retries: detection has a latency budget, and a failed call falls back to
+// #-lines in the caller.
 package jev
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"keel/internal/agent/provider"
+	"keel/internal/agent/provider/transport"
 )
 
-const (
-	defaultBaseURL = "https://api.typesafe.ai"
-	endpointPath   = "/v1/systemone"
-	// Model is pinned, not jev-latest: the thresholds in
-	// internal/agent/service/suggestq.go were tuned against it, and an
-	// alias moves on a new release.
-	Model          = "jev-1.13.0"
-	maxBody        = 1 << 20
-	defaultTimeout = 10 * time.Second
-)
+const id = "jev"
 
-type Client struct {
-	key     string
-	baseURL string
-	model   string
-	http    *http.Client
+var config = transport.Config{
+	Name:    id,
+	BaseURL: "https://api.typesafe.ai",
+	Timeout: 10 * time.Second,
+	MaxBody: 1 << 20,
+	// The key travels only in the Authorization header.
+	Auth: func(h http.Header, key string) { h.Set("Authorization", "Bearer "+key) },
+	// ErrorText stays off: the body names the bad field on a 422, and a
+	// Jev failure is never shown to the user, so only the status is kept.
 }
 
-type Option func(*Client)
+type Client struct{ t *transport.Client }
+
+type Option = transport.Option
 
 // WithBaseURL points the client at another endpoint (tests use an
 // httptest server on loopback).
-func WithBaseURL(u string) Option {
-	return func(c *Client) { c.baseURL = strings.TrimRight(u, "/") }
-}
+func WithBaseURL(u string) Option { return transport.WithBaseURL(u) }
 
-// WithHTTPClient sets the HTTP client.
-func WithHTTPClient(h *http.Client) Option {
-	return func(c *Client) { c.http = h }
-}
-
-// New returns a client that authenticates with key.
 func New(key string, opts ...Option) (*Client, error) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return nil, provider.ErrNoKey
+	t, err := transport.New(config, key, opts...)
+	if err != nil {
+		return nil, err
 	}
-	c := &Client{key: key, baseURL: defaultBaseURL, model: Model, http: &http.Client{Timeout: defaultTimeout}}
-	for _, o := range opts {
-		o(c)
-	}
-	return c, nil
+	return &Client{t: t}, nil
 }
 
-func (c *Client) ID() string { return "jev" }
+func (c *Client) ID() string { return id }
 
 type noulCriteria struct {
 	True  string `json:"true,omitempty"`
@@ -114,7 +96,7 @@ func (c *Client) Judge(ctx context.Context, req provider.JudgeRequest) (provider
 	if len(req.Questions) == 0 {
 		return provider.JudgeResponse{}, errors.New("jev: no questions")
 	}
-	body := request{State: map[string]any{}, Model: c.model, Questions: map[string]question{}}
+	body := request{State: map[string]any{}, Model: provider.JevModel, Questions: map[string]question{}}
 	for k, v := range req.Fields {
 		body.State[k] = v.String()
 	}
@@ -158,33 +140,9 @@ func (c *Client) Judge(ctx context.Context, req provider.JudgeRequest) (provider
 			return provider.JudgeResponse{}, fmt.Errorf("jev: question %q has unknown type %q", id, q.Type)
 		}
 	}
-	b, err := json.Marshal(body)
-	if err != nil {
-		return provider.JudgeResponse{}, err
-	}
-	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+endpointPath, bytes.NewReader(b))
-	if err != nil {
-		return provider.JudgeResponse{}, err
-	}
-	hreq.Header.Set("Content-Type", "application/json")
-	hreq.Header.Set("Authorization", "Bearer "+c.key)
-	resp, err := c.http.Do(hreq)
-	if err != nil {
-		return provider.JudgeResponse{}, c.scrub(fmt.Errorf("jev: %w", err))
-	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
-	if err != nil {
-		return provider.JudgeResponse{}, c.scrub(fmt.Errorf("jev: read: %w", err))
-	}
-	if resp.StatusCode != http.StatusOK {
-		// The body names the bad field on a 422; keep the status only, so
-		// nothing from the request is echoed into a log.
-		return provider.JudgeResponse{}, fmt.Errorf("jev: HTTP %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
-	}
 	var out response
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return provider.JudgeResponse{}, errors.New("jev: unreadable response")
+	if err := c.t.Post(ctx, "/v1/systemone", body, &out, nil); err != nil {
+		return provider.JudgeResponse{}, err
 	}
 	res := provider.JudgeResponse{Model: out.Model, Nouls: map[string]float64{}, Choices: map[string]provider.ChoiceAnswer{}, InputTokens: out.Usage.InputTokens}
 	for id, q := range req.Questions {
@@ -219,15 +177,6 @@ func hasOption(opts []provider.Option, key string) bool {
 		}
 	}
 	return false
-}
-
-// scrub removes the key from an error, in case a transport message ever
-// echoes it.
-func (c *Client) scrub(err error) error {
-	if err == nil || !strings.Contains(err.Error(), c.key) {
-		return err
-	}
-	return errors.New(strings.ReplaceAll(err.Error(), c.key, "[key]"))
 }
 
 var _ provider.Judge = (*Client)(nil)

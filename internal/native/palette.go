@@ -2,21 +2,20 @@ package native
 
 import (
 	"fmt"
-	"runtime"
 	"slices"
 	"strings"
 	"unicode"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
-// The command palette (docs/ui-redesign.md §5.2). The model here follows cmd/keel/web/js/lib/palette.js
-// (groups, matching, ordering, cursor, highlight) and the item list of term.js paletteCatalog: titles,
-// hints and key caps are the webview's. Choosing an item never types into a session: a snippet opens Approve before type
+// The command palette (docs/ui-redesign.md §5.2): groups, matching, ordering, cursor, highlight, and the item list.
+// Choosing an item never types into a session: a snippet opens Approve before type
 // (approve.go). The last row, "Ask the agent" (⌘↵), opens the agent panel with the query typed and sends nothing.
 
-// groupOrder is lib/palette.js GROUP_ORDER.
 var groupOrder = []string{"Open now", "Hosts", "Actions", "Snippets"}
 
 // palItem is one row. run gets split = true for ⌥↵ (open in a split); rows with no split form ignore it.
@@ -25,24 +24,18 @@ type palItem struct {
 	icon                     string // a key of iconPaths; "" is the action glyph
 	state                    string // "live" | "connecting" | "dead" | "idle": a state dot (open tabs and panes)
 	badge                    string // an accent label before the keys ("Approve first" on snippets)
-	bare                     bool   // no group heading above it (lib/palette.js askRow)
+	bare                     bool
 	run                      func(split bool)
 }
 
-// searchHosts is term.js revealVault: the sidebar shows its Hosts section and its filter has the keyboard.
 func (w *workspace) searchHosts() {
 	w.sidebar, w.sideSeg, w.focusHosts, w.wantFocus = true, "hosts", true, ""
 }
 
-// askKeys is the Ask the agent row's key cap: ⌘↵, Ctrl+↵ off macOS (lib/shortcutmap.js ask-agent).
-func askKeys() string {
-	if runtime.GOOS == "darwin" {
-		return "⌘↵"
-	}
-	return "Ctrl+↵"
-}
+// askKeys is the Ask the agent row's key cap: ⌘↵, Ctrl+↵ off macOS.
+func askKeys() string { return commandKeyLabel("agent.ask") }
 
-// askRow is lib/palette.js askRow: the palette's last row, there whatever the query matches; ⌘↵ runs it from any row.
+// askRow is the palette's last row, there whatever the query matches; ⌘↵ runs it from any row.
 func (w *workspace) askRow(query string) palItem {
 	q := strings.TrimSpace(query)
 	title := "Ask the agent"
@@ -52,7 +45,7 @@ func (w *workspace) askRow(query string) palItem {
 	return palItem{group: "Agent", title: title, icon: "ai-magic", keys: askKeys(), bare: true, run: func(bool) { w.askFromPalette(q) }}
 }
 
-// askFromPalette is term.js askAgentFromPalette: the panel opens with the query in the composer. Nothing is sent; the user
+// askFromPalette: the panel opens with the query in the composer. Nothing is sent; the user
 // presses ↵ (§5.2). A joined tab has no panel.
 func (w *workspace) askFromPalette(query string) {
 	if w.joinedActive() {
@@ -64,20 +57,18 @@ func (w *workspace) askFromPalette(query string) {
 	w.agent.focusInput = true
 }
 
-// palette is the open palette: the items as they were when it opened, what is typed and the selection.
 type palette struct {
 	items  []palItem
 	query  string
 	seen   string // the query the cursor was last reset for
 	cursor int
 	reveal bool // scroll the selected row into view in the next frame
-	focus  bool // the input has had the keyboard
+	focus  bool
 	ask    func(query string) palItem
 }
 
 func palWords(q string) []string { return strings.Fields(strings.ToLower(q)) }
 
-// paletteMatches reports whether every word of q appears in the item's title, hint, group or keys.
 func paletteMatches(it palItem, q string) bool {
 	hay := strings.ToLower(it.title + " " + it.hint + " " + it.group + " " + it.keys)
 	for _, w := range palWords(q) {
@@ -117,7 +108,6 @@ func filterPalette(items []palItem, q string) []palItem {
 	return orderGroups(keep)
 }
 
-// moveCursor steps the selection by delta, wrapping at both ends.
 func moveCursor(cursor, delta, count int) int {
 	if count <= 0 {
 		return 0
@@ -125,16 +115,13 @@ func moveCursor(cursor, delta, count int) int {
 	return ((cursor+delta)%count + count) % count
 }
 
-// clampCursor keeps a cursor inside a list that may have shrunk.
 func clampCursor(cursor, count int) int { return max(0, min(cursor, count-1)) }
 
-// span is a run of a title, marked when it matches a query word.
 type span struct {
 	text string
 	mark bool
 }
 
-// highlight splits text into runs, marking every part that matches a word of q (overlaps merge).
 func highlight(text, q string) []span {
 	rs := []rune(text)
 	low := make([]rune, len(rs))
@@ -191,15 +178,15 @@ func indexRunes(s, sub []rune) int {
 
 // ---- the items ----
 
-// tabDot is term.js paletteDot(tabStatus(tab)): live when every pane is ready, connecting while one is,
+// paneDot is live when every pane is ready, connecting while one is,
 // dead when one failed, else idle.
-func paneDot(status string) string {
+func paneDot(status wire.Status) string {
 	switch status {
-	case "ready":
+	case wire.StatusReady:
 		return "live"
-	case "connecting":
+	case wire.StatusConnecting:
 		return "connecting"
-	case "error", "exited":
+	case wire.StatusError, wire.StatusExited:
 		return "dead"
 	}
 	return "idle"
@@ -210,11 +197,11 @@ func (t *tab) dot() string {
 	for _, p := range t.panes {
 		n++
 		switch p.status() {
-		case "error", "exited":
+		case wire.StatusError, wire.StatusExited:
 			return "dead"
-		case "connecting":
+		case wire.StatusConnecting:
 			connecting++
-		case "ready":
+		case wire.StatusReady:
 			ready++
 		}
 	}
@@ -227,13 +214,12 @@ func (t *tab) dot() string {
 	return "idle"
 }
 
-// hostSubtitle is lib/groups.js hostSubtitle: a host that signs in with a saved identity says so.
 func hostSubtitle(h keelclient.Host) string {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return "this machine"
 	}
 	port := ""
-	if h.Port != 0 && h.Port != 22 {
+	if h.SSHPort() != limits.DefaultPort {
 		port = fmt.Sprintf(":%d", h.Port)
 	}
 	ident := ""
@@ -243,76 +229,40 @@ func hostSubtitle(h keelclient.Host) string {
 	return h.Username + "@" + h.Address + port + ident
 }
 
-// paletteItems is the palette's list as the workspace is now: Open now, Hosts and Actions.
 func (w *workspace) paletteItems() []palItem {
 	var items []palItem
-	add := func(section, title, keys, icon string, run func()) {
-		items = append(items, palItem{group: "Actions", title: title, hint: section, keys: keys, icon: icon, run: func(bool) { run() }})
-	}
-	add("Tabs", "New tab", "⌘T", "add-01", w.newTab)
-	add("Tabs", "New Local Shell", "", "", w.newLocalTab)
-	add("Tabs", "Close pane or tab", "⌘W", "", w.closeFocused)
-	add("Tabs", "Reopen last tab", "⌘⇧T", "reopen", w.reopenClosed)
-	add("Tabs", "Previous tab", "⌘<", "", func() { w.cycleTab(-1) })
-	add("Tabs", "Next tab", "⌘>", "", func() { w.cycleTab(1) })
-	add("Tabs", "First tab", "⌘1", "", func() { w.selectTab(0) })
-	add("Tabs", "Last tab", "⌘9", "", func() { w.selectTab(len(w.tabs) - 1) })
-	add("Vault", "Toggle vault sidebar", "⌘B", "panel-left", func() { w.sidebar = !w.sidebar })
-	add("Agent", "Toggle agent panel", "⌘I", "ai-magic", w.toggleAgent)
-	add("Agent", "Suggest a command for this line", suggestKeyLabel(runtime.GOOS == "darwin"), "ai-magic", w.suggestRequest)
-	add("Agent", "Agent conversations", "", "ai-magic", w.openAgentPage)
-	add("Agent", "Runbooks", "", "ai-magic", w.openRunbooksPage)
-	// A folder's roles, notes and runs (§17).
-	for _, g := range w.folders {
-		id := g.ID
-		add("Vault", "Group "+g.Name+" · roles and runbooks", "", "", func() { w.openGroupPage(id, false) })
-	}
-	add("Vault", "Search hosts", "", "", w.searchHosts)
-	add("Vault", "New host", "⌘N", "add-01", w.newHost)
-	add("Vault", "Quick connect", "⌘⇧O", "", func() { w.openQuick("", nil) })
-	add("Vault", "Join session", "⌘J", "link", w.openJoin)
-	add("Vault", "Import hosts from ~/.ssh/config", "", "", w.openImport)
-	for _, name := range pageNames { // Keychain, Port forwarding, Snippets, Logs, Settings (Notebooks sit before Logs in the webview)
-		keys := ""
-		if name == "settings" {
-			keys = "⌘,"
+	for i := range commands {
+		c, p := &commands[i], commands[i].pal
+		switch {
+		case p == nil:
+		case p.many != nil:
+			items = append(items, p.many(w)...)
+		case p.hide && c.enabled != nil && !c.enabled(w):
+		default:
+			run := c.invoke
+			if p.run != nil {
+				run = p.run
+			}
+			items = append(items, palItem{group: "Actions", title: p.title, hint: p.section, keys: c.keyLabel(), icon: p.icon, run: func(bool) { run(w) }})
 		}
-		add("Vault", pageDefs[name].title, keys, "", func() { w.openPage(name) })
 	}
-	add("Panes", "Split right", "⌘⇧D", "split-h", func() { w.splitFocused(layout.Row) })
-	add("Panes", "Split down", "⌘⇧E", "split-v", func() { w.splitFocused(layout.Col) })
-	add("Panes", "Split notebook", "", "", w.splitNotebook)
-	add("Panes", "Focus view (zoom pane)", "⌘⇧↵", "", w.zoomFocused)
-	add("Panes", "Find in terminal", "⌘F", "", func() { w.openFind(w.focusedPane()) })
-	if w.tab().canSync() { // not in a joined tab, nor in a tab with no terminal
-		add("Panes", "Toggle sync input", "", "", func() { w.toggleSync(w.tab()) })
-	}
-	add("Terminal", "Larger text", "⌘+", "", func() { w.setTermSize(w.termSize + 1) })
-	add("Terminal", "Smaller text", "⌘-", "", func() { w.setTermSize(w.termSize - 1) })
-	add("Terminal", "Reset text size", "⌘0", "", func() { w.setTermSize(termSizeDefault) })
-	add("Terminal", "Share session (join link)", "", "", w.openShare)
-	add("Terminal", "Stop sharing this session", "", "", w.stopShare)
-	// The webview stops the runtime from here at once; this client asks first, as Settings · Runtime does.
-	add("Terminal", "Stop Keel runtime", "", "", w.askStopRuntime)
 
 	// Open now: every tab, and the panes of tabs with more than one. Picking one focuses it; it never starts
 	// a second session.
 	for i, t := range w.tabs {
 		n := i + 1
-		keys := ""
-		switch {
-		case i < 8:
-			keys = fmt.Sprintf("⌘%d", n)
-		case i == len(w.tabs)-1:
-			keys = "⌘9"
-		}
+		keys := tabKeyLabel(i, len(w.tabs))
 		focusTab := func() { w.selectTab(i) }
-		if t.isNew() {
+		switch t.mode() {
+		case modeNew:
 			items = append(items, palItem{group: "Open now", title: "New tab", hint: fmt.Sprintf("tab %d", n), keys: keys, icon: "add-01", run: func(bool) { focusTab() }})
 			continue
-		}
-		if t.isPage() {
-			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: pageDefs[t.pg.name].paletteTag, run: func(bool) { focusTab() }})
+		case modePage:
+			glyph := ""
+			if t.pg.openNowIcon {
+				glyph = t.pg.tabIcon
+			}
+			items = append(items, palItem{group: "Open now", title: t.name(), hint: fmt.Sprintf("tab %d", n), keys: keys, icon: glyph, run: func(bool) { focusTab() }})
 			continue
 		}
 		leaves := t.root.Leaves()
@@ -321,7 +271,7 @@ func (w *workspace) paletteItems() []palItem {
 			hint += fmt.Sprintf(" · %d panes", len(leaves))
 		}
 		if p := t.panes[leaves[0]]; p != nil {
-			if p.conn.Snapshot().Role == "driver" {
+			if p.conn.Snapshot().Driving() {
 				hint += " · driving"
 			} else {
 				hint += " · following"
@@ -350,7 +300,7 @@ func (w *workspace) paletteItems() []palItem {
 	// Hosts open a new session; ⌥↵ opens it in a split of the focused pane.
 	for _, h := range w.hosts {
 		ic := "server"
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			ic = "computer-terminal-01"
 		}
 		items = append(items, palItem{group: "Hosts", title: "New session on " + h.Name, hint: hostSubtitle(h), icon: ic, run: func(split bool) {
@@ -362,12 +312,12 @@ func (w *workspace) paletteItems() []palItem {
 		}})
 	}
 	// Snippets only ever go through typeSnippet. "Approve first" only on a snippet that will certainly ask (rule 13: more
-	// than one line, or outside the direct grammar); the others may type with no dialog (term.js snippetBadge).
+	// than one line, or outside the direct grammar); the others may type with no dialog.
 	for _, sn := range w.snippets {
 		items = append(items, palItem{group: "Snippets", title: "Type snippet: " + sn.Name, hint: paletteHint(sn), icon: "snippet", badge: snippetBadge(sn.Command),
 			run: func(bool) { w.typeSnippet(sn.ID) }})
 	}
-	// Notebooks open without a session; nothing here types (term.js paletteItems: notebook-new, notebook:<id>).
+	// Notebooks open without a session; nothing here types.
 	items = append(items, palItem{group: "Notebooks", title: "New notebook", run: func(bool) { w.newNotebook() }})
 	for _, nb := range w.notebooks {
 		id, hint := nb.ID, "Open without a session"
@@ -380,7 +330,7 @@ func (w *workspace) paletteItems() []palItem {
 }
 
 // openHostInSplit is ⌥↵ on a host: a session on h in a split right of the focused pane, or in a new tab when
-// no session tab is showing (term.js openHostInSplit).
+// no session tab is showing.
 func (w *workspace) openHostInSplit(h keelclient.Host) {
 	t := w.tab()
 	if t == nil || t.isNew() || t.panes[t.focused] == nil {
@@ -400,15 +350,12 @@ func (w *workspace) openPalette() {
 	w.pal = &palette{items: w.paletteItems(), ask: w.askRow}
 }
 
-// closePalette closes it and gives the keyboard back to the focused pane.
 func (w *workspace) closePalette() {
 	if w.pal == nil {
 		return
 	}
 	w.pal = nil
-	if t := w.tab(); t != nil && t.panes[t.focused] != nil {
-		w.wantFocus = t.focused
-	}
+	w.returnKeyboard(false)
 }
 
 func (w *workspace) togglePalette() {
@@ -419,10 +366,9 @@ func (w *workspace) togglePalette() {
 	w.openPalette()
 }
 
-// visible is the rows for the typed query; the cursor is kept inside them.
 func (p *palette) visible() []palItem {
 	rows := filterPalette(p.items, p.query)
-	if p.ask != nil { // the last row, whatever the query matches
+	if p.ask != nil {
 		rows = append(rows, p.ask(p.query))
 	}
 	if p.query != p.seen {
@@ -432,7 +378,6 @@ func (p *palette) visible() []palItem {
 	return rows
 }
 
-// choose closes the palette and runs the selected row (nothing when no row matches).
 func (w *workspace) choose(split bool) {
 	p := w.pal
 	if p == nil {

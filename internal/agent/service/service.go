@@ -21,8 +21,6 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -34,7 +32,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
-	"keel/internal/applog"
+	"keel/internal/randid"
 	"keel/internal/runvars"
 	"keel/internal/store"
 )
@@ -92,7 +90,9 @@ type Options struct {
 	Judge        JudgeFactory
 	TestProvider bool
 	Timeout      time.Duration
-	Now          func() time.Time
+	// SuggestTimeout bounds the model call of one in-pane suggestion.
+	SuggestTimeout time.Duration
+	Now            func() time.Time
 	// DetectLogWindow is how long detection reads of one pane are
 	// summarised into one keel.log entry (tests shorten it).
 	DetectLogWindow time.Duration
@@ -139,7 +139,6 @@ type Service struct {
 	// model for the life of this keel serve, never used to fill a command
 	// (under mu). The value outlives its run in the panes' scrollback.
 	withheld map[string]string
-	log      agent.Logger
 	// saveMu orders saves and deletes of saved conversations, so an older
 	// snapshot never lands after a newer one or after a delete. dirty (under
 	// mu) is the save queue: conversations to save, by id; saveKick wakes
@@ -151,11 +150,9 @@ type Service struct {
 	// saveErr is why the last save failed, "" when it worked (under mu).
 	saveErr string
 
-	sug          suggestState
-	detectWindow time.Duration
-	// beforeReserve, in tests only, runs in AuthorizeInsert between the
-	// checks on the snapshot and the reserve, to land a RiskCheck there.
-	beforeReserve func()
+	sug            suggestState
+	detectWindow   time.Duration
+	suggestTimeout time.Duration
 }
 
 const (
@@ -175,7 +172,7 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	if st == nil || panes == nil {
 		return nil, errors.New("agent: service needs a store and panes")
 	}
-	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, books: opts.Runbooks, nbs: opts.Notebooks, log: log, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
+	s := &Service{st: st, panes: panes, audit: audit, chats: opts.Chats, notesSt: opts.Notes, books: opts.Runbooks, nbs: opts.Notebooks, dirty: map[string]*conversation{}, saveKick: make(chan struct{}, 1), factory: opts.Factory, judge: opts.Judge, test: opts.TestProvider, timeout: opts.Timeout, now: opts.Now, detectWindow: opts.DetectLogWindow}
 	if s.factory == nil {
 		s.factory = Real
 	}
@@ -184,6 +181,9 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	}
 	if s.detectWindow <= 0 {
 		s.detectWindow = detectLogWindow
+	}
+	if s.suggestTimeout = opts.SuggestTimeout; s.suggestTimeout <= 0 {
+		s.suggestTimeout = defaultSuggestTimeout
 	}
 	s.sug.suggestions = map[string]*Suggestion{}
 	s.sug.detectLogs = map[string]*detectLog{}
@@ -196,9 +196,6 @@ func New(st Store, panes Panes, log agent.Logger, opts Options) (*Service, error
 	s.convs = map[string]*conversation{}
 	return s, nil
 }
-
-// TestProvider reports whether answers come from the in-process fake.
-func (s *Service) TestProvider() bool { return s.test }
 
 type turn struct {
 	user  redact.Safe
@@ -262,7 +259,7 @@ type TraceStep struct {
 	HostID     string         `json:"hostId,omitempty"`
 	Host       string         `json:"host"`
 	Pane       int            `json:"pane,omitempty"` // number in the request ("pane N"), when read
-	Status     string         `json:"status"`         // "read" | "skipped"
+	Status     string         `json:"status"`         // a Trace* word (vocab.go)
 	Reason     string         `json:"reason,omitempty"`
 	Lines      int            `json:"lines"`
 	Redactions map[string]int `json:"redactions,omitempty"`
@@ -397,16 +394,9 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	if err != nil {
 		return AskResponse{}, err
 	}
-	desc, ok := provider.Lookup(set.Provider)
-	if !ok || desc.Kind != provider.KindModel {
-		return AskResponse{}, ErrNotProvider
-	}
-	configured, err := s.st.AgentKeyConfigured(desc.ID)
+	desc, err := s.askableModel(set)
 	if err != nil {
 		return AskResponse{}, err
-	}
-	if !configured {
-		return AskResponse{}, ErrNoKey
 	}
 
 	// A saved conversation resumes here: its question and reply history
@@ -420,17 +410,12 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	defer s.end(conv)
 
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return AskResponse{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	byID := make(map[string]agent.Host, len(hosts))
-	for _, h := range hosts {
-		byID[h.ID] = h
-	}
-	scope := agent.NewScope(hosts)
-	r, err := s.requestRedactor(set.Redact, hosts)
+	byID, scope := hs.byID, hs.scope
+	r, err := s.requestRedactor(set.Redact, hs.list)
 	if err != nil {
 		return AskResponse{}, err
 	}
@@ -444,7 +429,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	for _, id := range ids {
 		p, ok := s.panes.Pane(id)
 		if !ok {
-			trace = append(trace, TraceStep{SessionID: id, Host: "closed pane", Status: "skipped", Reason: "not-open"})
+			trace = append(trace, TraceStep{SessionID: id, Host: "closed pane", Status: TraceSkipped, Reason: SkipNotOpen})
 			continue
 		}
 		h := byID[p.HostID]
@@ -454,18 +439,18 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		}
 		step := TraceStep{SessionID: id, HostID: p.HostID, Host: p.HostName}
 		if !scope.Allows(p) {
-			step.Status, step.Reason = "skipped", "not-readable"
+			step.Status, step.Reason = TraceSkipped, SkipNotReadable
 			trace = append(trace, step)
 			continue
 		}
-		ex, err := s.audit.ReadPane(s.panes, scope, p, set.ScrollbackLines, r)
+		ex, err := s.audit.ReadPane(s.panes, scope, p, set.ScrollbackLines, r, "")
 		if err != nil {
-			step.Status, step.Reason = "skipped", "read-failed"
+			step.Status, step.Reason = TraceSkipped, SkipReadFailed
 			trace = append(trace, step)
 			continue
 		}
 		excerpts = append(excerpts, ex)
-		step.Status, step.Pane, step.Lines, step.Redactions = "read", len(excerpts), ex.Lines, ex.Report.Strings()
+		step.Status, step.Pane, step.Lines, step.Redactions = TraceRead, len(excerpts), ex.Lines, ex.Report.Strings()
 		if ex.LastCommand {
 			step.Command = ex.Command.Label()
 		}
@@ -519,7 +504,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	msg.WriteString(question)
 	before := r.Report()
 	userSafe := r.Text(msg.String())
-	qRep := diffReport(before, r.Report())
+	qRep := agent.Diff(before, r.Report())
 
 	messages := make([]provider.Message, 0, 2*len(conv.turns)+1)
 	for _, t := range conv.turns {
@@ -533,11 +518,23 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	cctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-	resp, err := prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens})
-	if err != nil {
-		return AskResponse{}, s.providerErr(ctx, cctx, err)
+	// ask sends the messages so far: what and n say what this request adds,
+	// for its log entry. The panes read have their own entries; a question
+	// with no pane in scope is logged here like any other.
+	ask := func(what string, n int) (provider.Response, error) {
+		rep, err := s.send(cctx, prov, outbound{
+			model: &provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens},
+			log:   agent.Egress{What: what, N: n, Report: r.Report(), To: desc.Name, Why: "to answer it", Source: desc.ID},
+		})
+		if err != nil {
+			return provider.Response{}, s.providerErr(ctx, cctx, err)
+		}
+		return s.checkCut(desc.ID, rep.model), nil
 	}
-	resp = s.checkCut(desc.ID, resp)
+	resp, err := ask("a question with "+noteCountWord(len(excerpts), "pane", "panes")+" in scope", len(excerpts))
+	if err != nil {
+		return AskResponse{}, err
+	}
 	// The model may ask to read notebooks from the index: keel serve reads
 	// them (within the limits, never a private one) and asks again, at
 	// most maxNotebookReadRounds more times (notebooks.go).
@@ -556,17 +553,16 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 			break
 		}
 		messages = append(messages, provider.Message{Role: provider.RoleModel, Text: r.Text(truncate(resp.Text, maxAnswerBytes))}, provider.Message{Role: provider.RoleUser, Text: r.Text(readText)})
-		resp, err = prov.Generate(cctx, provider.Request{Model: set.Model, System: systemSafe, Messages: messages, MaxOutputTokens: maxAnswerTokens})
+		resp, err = ask("the notebooks the agent asked to read", len(readSteps))
 		if err != nil {
-			return AskResponse{}, s.providerErr(ctx, cctx, err)
+			return AskResponse{}, err
 		}
-		resp = s.checkCut(desc.ID, resp)
 		usage.InputTokens += resp.InputTokens
 		usage.OutputTokens += resp.OutputTokens
 	}
 	rest, extra := parseNotebookReads(resp.Text)
 	if len(extra) > 0 && nbAsk != nil && !nbAsk.limited {
-		trace = append(trace, TraceStep{Status: "skipped", Reason: "notebook-limit", Host: "notebooks"})
+		trace = append(trace, TraceStep{Status: TraceSkipped, Reason: SkipNotebookLimit, Host: "notebooks"})
 	}
 
 	now := s.now()
@@ -604,21 +600,15 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		made = append(made, stepProp)
 	}
 	for _, raw := range raws {
-		p := &Proposal{ID: newID("p_"), Command: raw.Command, Bytes: typedBytes(raw.Command), Why: raw.Why, Risk: rate(raw.Command, raw.Risk), ProposedAt: &now}
-		var target *agent.Excerpt
+		spec := proposalSpec{Command: raw.Command, Why: raw.Why, Floor: modelRisk(raw.Risk), Report: r.Report()}
 		switch {
 		case raw.Pane >= 1 && raw.Pane <= len(excerpts):
-			target = &excerpts[raw.Pane-1]
+			spec.Pane = excerpts[raw.Pane-1].Pane
 		case len(excerpts) == 1:
-			target = &excerpts[0]
+			spec.Pane = excerpts[0].Pane
 		}
-		if target != nil {
-			h := byID[target.Pane.HostID]
-			p.SessionID, p.HostID, p.Host, p.Production = target.Pane.SessionID, target.Pane.HostID, target.Pane.HostName, h.Production
-			s.audit.Suggest(target.Pane, r.Report(), riskLabel(p.Risk))
-		}
-		p.NeedsShift = agent.NeedsShift(p.Risk, p.Production)
-		p.Placeholders = hasPlaceholder(p.Command)
+		spec.Production = byID[spec.Pane.HostID].Production
+		p := s.newProposal(spec, now)
 		out.Proposals = append(out.Proposals, *p)
 		conv.proposals = append(conv.proposals, p)
 		made = append(made, p)
@@ -646,7 +636,6 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	hq.WriteString(question)
 	modelText := truncate(resp.Text, maxAnswerBytes)
 	if len(nbW.notes) > 0 {
-		// The model hears what Keel did with its notebook blocks.
 		modelText += "\n\n[Keel: " + strings.Join(nbW.notes, ". ") + ".]"
 	}
 	if resp.Stop != "" {
@@ -717,109 +706,9 @@ func (s *Service) checkCut(providerID string, resp provider.Response) provider.R
 	if resp.Stop == "" {
 		return resp
 	}
-	s.log.Append(applog.Entry{
-		Kind:    "agent",
-		Source:  providerID,
-		Message: fmt.Sprintf("agent answer cut off (%s): %d answer tokens, %d thinking tokens", resp.Stop, resp.OutputTokens, resp.ThoughtTokens),
-	})
+	s.audit.Event(agent.EventAgent, providerID, fmt.Sprintf("agent answer cut off (%s): %d answer tokens, %d thinking tokens", resp.Stop, resp.OutputTokens, resp.ThoughtTokens), 0)
 	resp.Text = dropOpenBlock(resp.Text)
 	return resp
-}
-
-// providerFor reads the provider key from the vault and builds the client
-// for one Ask. It is the only place in the agent tree that reads a key
-// (internal/agent/invariants_test.go).
-func (s *Service) providerFor(id string) (provider.Provider, error) {
-	key, err := s.st.AgentKey(id)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			return nil, ErrNoKey
-		}
-		return nil, err
-	}
-	p, err := s.factory(id, key)
-	if err != nil {
-		if errors.Is(err, provider.ErrNoKey) {
-			return nil, ErrNoKey
-		}
-		return nil, &ProviderError{Msg: scrub(err.Error(), key)}
-	}
-	return scrubbing{p: p, key: key}, nil
-}
-
-// judgeFor reads the detector key (Jev) from the vault and builds its
-// client for one Detect or one risk check. With no key it returns
-// ErrNoKey, and the caller falls back to #-lines and the code rating. It
-// is the only other place in the agent tree that reads a key
-// (internal/agent/invariants_test.go).
-func (s *Service) judgeFor() (provider.Judge, error) {
-	configured, err := s.st.AgentKeyConfigured(JudgeProvider)
-	if err != nil || !configured {
-		return nil, ErrNoKey
-	}
-	key, err := s.st.AgentKey(JudgeProvider)
-	if err != nil {
-		return nil, ErrNoKey
-	}
-	j, err := s.judge(key)
-	if err != nil {
-		return nil, ErrNoKey
-	}
-	return scrubbingJudge{j: j, key: key}, nil
-}
-
-// scrubbingJudge removes the key from any error a judge returns.
-type scrubbingJudge struct {
-	j   provider.Judge
-	key string
-}
-
-func (sc scrubbingJudge) ID() string { return sc.j.ID() }
-
-func (sc scrubbingJudge) Judge(ctx context.Context, req provider.JudgeRequest) (provider.JudgeResponse, error) {
-	resp, err := sc.j.Judge(ctx, req)
-	if err != nil {
-		return resp, &ProviderError{Msg: scrub(err.Error(), sc.key)}
-	}
-	return resp, nil
-}
-
-// scrubbing removes the key from any error a provider returns, on top of
-// the client's own scrubbing.
-type scrubbing struct {
-	p   provider.Provider
-	key string
-}
-
-func (sc scrubbing) ID() string { return sc.p.ID() }
-
-func (sc scrubbing) Generate(ctx context.Context, req provider.Request) (provider.Response, error) {
-	resp, err := sc.p.Generate(ctx, req)
-	if err != nil {
-		return resp, &ProviderError{Msg: scrub(err.Error(), sc.key)}
-	}
-	return resp, nil
-}
-
-func scrub(msg, key string) string {
-	if key != "" {
-		msg = strings.ReplaceAll(msg, key, "[key]")
-	}
-	return msg
-}
-
-func (s *Service) providerErr(parent, cctx context.Context, err error) error {
-	switch {
-	case parent.Err() != nil:
-		return context.Canceled
-	case errors.Is(cctx.Err(), context.DeadlineExceeded):
-		return &ProviderError{Msg: fmt.Sprintf("the provider did not answer within %s", s.timeout)}
-	}
-	var pe *ProviderError
-	if errors.As(err, &pe) {
-		return pe
-	}
-	return &ProviderError{Msg: err.Error()}
 }
 
 func riskLabel(r agent.Risk) string {
@@ -858,7 +747,7 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	// Build the Redactor first: the edit is kept redacted, and without one
 	// the edit is refused rather than shown in the panel and saved
 	// differently (or as typed).
-	r, err := s.commandRedactor()
+	r, err := s.redactorFor(forKeptCommand)
 	if err != nil {
 		return Proposal{}, err
 	}
@@ -868,11 +757,8 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 		s.mu.Unlock()
 		return Proposal{}, err
 	}
-	p.Command, p.Bytes, p.Edited = cmd, typedBytes(cmd), true
-	p.Risk = agent.Classify(cmd)
-	p.Production = production
-	p.NeedsShift = agent.NeedsShift(p.Risk, production)
-	p.Placeholders = hasPlaceholder(cmd)
+	p.Command, p.Edited, p.Production = cmd, true, production
+	p.seal("")
 	out := *p
 	c := s.convs[convID]
 	sp := c.recordProposalLocked(proposalID)
@@ -904,63 +790,39 @@ type TypeRequest struct {
 	Shift      bool       // ⇧ was held
 }
 
-// AuthorizeType checks a Type into pane before keel serve writes it: the
-// proposal exists and targets this session, the bytes are the ones shown,
-// the ⇧ rule holds (with the host's current production flag), and the
-// client drives the session. It then logs agent.type. It writes nothing.
+// AuthorizeType checks a Type into pane, approved in the dialog, before
+// keel serve writes it (authorize, authorize.go): the client drives the
+// session, the proposal exists and targets it, the bytes are the ones
+// shown, and the ⇧ rule holds (with the host's current production flag).
+// It then logs agent.type. It writes nothing.
 func (s *Service) AuthorizeType(req TypeRequest) error {
+	_, err := s.authorize(context.Background(), &pathApproved, req.subject(s), req.ask())
+	return err
+}
+
+// subject is the proposal a Type names: a group run's host, or a
+// conversation's proposal.
+func (req TypeRequest) subject(s *Service) typeSubject {
 	if req.GroupRunID != "" {
-		return s.authorizeGroupType(req)
+		return groupSubject{s: s, runID: req.GroupRunID, proposalID: req.ProposalID}
 	}
-	s.mu.Lock()
-	p, err := s.proposalLocked(req.ConversationID, req.ProposalID)
-	var snap Proposal
-	if err == nil {
-		snap = *p
-	}
-	s.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	if snap.SessionID == "" {
-		return ErrNoTarget
-	}
-	if snap.SessionID != req.SessionID {
-		return ErrWrongPane
-	}
-	if req.Bytes != snap.Bytes {
-		return ErrChanged
-	}
-	if hasPlaceholder(snap.Command) {
-		return ErrPlaceholder
-	}
-	// Only a group run's step has its variables filled in (groupvars.go);
-	// anywhere else {{name}} would be typed as text.
-	if runvars.HasRefs(snap.Command) {
-		return ErrVarsOutsideRun
-	}
-	current, err := s.hostProduction(snap.HostID)
-	if err != nil {
-		return err
-	}
-	if agent.NeedsShift(snap.Risk, snap.Production || current) && !req.Shift {
-		return ErrNeedsShift
-	}
-	return s.audit.TypeFrom(agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role}, snap.Bytes, agent.TypeApproved)
+	return convSubject{s: s, convID: req.ConversationID, proposalID: req.ProposalID}
+}
+
+func (req TypeRequest) ask() typeAsk {
+	return typeAsk{sessionID: req.SessionID, role: req.Role, bytes: req.Bytes, shift: req.Shift}
 }
 
 // hostProduction reports a host's current production flag. It fails
 // closed: a host that can no longer be found (deleted, or no host id)
 // counts as production, so the ⇧ rule is never relaxed by a lookup miss.
 func (s *Service) hostProduction(hostID string) (bool, error) {
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return true, err
 	}
-	for _, h := range agent.HostsFrom(hosts) {
-		if hostID != "" && h.ID == hostID {
-			return h.Production, nil
-		}
+	if h, ok := hs.byID[hostID]; ok && hostID != "" {
+		return h.Production, nil
 	}
 	return true, nil
 }
@@ -1042,16 +904,6 @@ func (c *conversation) trimHistory() {
 	}
 }
 
-func diffReport(before, after redact.Report) redact.Report {
-	out := redact.Report{Counts: map[redact.Kind]int{}}
-	for k, v := range after.Counts {
-		if d := v - before.Counts[k]; d > 0 {
-			out.Counts[k] = d
-		}
-	}
-	return out
-}
-
 func uniq(ids []string) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(ids))
@@ -1067,7 +919,5 @@ func uniq(ids []string) []string {
 }
 
 func newID(prefix string) string {
-	var b [8]byte
-	_, _ = rand.Read(b[:])
-	return prefix + hex.EncodeToString(b[:])
+	return prefix + randid.Hex(8)
 }

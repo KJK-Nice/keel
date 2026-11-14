@@ -102,16 +102,12 @@ func Start(opts Options) (*Server, error) {
 	return s, nil
 }
 
-// Fingerprint is the server key's SHA256 fingerprint.
 func (s *Server) Fingerprint() string { return ssh.FingerprintSHA256(s.Key) }
 
-// Forwards counts direct-tcpip channels opened through this server.
 func (s *Server) Forwards() int64 { return s.forwards.Load() }
 
-// Sessions counts session channels opened.
 func (s *Server) Sessions() int64 { return s.sessions.Load() }
 
-// Logins counts successful authentications.
 func (s *Server) Logins() int64 { return s.authOK.Load() }
 
 // ShellInput is every byte the shells on this server were sent.
@@ -121,7 +117,6 @@ func (s *Server) ShellInput() string {
 	return string(s.shellIn)
 }
 
-// Close stops the server and drops its connections.
 func (s *Server) Close() {
 	s.closeOnce.Do(func() {
 		_ = s.ln.Close()

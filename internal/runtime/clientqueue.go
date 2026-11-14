@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"keel/internal/inject"
 )
 
 // Each attached client gets its events through a queue measured in bytes,
-// not events. A burst of small reads (yes | head over SSH) used to fill a
-// 512-event channel in a few KB and drop a client that was only a moment
-// behind, closing its WebSocket. Now output waits in the queue, adjacent
-// chunks are merged so the consumer sends fewer, larger frames, and a
-// client is dropped only when its unread output passes the byte budget.
+// not events, so a burst of small reads (yes | head over SSH) does not drop
+// a client that is only a moment behind. Output waits in the queue,
+// adjacent chunks are merged so the consumer sends fewer, larger frames,
+// and a client is dropped only when its unread output passes the byte
+// budget.
 const (
 	// clientMaxQueuedBytes is how much unread output a client may hold
 	// before it is dropped as a slow consumer. Share viewers are paced by
@@ -23,8 +21,8 @@ const (
 	// can pile up (presence, status, control).
 	clientMaxQueuedEvents = 4096
 	// clientMergeBytes caps one merged output event at the size of one PTY
-	// read (runtime reads 32 KB), so no consumer sees a larger message than
-	// before: a share viewer's WebRTC data channel has a message size limit.
+	// read (runtime reads 32 KB): a share viewer's WebRTC data channel has a
+	// message size limit.
 	clientMergeBytes = 32 << 10
 	// clientChanCap is the hand-off channel between the queue and the
 	// consumer; the queue does the buffering.
@@ -42,9 +40,8 @@ type queuedEvent struct {
 }
 
 type clientConn struct {
-	Client  Client
-	ch      chan Event
-	focused inject.Surface
+	Client Client
+	ch     chan Event
 
 	qmu   sync.Mutex
 	queue []queuedEvent
@@ -62,14 +59,13 @@ type clientConn struct {
 	finOnce    sync.Once
 }
 
-func newClientConn(cl Client, focused inject.Surface) *clientConn {
+func newClientConn(cl Client) *clientConn {
 	c := &clientConn{
-		Client:  cl,
-		ch:      make(chan Event, clientChanCap),
-		focused: focused,
-		wake:    make(chan struct{}, 1),
-		done:    make(chan struct{}),
-		fin:     make(chan struct{}),
+		Client: cl,
+		ch:     make(chan Event, clientChanCap),
+		wake:   make(chan struct{}, 1),
+		done:   make(chan struct{}),
+		fin:    make(chan struct{}),
 	}
 	go c.pump()
 	return c
@@ -83,14 +79,14 @@ func (c *clientConn) offer(ev Event) bool {
 		c.qmu.Unlock()
 		return true
 	}
-	if ev.Kind == "bytes" {
+	if ev.Kind == EventBytes {
 		if c.queued+len(ev.Bytes) > clientMaxQueuedBytes {
 			c.dropReason = fmt.Sprintf("more than %d MB of output unread", clientMaxQueuedBytes>>20)
 			c.qmu.Unlock()
 			return false
 		}
 		c.queued += len(ev.Bytes)
-		if n := len(c.queue); n > 0 && c.queue[n-1].ev.Kind == "bytes" &&
+		if n := len(c.queue); n > 0 && c.queue[n-1].ev.Kind == EventBytes &&
 			len(c.queue[n-1].ev.Bytes)+len(ev.Bytes) <= clientMergeBytes {
 			last := &c.queue[n-1]
 			if !last.owned {
@@ -197,7 +193,7 @@ func (c *clientConn) pump() {
 				if !c.send(q.ev) {
 					return
 				}
-				if q.ev.Kind == "bytes" {
+				if q.ev.Kind == EventBytes {
 					c.qmu.Lock()
 					c.queued = max(0, c.queued-len(q.ev.Bytes))
 					c.qmu.Unlock()

@@ -14,12 +14,10 @@ type serveSteps struct {
 	verify func(addr, token string) error
 }
 
-var realSteps = serveSteps{os.MkdirAll, authtoken.LoadOrCreate, EnsureServe, VerifyServe}
-
 // PrepareServe makes the data directory (0700), loads or creates the token, starts keel serve if it is not
-// running and checks that it answers to that token. Both windows start here.
+// running and checks that it answers to that token. The window starts here.
 func PrepareServe(addr, dataDir string) (token string, err error) {
-	return realSteps.prepare(addr, dataDir)
+	return serveSteps{os.MkdirAll, authtoken.LoadOrCreate, ensureServe, verifyServe}.prepare(addr, dataDir)
 }
 
 func (s serveSteps) prepare(addr, dataDir string) (string, error) {

@@ -1,9 +1,9 @@
 package native
 
 import (
+	"context"
 	"math"
 	"os"
-	"runtime"
 	"strings"
 	"unicode/utf8"
 
@@ -12,17 +12,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Settings (docs/ui-redesign.md §5.9): what the app has, and so what this has. The page is SettingsPage and the panels of
-// internal/ui/pages.templ and settings_sections.templ; the words and rules are theirs, the helpers are
-// lib/settingspages.js and lib/shortcutmap.js (settingshelpers.go), and the handlers are term.js (setOpacity, setBlur,
-// setFontSize, the Copy on select and Right-click rows) and ui/settingspages.js.
+// Settings (docs/ui-redesign.md §5.9). The helpers are in settingshelpers.go and the agent's own settings in agentsettings.go.
 //
-// In the app and not here, each for a reason:
-//   - Appearance · Font smoothing: the webview's -webkit-font-smoothing; MyGo draws its own text.
-//   - Agent · Notes for the agent (Your notes, Delete all notes): the notes are the notes feature, a later phase. The rest of
-//     Agent is here (agentsettings.go), saved as it is made.
-//   - Sharing · Display name is stored in keel-native.json ("name"), not in the webview's localStorage; it is read by the
-//     share phase (N6).
+// There is no Appearance · Font smoothing row: MyGo draws its own text. Sharing · Display name is stored in
+// keel-native.json ("name").
 //
 // Window opacity and Window blur apply live while the window was created translucent (Transparent cannot change on an open
 // MyGo window): the grounds repaint at the new alpha, crossing 100 paints them opaque, and the blur is set again (0 at
@@ -41,9 +34,7 @@ type settingsPage struct {
 	loaded   bool
 	loadFail string // the read failed: the sections show what they have
 
-	// The sliders are bound to floats; a change is told from the value last applied.
-	opacityV, blurV, sizeV, uiV                         float64
-	opacityApplied, blurApplied, sizeApplied, uiApplied int
+	sliders map[string]*sliderPos // by pref key (sliderSpecs)
 
 	name, signal         string // the two inputs while they are edited
 	nameH, signalH       ui.Handle
@@ -70,52 +61,58 @@ func newSettingsPage() *settingsPage {
 	return &settingsPage{section: "appearance", notes: notesEditor{user: true}}
 }
 
+// settingsPage is the open Settings tab's page, or nil.
+func (w *workspace) settingsPage() *settingsPage {
+	return pageAs[*settingsPage](w.pageTab(pageSettings))
+}
+
+// showSection shows section id, with the search cleared.
+func (p *settingsPage) showSection(id string) { p.section, p.search = id, "" }
+
+func (p *settingsPage) load(w *workspace) {
+	w.loadSettings()
+	if p.section == "agent" {
+		w.loadAgentSettings()
+	}
+}
+
+func (p *settingsPage) view(w *workspace, c *ui.Context) { w.settingsView(c, p) }
+
 // ---- reading ----
 
-// loadSettings reads what Sharing, Vault & security, Runtime and About show (settingspages.js refresh). Neither call
+// loadSettings reads what Sharing, Vault & security, Runtime and About show. Neither call
 // holds a secret.
 func (w *workspace) loadSettings() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		rt, rerr := w.be.Runtime(c)
-		v, verr := w.be.Vault(c)
-		w.post(func() {
-			t := w.pageTab("settings")
-			if t == nil || w.closed {
-				return
-			}
-			p := t.pg.settings
-			if rerr == nil {
-				p.rt = &rt
-			}
-			if verr == nil {
-				p.vault = &v
-			}
-			p.loaded = true
-			if rerr != nil || verr != nil {
-				p.loadFail = "Could not read keel serve"
-			} else {
-				p.loadFail = ""
-			}
-		})
+	type read struct {
+		rt         keelclient.Runtime
+		v          keelclient.Vault
+		rerr, verr error
+	}
+	call(w, func(c context.Context) (r read, _ error) {
+		r.rt, r.rerr = w.be.Runtime(c)
+		r.v, r.verr = w.be.Vault(c)
+		return r, nil
+	}, func(r read, _ error) {
+		p := w.settingsPage()
+		if p == nil {
+			return
+		}
+		if r.rerr == nil {
+			p.rt = &r.rt
+		}
+		if r.verr == nil {
+			p.vault = &r.v
+		}
+		p.loaded = true
+		if r.rerr != nil || r.verr != nil {
+			p.loadFail = "Could not read keel serve"
+		} else {
+			p.loadFail = ""
+		}
 	})
 }
 
 // ---- the window and terminal preferences ----
-
-// savePref keeps one preference in keel-native.json, leaving every other field as it is.
-func (w *workspace) savePref(key string, v any) {
-	dir := w.dataDir
-	if dir == "" {
-		return
-	}
-	w.work(func() {
-		if err := savePrefs(dir, map[string]any{key: v}); err != nil {
-			w.post(func() { w.fail("save "+key, err) })
-		}
-	})
-}
 
 // alphaFor is the ground alpha of an opacity: 1 at 100.
 func alphaFor(opacity int) float32 {
@@ -125,39 +122,38 @@ func alphaFor(opacity int) float32 {
 	return float32(opacity) / 100
 }
 
-// setOpacity is term.js setOpacity: it keeps the value and, in a window that started translucent, repaints the grounds at
+// setOpacity keeps the value and, in a window that started translucent, repaints the grounds at
 // the new alpha and sets the blur again.
 func (w *workspace) setOpacity(n int) {
 	n = min(max(n, opacityMin), opacityMax)
-	if n == w.win.Opacity {
+	if n == w.prefs.Opacity {
 		return
 	}
-	w.win.Opacity = n
-	w.savePref("opacity", n)
+	w.prefs.Opacity = n
+	w.setPref(keyOpacity)
 	if w.translucentWin {
 		w.alpha = alphaFor(n)
 	}
 	w.applyBlur()
 }
 
-// setUIPref is term.js setUiSize: the size is kept and every view draws at it from the next frame (setUISize).
+// setUIPref keeps the size; every view draws at it from the next frame (setUISize).
 func (w *workspace) setUIPref(n int) {
 	n = min(max(n, uiSizeMin), uiSizeMax)
-	if n == w.win.UISize {
+	if n == w.prefs.UISize {
 		return
 	}
-	w.win.UISize = n
-	w.savePref("uiSize", n)
+	w.prefs.UISize = n
+	w.setPref(keyUISize)
 }
 
-// setBlur is term.js setBlur.
 func (w *workspace) setBlur(n int) {
 	n = min(max(n, blurMin), blurMax)
-	if n == w.win.Blur {
+	if n == w.prefs.Blur {
 		return
 	}
-	w.win.Blur = n
-	w.savePref("blur", n)
+	w.prefs.Blur = n
+	w.setPref(keyBlur)
 	w.applyBlur()
 }
 
@@ -166,8 +162,8 @@ func (w *workspace) applyBlur() {
 	if w.blurHook == nil {
 		return
 	}
-	r := w.win.Blur
-	if !w.translucentWin || w.win.Opacity >= opacityMax {
+	r := w.prefs.Blur
+	if !w.translucentWin || w.prefs.Opacity >= opacityMax {
 		r = 0
 	}
 	w.blurHook(r)
@@ -175,11 +171,11 @@ func (w *workspace) applyBlur() {
 
 // setCopyOnSelect is the Copy on select switch: every terminal takes it at once.
 func (w *workspace) setCopyOnSelect(on bool) {
-	if on == w.term.CopyOnSelect {
+	if on == w.prefs.CopyOnSelect {
 		return
 	}
-	w.term.CopyOnSelect = on
-	w.savePref("copyOnSelect", on)
+	w.prefs.CopyOnSelect = on
+	w.setPref(keyCopyOnSelect)
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
 			p.copyOnSelect = on
@@ -192,28 +188,32 @@ func (w *workspace) setCopyOnSelect(on bool) {
 
 // setRightClick is the Right-click in the terminal row. The plugin takes it when a terminal is made.
 func (w *workspace) setRightClick(mode string) {
-	if mode == w.term.RightClick {
+	if mode == w.prefs.RightClick {
 		return
 	}
-	w.term.RightClick = mode
-	w.savePref("rightClick", mode)
+	w.prefs.RightClick = mode
+	w.setPref(keyRightClick)
 }
 
-// setDisplayName is term.js setDisplayName: trimmed and cut to 40 characters; empty uses the default.
+// setDisplayName: trimmed and cut to 40 characters; empty uses the default.
 func (w *workspace) setDisplayName(v string) {
 	v = strings.TrimSpace(v)
 	if utf8.RuneCountInString(v) > nameMax {
 		v = string([]rune(v)[:nameMax])
 	}
-	if v == w.term.Name {
+	if v == w.prefs.Name {
 		return
 	}
-	w.term.Name = v
-	w.savePref(nameKey, v)
+	w.prefs.Name = v
+	w.setPref(keyDisplayName)
 }
 
-// defaultName is the name used when no custom one is set: KEEL_NAME, else the user name (cmd/keel parseName).
+// defaultName is the name used when no custom one is set: the one keel app was started with (Options.Name), else
+// KEEL_NAME, else the user name (cmd/keel parseName).
 func defaultName() string {
+	if launchName != "" {
+		return launchName
+	}
 	for _, k := range []string{"KEEL_NAME", "USER"} {
 		if v := os.Getenv(k); v != "" {
 			return v
@@ -233,7 +233,7 @@ func (p *settingsPage) signalSavedValue() string {
 	return v
 }
 
-// commitSignal is settingspages.js commitSignal: PUT /api/share/signal when the field differs from the saved server.
+// commitSignal does PUT /api/share/signal when the field differs from the saved server.
 // keel serve validates the address; its words show in a toast.
 func (w *workspace) commitSignal(p *settingsPage) {
 	url := strings.TrimSpace(p.signal)
@@ -241,107 +241,127 @@ func (w *workspace) commitSignal(p *settingsPage) {
 		return
 	}
 	p.signalSaving = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		info, err := w.be.SetSignal(c, url)
-		w.post(func() {
-			p.signalSaving = false
-			if err != nil {
-				w.warn(errText("Could not save the signal server", err))
-				return
-			}
-			if p.rt != nil {
-				p.rt.SignalURL, p.rt.SignalSource, p.rt.SignalSaved = info.SignalURL, info.SignalSource, info.SignalSaved
-			}
-			p.signalSeen = false // the field takes the saved value again
-			if url == "" {
-				w.say("Signal server removed")
-			} else {
-				w.say("Signal server saved")
-			}
-		})
+	call(w, func(c context.Context) (keelclient.Runtime, error) { return w.be.SetSignal(c, url) }, func(info keelclient.Runtime, err error) {
+		p.signalSaving = false
+		if err != nil {
+			w.warn(errText("Could not save the signal server", err))
+			return
+		}
+		if p.rt != nil {
+			p.rt.SignalURL, p.rt.SignalSource, p.rt.SignalSaved = info.SignalURL, info.SignalSource, info.SignalSaved
+		}
+		p.signalSeen = false // the field takes the saved value again
+		if url == "" {
+			w.say("Signal server removed")
+		} else {
+			w.say("Signal server saved")
+		}
 	})
 }
 
-// askStopRuntime is Stop runtime…: it asks first, with the app's words and the session count it knows.
+// askStopRuntime is Stop runtime…: it asks first, with the session count it knows.
 func (w *workspace) askStopRuntime() {
 	n := w.paneCount()
-	if t := w.pageTab("settings"); t != nil && t.pg.settings.rt != nil {
-		n = t.pg.settings.rt.Sessions
+	if p := w.settingsPage(); p != nil && p.rt != nil {
+		n = p.rt.Sessions
 	}
-	w.askConfirm(&hostConfirm{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
+	w.askConfirm(&confirmDialog{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
-// staleRuntimeNotice is the webview's banner (ui/stalebanner.js), word for word.
+// staleRuntimeNotice is the warning shown when keel serve is from another build.
 const staleRuntimeNotice = "The Keel runtime that's running is from a different build than this app, so you're seeing its version of Keel. " +
 	"Stop the runtime and reopen Keel to update. Open sessions will end."
 
-// runtimeIsStale is runtimecheck.js: a window opened without a build id never warns; a runtime that reports none is older.
+// runtimeIsStale: a window opened without a build id never warns; a runtime that reports none is older.
 func runtimeIsStale(appBuild, runtimeBuild string) bool {
 	return appBuild != "" && appBuild != runtimeBuild
 }
 
-// checkRuntimeBuild warns once, when the window opens, if keel serve is from another build than the app. The
-// webview showed a banner with Stop runtime; here it is a toast whose button asks the same Stop runtime question.
+// checkRuntimeBuild warns once, when the window opens, if keel serve is from another build than the window. It
+// is a toast whose button asks the Stop runtime question.
 func (w *workspace) checkRuntimeBuild() {
 	if w.appBuild == "" {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		rt, err := w.be.Runtime(c)
-		if err != nil || !runtimeIsStale(w.appBuild, rt.Build) {
-			return
+	call(w, w.be.Runtime, func(rt keelclient.Runtime, err error) {
+		if err == nil && runtimeIsStale(w.appBuild, rt.Build) {
+			w.sayAction(staleRuntimeNotice, "Stop runtime", w.askStopRuntime)
 		}
-		w.post(func() { w.sayAction(staleRuntimeNotice, "Stop runtime", w.askStopRuntime) })
 	})
 }
 
 // stopRuntime is the confirm's action: POST /api/runtime/stop. keel serve ends every session and exits.
 func (w *workspace) stopRuntime() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.StopRuntime(c)
-		w.post(func() {
-			if err != nil {
-				w.warn(errText("stop runtime", err))
-				return
-			}
-			w.say("Keel runtime stopped")
-		})
+	callErr(w, w.be.StopRuntime, func(err error) {
+		if err != nil {
+			w.warn(errText("stop runtime", err))
+			return
+		}
+		w.say("Keel runtime stopped")
 	})
 }
 
 // ---- the sliders ----
 
-// syncSliders tells a slider the user moved from a value changed elsewhere (⌘+ for the text size) and applies the first.
-func (w *workspace) syncSliders(p *settingsPage) {
-	step := func(v *float64, applied *int, current int, apply func(int)) {
-		if n := int(math.Round(*v)); n != *applied { // the user moved it: applied when the frame is built, so the next one paints it
-			*applied = n
-			w.act(func() { apply(n) })
-			return
-		}
-		if current != *applied { // changed elsewhere
-			*applied, *v = current, float64(current)
+// sliderSpecs are the Settings sliders: the integer pref each shows (its range and value, intPrefs) and the setter a move
+// calls, in the order a frame applies them.
+var sliderSpecs = []struct {
+	key string
+	set func(w *workspace, n int)
+}{
+	{keyOpacity, (*workspace).setOpacity},
+	{keyBlur, (*workspace).setBlur},
+	{keyTermSize, (*workspace).setTermSize},
+	{keyUISize, (*workspace).setUIPref},
+}
+
+// sliderPos is where a slider is: it is bound to a float, and a move is told from the value last applied.
+type sliderPos struct {
+	v       float64
+	applied int
+}
+
+// intPref is the integer pref with that key.
+func intPref(key string) (lo, hi int, field func(*prefsDoc) *int) {
+	for _, e := range intPrefs {
+		if e.key == key {
+			return e.min, e.max, e.field
 		}
 	}
-	step(&p.opacityV, &p.opacityApplied, w.win.Opacity, w.setOpacity)
-	step(&p.blurV, &p.blurApplied, w.win.Blur, w.setBlur)
-	step(&p.sizeV, &p.sizeApplied, w.termSize, w.setTermSize)
-	step(&p.uiV, &p.uiApplied, w.win.UISize, w.setUIPref)
+	panic("no int pref " + key)
+}
+
+// syncSliders tells a slider the user moved from a value changed elsewhere (⌘+ for the text size) and applies the first.
+func (w *workspace) syncSliders(p *settingsPage) {
+	for _, s := range sliderSpecs {
+		pos := p.sliders[s.key]
+		_, _, field := intPref(s.key)
+		if n := int(math.Round(pos.v)); n != pos.applied { // the user moved it: applied when the frame is built, so the next one paints it
+			pos.applied = n
+			w.act(func() { s.set(w, n) })
+			continue
+		}
+		if current := *field(&w.prefs); current != pos.applied { // changed elsewhere
+			pos.applied, pos.v = current, float64(current)
+		}
+	}
 }
 
 // hasBlur reports a window that has the blur row (macOS only, as data-blur-only).
-func hasBlur() bool { return runtime.GOOS == "darwin" }
+func hasBlur() bool { return isMac() }
 
 // initSliders gives the sliders the current values when the page is made.
 func (w *workspace) initSliders(p *settingsPage) {
-	p.opacityV, p.opacityApplied = float64(w.win.Opacity), w.win.Opacity
-	p.blurV, p.blurApplied = float64(w.win.Blur), w.win.Blur
-	p.sizeV, p.sizeApplied = float64(w.termSize), w.termSize
-	p.uiV, p.uiApplied = float64(w.win.UISize), w.win.UISize
+	p.sliders = map[string]*sliderPos{}
+	for _, s := range sliderSpecs {
+		_, _, field := intPref(s.key)
+		n := *field(&w.prefs)
+		p.sliders[s.key] = &sliderPos{float64(n), n}
+	}
+}
+
+// prefSlider is the slider of an integer pref, named name; over draws over its value (a key cap while ⌘ is held).
+func (w *workspace) prefSlider(c *ui.Context, p *settingsPage, key, name string, over ...func()) {
+	lo, hi, field := intPref(key)
+	sliderCtl(c, name, &p.sliders[key].v, float64(lo), float64(hi), *field(&w.prefs), over...)(c)
 }

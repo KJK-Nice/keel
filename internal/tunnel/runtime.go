@@ -13,15 +13,16 @@ import (
 
 	"keel/internal/session"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 type Status string
 
 const (
-	StatusStopped    Status = "stopped"
-	StatusConnecting Status = "connecting"
-	StatusReady      Status = "ready"
-	StatusError      Status = "error"
+	StatusStopped    Status = wire.TunnelStopped
+	StatusConnecting Status = wire.TunnelConnecting
+	StatusReady      Status = wire.TunnelReady
+	StatusError      Status = wire.TunnelError
 )
 
 type Dialer interface {
@@ -48,7 +49,6 @@ func (d sshDialer) Close() error {
 	return d.client.Close()
 }
 
-// Wait blocks until the SSH connection closes.
 func (d sshDialer) Wait() error {
 	return d.client.Wait()
 }
@@ -106,17 +106,18 @@ func (r *Runtime) changed() {
 	}
 }
 
+// New makes the forwards' runtime. factory opens the SSH connection of a
+// forward: keel serve passes DefaultFactory, a test a fake.
 func New(st *store.Store, factory Factory) *Runtime {
-	if factory == nil {
-		factory = DefaultFactory(st)
-	}
 	return &Runtime{store: st, factory: factory, live: map[string]*live{}}
 }
 
-func (r *Runtime) List() []Info {
+// List is every saved forward with its status. A store that cannot be read
+// (a locked vault) is an error, not an empty list.
+func (r *Runtime) List() ([]Info, error) {
 	saved, err := r.store.ListTunnels()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -129,7 +130,7 @@ func (r *Runtime) List() []Info {
 			out[i].ListenAddr = lv.listenAddr
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (r *Runtime) Start(id string) (Info, error) {
@@ -141,10 +142,10 @@ func (r *Runtime) Start(id string) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	if host.AuthType == "local" {
+	if host.IsLocal() {
 		return Info{}, fmt.Errorf("port forwarding needs an SSH host")
 	}
-	if tn.Kind == "dynamic" && !store.IsLoopbackAddr(tn.BindAddr) {
+	if tn.Kind == store.TunnelDynamic && !store.IsLoopbackAddr(tn.BindAddr) {
 		// Tunnels saved before UpsertTunnel checked this.
 		return Info{}, store.ErrOpenSOCKS
 	}
@@ -296,9 +297,9 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 		err error
 	)
 	switch tn.Kind {
-	case "local", "dynamic":
+	case store.TunnelLocal, store.TunnelDynamic:
 		ln, err = net.Listen("tcp", bind)
-	case "remote":
+	case store.TunnelRemote:
 		ln, err = dialer.Listen("tcp", bind)
 	default:
 		err = fmt.Errorf("unknown tunnel kind %q", tn.Kind)
@@ -321,7 +322,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 			return
 		}
 		switch tn.Kind {
-		case "local":
+		case store.TunnelLocal:
 			go func(local net.Conn) {
 				remote, err := dialer.Dial("tcp", dest)
 				if err != nil {
@@ -330,7 +331,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 				}
 				pipe(local, remote)
 			}(c)
-		case "remote":
+		case store.TunnelRemote:
 			go func(remote net.Conn) {
 				local, err := net.Dial("tcp", dest)
 				if err != nil {
@@ -339,7 +340,7 @@ func (r *Runtime) run(ctx context.Context, lv *live, tn store.Tunnel, dialer Dia
 				}
 				pipe(local, remote)
 			}(c)
-		case "dynamic":
+		case store.TunnelDynamic:
 			go serveSOCKS5(c, dialer.Dial)
 		}
 	}
@@ -360,12 +361,11 @@ func pipe(a, b net.Conn) {
 	<-done
 }
 
-var (
-	keepaliveInterval = 30 * time.Second
-	keepaliveTimeout  = 15 * time.Second
+const (
+	keepaliveInterval  = 30 * time.Second
+	keepaliveTimeout   = 15 * time.Second
+	keepaliveMaxMissed = 3
 )
-
-const keepaliveMaxMissed = 3
 
 // pinger is implemented by dialers that can probe their connection.
 type pinger interface {

@@ -19,6 +19,7 @@ import (
 
 	"keel/internal/agent/redact"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Log event kinds in keel.log.
@@ -29,16 +30,34 @@ const (
 	EventType    = "agent.type"    // a proposal was typed into a pane (Type into pane ↵)
 	EventNote    = "agent.note"    // notes for the agent sent with a question, or saved, edited or deleted
 	EventRunbook = "agent.runbook" // a runbook sent with a question, offered, used, changed, or a step's result
+	// EventNotebook: what the agent did to a notebook (created, edited, a
+	// delete it proposed) and what the user did with it (undo, confirm,
+	// restore): ids and counts only.
+	EventNotebook = "agent.notebook"
+	// EventAgent: the agent service saying something about itself that is
+	// none of the above (a reply cut off, a conversation not saved).
+	EventAgent = wire.LogAgent
 )
 
-// Role is the client's role in a session. The values match
-// runtime.Role (checked by a test) without importing the runtime.
-type Role string
+// Role is the client's role in a session: the session socket's own
+// (internal/wire), the same type the runtime answers with.
+type Role = wire.Role
 
 const (
-	RoleOwner    Role = "owner"
-	RoleDriver   Role = "driver"
-	RoleFollower Role = "follower"
+	RoleOwner    = wire.RoleOwner
+	RoleDriver   = wire.RoleDriver
+	RoleFollower = wire.RoleFollower
+)
+
+// Risk is how much a command can change on its host: the label on every
+// proposal and the input to the ⇧ gate. The rules that rate a command are
+// in internal/cmdrule.
+type Risk = wire.Risk
+
+const (
+	RiskReadOnly    = wire.RiskReadOnly
+	RiskChanges     = wire.RiskChanges
+	RiskDestructive = wire.RiskDestructive
 )
 
 // Pane is one terminal pane as the agent sees it.
@@ -101,7 +120,6 @@ type Scope struct {
 	readable map[string]bool
 }
 
-// NewScope builds a scope from the saved hosts.
 func NewScope(hosts []Host) Scope {
 	m := make(map[string]bool, len(hosts))
 	for _, h := range hosts {
@@ -110,7 +128,6 @@ func NewScope(hosts []Host) Scope {
 	return Scope{readable: m}
 }
 
-// Allows reports whether the agent may read p.
 func (s Scope) Allows(p Pane) bool {
 	return p.HostID != "" && s.readable[p.HostID]
 }
@@ -119,19 +136,6 @@ func (s Scope) Allows(p Pane) bool {
 // its panes and its notes. An unknown host is out.
 func (s Scope) AllowsHost(hostID string) bool {
 	return hostID != "" && s.readable[hostID]
-}
-
-// Filter splits panes into the ones the agent may read and the rest, both
-// in their original order (the panel shows "Reads N of M panes").
-func (s Scope) Filter(panes []Pane) (in, out []Pane) {
-	for _, p := range panes {
-		if s.Allows(p) {
-			in = append(in, p)
-		} else {
-			out = append(out, p)
-		}
-	}
-	return in, out
 }
 
 // CanInsert reports whether a client with role may insert agent output
@@ -198,7 +202,6 @@ func LastLines(s string, n int) (string, int) {
 	return strings.Join(lines, "\n"), len(lines)
 }
 
-// ClampLines keeps a requested line count within the settings range.
 func ClampLines(n int) int {
 	switch {
 	case n <= 0:

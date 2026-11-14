@@ -12,7 +12,11 @@ import (
 
 	"keel/internal/agent"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
+	"keel/internal/limits"
+	"keel/internal/runvars"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12).
@@ -66,7 +70,7 @@ const (
 	NotebookDeleteFence = "keel-notebook-delete"
 
 	// maxNotebooksPerAsk bounds the notebooks attached to one question.
-	maxNotebooksPerAsk = 2
+	maxNotebooksPerAsk = limits.MaxAttachedNotebooks
 	// maxNotebookIndex bounds the titles sent with a question.
 	maxNotebookIndex = 30
 	// Reads the model asks for, per ask.
@@ -78,7 +82,6 @@ const (
 	maxNotebookEditsPerAnswer = 2
 	maxNotebookFindReplace    = 20
 	maxNotebookFindBytes      = 4 * 1024
-	maxNotebookTitleBytes     = 120
 	maxNotebookSummaryBytes   = 160
 	maxNotebookDraftBytes     = 32 * 1024
 	// maxNotebookProposalsKept is how many notebook cards a conversation
@@ -93,23 +96,11 @@ var (
 	ErrNotebookClosed  = errors.New("agent: this was already done or undone")
 	ErrNotebookExpired = errors.New("agent: Keel no longer holds this conversation's notebook changes; use History on the notebook, or Notebooks · Recently deleted")
 
-	notebookFenceRe       = blockRe(NotebookFence)
-	notebookReadFenceRe   = blockRe(NotebookReadFence)
-	notebookEditFenceRe   = blockRe(NotebookEditFence)
-	notebookDeleteFenceRe = blockRe(NotebookDeleteFence)
-	notebookStatus        = map[string]bool{"created": true, "edited": true, "refused": true, "undone": true, "proposed": true, "deleted": true, "dismissed": true, "restored": true, "open": true, "saved": true}
+	notebookStatus = map[string]bool{CardCreated: true, CardEdited: true, CardRefused: true, CardUndone: true, CardProposed: true, CardDeleted: true, CardDismissed: true, CardRestored: true, CardOpen: true, CardSaved: true}
 
-	errNoMatch = errors.New("no-match")
+	errNoMatch = errors.New(wire.RefusedNoMatch)
 	errNothing = errors.New("nothing")
 )
-
-// blockRe matches a fenced block with info string name. The block may be
-// fenced with three or more backticks; its closing fence must start a line.
-// A JSON string holds no raw line break, so a ``` inside the body (a shell
-// fence, escaped as \n```sh) never ends it.
-func blockRe(name string) *regexp.Regexp {
-	return regexp.MustCompile("(?s)`{3,}[ \\t]*" + regexp.QuoteMeta(name) + "[ \\t]*\\r?\\n(.*?)\\r?\\n[ \\t]*`{3,}[ \\t]*(?:\\r?\\n|$)")
-}
 
 // NotebookProposal is one card in the conversation: what the agent did to
 // a notebook, or a delete it proposed, and what the user did with it.
@@ -213,7 +204,7 @@ func takeBlocks(text string, re *regexp.Regexp, max int) (string, []string) {
 // parseNotebookBlock takes the create blocks out of a reply: the first
 // that parses, and the text without any of them.
 func parseNotebookBlock(text string) (string, *rawNotebook) {
-	rest, bodies := takeBlocks(text, notebookFenceRe, 4)
+	rest, bodies := takeBlocks(text, blockOf(NotebookFence), 4)
 	for _, b := range bodies {
 		var nb rawNotebook
 		if json.Unmarshal([]byte(b), &nb) == nil && strings.TrimSpace(nb.Body) != "" {
@@ -226,7 +217,7 @@ func parseNotebookBlock(text string) (string, *rawNotebook) {
 // parseNotebookReads takes the read requests out of a reply: the numbers
 // asked for, in order, once each.
 func parseNotebookReads(text string) (string, []int) {
-	rest, bodies := takeBlocks(text, notebookReadFenceRe, 4)
+	rest, bodies := takeBlocks(text, blockOf(NotebookReadFence), 4)
 	var nums []int
 	seen := map[int]bool{}
 	for _, b := range bodies {
@@ -245,7 +236,7 @@ func parseNotebookReads(text string) (string, []int) {
 }
 
 func parseNotebookEdits(text string) (string, []rawNbEdit) {
-	rest, bodies := takeBlocks(text, notebookEditFenceRe, maxNotebookEditsPerAnswer)
+	rest, bodies := takeBlocks(text, blockOf(NotebookEditFence), maxNotebookEditsPerAnswer)
 	var out []rawNbEdit
 	for _, b := range bodies {
 		var e rawNbEdit
@@ -257,7 +248,7 @@ func parseNotebookEdits(text string) (string, []rawNbEdit) {
 }
 
 func parseNotebookDelete(text string) (string, *rawNbDelete) {
-	rest, bodies := takeBlocks(text, notebookDeleteFenceRe, 1)
+	rest, bodies := takeBlocks(text, blockOf(NotebookDeleteFence), 1)
 	for _, b := range bodies {
 		var d rawNbDelete
 		if json.Unmarshal([]byte(b), &d) == nil && d.Notebook > 0 {
@@ -346,18 +337,18 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		}
 		b.WriteString(idx.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook-index", Host: "notebooks", Count: len(a.entries)})
+		steps = append(steps, TraceStep{Status: TraceNotebookIndex, Host: "notebooks", Count: len(a.entries)})
 	}
 	for _, id := range attached {
 		nb, ok := byID[id]
 		if !ok {
 			// Not in the agent's list: private, or gone. Nothing of it
 			// is read or sent.
-			reason := "notebook-missing"
+			reason := wire.SkipNotebookMissing
 			if _, err := s.nbs.AgentGetNotebook(id); errors.Is(err, store.ErrNotebookPrivate) {
-				reason = "notebook-private"
+				reason = wire.SkipNotebookPrivate
 			}
-			steps = append(steps, TraceStep{Status: "skipped", Reason: reason, Host: "a notebook", NotebookID: id})
+			steps = append(steps, TraceStep{Status: TraceSkipped, Reason: reason, Host: "a notebook", NotebookID: id})
 			continue
 		}
 		e := a.entryFor(id)
@@ -368,7 +359,7 @@ func (s *Service) notebookContext(attached []string, r *redact.Redactor) (*nbAsk
 		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
+		steps = append(steps, TraceStep{Status: TraceNotebook, Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings()})
 	}
 	return a, b.String(), steps, nil
 }
@@ -407,7 +398,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		if n >= maxNotebookReadsPerRound || a.asked >= maxNotebookReadsPerAsk || a.askedBytes >= maxNotebookReadBytesPerAsk {
 			if !a.limited {
 				a.limited = true
-				steps = append(steps, TraceStep{Status: "skipped", Reason: "notebook-limit", Host: "notebooks"})
+				steps = append(steps, TraceStep{Status: TraceSkipped, Reason: SkipNotebookLimit, Host: "notebooks"})
 			}
 			break
 		}
@@ -429,7 +420,7 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		a.read[nb.ID] = nbSent{rev: nb.Rev, redacted: ex.Report.Total(), truncated: ex.Truncated, nameRedacted: len(r.Matches(nb.Name)) > 0}
 		b.WriteString(ex.Text.String())
 		b.WriteString("\n\n")
-		steps = append(steps, TraceStep{Status: "notebook", Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
+		steps = append(steps, TraceStep{Status: TraceNotebook, Host: "notebook", Notebook: ex.Name, NotebookID: nb.ID, Bytes: ex.Bytes, Truncated: ex.Truncated, Redactions: ex.Report.Strings(), Asked: true})
 	}
 	if n == 0 {
 		return "", steps, nil
@@ -438,7 +429,6 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		"Now answer the user's question.", steps, nil
 }
 
-// notebookText is a notebook's markdown: its cells, in order.
 func notebookText(nb store.Notebook) string {
 	parts := make([]string, 0, len(nb.Cells))
 	for _, c := range nb.Cells {
@@ -482,7 +472,7 @@ func agentLine(s string, r *redact.Redactor, max int) string {
 
 // namedRe matches a {{name}} that stands for a value Keel withholds from
 // the model (a captured value or a group variable).
-var namedRe = regexp.MustCompile(`\{\{[a-z_][a-z0-9_]{0,31}(\|q)?\}\}`)
+var namedRe = runvars.DeclaredRefRe
 
 // inlineImageRe matches a markdown inline image at the start of the text:
 // ![alt](url) or ![alt](<url> "title").
@@ -490,7 +480,7 @@ var inlineImageRe = regexp.MustCompile(`^!\[([^\]\n]*)\]\(\s*<?([^\s()<>]*)>?(?:
 
 // defuseImages turns every markdown image the agent writes into text,
 // except a data: image. The notebook editor renders an image as <img src>,
-// and the webview would fetch its URL when the notebook opens: a model
+// and the window would fetch its URL when the notebook opens: a model
 // steered by pane text could put what it read into that URL. An inline
 // image becomes its alt text and its URL as inline code; any other "![" (a
 // reference image) is escaped so it reads as text. Fenced code and code
@@ -529,7 +519,6 @@ func defuseLine(ln string) string {
 	var b strings.Builder
 	for i := 0; i < len(ln); {
 		if ln[i] == '`' {
-			// A code span: copy it up to the matching run of backticks.
 			n := 0
 			for i+n < len(ln) && ln[i+n] == '`' {
 				n++
@@ -623,7 +612,7 @@ func (s *Service) notebookWrites(conv *conversation, a *nbAsk, text string, edit
 	if create != nil {
 		if p := s.notebookCreate(conv, create, excerpts, r, now); p != nil {
 			w.props = append(w.props, p)
-			if p.Status == "created" {
+			if p.Status == CardCreated {
 				w.notes = append(w.notes, fmt.Sprintf("you created the notebook %q (rev %d)", p.Title, p.Rev))
 			}
 		}
@@ -631,7 +620,7 @@ func (s *Service) notebookWrites(conv *conversation, a *nbAsk, text string, edit
 	for _, e := range edits {
 		p := s.notebookEdit(conv, a, e, editing, excerpts, r, now)
 		w.props = append(w.props, p)
-		if p.Status == "edited" {
+		if p.Status == CardEdited {
 			w.notes = append(w.notes, fmt.Sprintf("your edit to the notebook %q was applied (now rev %d); the user can undo it", p.Title, p.Rev))
 		} else {
 			w.notes = append(w.notes, fmt.Sprintf("your edit to notebook %d (%q) was not applied: %s", e.Notebook, p.Title, refusalForModel(p.Reason)))
@@ -648,28 +637,28 @@ func (s *Service) notebookWrites(conv *conversation, a *nbAsk, text string, edit
 
 func refusalForModel(reason string) string {
 	switch reason {
-	case "conflict":
+	case wire.RefusedConflict:
 		return "the user changed it after you read it. Read it again (ask for it) before you edit it"
-	case "editing":
+	case wire.RefusedEditing:
 		return "the user is typing in it. Do not edit it now"
-	case "not-read":
+	case wire.RefusedNotRead:
 		return "you had not read it in this question. Ask to read it first, then edit it at the revision Keel sent"
-	case "no-match":
+	case wire.RefusedNoMatch:
 		return "a \"find\" text did not occur exactly once in one part of the notebook, or the edit would touch a value Keel redacted"
-	case "redacted", "truncated":
+	case wire.RefusedRedacted, wire.RefusedTruncated:
 		return "Keel removed or cut part of it before you saw it, so it may be changed only with find-and-replace edits"
-	case "private", "not-found", "deleted":
+	case wire.RefusedPrivate, wire.RefusedNotFound, wire.RefusedDeleted:
 		return "it is not a notebook you may change"
-	case "too-large":
+	case wire.RefusedTooLarge:
 		return "the notebook would be larger than Keel allows"
-	case "history":
+	case wire.RefusedHistory:
 		return "Keel could not keep its previous version, so it made no change"
 	}
 	return "the edit block was not valid"
 }
 
 func (s *Service) notebookCreate(conv *conversation, raw *rawNotebook, excerpts []agent.Excerpt, r *redact.Redactor, now time.Time) *nbProposal {
-	title := agentLine(raw.Title, r, maxNotebookTitleBytes)
+	title := agentLine(raw.Title, r, limits.MaxNotebookNameBytes)
 	if title == "" {
 		title = "Notes from the agent"
 	}
@@ -678,15 +667,15 @@ func (s *Service) notebookCreate(conv *conversation, raw *rawNotebook, excerpts 
 	if body == "" {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "create", Title: title, Bytes: len(body), Placeholders: hasPlaceholder(body) || hasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: NotebookCreate, Title: title, Bytes: len(body), Placeholders: cmdrule.HasPlaceholder(body) || cmdrule.HasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
 	fromPanes(&p.NotebookProposal, body, excerpts)
 	nb, err := s.nbs.AgentCreateNotebook(store.Notebook{Name: title, Cells: []store.NotebookCell{{Body: body}}})
 	if err != nil {
-		p.Status, p.Reason = "refused", storeReason(err)
+		p.Status, p.Reason = CardRefused, storeReason(err)
 		s.audit.NotebookEvent("notebook the agent wrote was not created: "+p.Reason, []string{p.ID, conv.id}, redact.Report{})
 		return p
 	}
-	p.Status, p.NotebookID, p.Rev, p.Record = "created", nb.ID, nb.Rev, &nb
+	p.Status, p.NotebookID, p.Rev, p.Record = CardCreated, nb.ID, nb.Rev, &nb
 	s.audit.NotebookEvent(fmt.Sprintf("notebook created by the agent (%d bytes, %d command blocks, placeholders: %t)", p.Bytes, countFences(body), p.Placeholders), []string{nb.ID, p.ID, conv.id}, redact.Report{})
 	return p
 }
@@ -704,21 +693,21 @@ func countFences(md string) int {
 func storeReason(err error) string {
 	switch {
 	case errors.Is(err, store.ErrNotebookConflict):
-		return "conflict"
+		return wire.RefusedConflict
 	case errors.Is(err, store.ErrNotebookPrivate):
-		return "private"
+		return wire.RefusedPrivate
 	case errors.Is(err, store.ErrNotFound):
-		return "deleted"
+		return wire.RefusedDeleted
 	case errors.Is(err, store.ErrNotebookTooLarge):
-		return "too-large"
+		return wire.RefusedTooLarge
 	case errors.Is(err, store.ErrHistoryUnavailable):
-		return "history"
+		return wire.RefusedHistory
 	case errors.Is(err, errNoMatch):
-		return "no-match"
+		return wire.RefusedNoMatch
 	case errors.Is(err, errNothing):
-		return "invalid"
+		return wire.RefusedInvalid
 	}
-	return "invalid"
+	return wire.RefusedInvalid
 }
 
 // notebookEdit applies one edit block, or says why not. The model names
@@ -727,7 +716,7 @@ func storeReason(err error) string {
 // is edited only at that revision (the store refuses it once the user
 // changed it).
 func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, editing map[string]bool, excerpts []agent.Excerpt, r *redact.Redactor, now time.Time) *nbProposal {
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "edit", Status: "refused", Title: fmt.Sprintf("notebook %d", raw.Notebook), ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: NotebookEdit, Status: CardRefused, Title: fmt.Sprintf("notebook %d", raw.Notebook), ProposedAt: &now}}
 	p.Summary = agentLine(raw.Summary, r, maxNotebookSummaryBytes)
 	refuse := func(reason string, ids ...string) *nbProposal {
 		p.Reason = reason
@@ -739,34 +728,34 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 		e = a.byNum[raw.Notebook]
 	}
 	if e == nil {
-		return refuse("not-found")
+		return refuse(wire.RefusedNotFound)
 	}
 	p.NotebookID = e.ID
 	p.Title = agent.SafeNotebookName(e.Name, r)
 	sent, ok := a.read[e.ID]
 	switch {
 	case !ok:
-		return refuse("not-read", e.ID)
+		return refuse(wire.RefusedNotRead, e.ID)
 	case raw.Rev != nil && *raw.Rev != sent.rev:
-		return refuse("conflict", e.ID)
+		return refuse(wire.RefusedConflict, e.ID)
 	case editing[e.ID]:
-		return refuse("editing", e.ID)
+		return refuse(wire.RefusedEditing, e.ID)
 	case raw.Body != nil && sent.truncated:
-		return refuse("truncated", e.ID)
+		return refuse(wire.RefusedTruncated, e.ID)
 	case raw.Body != nil && sent.redacted > 0:
-		return refuse("redacted", e.ID)
+		return refuse(wire.RefusedRedacted, e.ID)
 	case raw.Body == nil && len(raw.Edits) == 0 && strings.TrimSpace(raw.Title) == "":
-		return refuse("invalid", e.ID)
+		return refuse(wire.RefusedInvalid, e.ID)
 	case len(raw.Edits) > maxNotebookFindReplace:
-		return refuse("invalid", e.ID)
+		return refuse(wire.RefusedInvalid, e.ID)
 	}
 	if strings.TrimSpace(raw.Title) != "" && sent.nameRedacted {
 		// A name that held a redacted value is not the agent's to replace.
-		return refuse("redacted", e.ID)
+		return refuse(wire.RefusedRedacted, e.ID)
 	}
 	title := ""
 	if strings.TrimSpace(raw.Title) != "" {
-		title = agentLine(raw.Title, r, maxNotebookTitleBytes)
+		title = agentLine(raw.Title, r, limits.MaxNotebookNameBytes)
 	}
 	var body *string
 	if raw.Body != nil {
@@ -777,7 +766,7 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	added := ""
 	for _, ed := range raw.Edits {
 		if ed.Find == "" || len(ed.Find) > maxNotebookFindBytes {
-			return refuse("no-match", e.ID)
+			return refuse(wire.RefusedNoMatch, e.ID)
 		}
 		rep := agentText(ed.Replace, r, store.MaxNotebookBytes+1)
 		subs = append(subs, findReplace{ed.Find, rep})
@@ -806,10 +795,10 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 		a.own = map[string]int{}
 	}
 	a.own[e.ID] = updated.Rev
-	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = "edited", "", updated.Rev, vid, &updated
+	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = CardEdited, "", updated.Rev, vid, &updated
 	p.Title = agent.SafeNotebookName(updated.Name, r)
 	p.Bytes = len(notebookText(updated))
-	p.Placeholders = hasPlaceholder(added) || hasPlaceholder(title)
+	p.Placeholders = cmdrule.HasPlaceholder(added) || cmdrule.HasPlaceholder(title)
 	p.Withheld = namedRe.MatchString(added)
 	fromPanes(&p.NotebookProposal, added, excerpts)
 	s.audit.NotebookEvent(fmt.Sprintf("notebook edited by the agent (rev %d to %d, %d bytes, %d replacements, whole text: %t); the version before it is kept", base, updated.Rev, p.Bytes, len(subs), body != nil), []string{e.ID, vid, p.ID, conv.id}, redact.Report{})
@@ -909,7 +898,7 @@ func (s *Service) notebookDeleteProposal(conv *conversation, a *nbAsk, raw *rawN
 	if e == nil {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "delete", Status: "proposed", NotebookID: e.ID, Title: agent.SafeNotebookName(e.Name, r), Summary: agentLine(raw.Why, r, maxNotebookSummaryBytes), Rev: e.Rev, Bytes: e.Bytes, ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: NotebookDelete, Status: CardProposed, NotebookID: e.ID, Title: agent.SafeNotebookName(e.Name, r), Summary: agentLine(raw.Why, r, maxNotebookSummaryBytes), Rev: e.Rev, Bytes: e.Bytes, ProposedAt: &now}}
 	s.audit.NotebookEvent("agent proposed deleting a notebook; nothing is deleted unless you confirm", []string{e.ID, p.ID, conv.id}, redact.Report{})
 	return p
 }
@@ -928,7 +917,7 @@ func notebookProposalFromRecord(r store.AgentChatNotebook) NotebookProposal {
 	at := r.ProposedAt
 	st := r.Status
 	if !notebookStatus[st] {
-		st = "refused"
+		st = CardRefused
 	}
 	bytes := r.Bytes
 	if bytes == 0 {
@@ -957,64 +946,40 @@ func (c *conversation) recordNbPropLocked(id string) *store.AgentChatNotebook {
 	return nil
 }
 
-// nbPropForLocked finds a card held in memory, or says why it cannot be
-// used. Call with s.mu held.
-func (s *Service) nbPropForLocked(convID, id string) (*conversation, *nbProposal, error) {
-	c := s.convs[convID]
-	if c == nil {
-		return nil, nil, ErrNotFound
-	}
-	p := c.nbPropLocked(id)
-	if p == nil {
-		if c.recordNbPropLocked(id) != nil {
-			return c, nil, ErrNotebookExpired
-		}
-		return c, nil, ErrNotFound
-	}
-	return c, p, nil
+// A notebook card's change is already in the notebook store when its action
+// ends, so its status is recorded even if the conversation was dropped
+// meanwhile.
+var nbCards = cardKind[nbProposal, NotebookProposal]{
+	find:       (*conversation).nbPropLocked,
+	saved:      func(c *conversation, id string) bool { return c.recordNbPropLocked(id) != nil },
+	busy:       func(p *nbProposal) *bool { return &p.busy },
+	view:       (*nbProposal).view,
+	expired:    ErrNotebookExpired,
+	closed:     ErrNotebookClosed,
+	finishGone: true,
 }
 
-func (s *Service) setNbStatusLocked(c *conversation, p *nbProposal, status, versionID string) {
-	p.Status, p.busy = status, false
-	if versionID != "" {
-		p.VersionID = versionID
-	}
-	if rec := c.recordNbPropLocked(p.ID); rec != nil {
-		rec.Status, rec.VersionID = status, p.VersionID
-	}
-}
-
-// claimNbProp takes a card for one action under the lock: two presses (two
-// windows) make one change, the other gets ErrNotebookClosed.
 func (s *Service) claimNbProp(convID, id string, ok func(*nbProposal) bool) (*conversation, *nbProposal, NotebookProposal, error) {
 	if s.nbs == nil {
 		return nil, nil, NotebookProposal{}, ErrNoNotebooks
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, p, err := s.nbPropForLocked(convID, id)
-	if err != nil {
-		return nil, nil, NotebookProposal{}, err
-	}
-	if p.busy || !ok(p) {
-		return nil, nil, NotebookProposal{}, ErrNotebookClosed
-	}
-	p.busy = true
-	return c, p, p.view(), nil
+	return nbCards.claim(s, convID, id, ok)
 }
 
-func (s *Service) releaseNbProp(p *nbProposal) {
-	s.mu.Lock()
-	p.busy = false
-	s.mu.Unlock()
-}
+func (s *Service) releaseNbProp(p *nbProposal) { nbCards.release(s, p) }
 
+// finishNbProp sets a claimed card's status, and the version the store kept
+// when the action made one.
 func (s *Service) finishNbProp(c *conversation, p *nbProposal, status, versionID string) NotebookProposal {
-	s.mu.Lock()
-	s.setNbStatusLocked(c, p, status, versionID)
-	view := p.view()
-	s.mu.Unlock()
-	s.persist(c)
+	view, _ := nbCards.finish(s, c, p.ID, p, func() {
+		p.Status = status
+		if versionID != "" {
+			p.VersionID = versionID
+		}
+		if rec := c.recordNbPropLocked(p.ID); rec != nil {
+			rec.Status, rec.VersionID = status, p.VersionID
+		}
+	})
 	return view
 }
 
@@ -1025,19 +990,19 @@ func (s *Service) finishNbProp(c *conversation, p *nbProposal, status, versionID
 // otherwise, and History can still restore it).
 func (s *Service) UndoNotebookChange(convID, id string) (NotebookAction, error) {
 	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool {
-		return (p.Kind == "create" && p.Status == "created") || (p.Kind == "edit" && p.Status == "edited")
+		return (p.Kind == NotebookCreate && p.Status == CardCreated) || (p.Kind == NotebookEdit && p.Status == CardEdited)
 	})
 	if err != nil {
 		return NotebookAction{}, err
 	}
-	if v.Kind == "create" {
+	if v.Kind == NotebookCreate {
 		vid, err := s.nbs.DeleteNotebookAgentProposed(v.NotebookID, v.Rev)
 		if err != nil {
 			s.releaseNbProp(p)
 			return NotebookAction{}, err
 		}
 		s.audit.NotebookEvent("notebook the agent created was undone by you (moved to Recently deleted)", []string{v.NotebookID, vid, v.ID}, redact.Report{})
-		return NotebookAction{Proposal: s.finishNbProp(c, p, "undone", vid)}, nil
+		return NotebookAction{Proposal: s.finishNbProp(c, p, CardUndone, vid)}, nil
 	}
 	nb, err := s.nbs.RestoreNotebookVersion(v.NotebookID, v.VersionID, v.Rev)
 	if err != nil {
@@ -1045,14 +1010,14 @@ func (s *Service) UndoNotebookChange(convID, id string) (NotebookAction, error) 
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent(fmt.Sprintf("agent edit undone by you (now rev %d)", nb.Rev), []string{v.NotebookID, v.VersionID, v.ID}, redact.Report{})
-	return NotebookAction{Proposal: s.finishNbProp(c, p, "undone", ""), Notebook: &nb}, nil
+	return NotebookAction{Proposal: s.finishNbProp(c, p, CardUndone, ""), Notebook: &nb}, nil
 }
 
 // ConfirmNotebookDelete is the user's confirmed Delete on a delete the
 // agent proposed. Only the user's route calls it; the notebook goes to
 // Recently deleted. A notebook made private since is refused.
 func (s *Service) ConfirmNotebookDelete(convID, id string) (NotebookAction, error) {
-	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == "delete" && p.Status == "proposed" })
+	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == NotebookDelete && p.Status == CardProposed })
 	if err != nil {
 		return NotebookAction{}, err
 	}
@@ -1064,24 +1029,24 @@ func (s *Service) ConfirmNotebookDelete(convID, id string) (NotebookAction, erro
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent("notebook deleted by you, as the agent proposed (moved to Recently deleted)", []string{v.NotebookID, vid, v.ID}, redact.Report{})
-	return NotebookAction{Proposal: s.finishNbProp(c, p, "deleted", vid)}, nil
+	return NotebookAction{Proposal: s.finishNbProp(c, p, CardDeleted, vid)}, nil
 }
 
 // DismissNotebookProposal is Keep on a delete card: nothing is deleted.
 func (s *Service) DismissNotebookProposal(convID, id string) (NotebookAction, error) {
-	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == "delete" && p.Status == "proposed" })
+	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == NotebookDelete && p.Status == CardProposed })
 	if err != nil {
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent("agent's proposal to delete a notebook dismissed by you", []string{v.NotebookID, v.ID}, redact.Report{})
-	return NotebookAction{Proposal: s.finishNbProp(c, p, "dismissed", "")}, nil
+	return NotebookAction{Proposal: s.finishNbProp(c, p, CardDismissed, "")}, nil
 }
 
 // RestoreNotebookChange brings back a notebook a card deleted (a confirmed
 // delete, or the Undo of one the agent created).
 func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, error) {
 	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool {
-		return p.VersionID != "" && ((p.Kind == "delete" && p.Status == "deleted") || (p.Kind == "create" && p.Status == "undone"))
+		return p.VersionID != "" && ((p.Kind == NotebookDelete && p.Status == CardDeleted) || (p.Kind == NotebookCreate && p.Status == CardUndone))
 	})
 	if err != nil {
 		return NotebookAction{}, err
@@ -1092,11 +1057,11 @@ func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, erro
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent("notebook restored by you from Recently deleted", []string{nb.ID, v.VersionID, v.ID}, redact.Report{})
-	status := "restored"
+	status := CardRestored
 	s.mu.Lock()
-	if v.Kind == "create" {
+	if v.Kind == NotebookCreate {
 		// The notebook the agent created is back: Undo works again.
-		status = "created"
+		status = CardCreated
 		p.NotebookID, p.Rev, p.VersionID = nb.ID, nb.Rev, ""
 		if rec := c.recordNbPropLocked(p.ID); rec != nil {
 			rec.NotebookID, rec.Rev, rec.VersionID = nb.ID, nb.Rev, ""
@@ -1105,9 +1070,3 @@ func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, erro
 	s.mu.Unlock()
 	return NotebookAction{Proposal: s.finishNbProp(c, p, status, ""), Notebook: &nb}, nil
 }
-
-// HasPlaceholder reports whether a command holds a redaction placeholder
-// such as [secret:1]. keel serve refuses to type a notebook fence that
-// holds one (the session socket's notebook-labelled inject), as
-// AuthorizeType does for a proposal (ErrPlaceholder).
-func HasPlaceholder(s string) bool { return hasPlaceholder(s) }

@@ -15,8 +15,7 @@ import (
 // The workspace comes back: the tabs, how each is split, the custom titles, the focused and zoomed pane
 // of each and the active tab are kept in <dataDir>/keel-native-workspace.json. It names sessions by their
 // keel serve id and holds nothing else: no host, address, user or secret, and no terminal content. It is
-// read and written only in the data dir. The webview keeps the same idea in localStorage
-// (cmd/keel/web/js/lib/savedworkspace.js).
+// read and written only in the data dir.
 
 const (
 	savedFile    = "keel-native-workspace.json"
@@ -28,15 +27,14 @@ const (
 
 type savedDoc struct {
 	V      int        `json:"v"`
-	Active int        `json:"active"` // index into Tabs
+	Active int        `json:"active"`
 	Tabs   []savedTab `json:"tabs"`
 	// Pages are the page tabs (Keychain, Logs…) by name, in strip order; they come back after the session tabs.
 	// ActivePage names the page that was shown, when one was (Active is then not used). Nothing of a page's
 	// content is kept: a page reads the server when it opens.
 	Pages      []string `json:"pages,omitempty"`
 	ActivePage string   `json:"activePage,omitempty"`
-	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids, as the
-	// webview keeps them in localStorage): the pages open on them again while keel serve holds them.
+	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids): the pages open on them again while keel serve holds them.
 	GroupID string `json:"groupId,omitempty"`
 	RunID   string `json:"runId,omitempty"`
 }
@@ -49,7 +47,7 @@ type savedTab struct {
 	FocusedNotebook string     `json:"focusedNotebookId,omitempty"`
 	ZoomedNotebook  string     `json:"zoomedNotebookId,omitempty"`
 	Layout          *savedNode `json:"layout"`
-	Sync            bool       `json:"sync,omitempty"` // Sync input is on (savedworkspace.js)
+	Sync            bool       `json:"sync,omitempty"`
 }
 
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).
@@ -63,10 +61,9 @@ type savedNode struct {
 	B        *savedNode `json:"b,omitempty"`
 }
 
-// saveState is what the workspace keeps to write the file.
 type saveState struct {
-	ready bool   // start has restored the tabs; nothing is written before
-	last  []byte // the last snapshot taken (UI thread)
+	ready bool // start has restored the tabs; nothing is written before
+	last  []byte
 
 	mu      sync.Mutex // guards the rest
 	pending []byte
@@ -85,16 +82,13 @@ func (s *saveState) stop() {
 func (w *workspace) snapshot() savedDoc {
 	d := savedDoc{V: savedVersion, Tabs: []savedTab{}}
 	for i, t := range w.tabs {
-		if t.pg != nil {
+		if t.isPage() {
 			d.Pages = append(d.Pages, t.pg.name)
 			if i == w.active {
 				d.ActivePage = t.pg.name
 			}
-			switch {
-			case t.pg.group != nil:
-				d.GroupID = t.pg.group.id
-			case t.pg.grouprun != nil:
-				d.RunID = t.pg.grouprun.id
+			if p, ok := t.pg.page.(pageSaved); ok {
+				p.snapshot(&d)
 			}
 			continue
 		}
@@ -183,7 +177,6 @@ func (w *workspace) persist() {
 	s.timer.Reset(saveDelay)
 }
 
-// flush writes what persist scheduled, now.
 func (w *workspace) flush() error {
 	s := &w.saved
 	s.mu.Lock()
@@ -196,7 +189,6 @@ func (w *workspace) flush() error {
 	return writeFileAtomic(w.dataDir, savedFile, b)
 }
 
-// saveNow writes the workspace as it is, on window close.
 func (w *workspace) saveNow() {
 	if w.dataDir == "" || !w.saved.ready {
 		return
@@ -269,15 +261,8 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 	if doc != nil {
 		for _, name := range doc.Pages {
 			if t := w.addPageTab(name); t != nil {
-				switch { // the folder or the run the page showed
-				case t.pg.group != nil:
-					t.pg.group.id = doc.GroupID
-					t.pg.group.notes = notesEditor{group: true, groupID: doc.GroupID}
-					if g, ok := groupByID(w.folders, doc.GroupID); ok {
-						t.pg.group.title = g.Name
-					}
-				case t.pg.grouprun != nil:
-					t.pg.grouprun.id = doc.RunID
+				if p, ok := t.pg.page.(pageSaved); ok {
+					p.restore(w, doc)
 				}
 				pages = append(pages, t)
 				if name == doc.ActivePage {
@@ -289,7 +274,7 @@ func (w *workspace) restore(doc *savedDoc, panes []*pane) {
 	if active < 0 {
 		active = len(w.tabs) - 1
 	}
-	w.selectTab(active) // reads the page when it is a page
+	w.selectTab(active)
 	for _, t := range pages {
 		if t != w.tab() {
 			w.loadPage(t)

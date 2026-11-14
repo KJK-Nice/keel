@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-// Sync input (term.js wirePaneTerminal onData, toggleTabSync): while a tab has it on, the keys and the paste typed into one
+// Sync input: while a tab has it on, the keys and the paste typed into one
 // of its terminals go to every other terminal pane of that tab this client drives, as well as to the one typed into. It is
 // the user's own input fanned out and nothing else: this file is the one place besides the terminal view's own connection
 // that calls Write on a session (TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt in guard_test.go).
@@ -57,7 +57,7 @@ func (s *syncConn) Write(b []byte) (int, error) {
 // fanOut writes b to each peer that is ready and driven by this client. A failed write is not retried and stops nobody else.
 func fanOut(to []session, b []byte) {
 	for _, c := range to {
-		if st := c.Snapshot(); st.Status != "ready" || st.Role != "driver" {
+		if !c.Snapshot().CanType() {
 			continue
 		}
 		_, _ = c.Write(b)
@@ -66,10 +66,9 @@ func fanOut(to []session, b []byte) {
 
 // canSync is a tab sync input can be turned on in: a session tab of this machine's keel serve with a terminal pane.
 func (t *tab) canSync() bool {
-	return t != nil && t.root != nil && !t.remote && t.page == nil && t.pg == nil && t.firstTerm() != nil
+	return t != nil && t.root != nil && t.mode() == modeSession && t.firstTerm() != nil
 }
 
-// toggleSync flips sync input for t (term.js toggleTabSync).
 func (w *workspace) toggleSync(t *tab) {
 	if !t.canSync() {
 		return

@@ -11,12 +11,11 @@ import (
 	"keel/internal/store"
 )
 
-// The gate of a direct type (§6 rule 13) after the review of #95: the
-// strict allowlist (agent.DirectSafe), Jev for agent proposals, the
+// The gate of a direct type (§6 rule 13): the strict allowlist
+// (cmdrule.DirectSafe), Jev for agent proposals, the
 // prompt state, the alternate screen from both sides, notebook blocks
-// read as fences, and type-check only for group runs.
+// read as fences, and the extra check only for group runs.
 
-// emit writes text to the pane as its output and waits until ok holds.
 func emit(t *testing.T, f *askFixture, hostID, sessionID, text string, ok func(*runtime.Session) bool) {
 	t.Helper()
 	b := f.bridge(t, hostID)
@@ -142,7 +141,7 @@ func TestDirectTypeGatePromptState(t *testing.T) {
 		wantDialog(t, prompt, directOverSocket(t, driver, "uptime", dir(nil), nil), "asking for input")
 	}
 	emit(t, f, f.webID, web.ID, "\r\n$ ", lastLineIs("$"))
-	// Seen by the page only: its xterm line, its alternate screen.
+	// Seen by the window only: its own line, its alternate screen.
 	wantDialog(t, "page's line", directOverSocket(t, driver, "uptime", dir(map[string]any{"promptLine": "Password:"}), nil), "asking for input")
 	wantDialog(t, "page's alt screen", directOverSocket(t, driver, "uptime", dir(map[string]any{"altScreen": true}), nil), "full-screen")
 	// The 8-bit CSI enters the alternate screen too.
@@ -171,7 +170,7 @@ func TestDirectTypeGatePromptState(t *testing.T) {
 	written(t, got, "uptime", "a type back at the prompt")
 }
 
-func TestDirectTypeGateNotebookFencesAndTypeCheck(t *testing.T) {
+func TestDirectTypeGateNotebookFences(t *testing.T) {
 	f := newAskFixture(t, true)
 	web := f.open(t, f.webID, "$ ")
 	driver := dialSession(t, f.srv.URL, web.ID, "me", "web")
@@ -190,11 +189,6 @@ func TestDirectTypeGateNotebookFencesAndTypeCheck(t *testing.T) {
 		t.Fatalf("a one-line bash block → %v", r)
 	}
 	written(t, got, "pwd", "a one-line bash block")
-	// type-check is for group runs only.
-	sn, _ := f.st.UpsertSnippet(store.Snippet{Name: "u", Command: "uptime"})
-	if r := checkOverSocket(t, driver, "uptime", map[string]any{"kind": "snippet", "snippetId": sn.ID, "ref": "c"}, nil); r["direct"] != false || r["dialog"] != true {
-		t.Fatalf("type-check of a snippet → %v", r)
-	}
 }
 
 func TestDirectLimiter(t *testing.T) {

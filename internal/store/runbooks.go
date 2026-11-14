@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"keel/internal/limits"
 	"keel/internal/runvars"
 )
 
@@ -30,18 +31,18 @@ import (
 const (
 	// MaxRunbooks bounds the runbooks kept, MaxRunbookSteps the steps of
 	// one runbook.
-	MaxRunbooks     = 100
-	MaxRunbookSteps = 30
+	MaxRunbooks     = limits.MaxRunbooks
+	MaxRunbookSteps = limits.MaxRunbookSteps
 	// Field limits, in bytes. Every field but a command is one line.
-	MaxRunbookNameBytes    = 120
-	MaxRunbookWhenBytes    = 300
-	MaxRunbookTitleBytes   = 200
-	MaxRunbookTextBytes    = 1000
-	MaxRunbookExpectBytes  = 300
-	MaxRunbookCommandBytes = 2048
-	MaxRunbookCommandLines = 20
-	MaxRunbookHosts        = 12
-	MaxRunbookHostBytes    = 64
+	MaxRunbookNameBytes    = limits.MaxRunbookNameBytes
+	MaxRunbookWhenBytes    = limits.MaxRunbookWhenBytes
+	MaxRunbookTitleBytes   = limits.MaxRunbookTitleBytes
+	MaxRunbookTextBytes    = limits.MaxRunbookTextBytes
+	MaxRunbookExpectBytes  = limits.MaxRunbookExpectBytes
+	MaxRunbookCommandBytes = limits.MaxRunbookCommandBytes
+	MaxRunbookCommandLines = limits.MaxRunbookCommandLines
+	MaxRunbookHosts        = limits.MaxRunbookHosts
+	MaxRunbookHostBytes    = limits.MaxRunbookHostBytes
 
 	// Where a runbook came from. Anything but RunbookSourceUser starts with
 	// "Agent may pick" off, and the page asks for a review before it is
@@ -317,7 +318,6 @@ func (s *Store) ListRunbooks() ([]Runbook, error) {
 	return out, nil
 }
 
-// GetRunbook returns one runbook.
 func (s *Store) GetRunbook(id string) (Runbook, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()
@@ -403,7 +403,6 @@ func (s *Store) UpdateRunbook(b Runbook) (Runbook, error) {
 	return Runbook{}, ErrNotFound
 }
 
-// SetRunbookAgentMayPick turns "Agent may pick" on or off.
 func (s *Store) SetRunbookAgentMayPick(id string, on bool) (Runbook, error) {
 	return s.changeRunbook(id, func(b *Runbook) bool {
 		if b.AgentMayPick == on {
@@ -451,7 +450,6 @@ func (s *Store) changeRunbook(id string, fn func(*Runbook) bool) (Runbook, error
 	return Runbook{}, ErrNotFound
 }
 
-// DeleteRunbook removes one runbook and returns it.
 func (s *Store) DeleteRunbook(id string) (Runbook, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()

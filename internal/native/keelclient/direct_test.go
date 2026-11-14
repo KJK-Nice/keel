@@ -11,9 +11,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// A type without the dialog (DirectType, DirectCheck) against a fake /ws/session: the frames, their order, what each
-// answer does, and everything that must send nothing. The page's twin is cmd/keel/web/js/pty.js typeDirect.
-
+// A type without the dialog (DirectType) against a fake /ws/session: the frames, their order, what each
+// answer does, and everything that must send nothing.
 // answerWith replies to a frame with the given type, carrying its ref, and the fields given.
 func answerWith(typ string, fields map[string]any) func(*websocket.Conn, map[string]any) {
 	return func(ws *websocket.Conn, m map[string]any) {
@@ -263,52 +262,6 @@ func TestDirectTypeStopsWhenItsContextEnds(t *testing.T) {
 	for _, ty := range s.types() {
 		if ty == "inject" {
 			t.Fatal("an inject went out")
-		}
-	}
-}
-
-func TestDirectCheckSendsATypeCheckAndWritesNothing(t *testing.T) {
-	for want, fields := range map[bool]map[string]any{true: {"ok": true, "direct": true}, false: {"ok": false, "direct": false, "dialog": true, "reason": "Keel cannot check this command here"}} {
-		c, s := dialInject(t, "ready", "driver", nonceAnswer)
-		s.onCheck = answerWith("type-check", fields)
-		c.wait = 400 * time.Millisecond
-		got, err := c.DirectCheck(context.Background(), "df -h", DirectRef{Kind: "agent"}, &AgentRef{ProposalID: "p1"})
-		if err != nil || got != want {
-			t.Fatalf("got %v, %v; want %v", got, err, want)
-		}
-		fr := s.all()
-		if len(fr) != 1 || fr[0]["type"] != "type-check" || fr[0]["command"] != "df -h" || fr[0]["nonce"] != nil {
-			t.Fatalf("frames %v: a check asks, with no nonce, and writes nothing", fr)
-		}
-		if d := fr[0]["direct"].(map[string]any); d["ref"] == nil || d["kind"] != "agent" {
-			t.Fatalf("direct part %v", d)
-		}
-	}
-	// No answer is "no"; a command that is not one line, a follower or a closed session send nothing.
-	c, s := dialInject(t, "ready", "driver", nil)
-	c.wait = 60 * time.Millisecond
-	if got, err := c.DirectCheck(context.Background(), "df -h", snippetRef, nil); got || err != nil {
-		t.Fatalf("no answer: %v, %v", got, err)
-	}
-	if got, err := c.DirectCheck(context.Background(), "df -h\n", snippetRef, nil); got || err != nil || len(s.all()) != 1 {
-		t.Fatalf("two lines: %v, %v, %v", got, err, s.types())
-	}
-	f, fs := dialInject(t, "ready", "follower", nil)
-	if _, err := f.DirectCheck(context.Background(), "df -h", snippetRef, nil); !errors.Is(err, ErrNotDriver) || len(fs.all()) != 0 {
-		t.Fatalf("follower: %v", err)
-	}
-}
-
-func TestDirectLineMatchesTheServersRule(t *testing.T) {
-	for _, ok := range []string{"ls -la", "echo 'h\xc3\xa9llo'"} {
-		if !DirectLine(ok) {
-			t.Errorf("%q", ok)
-		}
-	}
-	// C1 U+0085, U+2028, U+2029 line separators, U+200B, U+202E, U+FEFF invisible, and invalid UTF-8.
-	for _, bad := range []string{"", "a\nb", "a\rb", "a\tb", "a\x1bb", "a\x7fb", "a\xc2\x85b", "a\xe2\x80\xa8b", "a\xe2\x80\xa9b", "a\xe2\x80\x8bb", "a\xe2\x80\xaeb", "a\xef\xbb\xbfb", "a\xffb"} {
-		if DirectLine(bad) {
-			t.Errorf("%q", bad)
 		}
 	}
 }

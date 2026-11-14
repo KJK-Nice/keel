@@ -4,6 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // joinDialogView is the Join a session dialog.
@@ -43,16 +44,16 @@ func (w *workspace) joinDialogView(c *ui.Context) {
 	}
 }
 
-// joinBanner is the haze banner over a joined tab (§5.7; term.js syncJoinBanner): whose session on which host, read-only
+// joinBanner is the haze banner over a joined tab (§5.7): whose session on which host, read-only
 // or driving, Ask for control and Leave. Before the host has said who this client is it says it is waiting. A join that
-// failed shows the app's error and Leave.
+// failed shows its error and Leave.
 func (w *workspace) joinBanner(c *ui.Context, t *tab, p *pane, st keelclient.State) {
 	leave := func() {
 		if textBtn(c, "Leave", btnGhost) {
-			w.act(func() { w.leaveJoin(t) })
+			w.act(func() { w.closeTab(t) })
 		}
 	}
-	if st.Status == "error" {
+	if st.Status == wire.StatusError {
 		w.bannerRow(c, "banner failed", flareSoft, flare, st.Message, "", "", leave)
 		return
 	}
@@ -74,7 +75,7 @@ func (w *workspace) joinBanner(c *ui.Context, t *tab, p *pane, st keelclient.Sta
 	})
 }
 
-// joinChips are the joined pane bar's chips (term.js syncPaneRole): who drives, and "You follow".
+// joinChips are the joined pane bar's chips: who drives, and "You follow".
 func joinChips(c *ui.Context, st keelclient.State) {
 	if st.YouID == 0 {
 		return

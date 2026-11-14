@@ -2,35 +2,18 @@ package native
 
 import (
 	"io"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/egoist/mygo/plugins/terminal"
 
+	"keel/internal/cmdrule"
 	"keel/internal/native/keelclient"
 )
 
-// The Go side of cmd/keel/web/js/test/typedirect.test.mjs. The JS file has 12 tests; the ones about group runs
-// (stepDirect, typedNoteMany), notebooks (commandOf), and xterm.js's own buffer (altScreen, cursorLine on a JS object)
-// have no Go twin, and screenOf stands in for the last two against a real terminal.
-
-func TestDirectLineIsOneLineWithNoControlOrInvisibleCharacter(t *testing.T) {
-	for _, ok := range []string{"ls -la /var/log", "echo 'h\xc3\xa9llo w\xc3\xb6rld' | wc -c"} {
-		if !directLine(ok) {
-			t.Errorf("%q should be one line", ok)
-		}
-	}
-	// U+0085 and U+009B are C1 controls; U+2028 and U+2029 separate lines; U+200B, U+202E and U+FEFF are invisible.
-	bad := []string{"", "ls\n", "ls\npwd", "ls\r", "ls\tx", "ls\x1b[A", "ls\x00", "ls\x7f", "ls\xc2\x85", "ls\xc2\x9b",
-		"ls\xe2\x80\xa8pwd", "ls\xe2\x80\xa9", "ls\xe2\x80\x8b", "ls\xe2\x80\xae", "ls\xef\xbb\xbf", "ls\xff"}
-	for _, c := range bad {
-		if directLine(c) {
-			t.Errorf("%q should not be one line", c)
-		}
-	}
-	t.Logf("directLine: 2 one-line rows, %d refused rows", len(bad))
-}
+// screenOf reads the alt screen and the cursor line against a real terminal.
 
 func TestSnippetLineDropsTheNewlineThatWouldRunIt(t *testing.T) {
 	for in, want := range map[string]string{"uptime\n": "uptime", "uptime\r\n\n": "uptime", "  uptime  ": "  uptime  ", "a\nb\n": "a\nb"} {
@@ -38,7 +21,7 @@ func TestSnippetLineDropsTheNewlineThatWouldRunIt(t *testing.T) {
 			t.Errorf("snippetLine(%q) = %q, want %q", in, got, want)
 		}
 	}
-	if directLine(snippetLine("a\nb\n")) {
+	if cmdrule.DirectLine(snippetLine("a\nb\n")) {
 		t.Error("two lines became one")
 	}
 }
@@ -86,10 +69,10 @@ func TestTheNoteAfterADirectTypeSaysEnterIsTheUsers(t *testing.T) {
 	}
 }
 
-func TestDirectHintMirrorsTheGrammarForTheLabelOnly(t *testing.T) {
+func TestTheWindowHintIsTheServersGrammar(t *testing.T) {
 	ok := []string{"pwd", "uname -a", "ls", "ls -lah build/out", "kubectl get pods -A", "kubectl get pods -n kube-system -o wide", "systemctl status nginx --no-pager", "docker ps -a"}
 	for _, c := range ok {
-		if !directHint(c) {
+		if !cmdrule.DirectSafe(c) {
 			t.Errorf("%q should be direct", c)
 		}
 	}
@@ -104,11 +87,11 @@ func TestDirectHintMirrorsTheGrammarForTheLabelOnly(t *testing.T) {
 		"ls " + strings.Repeat("a", 129),
 	}
 	for _, c := range bad {
-		if directHint(c) {
+		if cmdrule.DirectSafe(c) {
 			t.Errorf("%q should not be direct", c)
 		}
 	}
-	t.Logf("directHint: %d direct rows, %d refused rows", len(ok), len(bad))
+	t.Logf("DirectSafe: %d direct rows, %d refused rows", len(ok), len(bad))
 }
 
 func TestSnippetBadgeIsApproveFirstOnlyWhereTheDialogIsCertain(t *testing.T) {
@@ -179,7 +162,10 @@ func TestScreenOfAgainstARealTerminal(t *testing.T) {
 	r, _ := io.Pipe()
 	term, err := terminal.New(terminal.Options{Conn: nopConn{r}})
 	if err != nil {
-		t.Skip("no terminal library here:", err)
+		if runtime.GOOS == "darwin" { // libghostty ships for macOS: failing to load it there is a bug
+			t.Fatal("libghostty terminal:", err)
+		}
+		t.Skip("no libghostty terminal on "+runtime.GOOS+":", err)
 	}
 	defer term.Close()
 	term.Resize(40, 6)

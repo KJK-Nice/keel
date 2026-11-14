@@ -35,7 +35,6 @@ func snippetRig(t *testing.T, fb *fakeBackend) *rig {
 	return r
 }
 
-// The preview is lib/vaultview.js snippetPreview, with the cases of its test.
 func TestSnippetPreviewIsTheBytesTypedWithTheirEnters(t *testing.T) {
 	for _, c := range []struct {
 		in      string
@@ -57,10 +56,10 @@ func TestSnippetPreviewIsTheBytesTypedWithTheirEnters(t *testing.T) {
 func TestTheEditorsAgentSwitchIsSavedWithThePageAndNotByTheDialog(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	r.click(t, "snippet two steps")
-	e := &r.w.tab().pg.snippets.ed
+	e := &pageAs[*snippetsPage](r.w.activeTab()).ed
 	if e.agent {
 		t.Fatal("the switch is on for a snippet that may not be suggested")
 	}
@@ -85,24 +84,23 @@ func TestTheEditorsAgentSwitchIsSavedWithThePageAndNotByTheDialog(t *testing.T) 
 	}
 }
 
-func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
+func TestSnippetsPageListsEditsAndSavesWithTheirRules(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	r.texts(t, "Snippets", "disk usage", "df -h", "two steps", "cd /var/log …", "Commands", "One command per line. Each line ends with Enter when typed.", "Type into pane…", "Save", "Delete snippet")
 	// The first one is selected and the editor holds its command without the last newline.
-	e := &r.w.tab().pg.snippets.ed
+	e := &pageAs[*snippetsPage](r.w.activeTab()).ed
 	if e.id != "sn-1" || e.name != "disk usage" || e.command != "df -h" {
 		t.Fatalf("editor %+v", e)
 	}
-	// What the webview does not have is not here.
 	for _, s := range []string{"Offer on hosts tagged", "Read-only", "Changes state"} {
 		if r.tt.HasText(s) {
 			t.Errorf("the page shows %q, which the app does not have", s)
 		}
 	}
-	// What it has is (pages.templ): the preview of the bytes with the count, and the agent switch, on for this snippet.
+	// The preview of the bytes with the count, and the agent switch, on for this snippet.
 	r.texts(t, "Preview of what gets typed", "1 line · 6 bytes. Typing always goes through Approve before type.", "Let the agent suggest this snippet",
 		"⇥ can offer it when your words match. One-line commands without {{var}} fields only. When on, its text is sent, redacted, to TypeSafe Jev.")
 	if !e.agent || e.dirty() {
@@ -140,18 +138,18 @@ func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
 func TestSnippetEditorKeepsUneditedWorkWhenTheListIsReadAgain(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	r.fill(t, "Snippet commands", "half typed")
 	fb.snippets[0].Command = "changed elsewhere\n"
 	r.w.reloadSnippets()
 	r.tt.Frame()
-	if e := r.w.tab().pg.snippets.ed; e.command != "half typed" {
+	if e := pageAs[*snippetsPage](r.w.activeTab()).ed; e.command != "half typed" {
 		t.Fatalf("the poll replaced the user's text: %q", e.command)
 	}
-	r.w.tab().pg.snippets.ed.command = r.w.tab().pg.snippets.ed.origCommand // not dirty any more
+	pageAs[*snippetsPage](r.w.activeTab()).ed.command = pageAs[*snippetsPage](r.w.activeTab()).ed.origCommand // not dirty any more
 	r.tt.Frame()
-	if e := r.w.tab().pg.snippets.ed; e.command != "changed elsewhere" {
+	if e := pageAs[*snippetsPage](r.w.activeTab()).ed; e.command != "changed elsewhere" {
 		t.Fatalf("a clean editor did not follow the server: %q", e.command)
 	}
 }
@@ -159,7 +157,7 @@ func TestSnippetEditorKeepsUneditedWorkWhenTheListIsReadAgain(t *testing.T) {
 func TestNewSnippetDialogAndItsRefusals(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	r.click(t, "New snippet")
 	r.texts(t, "New snippet", "Name", "Command", "Save snippet", "Cancel")
@@ -174,8 +172,8 @@ func TestNewSnippetDialogAndItsRefusals(t *testing.T) {
 	if len(fb.snipSaved) != 1 || fb.snipSaved[0] != (keelclient.SnippetInput{Name: "who", Command: "whoami\n"}) {
 		t.Fatalf("saved %v", fb.snipSaved)
 	}
-	if r.w.snipDlg != nil || r.w.tab().pg.snippets.selected != "sn-new1" {
-		t.Errorf("dialog %v selected %q", r.w.snipDlg, r.w.tab().pg.snippets.selected)
+	if r.w.snipDlg != nil || pageAs[*snippetsPage](r.w.activeTab()).selected != "sn-new1" {
+		t.Errorf("dialog %v selected %q", r.w.snipDlg, pageAs[*snippetsPage](r.w.activeTab()).selected)
 	}
 	// A server refusal stays in the dialog with its words.
 	fb.snipSaveErr = &keelclient.StatusError{Code: 400, Msg: "Give the snippet a name"}
@@ -196,7 +194,7 @@ func TestNewSnippetDialogAndItsRefusals(t *testing.T) {
 func TestEditSnippetFromTheRowMenuHoldsTheCommandAsSaved(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	if got := menuLabels(t, r, "snippet disk usage"); !slices.Equal(got, []string{"Type into pane…", "Copy", "-", "Edit", "-", "Delete"}) {
 		t.Fatalf("row menu %v", got)
@@ -211,13 +209,13 @@ func TestEditSnippetFromTheRowMenuHoldsTheCommandAsSaved(t *testing.T) {
 	}
 }
 
-func TestDeleteSnippetAsksWithTheWebviewsWordsAndCancelDeletesNothing(t *testing.T) {
+func TestDeleteSnippetAsksWithItsWordsAndCancelDeletesNothing(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
 	r.click(t, "Delete snippet")
-	if r.w.confirm == nil || !r.tt.HasText("Delete snippet “disk usage”?") {
+	if !r.w.confirmOpen() || !r.tt.HasText("Delete snippet “disk usage”?") {
 		t.Fatal("no confirm")
 	}
 	r.click(t, "Cancel")
@@ -238,13 +236,13 @@ func TestDeleteSnippetAsksWithTheWebviewsWordsAndCancelDeletesNothing(t *testing
 func TestEveryEntryPointOpensTheDialogAndNoneTypes(t *testing.T) {
 	entries := map[string]func(t *testing.T, r *rig){
 		"page row menu": func(t *testing.T, r *rig) {
-			r.w.openPage("snippets")
+			r.w.showPage("snippets")
 			r.tt.Frame()
 			menuLabels(t, r, "snippet two steps")
 			choose(t, r, "Type into pane…")
 		},
 		"editor button": func(t *testing.T, r *rig) {
-			r.w.openPage("snippets")
+			r.w.showPage("snippets")
 			r.tt.Frame()
 			r.click(t, "snippet two steps")
 			r.click(t, "Type into pane…")
@@ -267,11 +265,11 @@ func TestEveryEntryPointOpensTheDialogAndNoneTypes(t *testing.T) {
 	for name, enter := range entries {
 		r := snippetRig(t, snippetBackend())
 		enter(t, r)
-		if r.w.approve == nil {
+		if !r.w.approveOpen() {
 			t.Errorf("%s: no Approve dialog", name)
 			continue
 		}
-		if got, _ := r.w.approve.source(); got != "cd /var/log\nls -la\n" {
+		if got, _ := r.w.approveDlg().src.(approveSnippet).text(); got != "cd /var/log\nls -la\n" {
 			t.Errorf("%s: dialog holds %q", name, got)
 		}
 		r.tt.Frame()
@@ -289,9 +287,9 @@ func TestEveryEntryPointOpensTheDialogAndNoneTypes(t *testing.T) {
 
 func TestTypeIntoPaneFromAPageNamesThePaneYouCanSeeAndSendsTheSnippet(t *testing.T) {
 	r := snippetRig(t, snippetBackend())
-	r.w.openPage("snippets")
+	r.w.showPage("snippets")
 	r.tt.Frame()
-	if r.w.tab().panes != nil && len(r.w.tab().panes) != 0 {
+	if r.w.activeTab().panes != nil && len(r.w.activeTab().panes) != 0 {
 		t.Fatal("the page has panes")
 	}
 	r.click(t, "snippet no newline")
@@ -307,7 +305,7 @@ func TestTypeIntoPaneFromAPageNamesThePaneYouCanSeeAndSendsTheSnippet(t *testing
 }
 
 func TestSnippetBracesAreTypedAsTheyAreSaved(t *testing.T) {
-	// {{var}} fields are not in the app: a snippet with braces is typed with them, unchanged.
+	// There are no {{var}} fields: a snippet with braces is typed with them, unchanged.
 	fb := snippetBackend()
 	fb.snippets = []keelclient.Snippet{{ID: "sn-v", Name: "braces", Command: "echo {{name}} {{greeting}}\n"}}
 	r := snippetRig(t, fb)
@@ -325,8 +323,8 @@ func TestNoSessionMeansNoDialogFromASnippetRow(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "Snippets")
 	r.click(t, "sidebar snippet disk usage")
-	if r.w.approve != nil || !r.tt.HasText("Open a session first") {
-		t.Fatalf("dialog %v, toast shown %v", r.w.approve, r.tt.HasText("Open a session first"))
+	if r.w.approveOpen() || !r.tt.HasText("Open a session first") {
+		t.Fatalf("dialog %v, toast shown %v", r.w.approveDlg(), r.tt.HasText("Open a session first"))
 	}
 }
 
@@ -351,7 +349,7 @@ func TestSidebarSnippetsSectionListsEverySnippetAndFilters(t *testing.T) {
 	r.tt.Frame()
 	r.texts(t, "Nothing matches “zzz”")
 	r.click(t, "Manage snippets")
-	if r.w.tab().pg == nil || r.w.tab().pg.snippets == nil {
+	if r.w.activeTab().pg == nil || pageAs[*snippetsPage](r.w.activeTab()) == nil {
 		t.Fatal("Manage snippets did not open the page")
 	}
 	r.click(t, "Hosts")
@@ -380,7 +378,7 @@ func TestPaletteSnippetsGroupFollowsActionsAndBadgesOnlyThoseThatWillAsk(t *test
 	var rows []string
 	for _, it := range r.rows() {
 		if it.group == "Snippets" {
-			// "Approve first" only where the dialog is certain (term.js snippetBadge): two lines. The one-line read-only
+			// "Approve first" only where the dialog is certain: two lines. The one-line read-only
 			// ones may type with no dialog.
 			wantBadge := ""
 			if it.title == "Type snippet: two steps" {
@@ -412,8 +410,8 @@ func TestPaletteSnippetsGroupFollowsActionsAndBadgesOnlyThoseThatWillAsk(t *test
 	// ↵ on a snippet opens the dialog, not the terminal.
 	r.typePal("Type snippet: disk")
 	r.press(0, ui.KeyEnter)
-	if r.w.approve == nil || r.w.pal != nil {
-		t.Fatalf("dialog %v palette %v", r.w.approve, r.w.pal)
+	if !r.w.approveOpen() || r.w.pal != nil {
+		t.Fatalf("dialog %v palette %v", r.w.approveDlg(), r.w.pal)
 	}
 	if len(r.fb.conns[0].injected) != 0 {
 		t.Fatal("the palette typed")
@@ -433,8 +431,8 @@ func TestSnippetsPageIsSavedAndComesBackAndFooterStaysKeychainAndLogs(t *testing
 		}
 	}
 	r.press(0, ui.KeyEnter)
-	if r.w.tab().pg == nil || r.w.tab().pg.name != "snippets" || len(r.w.tabs) != 2 {
-		t.Fatalf("tabs %d", len(r.w.tabs))
+	if r.w.activeTab().pg == nil || r.w.activeTab().pg.name != "snippets" || r.w.tabCount() != 2 {
+		t.Fatalf("tabs %d", r.w.tabCount())
 	}
 	doc := r.w.snapshot()
 	if !slices.Equal(doc.Pages, []string{"snippets"}) || doc.ActivePage != "snippets" {
@@ -445,7 +443,7 @@ func TestSnippetsPageIsSavedAndComesBackAndFooterStaysKeychainAndLogs(t *testing
 	if r.w.snipDlg == nil || r.w.hostDlg != nil {
 		t.Fatal("⌘N on Snippets did not open New snippet")
 	}
-	if strings.Contains(r.w.tab().name(), "Snippet ") {
+	if strings.Contains(r.w.activeTab().name(), "Snippet ") {
 		t.Fatal("tab name")
 	}
 }

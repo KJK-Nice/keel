@@ -42,8 +42,8 @@ func (r *rig) openGroup(t *testing.T, folder string) *groupPage {
 func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testing.T) {
 	r := groupRig(t)
 	p := r.openGroup(t, "Infra")
-	if r.w.tab() != r.w.pageTab("group") || p.id != "infra" || r.w.tab().name() != "Infra" {
-		t.Fatalf("page %+v, tab %q", p, r.w.tab().name())
+	if r.w.activeTab() != r.w.pageTab("group") || p.id != "infra" || r.w.activeTab().name() != "Infra" {
+		t.Fatalf("page %+v, tab %q", p, r.w.activeTab().name())
 	}
 	if miss := r.lacks("Infra", "Folder · 2 hosts.", "Run a runbook on this group", "Export to Ansible", "pg-1", "pg-2", "Address", "Agent", "Role", "Tags", groupRoleHelp, "Group variables", emptyTitle(groupVarsEmpty)); len(miss) > 0 {
 		t.Errorf("the page lacks %q: %v", miss, r.tt.Texts())
@@ -53,13 +53,13 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 	r.tt.Frame()
 	r.openGroup(t, "Apps")
 	pages := 0
-	for _, tb := range r.w.tabs {
-		if tb.pg != nil && tb.pg.group != nil {
+	for _, tb := range r.w.allTabs() {
+		if tb.pg != nil && pageAs[*groupPage](tb) != nil {
 			pages++
 		}
 	}
-	if pages != 1 || r.w.tab().name() != "Apps" || r.w.groupPageState().id != "apps" {
-		t.Fatalf("%d group pages, %q", pages, r.w.tab().name())
+	if pages != 1 || r.w.activeTab().name() != "Apps" || r.w.groupPageState().id != "apps" {
+		t.Fatalf("%d group pages, %q", pages, r.w.activeTab().name())
 	}
 	// The palette has "Group <name> · roles and runbooks" for every folder.
 	r.openPal(t)
@@ -69,7 +69,7 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 		t.Fatalf("palette rows %v", rows)
 	}
 	r.press(0, ui.KeyEnter)
-	if r.w.groupPageState().id != "rep" || r.w.tab().name() != "Replicas" {
+	if r.w.groupPageState().id != "rep" || r.w.activeTab().name() != "Replicas" {
 		t.Fatalf("the palette opened %+v", r.w.groupPageState())
 	}
 	if len(r.fb.spawned) != 0 || len(r.fb.conns) != 0 {
@@ -80,7 +80,7 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 func TestRolesAreAssignedAndClearedOneHostAtATimeAndCounted(t *testing.T) {
 	r := groupRig(t)
 	p := r.openGroup(t, "Infra")
-	if !r.hasText("1 no role") && !r.hasText("2 no role") {
+	if !r.tt.HasText("1 no role") && !r.tt.HasText("2 no role") {
 		t.Errorf("no role chip: %v", r.tt.Texts())
 	}
 	// New role… turns the picker into a field; ↵ saves.
@@ -122,7 +122,7 @@ func TestARoleOfTwoWordsIsRefusedBeforeARequestAndKeelServesRefusalIsShown(t *te
 	r.pick(t, "New role…")
 	r.fill(t, "New role for pg-1", "two words")
 	r.press(0, ui.KeyEnter)
-	if len(r.fb.grp.roleReqs) != 0 || p.err != groupRoleBad || !r.hasText(groupRoleBad) {
+	if len(r.fb.grp.roleReqs) != 0 || p.err != groupRoleBad || !r.tt.HasText(groupRoleBad) {
 		t.Fatalf("requests %v, error %q", r.fb.grp.roleReqs, p.err)
 	}
 	// An empty field leaves it. keel serve's own refusal is shown as it said it.
@@ -135,7 +135,7 @@ func TestARoleOfTwoWordsIsRefusedBeforeARequestAndKeelServesRefusalIsShown(t *te
 	r.fb.grp.roleErr = &keelclient.StatusError{Code: 400, Msg: "a group has at most 16 roles"}
 	r.w.setRole(p, "h1", "extra")
 	r.tt.Frame()
-	if !r.hasText("a group has at most 16 roles") {
+	if !r.tt.HasText("a group has at most 16 roles") {
 		t.Errorf("no refusal: %v", r.tt.Texts())
 	}
 }
@@ -178,7 +178,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	if miss := r.lacks("k8s_version", "1.31.2"); len(miss) > 0 || p.varName != "" || p.varValue != "" {
 		t.Errorf("the variable is not listed, or the fields were kept: %v %q %q", miss, p.varName, p.varValue)
 	}
-	// Edit changes the value; Esc leaves it; an empty value is refused with the app's words.
+	// Edit changes the value; Esc leaves it; an empty value is refused.
 	r.click(t, "Edit k8s_version")
 	r.fill(t, "Value of k8s_version", "1.31.3")
 	r.press(0, ui.KeyEnter)
@@ -207,7 +207,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	r.fill(t, "Variable name", "api_token")
 	r.fill(t, "Variable value", fakeVarSecret)
 	r.click(t, "Add variable")
-	if !r.hasText("Keep secrets in the vault") {
+	if !r.tt.HasText("Keep secrets in the vault") {
 		t.Errorf("no refusal: %v", r.tt.Texts())
 	}
 	g, _ = groupByID(r.fb.groups, "infra")
@@ -228,7 +228,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	}
 	// Remove removes it.
 	r.click(t, "Remove k8s_version")
-	if g, _ = groupByID(r.fb.groups, "infra"); len(g.Vars) != 0 || !r.hasText(emptyTitle(groupVarsEmpty)) {
+	if g, _ = groupByID(r.fb.groups, "infra"); len(g.Vars) != 0 || !r.tt.HasText(emptyTitle(groupVarsEmpty)) {
 		t.Errorf("variables %+v", g.Vars)
 	}
 }
@@ -238,11 +238,11 @@ func TestTheRunbookListOffersRunbooksWithStepsAndTheirRoles(t *testing.T) {
 	r.openGroup(t, "Infra")
 	r.click(t, "Run a runbook on this group")
 	for _, s := range []string{"Run on Infra", "Restart workers", "2 steps · Roles worker, control-plane", "Look around", "1 step · Every host"} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("no %q: %v", s, r.tt.Texts())
 		}
 	}
-	if r.hasText("Empty") {
+	if r.tt.HasText("Empty") {
 		t.Error("a runbook with no steps is offered")
 	}
 	// The folder menu's Run a runbook… opens the page with the list open.
@@ -250,13 +250,13 @@ func TestTheRunbookListOffersRunbooksWithStepsAndTheirRoles(t *testing.T) {
 	r.menuOf(t, "folder Apps")
 	r.pick(t, "Run a runbook…")
 	r.tt.Frame()
-	if p := r.w.groupPageState(); p == nil || !p.run.open || !r.hasText("Run on Apps") {
+	if p := r.w.groupPageState(); p == nil || !p.run.open || !r.tt.HasText("Run on Apps") {
 		t.Errorf("the list is not open: %v", r.tt.Texts())
 	}
 	r.fb.mem.runbooks = nil
 	r.w.loadGroupRunbooks(r.w.groupPageState())
 	r.tt.Frame()
-	if !r.hasText(emptyTitle(groupNoBooks)) {
+	if !r.tt.HasText(emptyTitle(groupNoBooks)) {
 		t.Errorf("no empty line: %v", r.tt.Texts())
 	}
 }
@@ -276,7 +276,7 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 		t.Errorf("first query %+v", q)
 	}
 	for _, s := range []string{groupExportHelp, "inventory.ini", "playbooks/restart.yml", "3 lines · INI · from this folder's roles and variables", "# old_pw: left out: its value is also in Keel's vault", "Try it first: ansible-playbook -i inventory.ini playbooks/restart.yml --check", groupExportSafe} {
-		if !r.hasText(s) {
+		if !r.tt.HasText(s) {
 			t.Errorf("the drawer lacks %q: %v", s, r.tt.Texts())
 		}
 	}
@@ -312,12 +312,12 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 		t.Errorf("a role change did not refresh the export: %d queries", len(r.fb.grp.ansibleQs))
 	}
 	r.click(t, "Close export")
-	if p.ex.open || r.hasText(groupExportHelp) {
+	if p.ex.open || r.tt.HasText(groupExportHelp) {
 		t.Error("the drawer stays")
 	}
 }
 
-// groups.js Download: the shown file's text goes where the system's save dialog says (the dialog is the test's), under the
+// Download: the shown file's text goes where the system's save dialog says (the dialog is the test's), under the
 // file's own name; a cancelled dialog writes nothing; a failure is said.
 func TestTheAnsibleDrawersDownloadSavesTheShownFileWhereTheDialogSays(t *testing.T) {
 	r := groupRig(t)
@@ -338,7 +338,7 @@ func TestTheAnsibleDrawersDownloadSavesTheShownFileWhereTheDialogSays(t *testing
 	if b, err := os.ReadFile(choice); err != nil || string(b) != "[infra]\npg-1\n" {
 		t.Fatalf("the saved file is %q (%v)", b, err)
 	}
-	if !r.hasText("Saved inventory.ini.") {
+	if !r.tt.HasText("Saved inventory.ini.") {
 		t.Error("no toast")
 	}
 	// A playbook's name is its base name; cancelling writes nothing and says nothing.
@@ -349,7 +349,7 @@ func TestTheAnsibleDrawersDownloadSavesTheShownFileWhereTheDialogSays(t *testing
 	if !slices.Equal(asked, []string{"inventory.ini", "restart.yml"}) {
 		t.Fatalf("the dialog was asked for %q", asked)
 	}
-	if r.hasText("Saved restart.yml.") {
+	if r.tt.HasText("Saved restart.yml.") {
 		t.Error("a cancelled dialog said it saved")
 	}
 	if es, _ := os.ReadDir(dir); len(es) != 1 {
@@ -377,7 +377,7 @@ func TestTheGroupPageComesBackWithTheWorkspace(t *testing.T) {
 	w2.w.restore(&d, nil)
 	w2.tt.Frame()
 	q := w2.w.groupPageState()
-	if q == nil || q.id != p.id || q.title != "Infra" || w2.w.tab() != w2.w.pageTab("group") || !w2.hasText("pg-1") {
+	if q == nil || q.id != p.id || q.title != "Infra" || w2.w.activeTab() != w2.w.pageTab("group") || !w2.tt.HasText("pg-1") {
 		t.Fatalf("the page did not come back: %+v", q)
 	}
 }
@@ -423,7 +423,7 @@ func TestTheRunbookEditorEditsARoleOneHostOnlyAndCaptures(t *testing.T) {
 	if in.Steps[1].Role != "worker" || in.Steps[1].OneHost || len(in.Steps[1].Captures) != 0 || in.Steps[1].Command != "kubeadm join --token {{join_token}}" {
 		t.Errorf("step 2 %+v", in.Steps[1])
 	}
-	// Remove capture takes it out of the next save; a name taken by another step is refused with the app's words and sends nothing.
+	// Remove capture takes it out of the next save; a name taken by another step is refused and sends nothing.
 	r.click(t, "Remove capture join_token")
 	if got := r.w.runbooksPage().ed.steps[0].captures; len(got) != 0 {
 		t.Fatalf("Remove capture left %v", got)
@@ -435,7 +435,7 @@ func TestTheRunbookEditorEditsARoleOneHostOnlyAndCaptures(t *testing.T) {
 	r.fill(t, "Step 1 capture 1 name", "x")
 	r.fill(t, "Step 1 capture 1 pattern", "(b)")
 	r.click(t, "Save")
-	if len(r.fb.mem.rbSaved) != n || !r.hasText("Step 2: x is captured by another step already.") && !r.hasText("Step 1: x is captured by another step already.") {
+	if len(r.fb.mem.rbSaved) != n || !r.tt.HasText("Step 2: x is captured by another step already.") && !r.tt.HasText("Step 1: x is captured by another step already.") {
 		t.Errorf("saves %d, texts %v", len(r.fb.mem.rbSaved), r.tt.Texts())
 	}
 	if strings.Contains(strings.Join(r.tt.Texts(), "\n"), "internal") {

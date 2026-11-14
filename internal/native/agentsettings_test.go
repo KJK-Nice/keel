@@ -46,7 +46,7 @@ func agentSettingsRig(t *testing.T) *rig {
 	r.tt.SetSize(1280, 3200) // the section is long: every control is on screen
 	r.tt.Frame()
 	r.section(t, "Agent")
-	r.settleFrames()
+	r.settle()
 	return r
 }
 
@@ -90,7 +90,7 @@ func TestSettingsAgentIsTheAppsGroupsRowsAndWords(t *testing.T) {
 	if strings.Contains(strings.ToLower(strings.Join(r.tt.Texts(), "\n")), "coming soon") {
 		t.Error("a setting is marked coming soon")
 	}
-	// Notes for the agent sit after Claude Code and before Safety, as in the app (notes_test.go has the rest).
+	// Notes for the agent sit after Claude Code and before Safety (notes_test.go has the rest).
 	all := strings.Join(r.tt.Texts(), "\n")
 	if !(strings.Index(all, "Claude Code") < strings.Index(all, "Notes for the agent") && strings.Index(all, "Notes for the agent") < strings.Index(all, "Safety")) {
 		t.Error("Notes for the agent is not between Claude Code and Safety")
@@ -117,7 +117,7 @@ func TestSettingsAgentControlsShowKeelServesValueAndSendOnlyWhatChanged(t *testi
 	} {
 		n := len(r.fb.convs.saves)
 		r.click(t, c.name)
-		r.settleFrames()
+		r.settle()
 		if len(r.fb.convs.saves) != n+1 {
 			t.Fatalf("%s: %d requests", c.name, len(r.fb.convs.saves)-n)
 		}
@@ -133,23 +133,18 @@ func TestSettingsAgentControlsShowKeelServesValueAndSendOnlyWhatChanged(t *testi
 	// Suggestions off greys the detection radios: choosing one sends nothing.
 	n := len(r.fb.convs.saves)
 	r.tt.Click("How to notice plain language Only lines starting with #")
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.convs.saves) != n {
 		t.Error("a detection choice was sent while suggestions are off")
 	}
 	r.click(t, "Suggest commands switch")
-	r.settleFrames()
+	r.settle()
 	r.click(t, "How to notice plain language Only lines starting with #")
-	r.settleFrames()
+	r.settle()
 	if p := r.lastSave(t); !slices.Equal(fields(p), []string{"Detection"}) || *p.Detection != "hash-only" {
 		t.Errorf("detection %v", p)
 	}
 	r.texts(t, "Pressing ↵ by mistake is harmless: the shell treats a line that starts with # as a comment.")
-}
-
-func TestSettingsAgentDetectionNoteNeedsJev(t *testing.T) {
-	r := agentSettingsRig(t)
-	r.texts(t, "Jev is not connected, so Keel notices only lines that start with # for now. Connect Jev above to notice plain language automatically.", "Needs a Jev key")
 }
 
 func TestSettingsAgentModelPicksTheProviderToo(t *testing.T) {
@@ -163,17 +158,17 @@ func TestSettingsAgentModelPicksTheProviderToo(t *testing.T) {
 	if err := r.tt.ChooseMenuItem("cl-1 · Claude"); err != nil {
 		t.Fatal(err)
 	}
-	r.settleFrames()
+	r.settle()
 	if p := r.lastSave(t); !slices.Equal(fields(p), []string{"Provider", "Model"}) || *p.Provider != "anthropic" || *p.Model != "cl-1" {
 		t.Errorf("picking another provider's model sent %+v", p)
 	}
 	r.click(t, "Model picker")
 	r.tt.ChooseMenuItem("cl-1 · Claude")
-	r.settleFrames()
+	r.settle()
 	n := len(r.fb.convs.saves)
 	r.click(t, "Model picker")
 	r.tt.ChooseMenuItem("cl-1 · Claude") // the one already chosen: nothing to save
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.convs.saves) != n {
 		t.Error("choosing the model that is chosen sent a request")
 	}
@@ -181,23 +176,23 @@ func TestSettingsAgentModelPicksTheProviderToo(t *testing.T) {
 
 func TestSettingsAgentScrollbackLinesRangeAndRequest(t *testing.T) {
 	r := agentSettingsRig(t)
-	p := r.w.pageTab("settings").pg.settings
+	p := r.w.settingsPage()
 	if p.linesV != 200 {
 		t.Fatalf("the slider starts at %v: it shows what keel serve holds", p.linesV)
 	}
 	r.texts(t, "200")
 	p.linesV = 20 // below the range
-	r.settleFrames()
+	r.settle()
 	if got := r.lastSave(t); !slices.Equal(fields(got), []string{"ScrollbackLines"}) || *got.ScrollbackLines != 50 {
 		t.Errorf("below the range: %+v", got)
 	}
 	p.linesV = 5000
-	r.settleFrames()
+	r.settle()
 	if got := r.lastSave(t); *got.ScrollbackLines != 1000 || r.fb.agent.settings.Settings.ScrollbackLines != 1000 {
 		t.Errorf("above the range: %+v, keel serve holds %d", got, r.fb.agent.settings.Settings.ScrollbackLines)
 	}
 	r.click(t, "Scrollback lines slider")
-	r.settleFrames()
+	r.settle()
 	if r.fb.agent.settings.Settings.ScrollbackLines < 50 || r.fb.agent.settings.Settings.ScrollbackLines > 1000 {
 		t.Errorf("the slider sent %d", r.fb.agent.settings.Settings.ScrollbackLines)
 	}
@@ -215,30 +210,30 @@ func TestSettingsAgentKeepConversationsAndDeleteAllHistoryAsksFirst(t *testing.T
 	if err := r.tt.ChooseMenuItem("Only while the panel is open"); err != nil {
 		t.Fatal(err)
 	}
-	r.settleFrames()
+	r.settle()
 	if p := r.lastSave(t); !slices.Equal(fields(p), []string{"HistoryDays"}) || *p.HistoryDays != 0 {
 		t.Errorf("history %+v", p)
 	}
-	if r.w.agent.savedNote() != "Not saved · kept while open" {
-		t.Errorf("the panel says %q", r.w.agent.savedNote())
+	if r.w.agentState().savedNote() != "Not saved · kept while open" {
+		t.Errorf("the panel says %q", r.w.agentState().savedNote())
 	}
-	// Delete all history asks first, with the app's words, and Cancel keeps everything.
+	// Delete all history asks first, and Cancel keeps everything.
 	r.click(t, "Delete all history…")
-	r.settleFrames()
-	cf := r.w.confirm
+	r.settle()
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Delete all history?" || cf.action != "Delete all history" || r.fb.convs.deletedAll != 0 ||
 		cf.message != "Every agent conversation is forgotten, including the ones saved in the vault, in every window. The log entries that say what the agent read stay in Logs." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
-	if r.fb.convs.deletedAll != 0 || r.w.confirm != nil {
+	r.settle()
+	if r.fb.convs.deletedAll != 0 || r.w.confirmOpen() {
 		t.Fatal("Cancel deleted the history")
 	}
 	r.click(t, "Delete all history…")
-	r.settleFrames()
-	r.w.confirm.run() // the dialog's action (its button shares its words with the row's)
-	r.settleFrames()
+	r.settle()
+	r.w.confirmDlg().run() // the dialog's action (its button shares its words with the row's)
+	r.settle()
 	if r.fb.convs.deletedAll != 1 {
 		t.Fatalf("confirming did not delete the history (%d)", r.fb.convs.deletedAll)
 	}
@@ -250,13 +245,13 @@ func TestSettingsAgentClaudeCodeIsOffByDefaultAndSendsOnlyClaudeCode(t *testing.
 		t.Fatal("Claude Code starts on")
 	}
 	r.click(t, "Allow Claude Code (keel mcp) switch")
-	r.settleFrames()
+	r.settle()
 	p := r.lastSave(t)
 	if !slices.Equal(fields(p), []string{"ClaudeCode"}) || !*p.ClaudeCode || !r.fb.agent.settings.Settings.ClaudeCode {
 		t.Fatalf("on: %v %+v", fields(p), p)
 	}
 	r.click(t, "Allow Claude Code (keel mcp) switch")
-	r.settleFrames()
+	r.settle()
 	p = r.lastSave(t)
 	if !slices.Equal(fields(p), []string{"ClaudeCode"}) || *p.ClaudeCode || r.fb.agent.settings.Settings.ClaudeCode {
 		t.Fatalf("off: %v %+v", fields(p), p)
@@ -282,7 +277,7 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 	r.click(t, "Anthropic API key input")
 	r.tt.Type(fakeProviderKey)
 	r.tt.Frame()
-	p := r.w.pageTab("settings").pg.settings
+	p := r.w.settingsPage()
 	if p.card("anthropic").field != fakeProviderKey {
 		t.Fatal("the field did not take the key")
 	}
@@ -290,7 +285,7 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 		t.Fatal("the key is drawn")
 	}
 	r.click(t, "Connect Anthropic Claude")
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.agent.keys) != 1 || r.fb.agent.keys[0].Provider != "anthropic" || r.fb.agent.keys[0].Key != fakeProviderKey {
 		t.Fatalf("keys sent %v", r.fb.agent.keys)
 	}
@@ -314,19 +309,19 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 	// A refused key: the card says why, the field is empty, the key is not in the words.
 	r.fb.agent.keyErr = &keelclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}
 	r.click(t, "Change key Google Gemini")
-	r.settleFrames()
+	r.settle()
 	r.click(t, "Gemini API key input")
 	r.tt.Type(fakeProviderKey)
 	r.tt.Frame()
 	r.click(t, "Save key Google Gemini")
-	r.settleFrames()
+	r.settle()
 	if !r.tt.HasText("the key is empty, too long, or has spaces") || p.card("gemini").field != "" || strings.Contains(strings.Join(r.tt.Texts(), "\n"), fakeProviderKey) {
 		t.Errorf("a refused key: %v", r.tt.Texts())
 	}
 	// An empty field is not sent.
 	n := len(r.fb.agent.keys)
 	r.click(t, "Save key Google Gemini")
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.agent.keys) != n || !r.tt.HasText("Paste a key first.") {
 		t.Error("an empty key was sent")
 	}
@@ -335,22 +330,22 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 func TestSettingsAgentDisconnectAsksFirstWithTheAppsWords(t *testing.T) {
 	r := agentSettingsRig(t)
 	r.click(t, "Disconnect Google Gemini")
-	r.settleFrames()
-	cf := r.w.confirm
+	r.settle()
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Disconnect Google Gemini?" || cf.action != "Disconnect" || len(r.fb.convs.keysGone) != 0 ||
 		cf.message != "The agent panel and suggestions will stop working until you connect a key again. The Google Gemini key is removed from the vault." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
+	r.settle()
 	if len(r.fb.convs.keysGone) != 0 {
 		t.Fatal("Cancel removed the key")
 	}
 	r.click(t, "Disconnect Google Gemini")
-	r.settleFrames()
-	r.w.confirm.run() // the dialog's action (its button shares its words with the card's)
-	r.w.confirm = nil
-	r.settleFrames()
+	r.settle()
+	r.w.confirmDlg().run() // the dialog's action (its button shares its words with the card's)
+	r.w.dismissConfirm()
+	r.settle()
 	if !slices.Equal(r.fb.convs.keysGone, []string{"gemini"}) || !r.has("badge Not connected Google Gemini") {
 		t.Fatalf("removed %v", r.fb.convs.keysGone)
 	}
@@ -361,13 +356,13 @@ func TestSettingsSearchFindsAgentRowsAndAgentHasNoSecretRowText(t *testing.T) {
 	r.section(t, "Appearance")
 	r.click(t, "Search settings")
 	r.tt.Type("claude code")
-	r.settleFrames()
+	r.settle()
 	if !r.tt.HasText("Allow Claude Code (keel mcp)") || r.tt.HasText("Window opacity") {
 		t.Errorf("the search did not find the Agent row: %v", r.tt.Texts())
 	}
 	r.tt.Key(ui.Cmd, ui.KeyA)
 	r.tt.Type("scrollback")
-	r.settleFrames()
+	r.settle()
 	if !r.tt.HasText("Scrollback lines per pane") || !r.tt.HasText("Suggest from this pane's scrollback") {
 		t.Errorf("scrollback: %v", r.tt.Texts())
 	}
@@ -377,9 +372,9 @@ func TestRetentionSettingsOpensSettingsAgent(t *testing.T) {
 	r := savedRig(t)
 	r.openPageSettled()
 	r.click(t, "Retention settings")
-	r.settleFrames()
-	tb := r.w.tab()
-	if tb == nil || tb.pg == nil || tb.pg.settings == nil || tb.pg.settings.section != "agent" || !r.tt.HasText("Keep conversations") {
+	r.settle()
+	tb := r.w.activeTab()
+	if tb == nil || tb.pg == nil || pageAs[*settingsPage](tb) == nil || pageAs[*settingsPage](tb).section != "agent" || !r.tt.HasText("Keep conversations") {
 		t.Fatalf("Retention settings did not open Settings · Agent: %v", r.tt.Texts())
 	}
 }

@@ -21,8 +21,7 @@ func TestLegacyHexHostColorReadsAsToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := New(path)
+	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +58,6 @@ func TestHostColorsAreTokens(t *testing.T) {
 		}
 	}
 	if DefaultHostColor != HostColors[0].Value {
-		t.Error("the default must be the first swatch: term.js picks the first radio for a new host")
+		t.Error("the default must be the first swatch: a new host starts on it")
 	}
 }

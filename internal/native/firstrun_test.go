@@ -52,7 +52,7 @@ func (r *rig) texts(t *testing.T, want ...string) {
 func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 	fb := setupBackend()
 	r := firstRunRig(t, fb)
-	kc := keychainName(goosForTest)
+	kc := keychainName()
 	r.texts(t, "Vault", "Hosts", "Agent", "Welcome to Keel",
 		"Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.",
 		"Unlock with "+kc, "Recommended",
@@ -80,7 +80,7 @@ func TestFirstRunKeychainCardIsNotChoosableWhenSettingUp(t *testing.T) {
 	if f := r.w.first; f.usesKeychain() {
 		t.Fatal("a vault that needs setup uses the keychain")
 	}
-	r.click(t, "Unlock with "+keychainName(goosForTest))
+	r.click(t, "Unlock with "+keychainName())
 	if r.w.first.vault.NeedsSetup != true || len(r.fb.setups) != 0 {
 		t.Error("the disabled keychain card did something")
 	}
@@ -151,12 +151,12 @@ func TestFirstRunExistingVaultIsAnInstructionOnly(t *testing.T) {
 	}
 }
 
-// An unlocked vault whose first run is open starts at step 1 with Continue, as gate.js does (it shows the vault
+// An unlocked vault whose first run is open starts at step 1 with Continue, (it shows the vault
 // the keychain already made).
 func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "keychain", Path: "~/keel/keel.vault"}, hosts: testHosts, preview: testPreview()}
 	r := firstRunRig(t, fb)
-	kc := keychainName(goosForTest)
+	kc := keychainName()
 	r.texts(t, "Welcome to Keel", "The vault key lives in your login keychain. Keel opens without asking.",
 		"Keel already made this vault with "+kc+". It does not re-key a vault here.",
 		"age, with the wrapping key in your keychain", "Continue")
@@ -312,7 +312,7 @@ func TestFirstRunKeyPassphraseIsClearedWhenSentAndNeverPrinted(t *testing.T) {
 	if len(fb.imports) != 1 || fb.imports[0].Keys[0].Passphrase != scratchKey {
 		t.Fatalf("%+v", fb.imports)
 	}
-	// The refusal is shown under the key it names, with the webview's words, and stays on step 2.
+	// The refusal is shown under the key it names, and stays on step 2.
 	r.texts(t, "That passphrase doesn't open id_db.")
 	if f.step != stepHosts || !r.tt.Focused("Passphrase for id_db") {
 		t.Errorf("step %d", f.step)
@@ -391,8 +391,8 @@ func TestFirstRunOpenKeelEndsTheFirstRunAndOpensTheWorkspace(t *testing.T) {
 		if r.w.first != nil || !r.w.live || !r.tt.HasText("Filter hosts") || !r.tt.HasText("Local Shell") {
 			t.Errorf("%s: first %v live %v", button, r.w.first != nil, r.w.live)
 		}
-		if len(r.w.tabs) != 1 || !r.w.tabs[0].isNew() {
-			t.Errorf("%s: tabs %d", button, len(r.w.tabs))
+		if r.w.tabCount() != 1 || !r.w.tabAt(0).isNew() {
+			t.Errorf("%s: tabs %d", button, r.w.tabCount())
 		}
 	}
 }
@@ -468,7 +468,7 @@ func TestFirstRunHidesTheWorkspaceAndTakesNoShortcut(t *testing.T) {
 	r := firstRunRig(t, setupBackend())
 	r.press(ui.Cmd, ui.KeyT)
 	r.press(ui.Cmd, ui.KeyK)
-	if len(r.w.tabs) != 0 || r.w.pal != nil || r.tt.HasText("Filter hosts") {
+	if r.w.tabCount() != 0 || r.w.pal != nil || r.tt.HasText("Filter hosts") {
 		t.Error("the window behind First run acts")
 	}
 }
@@ -490,7 +490,7 @@ func TestVaultErrorsUseTheServersWords(t *testing.T) {
 	}
 }
 
-// ---- step 3: the provider, the key and the switch (gate.js showAgentStep, openKeel) ----
+// ---- step 3: the provider, the key and the switch ----
 
 const fakeFirstRunKey = "made-up-key-for-the-first-run-test"
 

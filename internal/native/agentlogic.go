@@ -1,24 +1,26 @@
 package native
 
 import (
-	"crypto/rand"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/randid"
+	"keel/internal/wire"
 )
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card
-// offers. They are cmd/keel/web/js/lib/agent.js (pinned there by test/agent.test.mjs and here by agentlogic_test.go),
-// (the notebook and runbook words are agentnotebookslogic.go and runbookslogic.go); the saved-conversation rules are
+// offers (agentlogic_test.go pins them;
+// the notebook and runbook words are agentnotebookslogic.go and runbookslogic.go); the saved-conversation rules are
 // agentconvlogic.go.
 //
 // Nothing here types. typeOffer and typeGate only decide whether the card shows Type into pane and whether a press may
 // open the Approve before type dialog; keel serve checks the same rules again before it writes (agent service
 // AuthorizeType).
 
-// agentPane is a pane as the panel sees it (term.js agentPanes): the session, how the picker and the card name it, and
+// agentPane is a pane as the panel sees it: the session, how the picker and the card name it, and
 // what the rules need. p and t are the window's own pane and tab; the rules never read them.
 type agentPane struct {
 	sessionID, label, sub                                       string
@@ -30,11 +32,7 @@ type agentPane struct {
 
 // scopeLabel is the chip text: "Reads 2 of 3 panes".
 func scopeLabel(n, m int) string {
-	noun := "panes"
-	if m == 1 {
-		noun = "pane"
-	}
-	return fmt.Sprintf("Reads %d of %d %s", n, m, noun)
+	return fmt.Sprintf("Reads %d of %s", n, countWord(m, "pane", "panes"))
 }
 
 // candidatePanes are the panes the panel counts (M): local terminal panes with a session. A joined pane is never in
@@ -86,20 +84,11 @@ func reconcileScope(ids []string, ps []agentPane) []string {
 	}
 	out := []string{}
 	for _, id := range ids {
-		if ok[id] && !contains(out, id) {
+		if ok[id] && !slices.Contains(out, id) {
 			out = append(out, id)
 		}
 	}
 	return out
-}
-
-func contains(ids []string, id string) bool {
-	for _, x := range ids {
-		if x == id {
-			return true
-		}
-	}
-	return false
 }
 
 // toggleScope adds or removes one pane. A pane the agent cannot read, or a joined one, is never added.
@@ -108,7 +97,7 @@ func toggleScope(ids []string, p *agentPane) []string {
 	switch {
 	case p == nil:
 		return out
-	case contains(ids, p.sessionID):
+	case slices.Contains(ids, p.sessionID):
 		out = out[:0]
 		for _, id := range ids {
 			if id != p.sessionID {
@@ -133,18 +122,10 @@ func lineCount(bytes string) int {
 
 // countLabel is the card's "1 line · 20 bytes".
 func countLabel(bytes string) string {
-	l, b := lineCount(bytes), len(bytes)
-	ln, bn := "lines", "bytes"
-	if l == 1 {
-		ln = "line"
-	}
-	if b == 1 {
-		bn = "byte"
-	}
-	return fmt.Sprintf("%d %s · %d %s", l, ln, b, bn)
+	return countWord(lineCount(bytes), "line", "lines") + " · " + countWord(len(bytes), "byte", "bytes")
 }
 
-// bytesRun is a stretch of the bytes Type sends: plain text, or a control character drawn as a glyph (k-ctl).
+// bytesRun is a stretch of the bytes Type sends: plain text, or a control character drawn as a glyph.
 type bytesRun struct {
 	text string
 	ctl  bool
@@ -153,8 +134,7 @@ type bytesRun struct {
 var ctlGlyphs = map[rune]string{'\n': "↵", '\t': "⇥", '\r': "⏎", 0x1b: "⎋", 0x7f: "⌫"}
 
 // bytesRuns shows the exact bytes Type will send, every control character as a visible glyph: ↵ newline, ⇥ tab, ⎋ escape,
-// ^X for the rest. A newline still breaks the line after its glyph, and the last one does not start another (agent.js
-// bytesHTML).
+// ^X for the rest. A newline still breaks the line after its glyph, and the last one does not start another.
 func bytesRuns(bytes string) (out []bytesRun) {
 	plain := func(r rune) {
 		if n := len(out); n > 0 && !out[n-1].ctl {
@@ -196,13 +176,16 @@ func bytesText(bytes string) string {
 // riskBadge is the card's kind: Read-only, Changes state or Destructive. An unknown kind is never shown as read-only.
 func riskBadge(risk string) (label, kind string) {
 	switch risk {
-	case "readonly":
+	case keelclient.RiskReadOnly:
 		return "Read-only", "tide"
-	case "destructive":
+	case keelclient.RiskDestructive:
 		return "Destructive", "flare"
 	}
 	return "Changes state", "signal"
 }
+
+// changesState reports a rated command that is not read-only; an unrated one ("") is not counted.
+func changesState(risk string) bool { return risk != "" && risk != keelclient.RiskReadOnly }
 
 func redactedNote(counts map[string]int) string {
 	held, n := 0, 0
@@ -218,30 +201,19 @@ func redactedNote(counts map[string]int) string {
 		out = fmt.Sprintf(" · %d redacted", n)
 	}
 	if held > 0 {
-		noun := "values"
-		if held == 1 {
-			noun = "value"
-		}
-		out += fmt.Sprintf(" · %d %s withheld by Keel", held, noun)
+		out += " · " + countWord(held, "value", "values") + " withheld by Keel"
 	}
 	return out
-}
-
-func lines(n int) string {
-	if n == 1 {
-		return "line"
-	}
-	return "lines"
 }
 
 // traceText is one line of the trace: what the agent read, or why not.
 func traceText(s keelclient.TraceStep) string {
 	switch s.Status {
-	case "notes":
+	case wire.TraceNotes:
 		switch s.NoteKind {
-		case "user":
+		case wire.NoteUser:
 			return fmt.Sprintf("Used your notes (%d)", s.Notes)
-		case "group":
+		case wire.NoteGroup:
 			return fmt.Sprintf("Used group notes · %s (%d)", orElse(s.Host, "a group"), s.Notes)
 		}
 		return fmt.Sprintf("Used host notes · %s (%d)", orElse(s.Host, "a host"), s.Notes)
@@ -249,22 +221,22 @@ func traceText(s keelclient.TraceStep) string {
 	if isNotebookStep(s) { // §18: the titles sent, a notebook sent or read, or why not
 		return notebookStepText(s)
 	}
-	if s.Status == "runbook" {
+	if s.Status == wire.TraceRunbook {
 		return "Used runbook · " + orElse(s.Runbook, "a runbook")
 	}
 	host := orElse(s.Host, "a pane")
 	switch {
-	case s.Status == "read" && s.Command != "": // from the shell's OSC 133 marks
-		return fmt.Sprintf("Read %s · last command, %s · %d %s of output%s", host, s.Command, s.Lines, lines(s.Lines), redactedNote(s.Redactions))
-	case s.Status == "read":
-		return fmt.Sprintf("Read %s · last %d %s%s", host, s.Lines, lines(s.Lines), redactedNote(s.Redactions))
-	case s.Status != "skipped":
+	case s.Status == wire.TraceRead && s.Command != "": // from the shell's OSC 133 marks
+		return fmt.Sprintf("Read %s · last command, %s · %d %s of output%s", host, s.Command, s.Lines, plural(s.Lines, "line", "lines"), redactedNote(s.Redactions))
+	case s.Status == wire.TraceRead:
+		return fmt.Sprintf("Read %s · last %d %s%s", host, s.Lines, plural(s.Lines, "line", "lines"), redactedNote(s.Redactions))
+	case s.Status != wire.TraceSkipped:
 		return "Used " + s.Status // a step this client has no words for: shown, never hidden
 	}
 	switch s.Reason {
-	case "not-readable":
+	case wire.SkipNotReadable:
 		return fmt.Sprintf("Skipped %s · the agent can't read this host", host)
-	case "not-open":
+	case wire.SkipNotOpen:
 		return "Skipped a pane · it is closed"
 	}
 	return fmt.Sprintf("Skipped %s · could not read it", host)
@@ -281,7 +253,6 @@ const (
 	offerPlaceholder = "placeholder"       // no Type: it holds [secret:N], which a shell would read as a pattern
 )
 
-// typeOffer is agent.js typeOffer.
 func typeOffer(p keelclient.Proposal, pane *agentPane) string {
 	switch {
 	case p.Expired:
@@ -305,7 +276,7 @@ func typeOffer(p keelclient.Proposal, pane *agentPane) string {
 // gateShift is typeGate's reason when a proposal needs ⇧ and it was not held.
 const gateShift = "needs-shift"
 
-// typeGate says whether a Type press may open the Approve before type dialog, and if not why (agent.js typeGate).
+// typeGate says whether a Type press may open the Approve before type dialog, and if not why.
 func typeGate(p keelclient.Proposal, pane *agentPane, shift bool) (ok bool, reason string) {
 	switch offer := typeOffer(p, pane); {
 	case offer == offerType:
@@ -321,7 +292,7 @@ func typeGate(p keelclient.Proposal, pane *agentPane, shift bool) (ok bool, reas
 
 // shiftReason says why a proposal needs ⇧.
 func shiftReason(p keelclient.Proposal) string {
-	if p.Risk == "destructive" {
+	if p.Risk == keelclient.RiskDestructive {
 		return "Destructive"
 	}
 	return "Changes state on a production host"
@@ -342,15 +313,7 @@ func atTrigger(s string) bool {
 }
 
 // newConversationID makes an id for keel serve's in-memory history: it matches the server's ^[A-Za-z0-9_-]{8,64}$.
-func newConversationID() string {
-	const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
-	b := make([]byte, 19)
-	rand.Read(b)
-	for i := range b {
-		b[i] = alphabet[int(b[i])%len(alphabet)]
-	}
-	return "c" + string(b)
-}
+func newConversationID() string { return "c" + randid.Hex(10) }
 
 // cutNotice is the line under an answer the provider cut before the model finished it: a cut answer is never shown as
 // if it were whole. "" for a finished one.

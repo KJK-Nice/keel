@@ -1,14 +1,13 @@
 package store
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,9 +15,38 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+
+	"keel/internal/limits"
+	"keel/internal/paths"
+	"keel/internal/randid"
+	"keel/internal/wire"
 )
 
 var ErrNotFound = errors.New("not found")
+
+// ErrLocalDuplicate refuses to duplicate the seeded local shell host.
+var ErrLocalDuplicate = errors.New("the local shell host cannot be duplicated")
+
+const (
+	AuthLocal    = wire.AuthLocal
+	AuthPassword = wire.AuthPassword
+	AuthKey      = wire.AuthKey
+	AuthIdentity = wire.AuthIdentity
+)
+
+// The Tunnel Kind values.
+const (
+	TunnelLocal   = wire.TunnelLocal
+	TunnelRemote  = wire.TunnelRemote
+	TunnelDynamic = wire.TunnelDynamic
+)
+
+func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
+
+// SavedSecret stands for a secret the vault holds wherever a host or an
+// identity is shown to a client: the API never sends the secret itself, and
+// a client that sends this back keeps the saved one.
+const SavedSecret = "__saved__"
 
 // UnknownHostError is returned the first time a host presents a key.
 type UnknownHostError struct {
@@ -48,6 +76,21 @@ type HostKeyMismatchError struct {
 
 func (e *HostKeyMismatchError) Error() string {
 	return fmt.Sprintf("host key mismatch for %s: expected %s, got %s", e.Host, e.Expected, e.Got)
+}
+
+// RefusedHostKey is the refused key in a connect error, in the one shape
+// the session socket, a 409 body and Test connection carry it in. ok is
+// false when err is no host-key refusal.
+func RefusedHostKey(err error) (k wire.HostKey, ok bool) {
+	var unk *UnknownHostError
+	var mm *HostKeyMismatchError
+	switch {
+	case errors.As(err, &unk):
+		return wire.HostKey{Kind: wire.HostKeyUnknown, Hostname: unk.Host, Fingerprint: unk.Fingerprint, KeyType: unk.KeyType, Token: unk.Token}, true
+	case errors.As(err, &mm):
+		return wire.HostKey{Kind: wire.HostKeyMismatch, Hostname: mm.Host, Fingerprint: mm.Got, Expected: mm.Expected, KeyType: mm.KeyType, Token: mm.Token}, true
+	}
+	return wire.HostKey{}, false
 }
 
 type Host struct {
@@ -98,7 +141,6 @@ func (h Host) ReadableByAgent() bool {
 	return h.AgentReadable == nil || *h.AgentReadable
 }
 
-// IsProduction reports whether the host is treated as production.
 func (h Host) IsProduction() bool {
 	return h.Production != nil && *h.Production
 }
@@ -128,18 +170,18 @@ type Group struct {
 
 // MaxGroupDepth is the Termius-like nest cap (6–8). Moves/creates that would
 // exceed it return ErrGroupDepth. Upsert also rejects parent cycles.
-const MaxGroupDepth = 8
+const MaxGroupDepth = limits.MaxGroupDepth
 
 var (
-	ErrGroupCycle = errors.New("group cannot nest under itself")
-	ErrGroupDepth = errors.New("group nest is deeper than 8")
+	ErrGroupCycle = errors.New(limits.MsgGroupCycle)
+	ErrGroupDepth = errors.New(limits.MsgGroupDepth)
 )
 
-const defaultKeepAlive = 30 * time.Second
+const defaultKeepAlive = limits.DefaultKeepAliveSec * time.Second
 
 // KeepAlive is the SSH keepalive interval. Local shells: off. keepAliveSec 0 → 30s. -1 → off.
 func (h Host) KeepAlive() time.Duration {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return 0
 	}
 	if h.KeepAliveSec < 0 {
@@ -153,7 +195,7 @@ func (h Host) KeepAlive() time.Duration {
 
 // AutoReconnect is on for SSH hosts unless noAutoReconnect is set.
 func (h Host) AutoReconnect() bool {
-	return h.AuthType != "local" && !h.NoAutoReconnect
+	return !h.IsLocal() && !h.NoAutoReconnect
 }
 
 const (
@@ -225,7 +267,7 @@ type Snippet struct {
 	Name    string `json:"name"`
 	Command string `json:"command"`
 	// AgentUsable lets the agent offer this snippet as an in-pane
-	// suggestion (phase 6c+), which sends its command, redacted, to Jev.
+	// suggestion, which sends its command, redacted, to Jev.
 	// Off by default: snippet bodies are never sent unless the user
 	// turns this on (docs/ui-redesign.md §6.3).
 	AgentUsable bool      `json:"agentUsable"`
@@ -327,7 +369,7 @@ type persistData struct {
 	// are vault secrets (agentkeys.go).
 	Agent *AgentSettings `json:"agent,omitempty"`
 	// AgentDetectionDefault records that the detection default moved from
-	// "auto" to "hash-only" (plan 036): a file without it that holds "auto"
+	// "auto" to "hash-only": a file without it that holds "auto"
 	// is moved once, on load, since a stored value cannot tell a choice
 	// from the old default. It is written with the next save.
 	AgentDetectionDefault bool `json:"agentDetectionDefault,omitempty"`
@@ -346,9 +388,20 @@ type Store struct {
 	// HTTP request calls (httpapi withVault): it must not wait behind a save.
 	locked    atomic.Bool
 	needSetup bool
+	// unsavedMigration is set while what a load-time migration changed is
+	// only in memory: the vault was locked, so it is saved at the unlock.
+	unsavedMigration bool
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
-	fromEnv   bool
+	fromEnv bool
+	// keyringOff is KEEL_KEYRING=off, or TestVault: the OS keychain is never
+	// asked. scryptWork is 0 (age's own work factor) outside tests. Both are
+	// set once, in New.
+	keyringOff bool
+	scryptWork int
+	// now is the clock of host key offers: time.Now, set in New (a test of
+	// their expiry replaces it).
+	now       func() time.Time
 	recipient age.Recipient
 	// vaultSum and vaultRecipient describe what keel.vault last held, so a
 	// save that changes no secret skips re-encrypting it. In passphrase mode
@@ -412,47 +465,59 @@ func (s *Store) changed() {
 	}
 }
 
-func New(path string) (*Store, error) {
+func New(path string, opts ...Option) (*Store, error) {
 	s := &Store{
-		path:      path,
-		vaultPath: filepath.Join(filepath.Dir(path), "keel.vault"),
-		secrets:   map[string]hostSecret{},
+		path:       path,
+		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
+		secrets:    map[string]hostSecret{},
+		keyringOff: os.Getenv(envKeyring) == "off",
+		now:        time.Now,
+	}
+	for _, o := range opts {
+		o(s)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
+	// Old formats are brought up to date here, once, and nowhere else:
+	// loadPlain reads an old file's shape (secrets in the clear, agent
+	// flags, the detection default) and migrateGroups its group names.
+	// What they changed is saved now, or at the unlock when the vault is
+	// locked: no read writes.
+	var pending map[string]hostSecret
 	b, err := os.ReadFile(path)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, err
-		}
+	switch {
+	case os.IsNotExist(err):
 		s.data = seed()
-		if err := s.bootstrap(); err != nil {
+	case err != nil:
+		return nil, err
+	default:
+		plain, err := loadPlain(b)
+		if err != nil {
 			return nil, err
 		}
-		return s, nil
+		s.data, pending = plain.data, plain.secrets
 	}
-	plain, err := loadPlain(b)
-	if err != nil {
-		return nil, err
-	}
-	s.data = plain.data
-	pending := plain.secrets
+	s.unsavedMigration = migrateGroups(&s.data)
 	if err := s.bootstrap(); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.locked.Load() && len(pending) > 0 {
-		for id, sec := range pending {
-			s.secrets[id] = sec
+	if s.locked.Load() {
+		if len(pending) > 0 {
+			s.secrets = pending
+			s.needSetup = true
 		}
+		return s, nil
+	}
+	for id, sec := range pending {
+		s.secrets[id] = sec
+	}
+	if len(pending) > 0 || s.unsavedMigration {
 		if err := s.saveLocked(); err != nil {
 			return nil, err
 		}
-	} else if s.locked.Load() && len(pending) > 0 {
-		s.secrets = pending
-		s.needSetup = true
 	}
 	return s, nil
 }
@@ -546,8 +611,8 @@ func seed() persistData {
 			Group:     "This machine",
 			Address:   "localhost",
 			Port:      0,
-			Username:  os.Getenv("USER"),
-			AuthType:  "local",
+			Username:  paths.LocalUser(),
+			AuthType:  AuthLocal,
 			Color:     DefaultHostColor,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -572,7 +637,7 @@ func (s *Store) bootstrap() error {
 		s.fromEnv = true
 		return nil
 	}
-	if ident, err := keyringIdentity(); err == nil {
+	if ident, err := s.keyringIdentity(); err == nil {
 		blob, rerr := os.ReadFile(s.vaultPath)
 		if rerr != nil && !os.IsNotExist(rerr) {
 			return rerr
@@ -595,7 +660,7 @@ func (s *Store) bootstrap() error {
 		s.locked.Store(false)
 		return nil
 	}
-	blob, err := os.ReadFile(s.vaultPath)
+	_, err := os.ReadFile(s.vaultPath)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -604,7 +669,7 @@ func (s *Store) bootstrap() error {
 		if gerr != nil {
 			return gerr
 		}
-		if serr := saveKeyringIdentity(ident); serr == nil {
+		if serr := s.saveKeyringIdentity(ident); serr == nil {
 			s.recipient = ident.Recipient()
 			s.data.Vault = vaultX25519
 			s.data.Version = 3
@@ -615,7 +680,6 @@ func (s *Store) bootstrap() error {
 		s.needSetup = true
 		return nil
 	}
-	_ = blob
 	s.locked.Store(true)
 	s.needSetup = false
 	return nil
@@ -651,8 +715,15 @@ func (s *Store) Unlock(passphrase string) error {
 	if err := s.unlockScryptLocked(passphrase, false); err != nil {
 		return err
 	}
-	// Unlocking saves nothing, but every list goes from "Vault locked" to
-	// its contents.
+	if s.unsavedMigration {
+		if err := s.saveLocked(); err != nil {
+			s.changed()
+			return err
+		}
+		return nil
+	}
+	// Unlocking saves nothing else, but every list goes from "Vault
+	// locked" to its contents.
 	s.changed()
 	return nil
 }
@@ -670,7 +741,7 @@ func (s *Store) Setup(passphrase string) error {
 }
 
 func (s *Store) setupLocked(passphrase string) error {
-	rec, err := scryptRecipient(passphrase)
+	rec, err := s.scryptRecipient(passphrase)
 	if err != nil {
 		return err
 	}
@@ -695,7 +766,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		if !create && !s.needSetup {
 			return fmt.Errorf("vault file missing")
 		}
-		rec, err := scryptRecipient(passphrase)
+		rec, err := s.scryptRecipient(passphrase)
 		if err != nil {
 			return err
 		}
@@ -714,7 +785,7 @@ func (s *Store) unlockScryptLocked(passphrase string, create bool) error {
 		s.locked.Store(true)
 		return ErrPassphrase
 	}
-	rec, err := scryptRecipient(passphrase)
+	rec, err := s.scryptRecipient(passphrase)
 	if err != nil {
 		return err
 	}
@@ -732,15 +803,9 @@ func (s *Store) ListHosts() ([]Host, error) {
 	if s.locked.Load() {
 		return nil, ErrLocked
 	}
-	dirty := s.migrateGroupsLocked()
 	out := make([]Host, len(s.data.Hosts))
 	for i, h := range s.data.Hosts {
 		out[i] = s.viewLocked(h)
-	}
-	if dirty {
-		if err := s.saveLocked(); err != nil {
-			return nil, err
-		}
 	}
 	return out, nil
 }
@@ -759,32 +824,23 @@ func (s *Store) GetHost(id string) (Host, error) {
 	return Host{}, ErrNotFound
 }
 
+// viewLocked is a host for a list: SavedSecret where it holds a secret.
 func (s *Store) viewLocked(h persistHost) Host {
-	out := Host{
-		ID: h.ID, Name: h.Name, Group: h.Group, Address: h.Address,
-		Port: h.Port, Username: h.Username, AuthType: h.AuthType,
-		IdentityID: h.IdentityID, Color: hostColor(h.Color),
-		KeepAliveSec: h.KeepAliveSec, NoAutoReconnect: h.NoAutoReconnect,
-		Tags:     append([]string(nil), h.Tags...),
-		JumpHost: h.JumpHost, StartupCommand: h.StartupCommand,
-		AgentReadable: boolPtr(!h.AgentOff),
-		Production:    boolPtr(h.Production),
-		AgentNotes:    boolPtr(!h.AgentNotesOff),
-		CreatedAt:     h.CreatedAt, UpdatedAt: h.UpdatedAt,
+	return s.fullLocked(h).Redacted()
+}
+
+// savedMark is SavedSecret for a secret that is held and "" for none.
+func savedMark(secret string) string {
+	if secret == "" {
+		return ""
 	}
-	out = s.hydrateGroupLocked(out, h.Group)
-	if sec, ok := s.secrets[h.ID]; ok {
-		if sec.Password != "" {
-			out.Password = "x"
-		}
-		if sec.PrivateKey != "" {
-			out.PrivateKey = "x"
-		}
-		if sec.Passphrase != "" {
-			out.Passphrase = "x"
-		}
-	}
-	return out
+	return SavedSecret
+}
+
+// Redacted is h with SavedSecret in place of each secret it holds.
+func (h Host) Redacted() Host {
+	h.Password, h.PrivateKey, h.Passphrase = savedMark(h.Password), savedMark(h.PrivateKey), savedMark(h.Passphrase)
+	return h
 }
 
 func (s *Store) fullLocked(h persistHost) Host {
@@ -826,10 +882,9 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	}
 	now := time.Now().UTC()
 	h.Tags = NormalizeTags(h.Tags)
-	if h.Port == 0 && h.AuthType != "local" {
+	if h.Port == 0 && !h.IsLocal() {
 		h.Port = 22
 	}
-	s.migrateGroupsLocked()
 	gid, err := s.resolveGroupRefLocked(h.GroupID, h.Group)
 	if err != nil {
 		return Host{}, err
@@ -839,52 +894,30 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if err := s.checkHostFieldsLocked(h); err != nil {
 		return Host{}, err
 	}
-	if h.ID == "" {
+	at := -1
+	if h.ID != "" {
+		at = slices.IndexFunc(s.data.Hosts, func(x persistHost) bool { return x.ID == h.ID })
+	}
+	// A new host, with or without an id of the caller's, starts with no
+	// secret; an update keeps the saved ones it does not replace.
+	var prev hostSecret
+	if at < 0 {
 		s.applyCreateDefaultsLocked(&h)
-		h.ID = newID()
+		if h.ID == "" {
+			h.ID = newID()
+		}
 		h.CreatedAt = now
-		h.UpdatedAt = now
-		s.data.Hosts = append(s.data.Hosts, persistFrom(h))
-		s.putSecretLocked(h.ID, hostSecret{
-			Password:   cleanSecret(h.Password),
-			PrivateKey: cleanSecret(h.PrivateKey),
-			Passphrase: cleanSecret(h.Passphrase),
-		}, hostSecret{})
-		out := s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1])
-		if err := s.saveLocked(); err != nil {
-			return Host{}, err
-		}
-		return out, nil
+		s.data.Hosts = append(s.data.Hosts, persistHost{})
+		at = len(s.data.Hosts) - 1
+	} else {
+		s.applyUpdateDefaultsLocked(&h, s.data.Hosts[at])
+		h.CreatedAt = s.data.Hosts[at].CreatedAt
+		prev = s.secrets[h.ID]
 	}
-	for i, existing := range s.data.Hosts {
-		if existing.ID == h.ID {
-			s.applyUpdateDefaultsLocked(&h, existing)
-			h.CreatedAt = existing.CreatedAt
-			h.UpdatedAt = now
-			prev := s.secrets[h.ID]
-			s.data.Hosts[i] = persistFrom(h)
-			s.putSecretLocked(h.ID, hostSecret{
-				Password:   h.Password,
-				PrivateKey: h.PrivateKey,
-				Passphrase: h.Passphrase,
-			}, prev)
-			out := s.fullLocked(s.data.Hosts[i])
-			if err := s.saveLocked(); err != nil {
-				return Host{}, err
-			}
-			return out, nil
-		}
-	}
-	s.applyCreateDefaultsLocked(&h)
-	h.CreatedAt = now
 	h.UpdatedAt = now
-	s.data.Hosts = append(s.data.Hosts, persistFrom(h))
-	s.putSecretLocked(h.ID, hostSecret{
-		Password:   cleanSecret(h.Password),
-		PrivateKey: cleanSecret(h.PrivateKey),
-		Passphrase: cleanSecret(h.Passphrase),
-	}, hostSecret{})
-	out := s.fullLocked(s.data.Hosts[len(s.data.Hosts)-1])
+	s.data.Hosts[at] = persistFrom(h)
+	s.putSecretLocked(h.ID, hostSecret{Password: h.Password, PrivateKey: h.PrivateKey, Passphrase: h.Passphrase}, prev)
+	out := s.fullLocked(s.data.Hosts[at])
 	if err := s.saveLocked(); err != nil {
 		return Host{}, err
 	}
@@ -919,8 +952,8 @@ func (s *Store) DuplicateHost(id string) (Host, error) {
 	if err != nil {
 		return Host{}, err
 	}
-	if src.AuthType == "local" {
-		return Host{}, errors.New("the local shell host cannot be duplicated")
+	if src.IsLocal() {
+		return Host{}, ErrLocalDuplicate
 	}
 	hosts, err := s.ListHosts()
 	if err != nil {
@@ -959,18 +992,18 @@ func persistFrom(h Host) persistHost {
 func boolPtr(v bool) *bool { return &v }
 
 func cleanSecret(v string) string {
-	if v == "__saved__" {
+	if v == SavedSecret {
 		return ""
 	}
 	return v
 }
 
+// putSecretLocked saves next over prev: a blank secret, or SavedSecret,
+// keeps prev's.
 func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 	sec := prev
 	if v := cleanSecret(next.Password); v != "" {
 		sec.Password = v
-	} else if next.Password == "" || next.Password == "__saved__" {
-		// keep prev
 	}
 	if v := cleanSecret(next.PrivateKey); v != "" {
 		sec.PrivateKey = v
@@ -1176,6 +1209,7 @@ func (s *Store) saveLocked() error {
 	s.mu.Lock()
 	s.noteVaultLocked(job, wroteVault)
 	if werr == nil {
+		s.unsavedMigration = false
 		s.changed()
 	}
 	return werr
@@ -1192,6 +1226,7 @@ func (s *Store) saveDurableLocked() error {
 	wroteVault, werr := s.writeSnapshot(job)
 	s.noteVaultLocked(job, wroteVault)
 	if werr == nil {
+		s.unsavedMigration = false
 		s.changed()
 	}
 	return werr
@@ -1226,7 +1261,7 @@ func (s *Store) snapshotLocked() (saveSnapshot, error) {
 	s.saveGen++
 	job := saveSnapshot{gen: s.saveGen, data: b}
 	// Rewrite when the secrets or recipient differ from keel.vault on disk,
-	// or when keel.vault is gone: every save used to recreate it, and a
+	// or when keel.vault is gone: a
 	// missing vault at the next start is read as "no secrets". vaultSum only
 	// moves once a write succeeds, so a save that snapshots while an earlier
 	// vault write is in flight, or after one failed, carries the secrets too.
@@ -1348,9 +1383,5 @@ func syncDir(dir string) {
 }
 
 func newID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
+	return randid.Hex(8)
 }

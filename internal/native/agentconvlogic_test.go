@@ -8,8 +8,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The cases of cmd/keel/web/js/test/agent.test.mjs for saved conversations and the Agent page, in Go.
-
 func lt(mo time.Month, d, h, m int) time.Time { return time.Date(2026, mo, d, h, m, 0, 0, time.Local) }
 
 func TestSavedConversationsGroupByLocalDayAndFilterByTitleOrHost(t *testing.T) {

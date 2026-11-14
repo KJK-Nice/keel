@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,66 +13,65 @@ import (
 	"unicode/utf8"
 
 	"keel/internal/inject"
+	"keel/internal/paths"
+	"keel/internal/randid"
 	"keel/internal/scrollback"
 	"keel/internal/session"
 	"keel/internal/shellmark"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
-type Status string
-
-const (
-	StatusConnecting Status = "connecting"
-	StatusReady      Status = "ready"
-	StatusError      Status = "error"
-	StatusExited     Status = "exited"
+// Status, Role and Client are the session socket's own (internal/wire).
+type (
+	Status = wire.Status
+	Role   = wire.Role
+	Client = wire.Client
 )
 
-type Role string
-
 const (
-	RoleOwner    Role = "owner"
-	RoleDriver   Role = "driver"
-	RoleFollower Role = "follower"
+	StatusConnecting = wire.StatusConnecting
+	StatusReady      = wire.StatusReady
+	StatusError      = wire.StatusError
+	StatusExited     = wire.StatusExited
+
+	RoleOwner    = wire.RoleOwner
+	RoleDriver   = wire.RoleDriver
+	RoleFollower = wire.RoleFollower
 )
 
 type Join struct {
 	Name string
-	Kind string // web | tui
-}
-
-type Client struct {
-	ID         uint64    `json:"id"`
-	Name       string    `json:"name"`
-	Kind       string    `json:"kind"`
-	Role       Role      `json:"role"`
-	AttachedAt time.Time `json:"attachedAt"`
+	Kind string // wire.KindWindow or wire.KindJoined
 }
 
 type Info struct {
-	ID                 string    `json:"id"`
-	HostID             string    `json:"hostId"`
-	Title              string    `json:"title"`
-	Subtitle           string    `json:"subtitle"`
-	Color              string    `json:"color"`
-	Status             Status    `json:"status"`
-	Error              string    `json:"error,omitempty"`
-	Clients            int       `json:"clients"`
-	Attached           []Client  `json:"attached"`
-	OwnerID            uint64    `json:"ownerId"`
-	DriverID           uint64    `json:"driverId"`
-	Cols               int       `json:"cols"`
-	Rows               int       `json:"rows"`
-	CreatedAt          time.Time `json:"createdAt"`
-	ErrorKind          string    `json:"errorKind,omitempty"`
-	HostKeyHost        string    `json:"hostKeyHost,omitempty"`
-	HostKeyFingerprint string    `json:"hostKeyFingerprint,omitempty"`
-	HostKeyExpected    string    `json:"hostKeyExpected,omitempty"`
-	HostKeyType        string    `json:"hostKeyType,omitempty"`
-	// HostKeyToken names the store's trust offer for the refused key.
-	// It is sent only to the session's own clients.
-	HostKeyToken string `json:"-"`
+	ID        string    `json:"id"`
+	HostID    string    `json:"hostId"`
+	Title     string    `json:"title"`
+	Subtitle  string    `json:"subtitle"`
+	Color     string    `json:"color"`
+	Status    Status    `json:"status"`
+	Error     string    `json:"error,omitempty"`
+	Clients   int       `json:"clients"`
+	Attached  []Client  `json:"attached"`
+	OwnerID   uint64    `json:"ownerId"`
+	DriverID  uint64    `json:"driverId"`
+	Cols      int       `json:"cols"`
+	Rows      int       `json:"rows"`
+	CreatedAt time.Time `json:"createdAt"`
+	// HostKey is the key the last connect was refused for, with the
+	// store's one-time offer to trust it: zero when there is none. It is
+	// sent only to the session's own clients, on the session socket.
+	HostKey wire.HostKey `json:"-"`
 }
+
+// Role is id's role in the session this Info describes.
+func (i Info) Role(id uint64) Role { return wire.RoleOf(id, i.DriverID, i.OwnerID) }
+
+// EventBytes is the Kind of an Event that carries PTY output. Every other
+// Kind is the type of the frame it becomes (wire.TypeStatus, …).
+const EventBytes = "bytes"
 
 type Event struct {
 	Kind     string
@@ -96,6 +93,9 @@ var (
 	ErrNotOwner   = errors.New("only the session owner can do that")
 	ErrNoClient   = errors.New("client is not attached")
 	ErrNotAllowed = errors.New("not allowed to pass control")
+	// ErrNotLocal refuses a joined peer what only a client attached in Keel
+	// itself may ask: Keel typing for it, and the agent.
+	ErrNotLocal = errors.New("only Keel on the session's own machine can do that")
 	// ErrNotReady is Write while the session has no bridge (connecting,
 	// reconnecting, failed). Live keystrokes then are dropped, not buffered:
 	// buffered input would land in whatever prompt comes up first (a
@@ -133,12 +133,17 @@ func (r *Runtime) note(kind, msg, hostID, sessionID string) {
 	}
 }
 
-func New(st *store.Store, opener Opener) *Runtime {
-	if opener == nil {
-		opener = func(host store.Host, cols, rows int) (session.Bridge, error) {
-			return session.Open(host, cols, rows, st.CheckHostKeyType)
-		}
+// DefaultOpener opens a real session: a local shell, or SSH with the host
+// key checked against the store.
+func DefaultOpener(st *store.Store) Opener {
+	return func(host store.Host, cols, rows int) (session.Bridge, error) {
+		return session.Open(host, cols, rows, st.CheckHostKeyType)
 	}
+}
+
+// New makes the sessions' runtime. opener opens a session's connection:
+// keel serve passes DefaultOpener, a test a fake.
+func New(st *store.Store, opener Opener) *Runtime {
 	return &Runtime{
 		store:  st,
 		opener: opener,
@@ -151,12 +156,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	if cols < 1 {
-		cols = 80
-	}
-	if rows < 1 {
-		rows = 24
-	}
+	cols, rows = session.ClampSize(cols, rows)
 	s := &Session{
 		rt:            r,
 		id:            newID(),
@@ -323,13 +323,23 @@ func (s *Session) infoLocked() Info {
 }
 
 func (s *Session) roleLocked(id uint64) Role {
-	if id == s.driverID {
-		return RoleDriver
-	}
-	if id == s.ownerID {
-		return RoleOwner
-	}
-	return RoleFollower
+	return wire.RoleOf(id, s.driverID, s.ownerID)
+}
+
+// Role is a client's role in the session now: never what the client says.
+func (s *Session) Role(id uint64) Role {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.roleLocked(id)
+}
+
+// DrivenByJoined reports whether the session's driver is a peer who joined
+// through a share link.
+func (s *Session) DrivenByJoined() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.clients[s.driverID]
+	return ok && isRemoteJoin(c.Client.Kind)
 }
 
 func (s *Session) Subscribe(join Join) (Client, <-chan Event, []byte) {
@@ -343,7 +353,7 @@ func (s *Session) SubscribeSince(join Join, mark uint64) (Client, <-chan Event, 
 	return s.subscribe(join, mark, true)
 }
 
-// Mark returns the current output position for SubscribeSince.
+// Mark is the output position SubscribeSince takes.
 func (s *Session) Mark() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -375,8 +385,8 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 	id := s.next
 	name := sanitizeName(join.Name)
 	kind := join.Kind
-	if kind != "tui" && kind != "webrtc" {
-		kind = "web"
+	if kind != wire.KindJoined {
+		kind = wire.KindWindow
 	}
 	cl := Client{
 		ID:         id,
@@ -393,7 +403,7 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 		}
 	}
 	cl.Role = s.roleLocked(id)
-	c := newClientConn(cl, inject.SurfaceTerm)
+	c := newClientConn(cl)
 	s.clients[id] = c
 	ch := c.ch
 	snap := s.buf.Bytes()
@@ -401,7 +411,7 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 		snap = s.buf.BytesSince(mark)
 	}
 	s.mu.Unlock()
-	s.emitPresence("joined")
+	s.emitPresence(wire.MsgJoined)
 	return cl, ch, snap
 }
 
@@ -426,18 +436,18 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	}
 	hostID := s.host.ID
 	s.mu.Unlock()
-	msg := "left"
+	msg := wire.MsgLeft
 	if slow {
 		msg = "dropped (slow consumer)"
 		// The name is chosen by the joining peer: quote it so it cannot
 		// forge log lines.
-		s.rt.note("session", fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
+		s.rt.note(wire.LogSession, fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
 	}
 	s.emitPresence(msg)
 }
 
 func isRemoteJoin(kind string) bool {
-	return kind == "webrtc"
+	return kind == wire.KindJoined
 }
 
 func firstLocalClientID(clients map[uint64]*clientConn) uint64 {
@@ -472,38 +482,6 @@ func (s *Session) Write(clientID uint64, p []byte) error {
 	return err
 }
 
-// SetFocus records which UI surface owns this client's keyboard. Palette
-// and chrome must not leave SurfaceTerm in place or Keystroke will type.
-func (s *Session) SetFocus(clientID uint64, focused inject.Surface) error {
-	switch focused {
-	case inject.SurfaceTerm, inject.SurfacePalette, inject.SurfaceChrome:
-	case "":
-		focused = inject.SurfaceTerm
-	default:
-		focused = inject.SurfaceChrome
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.clients[clientID]
-	if !ok {
-		return ErrNoClient
-	}
-	c.focused = focused
-	return nil
-}
-
-// Focus is the surface last set for this client. Empty/unknown clients
-// report SurfaceTerm so live typing keeps working until palette or chrome opens.
-func (s *Session) Focus(clientID uint64) inject.Surface {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, ok := s.clients[clientID]
-	if !ok || c.focused == "" {
-		return inject.SurfaceTerm
-	}
-	return c.focused
-}
-
 // Inject writes p to the PTY only after an explicit approve. Live typing
 // still uses Write. Palette/snippet inject must not call Write directly.
 func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) error {
@@ -514,12 +492,19 @@ func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) er
 }
 
 // IssueInjectTicket mints a one-shot nonce bound to this driver and command.
-// WS inject must consume it; a client approved:true flag is not enough.
+// WS inject must consume it; a client approved:true flag is not enough. A
+// joined peer gets none, driving or not: Keel types only for a client
+// attached in Keel itself, and with no ticket InjectTicket writes nothing.
 func (s *Session) IssueInjectTicket(clientID uint64, command string) (string, error) {
 	s.mu.Lock()
-	if _, ok := s.clients[clientID]; !ok {
+	c, ok := s.clients[clientID]
+	if !ok {
 		s.mu.Unlock()
 		return "", ErrNoClient
+	}
+	if isRemoteJoin(c.Client.Kind) {
+		s.mu.Unlock()
+		return "", ErrNotLocal
 	}
 	if s.driverID != clientID {
 		s.mu.Unlock()
@@ -541,15 +526,6 @@ func (s *Session) InjectTicket(clientID uint64, command, nonce string) error {
 		return err
 	}
 	return s.Inject(clientID, []byte(command), approved)
-}
-
-// Keystroke is live typing. Palette and other chrome must not call this
-// unless the terminal owns focus; they inject through Inject after approve.
-func (s *Session) Keystroke(clientID uint64, p []byte, focused inject.Surface) error {
-	if err := inject.CanType(focused); err != nil {
-		return err
-	}
-	return s.Write(clientID, p)
 }
 
 // ReadScrollback returns PTY history for inspection. Secrets are redacted
@@ -791,7 +767,7 @@ func (s *Session) RequestControl(from uint64) error {
 	name := s.clients[from].Client.Name
 	s.mu.Unlock()
 	s.broadcast(Event{
-		Kind:    "control",
+		Kind:    wire.TypeControl,
 		Message: name + " requested control",
 		Info:    info,
 		FromID:  from,
@@ -816,7 +792,7 @@ func (s *Session) GrantControl(from, to uint64) error {
 	s.driverID = to
 	info := s.infoLocked()
 	s.mu.Unlock()
-	s.broadcast(Event{Kind: "control", Message: "control passed", Info: info, FromID: from, TargetID: to})
+	s.broadcast(Event{Kind: wire.TypeControl, Message: wire.MsgControlPassed, Info: info, FromID: from, TargetID: to})
 	return nil
 }
 
@@ -837,13 +813,13 @@ func (s *Session) TakeControl(from uint64) error {
 	}
 	info := s.infoLocked()
 	s.mu.Unlock()
-	s.broadcast(Event{Kind: "control", Message: "took control", Info: info, FromID: from, TargetID: from})
+	s.broadcast(Event{Kind: wire.TypeControl, Message: wire.MsgTookControl, Info: info, FromID: from, TargetID: from})
 	return nil
 }
 
 func (s *Session) emitPresence(msg string) {
 	info := s.Info()
-	s.broadcast(Event{Kind: "presence", Message: msg, Info: info})
+	s.broadcast(Event{Kind: wire.TypePresence, Message: msg, Info: info})
 }
 
 func (s *Session) requestReconnect() error {
@@ -865,10 +841,14 @@ func (s *Session) requestReconnect() error {
 	if looping {
 		return nil
 	}
-	s.setStatus(StatusConnecting, "reconnecting")
-	s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+	s.markReconnecting()
 	go s.runLoop()
 	return nil
+}
+
+func (s *Session) markReconnecting() {
+	s.setStatus(StatusConnecting, "reconnecting")
+	s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
 }
 
 func (s *Session) runLoop() {
@@ -886,8 +866,7 @@ func (s *Session) runLoop() {
 		restart := !s.closed && s.forceReconnect
 		s.mu.Unlock()
 		if restart {
-			s.setStatus(StatusConnecting, "reconnecting")
-			s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+			s.markReconnecting()
 			go s.runLoop()
 		}
 	}()
@@ -910,7 +889,7 @@ func (s *Session) runLoop() {
 			if err != nil {
 				s.setConnectError(err)
 				s.noteLine("Cannot connect: " + err.Error())
-				s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
+				s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusError, Message: err.Error(), Info: s.Info()})
 				s.mu.Lock()
 				s.forceReconnect = false
 				s.mu.Unlock()
@@ -935,14 +914,14 @@ func (s *Session) runLoop() {
 				}
 				s.mu.Unlock()
 				s.noteLine(retryNote)
-				s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: err.Error(), Info: s.Info()})
+				s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: err.Error(), Info: s.Info()})
 				if !s.backoffWait() {
 					return
 				}
 				continue
 			}
 			s.setConnectError(err)
-			s.broadcast(Event{Kind: "status", Status: StatusError, Message: err.Error(), Info: s.Info()})
+			s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusError, Message: err.Error(), Info: s.Info()})
 			s.mu.Lock()
 			s.forceReconnect = false
 			s.mu.Unlock()
@@ -961,12 +940,9 @@ func (s *Session) runLoop() {
 		// a command the old shell left open is abandoned.
 		s.marks.Reset(s.buf.Mark())
 		s.alt.Reset()
-		// A driver may have resized while the bridge was connecting (an SSH
-		// connect takes seconds; the client fits and sends its size as soon
-		// as it attaches). Resize only recorded that size, since there was
-		// no bridge, and later resizes to the same size are skipped, so the
-		// PTY stayed at the size it was opened with (80x24) while xterm
-		// showed the fitted grid: shells redrew lines for the wrong width.
+		// A driver may have resized while connecting (SSH takes seconds).
+		// Resize only recorded that size, and later same-size resizes are
+		// skipped, so the PTY would stay at its opening size: apply it below.
 		wantCols, wantRows := s.cols, s.rows
 		s.reconnectN = 0
 		s.forceReconnect = false
@@ -974,12 +950,7 @@ func (s *Session) runLoop() {
 		s.everReady = true
 		s.info.Status = StatusReady
 		s.info.Error = ""
-		s.info.ErrorKind = ""
-		s.info.HostKeyHost = ""
-		s.info.HostKeyFingerprint = ""
-		s.info.HostKeyExpected = ""
-		s.info.HostKeyType = ""
-		s.info.HostKeyToken = ""
+		s.info.HostKey = wire.HostKey{}
 		s.mu.Unlock()
 		if old != nil {
 			_ = old.Close()
@@ -991,7 +962,7 @@ func (s *Session) runLoop() {
 			s.noteLine("Reconnected")
 		}
 		info := s.Info()
-		s.broadcast(Event{Kind: "status", Status: StatusReady, Message: "connected", Info: info})
+		s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusReady, Message: wire.MsgConnected, Info: info})
 		s.sendStartupCommand(br, host)
 
 		buf := make([]byte, 32*1024)
@@ -1029,20 +1000,19 @@ func (s *Session) runLoop() {
 			kind := session.BridgeExit(br)
 			if force || (auto && kind == session.ExitDrop) {
 				dropped = true
-				s.setStatus(StatusConnecting, "reconnecting")
 				if force {
 					s.noteLine("Reconnecting…")
 				} else {
 					s.noteLine("Connection lost — reconnecting…")
 				}
-				s.broadcast(Event{Kind: "status", Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+				s.markReconnecting()
 				if !force && !s.backoffWait() {
 					return
 				}
 				break
 			}
 			s.setStatus(StatusExited, msg)
-			s.broadcast(Event{Kind: "status", Status: StatusExited, Message: msg, Info: s.Info()})
+			s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusExited, Message: msg, Info: s.Info()})
 			return
 		}
 		if !dropped {
@@ -1062,7 +1032,7 @@ func (s *Session) runLoop() {
 // want in keel.log. This is a user setting, not agent output (§6.1).
 func (s *Session) sendStartupCommand(br session.Bridge, host store.Host) {
 	cmd := host.StartupCommand
-	if cmd == "" || host.AuthType == "local" || store.ValidateStartupCommand(cmd) != nil {
+	if cmd == "" || host.IsLocal() || store.ValidateStartupCommand(cmd) != nil {
 		return
 	}
 	s.mu.Lock()
@@ -1073,10 +1043,10 @@ func (s *Session) sendStartupCommand(br session.Bridge, host store.Host) {
 	s.startupSent = true
 	s.mu.Unlock()
 	if _, err := br.Write([]byte(cmd + "\r")); err != nil {
-		s.rt.note("session", "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
+		s.rt.note(wire.LogSession, "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
 		return
 	}
-	s.rt.note("session", "startup command sent to "+host.Name, host.ID, s.id)
+	s.rt.note(wire.LogSession, "startup command sent to "+host.Name, host.ID, s.id)
 }
 
 func shouldRetryConnect(err error) bool {
@@ -1106,9 +1076,7 @@ func (s *Session) kickWaitLocked() {
 const maxReconnectDelay = 15 * time.Second
 
 // reconnectDelay returns unit doubled n times, capped at maxReconnectDelay.
-// It doubles step by step instead of shifting by n: a host that stays down
-// keeps n growing, and unit<<n overflows time.Duration (negative or zero)
-// after ~34 attempts, which turned the wait into a busy retry loop.
+// It doubles step by step: unit<<n overflows time.Duration after ~34 attempts.
 func reconnectDelay(unit time.Duration, n int) time.Duration {
 	if unit <= 0 {
 		unit = time.Second
@@ -1155,16 +1123,16 @@ func (s *Session) noteLine(msg string) {
 
 // output appends b to the scrollback ring and fans it out to the attached
 // clients under s.mu, the lock Subscribe holds while it registers a client
-// and copies the ring. Doing the two steps under separate locks let a
-// Subscribe land between them: its snapshot already held b, and the
-// broadcast then delivered b again, so the new client printed it twice.
+// and copies the ring. Under separate locks a Subscribe could land between
+// the two steps: its snapshot would already hold b and the broadcast would
+// deliver b again, so the new client would print it twice.
 func (s *Session) output(b []byte) {
 	s.mu.Lock()
 	base := s.buf.Mark()
 	s.buf.Write(b)
 	s.marks.Feed(b, base)
 	s.alt.Feed(b)
-	slow := s.fanoutLocked(Event{Kind: "bytes", Bytes: b})
+	slow := s.fanoutLocked(Event{Kind: EventBytes, Bytes: b})
 	s.mu.Unlock()
 	for _, id := range slow {
 		s.dropClient(id, true)
@@ -1182,29 +1150,7 @@ func (s *Session) setConnectError(err error) {
 	s.mu.Lock()
 	s.info.Status = StatusError
 	s.info.Error = err.Error()
-	s.info.ErrorKind = ""
-	s.info.HostKeyHost = ""
-	s.info.HostKeyFingerprint = ""
-	s.info.HostKeyExpected = ""
-	s.info.HostKeyType = ""
-	s.info.HostKeyToken = ""
-	var unk *store.UnknownHostError
-	var mm *store.HostKeyMismatchError
-	switch {
-	case errors.As(err, &unk):
-		s.info.ErrorKind = "unknown-host"
-		s.info.HostKeyHost = unk.Host
-		s.info.HostKeyFingerprint = unk.Fingerprint
-		s.info.HostKeyType = unk.KeyType
-		s.info.HostKeyToken = unk.Token
-	case errors.As(err, &mm):
-		s.info.ErrorKind = "host-key-mismatch"
-		s.info.HostKeyHost = mm.Host
-		s.info.HostKeyFingerprint = mm.Got
-		s.info.HostKeyExpected = mm.Expected
-		s.info.HostKeyType = mm.KeyType
-		s.info.HostKeyToken = mm.Token
-	}
+	s.info.HostKey, _ = store.RefusedHostKey(err)
 	s.mu.Unlock()
 }
 
@@ -1264,7 +1210,7 @@ func sanitizeName(name string) string {
 }
 
 func subtitle(h store.Host) string {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return localSubtitle()
 	}
 	port := ""
@@ -1276,7 +1222,7 @@ func subtitle(h store.Host) string {
 
 func localSubtitle() string {
 	host, _ := os.Hostname()
-	user := os.Getenv("USER")
+	user := paths.LocalUser()
 	switch {
 	case user != "" && host != "":
 		return user + "@" + host
@@ -1288,9 +1234,5 @@ func localSubtitle() string {
 }
 
 func newID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
+	return randid.Hex(8)
 }

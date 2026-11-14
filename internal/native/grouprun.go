@@ -3,16 +3,17 @@ package native
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// ctxT is the context a call about the run is made with.
-type ctxT = context.Context
-
-// The group run page (docs/ui-redesign.md §17, board GroupRunbook; cmd/keel/web/js/ui/grouprun.js, internal/ui/groupspage.templ):
+// The group run page (docs/ui-redesign.md §17, board GroupRunbook):
 // one runbook walked across a folder's hosts, rolling or parallel. keel serve holds the run (at most 8, in its memory only) and
 // makes every proposal; this window shows it, asks keel serve every 1.5 s to read the shells' results and to make the current
 // step's due proposals for the panes this window has open and drives, and types — never by itself. Typing is the user's:
@@ -27,10 +28,9 @@ type ctxT = context.Context
 // Not built: one click typing a read-only one-line step into every pane with no dialog (§6 rule 13, "for review, not yet
 // accepted" in the spec): every group step goes through the dialog, which is the stricter path and always available.
 
-// groupRunEvery is how often the page asks keel serve to propose and to read results (grouprun.js POLL_MS).
+// groupRunEvery is how often the page asks keel serve to propose and to read results.
 const groupRunEvery = 1500 * time.Millisecond
 
-// The words of the page.
 const (
 	msgRunEnded     = "keel serve no longer holds this run (it ended with keel serve). Start a runbook from a group's page: Run a runbook on this group."
 	stopTitle       = "Stop this runbook?"
@@ -56,15 +56,18 @@ type groupRunPage struct {
 	width   float32 // the page's width as last drawn: under groupRunNarrow the steps go above the detail
 }
 
-// groupRunNarrow is #page-grouprun's container query (keel.css): under this width the steps sit above the detail.
+// groupRunNarrow: under this page width the steps sit above the detail.
 const groupRunNarrow = 760
+
+func (p *groupRunPage) load(w *workspace)                 { w.loadGroupRunPage() }
+func (p *groupRunPage) view(w *workspace, c *ui.Context)  { w.groupRunView(c, p) }
+func (p *groupRunPage) tabTitle() string                  { return p.title }
+func (p *groupRunPage) snapshot(d *savedDoc)              { d.RunID = p.id }
+func (p *groupRunPage) restore(_ *workspace, d *savedDoc) { p.id = d.RunID }
 
 // groupRunPageState is the page of the Group run tab, or nil.
 func (w *workspace) groupRunPageState() *groupRunPage {
-	if t := w.pageTab("grouprun"); t != nil {
-		return t.pg.grouprun
-	}
-	return nil
+	return pageAs[*groupRunPage](w.pageTab(pageGroupRun))
 }
 
 // openGroupRun opens the run's page, or shows it in the tab that is open: one instance.
@@ -72,20 +75,20 @@ func (w *workspace) openGroupRun(run keelclient.GroupRun) {
 	if run.ID == "" {
 		return
 	}
-	t := w.pageTab("grouprun")
+	t := w.pageTab(pageGroupRun)
 	if t == nil {
-		t = w.addPageTab("grouprun")
+		t = w.addPageTab(pageGroupRun)
 	}
-	p := t.pg.grouprun
+	p := pageAs[*groupRunPage](t)
 	if p.id != run.ID {
 		*p = groupRunPage{}
 	}
 	p.id, p.title, p.run, p.loaded, p.err = run.ID, "Run · "+run.Name, &run, true, ""
-	w.openPage("grouprun")
+	w.openPage(pageGroupRun)
 }
 
 // loadGroupRunPage reads the run the page is on again (the page was selected, or the vault changed): keel serve first reads
-// the results of typed steps from their panes' shell marks. A run keel serve no longer holds is said so.
+// the results of typed steps from their panes' shell marks. A run keel serve does not hold is said so.
 func (w *workspace) loadGroupRunPage() {
 	p := w.groupRunPageState()
 	if p == nil || p.id == "" {
@@ -93,14 +96,8 @@ func (w *workspace) loadGroupRunPage() {
 	}
 	p.gen++
 	gen, id := p.gen, p.id
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.GroupRun(c, id)
-		w.post(func() {
-			if w.closed || w.groupRunPageState() != p || p.gen != gen {
-				return
-			}
+	callIf(w, func() bool { return w.groupRunPageState() == p && p.gen == gen }, func(c context.Context) (keelclient.GroupRun, error) { return w.be.GroupRun(c, id) },
+		func(run keelclient.GroupRun, err error) {
 			p.loaded = true
 			if err != nil {
 				var se *keelclient.StatusError
@@ -113,19 +110,18 @@ func (w *workspace) loadGroupRunPage() {
 			}
 			p.run, p.err, p.title = &run, "", "Run · "+run.Name
 		})
-	})
 }
 
 // groupPaneOpen reports a pane this window has open for the session and drives: the only kind a proposal is offered for.
 func (w *workspace) groupPaneOpen(sessionID string) bool {
 	p := w.agentPaneBySession(sessionID)
-	return p != nil && p.p != nil && !p.remote && p.driving
+	return p.drives()
 }
 
 // groupPaneIDs are the sessions this window has open and drives, for the propose: keel serve resolves each pane's host itself.
 func (w *workspace) groupPaneIDs() (out []string) {
 	for _, p := range w.agentPanes() {
-		if p.p != nil && !p.remote && p.driving {
+		if p.drives() {
 			out = append(out, p.sessionID)
 		}
 	}
@@ -133,26 +129,16 @@ func (w *workspace) groupPaneIDs() (out []string) {
 }
 
 // groupRunTick is one tick of the 1.5 s propose: it runs only while a run is active and shown by a tab, never while a call,
-// a fill or a Type is out, and never while the approve dialog is open (grouprun.js tick).
+// a fill or a Type is out, and never while the approve dialog is open.
 func (w *workspace) groupRunTick() {
 	p := w.groupRunPageState()
-	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.polling || p.typing || p.busy > 0 || w.approve != nil {
+	if w.closed || p == nil || p.run == nil || p.run.Status != wire.RunActive || p.typing || p.busy > 0 || w.approve != nil {
 		return
 	}
-	p.polling = true
 	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.ProposeGroupStep(c, id, panes)
-		w.post(func() {
-			p.polling = false
-			if w.closed || w.groupRunPageState() != p || p.id != id || p.calls != seq { // a press since: its answer is newer
-				return
-			}
-			w.groupRunAnswered(p, run, err)
-		})
-	})
+	callOnce(w, &p.polling, func() bool { return w.groupRunPageState() == p && p.id == id && p.calls == seq }, // a press since: its answer is newer
+		func(c context.Context) (keelclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
+		func(run keelclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
 }
 
 // groupRunAnswered takes keel serve's answer to any call about the run.
@@ -166,27 +152,22 @@ func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, e
 
 // groupRunCall runs one request about the run (a mode change, a mark, a stop) and takes the answer; keel serve's refusal (409)
 // is shown in its words.
-func (w *workspace) groupRunCall(p *groupRunPage, call func(c ctxT, id string) (keelclient.GroupRun, error)) {
+func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id string) (keelclient.GroupRun, error)) {
 	if p.run == nil {
 		return
 	}
-	// Like the app's page, a second press while one call is out is a call of its own (keel serve takes them one at a time and
-	// refuses what no longer applies); only the newest answer is shown, which holds the earlier ones' effects.
+	// A second press while one call is out is a call of its own (keel serve takes them one at a time and
+	// refuses what does not apply); only the newest answer is shown, which holds the earlier ones' effects.
 	p.calls++
 	seq := p.calls
 	p.busy++
 	id := p.run.ID
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := call(c, id)
-		w.post(func() {
-			p.busy--
-			if w.closed || w.groupRunPageState() != p || p.id != id || seq != p.calls {
-				return
-			}
-			w.groupRunAnswered(p, run, err)
-		})
+	call(w, func(c context.Context) (keelclient.GroupRun, error) { return do(c, id) }, func(run keelclient.GroupRun, err error) {
+		p.busy--
+		if w.groupRunPageState() != p || p.id != id || seq != p.calls {
+			return
+		}
+		w.groupRunAnswered(p, run, err)
 	})
 }
 
@@ -194,7 +175,9 @@ func (w *workspace) setRunMode(p *groupRunPage, mode string) {
 	if p.run == nil || p.run.Mode == mode || p.run.ModeLocked {
 		return
 	}
-	w.groupRunCall(p, func(c ctxT, id string) (keelclient.GroupRun, error) { return w.be.SetGroupRunMode(c, id, mode) })
+	w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) {
+		return w.be.SetGroupRunMode(c, id, mode)
+	})
 }
 
 // markStep is Retry, Skip, Mark done or Confirm on a host of the current step; with no host, Mark step done / Skip step.
@@ -203,31 +186,29 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 		return
 	}
 	step := p.run.Steps[p.run.Current].ID
-	w.groupRunCall(p, func(c ctxT, id string) (keelclient.GroupRun, error) {
+	w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) {
 		return w.be.MarkGroupStep(c, id, step, hostID, action)
 	})
 }
 
-// askStopRun is Stop runbook: it asks first, with the app's words.
+// askStopRun is Stop runbook: it asks first.
 func (w *workspace) askStopRun(p *groupRunPage) {
-	w.askConfirm(&hostConfirm{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
-		w.groupRunCall(p, func(c ctxT, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
+	w.askConfirm(&confirmDialog{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
+		w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
 	}})
 }
 
 // openRunHost is "Open <host>": a session on a host that has no pane here, exactly as clicking it in the sidebar. It is the
 // user's click; nothing is typed into it until approved.
 func (w *workspace) openRunHost(hostID string) {
-	for _, h := range w.hosts {
-		if h.ID == hostID {
-			w.openHost(h)
-			return
-		}
+	if h, ok := hostByID(w.hosts, hostID); ok {
+		w.openHost(h)
+		return
 	}
 	w.warn("Host not found")
 }
 
-// startGroupRun starts a run of the runbook on this folder, rolling (the app's default), and opens its page. keel serve fixes
+// startGroupRun starts a run of the runbook on this folder, rolling, and opens its page. keel serve fixes
 // the hosts per step; nothing is typed and no pane is read.
 func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	if p.run.busy {
@@ -235,21 +216,15 @@ func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	}
 	p.run.open, p.run.busy = false, true
 	id := p.id
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		run, err := w.be.StartGroupRun(c, runbookID, id, "rolling")
-		w.post(func() {
-			p.run.busy = false
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			w.openGroupRun(run)
-		})
+	call(w, func(c context.Context) (keelclient.GroupRun, error) {
+		return w.be.StartGroupRun(c, runbookID, id, wire.ModeRolling)
+	}, func(run keelclient.GroupRun, err error) {
+		p.run.busy = false
+		if err != nil {
+			w.warn(hostError(err))
+			return
+		}
+		w.openGroupRun(run)
 	})
 }
 
@@ -295,14 +270,8 @@ func (w *workspace) typeGroupRun() {
 	// A step that names variables: keel serve fills each host's values in now, and the dialog shows those exact bytes (Type is
 	// refused for any other bytes).
 	p.typing = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		fills, err := w.be.FillGroupStep(c, run.ID, ids)
-		w.post(func() {
-			if w.closed || w.groupRunPageState() != p {
-				return
-			}
+	callIf(w, func() bool { return w.groupRunPageState() == p }, func(c context.Context) ([]keelclient.GroupFill, error) { return w.be.FillGroupStep(c, run.ID, ids) },
+		func(fills []keelclient.GroupFill, err error) {
 			p.typing = false
 			if err != nil {
 				w.warn(hostError(err))
@@ -311,11 +280,10 @@ func (w *workspace) typeGroupRun() {
 			fillRows(rows, fills)
 			open()
 		})
-	})
 }
 
 // groupTyped takes the answers of a group Type: each reached row shows what happened to it, in keel serve's words, and is
-// final. When every row typed the dialog closes, as the app's does; when one was refused it stays, with that row's reason and
+// final. When every row typed the dialog closes; when one was refused it stays, with that row's reason and
 // the others' "Typed.", so the user sees each.
 func (w *workspace) groupTyped(d *approveDialog, g *approveGroup, jobs []typeJob, errs []error) {
 	typed := 0
@@ -332,7 +300,7 @@ func (w *workspace) groupTyped(d *approveDialog, g *approveGroup, jobs []typeJob
 		failed = append(failed, r.host+": "+orElse(r.outcome, "not typed"))
 	}
 	for _, r := range g.rows { // a row refused before it was asked (its pane closed) is a failure too
-		if r.attempted && !r.typedOK && r.outcome != "" && !contains(failed, r.host+": "+r.outcome) {
+		if r.attempted && !r.typedOK && r.outcome != "" && !slices.Contains(failed, r.host+": "+r.outcome) {
 			failed = append(failed, r.host+": "+r.outcome)
 		}
 	}

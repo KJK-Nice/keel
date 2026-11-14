@@ -7,10 +7,10 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// The group run page drawn as GroupRunPage (internal/ui/groupspage.templ) and paint in cmd/keel/web/js/ui/grouprun.js with the
-// k-gx-* rules of keel.css: on the left the runbook's steps with their marks and where each runs, the safety line and Stop
+// The group run page: on the left the runbook's steps with their marks and where each runs, the safety line and Stop
 // runbook; on the right the current step (the mode, the proposal card with the saved command and its {{names}}, the halt
 // banner, the hosts that need a pane), the captured values as a mask and a length, and the Results matrix. Every command is
 // drawn with variable names; a value never reaches this page (keelclient/grouprun_types.go).
@@ -23,8 +23,7 @@ func (w *workspace) groupRunView(c *ui.Context, p *groupRunPage) {
 		})
 		return
 	}
-	// .k-gx-split: the steps (size-agentpage-context wide) beside the detail; under 760 px of page width (#page-grouprun's
-	// container query) they go above it, at most 40% of the height, with their border below instead of at the right.
+	// The steps (size-agentpage-context wide) beside the detail; under 760 px of page width they go above it, at most 40% of the height, with their border below instead of at the right.
 	narrow := p.width > 0 && p.width < groupRunNarrow
 	var root ui.Element
 	if narrow {
@@ -64,31 +63,26 @@ func markColor(state string) ui.Color {
 	switch state {
 	case "done":
 		return tide
-	case "failed":
+	case wire.StepFailed:
 		return flare
 	case "now":
 		return accentFill
-	case "skipped":
+	case wire.StepSkipped:
 		return inkFaint
 	}
 	return inkMuted
 }
 
-// runSteps is the steps column: the head (runbook, title, counts), the steps and the foot.
 func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	changes := 0
 	for _, s := range run.Steps {
-		if s.Risk != "" && s.Risk != "readonly" {
+		if changesState(s.Risk) {
 			changes++
 		}
 	}
 	line := countWord(len(run.Steps), "step", "steps") + " · all read-only"
 	if changes > 0 {
-		verb := "change"
-		if changes == 1 {
-			verb = "changes"
-		}
-		line = countWord(len(run.Steps), "step", "steps") + " · " + fmt.Sprintf("%d %s state", changes, verb)
+		line = countWord(len(run.Steps), "step", "steps") + " · " + fmt.Sprintf("%d %s state", changes, plural(changes, "changes", "change"))
 	}
 	if !run.StartedAt.IsZero() {
 		line += " · started " + clockHM(run.StartedAt) + " by you"
@@ -122,7 +116,7 @@ func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.Gro
 			icon(c, "shield-01", inkMuted)
 			help(c, runSafetyLine).MaxLines(0)
 		})
-		if run.Status == "active" {
+		if run.Status == wire.RunActive {
 			ui.Row(c).Children(func() {
 				if textBtn(c, "Stop runbook", btnGhost) {
 					w.act(func() { w.askStopRun(p) })
@@ -132,7 +126,6 @@ func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.Gro
 	})
 }
 
-// runBanner is a k-review: a line with a glyph, and buttons after it.
 func runBanner(c *ui.Context, glyph string, col ui.Color, label string, text func(), buttons func()) {
 	ui.Row(c).FillWidth().Padding(space2, space3).Gap(space2).Radius(radiusSm).Background(hoverGround).AlignItems(ui.Center).Wrap().Label(label).Children(func() {
 		icon(c, glyph, col)
@@ -145,13 +138,13 @@ func runBanner(c *ui.Context, glyph string, col ui.Color, label string, text fun
 
 func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	switch run.Status {
-	case "finished":
+	case wire.RunFinished:
 		runBanner(c, "tick", tide, "run finished", func() {
 			body(c, "All steps are done or skipped.", ink)
 			caption(c, "Logs keep what was typed on each host.", inkMuted)
 		}, nil)
 		return
-	case "stopped":
+	case wire.RunStopped:
 		runBanner(c, "agent-info", inkMuted, "run stopped", func() {
 			body(c, fmt.Sprintf("Runbook stopped at step %d.", stoppedAt(run)), ink)
 			caption(c, "Logs keep what was typed on each host. Nothing more is proposed.", inkMuted)
@@ -251,7 +244,7 @@ func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.Gr
 // runModeSeg is Rolling | Parallel; both are off while the mode may not change (keel serve refuses it too, with 409).
 func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	ui.Row(c).Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(stage).Border(1, line).Label("How to run on several hosts").Children(func() {
-		for _, o := range [][2]string{{"rolling", "Rolling"}, {"parallel", "Parallel"}} {
+		for _, o := range [][2]string{{wire.ModeRolling, "Rolling"}, {wire.ModeParallel, "Parallel"}} {
 			on := run.Mode == o[0]
 			r := ui.Row(c).Height(sizeControlSm).Padding(0, space3).Justify(ui.Center).Radius(radiusXs).Label(o[1]).Cursor(ui.CursorPointer)
 			col := inkMuted
@@ -274,7 +267,6 @@ func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.G
 	})
 }
 
-// runProposalCard is the step's proposal: where it runs, its kind, the bytes with the variable names, and Type into N panes.
 func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun, i int) {
 	st := run.Steps[i]
 	ready := typeable(run, w.groupPaneOpen)
@@ -348,7 +340,7 @@ func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelcli
 			caption(c, count, inkFaint).Shrink(1).MinWidth(0)
 			ui.Spacer(c)
 			if uses != "" && textBtnAs(c, "Copy the command without values", "Copy", btnGhost) {
-				w.act(func() { c.WriteClipboard(st.Command); w.say("Copied with the {{names}} in, not their values.") })
+				w.act(func() { w.copy(st.Command, "with the {{names}} in, not their values.") })
 			}
 			shown := label
 			if shift && len(ready) > 0 {
@@ -388,7 +380,6 @@ func bytesNamesView(c *ui.Context, bytes string) {
 	ui.RichText(c, spans...).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0).Label(bytesText(bytes))
 }
 
-// textBtnOffAs is textBtnAs that ignores a press and dims while off.
 func textBtnOffAs(c *ui.Context, name, shown string, kind btnKind, off bool) bool {
 	return ctlButton(c, name, shown, kind).Disabled(off).Clicked() && !off
 }
@@ -451,7 +442,7 @@ func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) 
 
 // ---- the results matrix ----
 
-var matrixCols = [3]float32{3, 2, 2} // Host, Role, and each step
+var matrixCols = [3]float32{3, 2, 2}
 
 func (w *workspace) runMatrix(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	// Rows: the run's target hosts (any step), in member order.
@@ -560,7 +551,7 @@ func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *keelclient
 			})
 		}
 		ui.Row(c).Grow(5).Basis(0).MinWidth(0).Gap(space1).Wrap().Justify(ui.End).Children(func() {
-			if cur != nil && run.Status == "active" {
+			if cur != nil && run.Status == wire.RunActive {
 				if cell := cellOf(*cur, m.HostID); cell != nil {
 					w.runCellActions(c, p, m.Host, cell)
 				}
@@ -579,7 +570,7 @@ func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, 
 		}
 	}
 	switch cell.State {
-	case "typed":
+	case wire.StepTyped:
 		switch {
 		case cell.Confirm:
 			btn("confirm", "Confirm", "Confirm", btnDefault)
@@ -590,13 +581,13 @@ func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, 
 			btn("done", "Mark done", "Mark done", btnGhost)
 			btn("retry", "Retry", "Retry", btnGhost)
 		}
-	case "failed":
+	case wire.StepFailed:
 		btn("retry", "Retry", "Retry", btnDefault)
 		btn("skip", "Skip", "Skip", btnGhost)
 		btn("done", "Mark done", "Mark done", btnGhost)
-	case "proposed":
+	case wire.StepProposed:
 		btn("skip", "Skip", "Skip", btnGhost)
-	case "waiting":
+	case wire.StepWaiting:
 		if cell.HostID != "" {
 			btn("skip", "Skip", "Skip", btnGhost)
 		}

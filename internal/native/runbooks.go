@@ -12,11 +12,11 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// Runbooks (docs/ui-redesign.md §16). The feature is cmd/keel/web/js/ui/runbooks.js (the page), ui/agentthread.js and
-// ui/agentpanel.js (the cards and the walk) and internal/httpapi/agentrunbooks.go; its words and rules are lib/runbooks.js
-// (runbookslogic.go).
+// Runbooks (docs/ui-redesign.md §16): the page, the cards and the walk. The service is internal/httpapi/agentrunbooks.go;
+// the words and rules are in runbookslogic.go.
 //
 // What this file does and does not do:
 //   - Runbooks live in keel serve (keel.memory, in the vault). This client holds them in memory only and writes none to disk.
@@ -33,7 +33,6 @@ import (
 
 // ---- a runbook the agent proposes ----
 
-// agentBook is a runbook proposal on the thread: what keel serve holds, and what the card is doing.
 type agentBook struct {
 	b    keelclient.RunbookProposal
 	busy bool
@@ -42,10 +41,9 @@ type agentBook struct {
 
 func (a *agentPanel) registerBook(b keelclient.RunbookProposal) { a.books[b.ID] = &agentBook{b: b} }
 
-// resetMemory forgets the notes, runbooks and the run of the conversation that was left.
 func (a *agentPanel) resetMemory() {
 	a.notes, a.books, a.runs = map[string]*agentNote{}, map[string]*agentBook{}, runUse{}
-	a.nbProps, a.attached, a.nbPicker = map[string]*agentNbProp{}, nil, "" // agentpanel.js resetRun
+	a.nbProps, a.attached, a.nbPicker = map[string]*agentNbProp{}, nil, ""
 }
 
 // saveBookProposal is the card's Save (or Save anyway): the one thing that keeps a runbook the agent proposed, with Agent
@@ -53,34 +51,29 @@ func (a *agentPanel) resetMemory() {
 func (w *workspace) saveBookProposal(id string) {
 	a := w.agent
 	rec := a.books[id]
-	if rec == nil || rec.busy || rec.b.Expired || rec.b.Status != "open" {
+	if rec == nil || rec.busy || rec.b.Expired || rec.b.Status != wire.CardOpen {
 		return
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveProposedRunbook(c, conv, id)
-		w.post(func() {
-			rec.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				rec.err = hostError(err)
-				return
-			}
-			if res.Proposal != nil {
-				rec.b = *res.Proposal
-			} else {
-				rec.b.Status, rec.b.RunbookID = "saved", res.Runbook.ID
-			}
-			if t := savedRedactedToast(res.Redacted); t != "" {
-				w.say(t)
-			}
-			w.reloadRunbooksPage()
-		})
+	call(w, func(c context.Context) (keelclient.SavedRunbook, error) { return w.be.SaveProposedRunbook(c, conv, id) }, func(res keelclient.SavedRunbook, err error) {
+		rec.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			rec.err = hostError(err)
+			return
+		}
+		if res.Proposal != nil {
+			rec.b = *res.Proposal
+		} else {
+			rec.b.Status, rec.b.RunbookID = wire.CardSaved, res.Runbook.ID
+		}
+		if t := savedRedactedToast(res.Redacted); t != "" {
+			w.say(t)
+		}
+		w.reloadRunbooksPage()
 	})
 }
 
@@ -95,37 +88,29 @@ func (w *workspace) bookProposalAction(id string, undo bool) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		var b keelclient.RunbookProposal
-		var err error
+	call(w, func(c context.Context) (keelclient.RunbookProposal, error) {
 		if undo {
-			b, err = w.be.UndoProposedRunbook(c, conv, id)
-		} else {
-			b, err = w.be.DismissProposedRunbook(c, conv, id)
+			return w.be.UndoProposedRunbook(c, conv, id)
 		}
-		w.post(func() {
-			rec.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				rec.err = hostError(err)
-				return
-			}
-			rec.b = b
-			if undo {
-				w.reloadRunbooksPage()
-			}
-		})
+		return w.be.DismissProposedRunbook(c, conv, id)
+	}, func(b keelclient.RunbookProposal, err error) {
+		rec.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			rec.err = hostError(err)
+			return
+		}
+		rec.b = b
+		if undo {
+			w.reloadRunbooksPage()
+		}
 	})
 }
 
 // ---- a runbook in use ----
 
-// runUse is the runbook in use in the conversation (agentpanel.js state.run and its neighbours): keel serve owns the run, this
-// shows it and tells keel serve what the user decides.
 type runUse struct {
 	run   *keelclient.ChatRunbook
 	none  bool // the user's "Don't use": the agent is not offered runbooks again here
@@ -142,7 +127,6 @@ type runUse struct {
 	polling   bool
 }
 
-// runOther is a row of "Use a different runbook".
 type runOther struct {
 	id, name, when string
 	ok             bool
@@ -150,11 +134,11 @@ type runOther struct {
 }
 
 const (
-	runPollReads = 400                     // about 10 minutes at one read every 1.5 s
-	runEvery     = 1500 * time.Millisecond // agentpanel.js schedulePoll
+	runPollReads = 400 // about 10 minutes at one read every 1.5 s
+	runEvery     = 1500 * time.Millisecond
 )
 
-// runOnLabel is a proposal card's "Run on", or "Step 2 · Run on" for the step of a runbook (agentthread.js runLabel).
+// runOnLabel is a proposal card's "Run on", or "Step 2 · Run on" for the step of a runbook .
 func runOnLabel(p keelclient.Proposal) string {
 	if p.Runbook != nil && p.Runbook.Step > 0 {
 		return "Step " + strconv.Itoa(p.Runbook.Step) + " · Run on"
@@ -220,7 +204,7 @@ func (w *workspace) runStepTyped(rec *agentProp) {
 	u.pollLeft, u.pollForce = runPollReads, true
 }
 
-// runTick is one tick of the 1.5 s read of the run in use (agentpanel.js schedulePoll): it reads only while a typed step
+// runTick is one tick of the 1.5 s read of the run in use: it reads only while a typed step
 // waits for its result, or once after a step was typed, and never while a read is out.
 func (w *workspace) runTick() {
 	a := w.agent
@@ -230,25 +214,16 @@ func (w *workspace) runTick() {
 	}
 	u.pollForce = false
 	u.pollLeft--
-	u.polling = true
 	conv := a.conv
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.RunbookState(c, conv)
-		w.post(func() {
-			u.polling = false
-			if w.closed || a.conv != conv || err != nil { // a locked vault or a restart: the next change tries again
-				return
-			}
-			if res.Runbook != nil {
+	callOnce(w, &u.polling, func() bool { return a.conv == conv },
+		func(c context.Context) (keelclient.RunState, error) { return w.be.RunbookState(c, conv) },
+		func(res keelclient.RunState, err error) {
+			if err == nil && res.Runbook != nil { // a locked vault or a restart: the next change tries again
 				w.setRun(res.Runbook, nil)
 			}
 		})
-	})
 }
 
-// scopeRbPanes are the panes in scope as a runbook's offer sees them.
 func (w *workspace) scopeRbPanes() (out []rbPane) {
 	for _, p := range w.pageScopePanes() {
 		h := p.p.host
@@ -291,24 +266,19 @@ func (w *workspace) runStepAction(stepID, action string) {
 	}
 	conv := a.conv
 	u.busy, u.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.StepAction(c, conv, stepID, action)
-		w.post(func() {
-			u.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				u.err = hostError(err)
-				return
-			}
-			w.setRun(res.Runbook, nil)
-			if action == "retry" {
-				w.proposeRunStep()
-			}
-		})
+	call(w, func(c context.Context) (keelclient.RunState, error) { return w.be.StepAction(c, conv, stepID, action) }, func(res keelclient.RunState, err error) {
+		u.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			u.err = hostError(err)
+			return
+		}
+		w.setRun(res.Runbook, nil)
+		if action == "retry" {
+			w.proposeRunStep()
+		}
 	})
 }
 
@@ -329,27 +299,21 @@ func (w *workspace) moveRun() {
 	})
 }
 
-// runCall is a call on the conversation's run that takes no body (Don't use, Move the run).
-func (w *workspace) runCall(call func(context.Context, string) (keelclient.RunState, error), ok func(keelclient.RunState)) {
+func (w *workspace) runCall(do func(context.Context, string) (keelclient.RunState, error), ok func(keelclient.RunState)) {
 	a := w.agent
 	u := &a.runs
 	conv := a.conv
 	u.busy = true
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := call(c, conv)
-		w.post(func() {
-			u.busy = false
-			if w.closed || a.conv != conv {
-				return
-			}
-			if err != nil {
-				u.err = hostError(err)
-				return
-			}
-			ok(res)
-		})
+	call(w, func(c context.Context) (keelclient.RunState, error) { return do(c, conv) }, func(res keelclient.RunState, err error) {
+		u.busy = false
+		if a.conv != conv {
+			return
+		}
+		if err != nil {
+			u.err = hostError(err)
+			return
+		}
+		ok(res)
 	})
 }
 
@@ -363,7 +327,7 @@ func (w *workspace) useRunbook(id, name string) {
 		return
 	}
 	a.runs.choosing, a.runs.err = false, ""
-	if !a.open {
+	if !w.prefs.AgentPanel {
 		w.setAgentOpen(true)
 	}
 	ask := func() {
@@ -374,19 +338,11 @@ func (w *workspace) useRunbook(id, name string) {
 		ask()
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		s, err := w.be.AgentSettings(c)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err == nil {
-				w.takeAgentSettings(s)
-			}
-			ask()
-		})
+	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
+		if err == nil {
+			w.takeAgentSettings(s)
+		}
+		ask()
 	})
 }
 
@@ -401,34 +357,25 @@ func (w *workspace) toggleChoose() {
 	}
 	conv := a.conv
 	panes := w.scopeRbPanes()
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Runbooks(c)
-		w.post(func() {
-			if w.closed || a.conv != conv || !u.choosing {
-				return
+	callIf(w, func() bool { return a.conv == conv && u.choosing }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+		u.listed = true
+		u.others = []runOther{}
+		if err != nil {
+			u.err = hostError(err)
+			return
+		}
+		for _, rb := range l.Runbooks {
+			if u.run != nil && rb.ID == u.run.RunbookID && !u.none {
+				continue
 			}
-			u.listed = true
-			u.others = []runOther{}
-			if err != nil {
-				u.err = hostError(err)
-				return
-			}
-			for _, rb := range l.Runbooks {
-				if u.run != nil && rb.ID == u.run.RunbookID && !u.none {
-					continue
-				}
-				ok, why := runbookOfferFor(rb, panes)
-				u.others = append(u.others, runOther{id: rb.ID, name: rb.Name, when: rb.When, ok: ok, reason: why})
-			}
-		})
+			ok, why := runbookOfferFor(rb, panes)
+			u.others = append(u.others, runOther{id: rb.ID, name: rb.Name, when: rb.When, ok: ok, reason: why})
+		}
 	})
 }
 
 // ---- the Runbooks page ----
 
-// runbooksPage is the state of the Runbooks tab: the list, and the one editor.
 type runbooksPage struct {
 	filter  string
 	filterH ui.Handle
@@ -439,7 +386,7 @@ type runbooksPage struct {
 	loaded     bool
 
 	listState ui.ListState // the list's keyboard choice (Up, Down, Home, End), MyGo's ui.List
-	choice    int          // the row of listState.Selected
+	choice    int
 
 	selected string // the saved runbook open in the editor
 	ed       *rbEditor
@@ -452,6 +399,10 @@ type runbooksPage struct {
 	menuLoad  bool
 }
 
+func (p *runbooksPage) load(w *workspace)                { w.loadRunbooks() }
+func (p *runbooksPage) view(w *workspace, c *ui.Context) { w.runbooksView(c, p) }
+func (p *runbooksPage) newItem(w *workspace)             { w.newRunbook() }
+
 // rbStepState is a step in the editor: the fields the user edits (the group-run fields of §17 too: a role, One host only and
 // captures), and what is only carried (the rating).
 type rbStepState struct {
@@ -462,7 +413,6 @@ type rbStepState struct {
 	capH                      [][2]ui.Handle // the name and pattern fields of each capture
 }
 
-// rbEditor is the editor beside the list.
 type rbEditor struct {
 	id           string // "" for a new runbook or a draft
 	name, when   string
@@ -505,7 +455,6 @@ func (e *rbEditor) sig() string {
 
 func (e *rbEditor) dirty() bool { return e.forced || e.sig() != e.orig }
 
-// asRunbook is the editor as a runbook, for the lines that describe it (source, last used, steps).
 func (e *rbEditor) asRunbook() keelclient.Runbook {
 	rb := keelclient.Runbook{ID: e.id, Name: e.name, Source: e.source, SourceRef: e.sourceRef, FromPane: e.fromPane, AgentMayPick: e.agentMayPick,
 		CreatedAt: e.createdAt, LastUsedAt: e.lastUsedAt, LastUsedOn: e.lastUsedOn}
@@ -538,10 +487,7 @@ func editorFromDraft(d keelclient.RunbookDraft) *rbEditor {
 }
 
 func (w *workspace) runbooksPage() *runbooksPage {
-	if t := w.pageTab("runbooks"); t != nil {
-		return t.pg.runbooks
-	}
-	return nil
+	return pageAs[*runbooksPage](w.pageTab(pageRunbooks))
 }
 
 // loadRunbooks reads the list (GET /api/agent/runbooks). The editor is read again from it unless the user has changed it.
@@ -550,33 +496,25 @@ func (w *workspace) loadRunbooks() {
 	if p == nil {
 		return
 	}
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Runbooks(c)
-		w.post(func() {
-			if w.closed || w.runbooksPage() != p {
-				return
+	callIf(w, func() bool { return w.runbooksPage() == p }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+		p.loaded = true
+		var se *keelclient.StatusError
+		switch {
+		case errors.As(err, &se) && se.Code == 423:
+			p.list, p.err = nil, "Unlock the vault to see runbooks."
+			return
+		case err != nil:
+			p.list, p.err = nil, hostError(err)
+			return
+		}
+		p.list, p.unreadable, p.err = l.Runbooks, l.Unreadable, ""
+		if p.selected != "" && p.ed != nil && !p.ed.dirty() {
+			if rb, ok := p.find(p.selected); ok {
+				p.ed = editorFromRunbook(rb)
+			} else {
+				p.closeEditor()
 			}
-			p.loaded = true
-			var se *keelclient.StatusError
-			switch {
-			case errors.As(err, &se) && se.Code == 423:
-				p.list, p.err = nil, "Unlock the vault to see runbooks."
-				return
-			case err != nil:
-				p.list, p.err = nil, hostError(err)
-				return
-			}
-			p.list, p.unreadable, p.err = l.Runbooks, l.Unreadable, ""
-			if p.selected != "" && p.ed != nil && !p.ed.dirty() {
-				if rb, ok := p.find(p.selected); ok {
-					p.ed = editorFromRunbook(rb)
-				} else {
-					p.closeEditor()
-				}
-			}
-		})
+		}
 	})
 }
 
@@ -604,7 +542,7 @@ func (w *workspace) leaveEditor(p *runbooksPage, then func()) {
 		then()
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Discard changes?", message: "Your changes to this runbook are not saved.", action: "Discard", run: then})
+	w.askConfirm(&confirmDialog{title: "Discard changes?", message: "Your changes to this runbook are not saved.", action: "Discard", run: then})
 }
 
 func (w *workspace) newRunbook() {
@@ -643,35 +581,26 @@ func (w *workspace) saveRunbook() {
 		return
 	}
 	p.saving, e.err = true, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		res, err := w.be.SaveRunbook(c, e.id, in)
-		w.post(func() {
-			p.saving = false
-			if w.closed {
-				return
-			}
-			if err != nil {
-				e.err = hostError(err)
-				return
-			}
-			rb := res.Runbook
-			p.list = append(slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == rb.ID }), rb)
-			slices.SortFunc(p.list, func(a, b keelclient.Runbook) int {
-				return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
-			})
-			p.selected, p.ed = rb.ID, editorFromRunbook(rb)
-			if t := savedRedactedToast(res.Redacted); t != "" {
-				w.say(t)
-			} else {
-				w.say("Runbook saved")
-			}
+	call(w, func(c context.Context) (keelclient.SavedRunbook, error) { return w.be.SaveRunbook(c, e.id, in) }, func(res keelclient.SavedRunbook, err error) {
+		p.saving = false
+		if err != nil {
+			e.err = hostError(err)
+			return
+		}
+		rb := res.Runbook
+		p.list = append(slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == rb.ID }), rb)
+		slices.SortFunc(p.list, func(a, b keelclient.Runbook) int {
+			return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 		})
+		p.selected, p.ed = rb.ID, editorFromRunbook(rb)
+		if t := savedRedactedToast(res.Redacted); t != "" {
+			w.say(t)
+		} else {
+			w.say("Runbook saved")
+		}
 	})
 }
 
-// askDeleteRunbook is Delete (or Discard on an unsaved one): Delete asks first, with the app's words.
 func (w *workspace) askDeleteRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil {
@@ -682,70 +611,53 @@ func (w *workspace) askDeleteRunbook() {
 		p.closeEditor()
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Delete runbook?", message: "“" + e.name + "” is deleted from the vault. Conversations that used it keep their copy of its steps.", action: "Delete",
+	w.askConfirm(&confirmDialog{title: "Delete runbook?", message: "“" + e.name + "” is deleted from the vault. Conversations that used it keep their copy of its steps.", action: "Delete",
 		run: func() { w.deleteRunbook(e.id) }})
 }
 
 func (w *workspace) deleteRunbook(id string) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteRunbook(c, id)
-		w.post(func() {
-			if w.closed {
-				return
-			}
-			if err != nil {
-				w.warn(hostError(err))
-				return
-			}
-			if p := w.runbooksPage(); p != nil {
-				p.list = slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == id })
-				p.closeEditor()
-			}
-			w.say("Runbook deleted")
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteRunbook(c, id) }, func(err error) {
+		if err != nil {
+			w.warn(hostError(err))
+			return
+		}
+		if p := w.runbooksPage(); p != nil {
+			p.list = slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == id })
+			p.closeEditor()
+		}
+		w.say("Runbook deleted")
 	})
 }
 
 // setRunbookPick is the list's "Agent may pick" switch and the review banner's Enable: only the user's press turns it on.
 func (w *workspace) setRunbookPick(id string, on bool) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		rb, err := w.be.SetRunbookPick(c, id, on)
-		w.post(func() {
-			if w.closed {
-				return
+	call(w, func(c context.Context) (keelclient.Runbook, error) { return w.be.SetRunbookPick(c, id, on) }, func(rb keelclient.Runbook, err error) {
+		p := w.runbooksPage()
+		if err != nil {
+			w.warn(hostError(err))
+			if p != nil {
+				w.loadRunbooks()
 			}
-			p := w.runbooksPage()
-			if err != nil {
-				w.warn(hostError(err))
-				if p != nil {
-					w.loadRunbooks()
-				}
-				return
+			return
+		}
+		if p == nil {
+			return
+		}
+		for i := range p.list {
+			if p.list[i].ID == rb.ID {
+				p.list[i] = rb
 			}
-			if p == nil {
-				return
+		}
+		if p.ed != nil && p.ed.id == rb.ID {
+			if p.ed.dirty() {
+				p.ed.agentMayPick = rb.AgentMayPick
+			} else {
+				p.ed = editorFromRunbook(rb)
 			}
-			for i := range p.list {
-				if p.list[i].ID == rb.ID {
-					p.list[i] = rb
-				}
-			}
-			if p.ed != nil && p.ed.id == rb.ID {
-				if p.ed.dirty() {
-					p.ed.agentMayPick = rb.AgentMayPick
-				} else {
-					p.ed = editorFromRunbook(rb)
-				}
-			}
-		})
+		}
 	})
 }
 
-// openConversationMenu is From a conversation…: the saved conversations to make a draft from.
 func (w *workspace) openConversationMenu() {
 	p := w.runbooksPage()
 	if p == nil {
@@ -755,30 +667,21 @@ func (w *workspace) openConversationMenu() {
 		p.menu = false
 		return
 	}
-	p.menuNB = false // one source menu at a time (runbooks.js openMenu)
+	p.menuNB = false
 	p.menu, p.menuLoad, p.menuItems, p.menuEmpty = true, true, nil, ""
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		l, err := w.be.Conversations(c)
-		w.post(func() {
-			if w.closed || !p.menu {
-				return
-			}
-			p.menuLoad = false
-			switch {
-			case err != nil:
-				p.menuEmpty = hostError(err)
-			case l.HistoryDays == 0:
-				p.menuEmpty = "History is off, so no conversation is saved."
-			default:
-				p.menuItems, p.menuEmpty = l.Sessions, "No saved conversations."
-			}
-		})
+	callIf(w, func() bool { return p.menu }, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+		p.menuLoad = false
+		switch {
+		case err != nil:
+			p.menuEmpty = hostError(err)
+		case l.HistoryDays == 0:
+			p.menuEmpty = "History is off, so no conversation is saved."
+		default:
+			p.menuItems, p.menuEmpty = l.Sessions, "No saved conversations."
+		}
 	})
 }
 
-// openNotebookMenu is From a notebook…: the notebooks to make a draft from (runbooks.js openMenu("notebook")).
 func (w *workspace) openNotebookMenu() {
 	p := w.runbooksPage()
 	if p == nil {
@@ -797,11 +700,8 @@ func (w *workspace) draftRunbook(conversationID string) {
 	}
 	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
-		w.work(func() {
-			c, cancel := ctx()
-			defer cancel()
-			d, err := w.be.DraftRunbook(c, conversationID)
-			w.post(func() { w.showDraft(p, d, err) })
+		call(w, func(c context.Context) (keelclient.RunbookDraft, error) { return w.be.DraftRunbook(c, conversationID) }, func(d keelclient.RunbookDraft, err error) {
+			w.showDraft(p, d, err)
 		})
 	})
 }
@@ -817,11 +717,10 @@ func (w *workspace) draftRunbookOfNotebook(notebookID string) {
 	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
 		w.nbFlushID(notebookID, func() {
-			w.work(func() {
-				c, cancel := ctx()
-				defer cancel()
-				d, err := w.be.DraftRunbookOfNotebook(c, notebookID)
-				w.post(func() { w.showDraft(p, d, err) })
+			call(w, func(c context.Context) (keelclient.RunbookDraft, error) {
+				return w.be.DraftRunbookOfNotebook(c, notebookID)
+			}, func(d keelclient.RunbookDraft, err error) {
+				w.showDraft(p, d, err)
 			})
 		})
 	})
@@ -846,7 +745,6 @@ func (w *workspace) showDraft(p *runbooksPage, d keelclient.RunbookDraft, err er
 	p.ed.focusName = true
 }
 
-// useEditedRunbook is Use in agent: it starts the saved runbook in the agent panel.
 func (w *workspace) useEditedRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil || p.ed.id == "" {
@@ -855,12 +753,10 @@ func (w *workspace) useEditedRunbook() {
 	w.useRunbook(p.ed.id, p.ed.name)
 }
 
-// rbKeys is ⌘S on the page.
 func (w *workspace) rbKeys(ev ui.InputEvent) {
 	if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyS && ev.Mods == ui.Cmd {
 		w.act(w.saveRunbook)
 	}
 }
 
-// openRunbooksPage is the palette's Runbooks.
-func (w *workspace) openRunbooksPage() { w.openPage("runbooks") }
+func (w *workspace) openRunbooksPage() { w.openPage(pageRunbooks) }

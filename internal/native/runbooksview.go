@@ -7,17 +7,18 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/runvars"
+	"keel/internal/wire"
 )
 
-// The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes, drawn as
-// internal/ui/runbookspage.templ, cmd/keel/web/js/ui/runbooks.js and ui/agentthread.js (placeRun, paintRun, paintBookProp)
-// do. Colours and sizes are tokens.go's.
+// The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes. Colours and sizes are
+// tokens.go's.
 //
-// In the app and not here: the "," that ends a host chip (↵ ends it).
+// A host chip ends with ↵, not ",".
 // A step's role, "One host only" and captures (group runs, §17) are edited in runbookStepTarget.
 
-// badgeColors are a k-badge's ground and ink for a kind ("" is the plain one).
 func badgeColors(kind string) (bg, fg ui.Color) {
 	switch kind {
 	case "tide":
@@ -67,7 +68,6 @@ func (w *workspace) runbooksView(c *ui.Context, p *runbooksPage) {
 	})
 }
 
-// runbooksHead is the list's head: the title with New, "From a conversation…" and its menu, and the filter.
 func (w *workspace) runbooksHead(c *ui.Context, p *runbooksPage) {
 	hairline(ui.Column(c).FillWidth().Shrink(0).Padding(space6, space4, space3).Gap(space3), 0, 0, 1, 0).Children(func() {
 		ui.Row(c).FillWidth().Gap(space2).Children(func() {
@@ -187,7 +187,6 @@ func (w *workspace) runbooksList(c *ui.Context, p *runbooksPage) {
 	}
 }
 
-// runbookRow is a list row: its name, where it came from, Use when and its hosts, and the Agent may pick switch.
 func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb keelclient.Runbook) {
 	selected := rb.ID == p.selected
 	row := hairline(ui.Row(c).FillWidth().Padding(space2, space4).Gap(space3).Key(rb.ID).Selected(selected), 0, 0, 1, 0)
@@ -236,9 +235,9 @@ func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb keelclient.Run
 func (w *workspace) runbookEditor(c *ui.Context, p *runbooksPage, e *rbEditor) {
 	saved := e.id != ""
 	ui.Column(c).FillWidth().Gap(space4).Label("Runbook").Children(func() {
-		ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
+		ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() {
 			ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
-				inputBox(c, "Runbook name", &e.name, "Name this runbook", &e.nameH, false, false, 120, nil)
+				inputBox(c, "Runbook name", &e.name, "Name this runbook", &e.nameH, false, false, limits.MaxRunbookNameBytes, nil)
 			})
 			if saved {
 				if textBtn(c, "Use in agent", btnDefault) {
@@ -297,7 +296,7 @@ func (w *workspace) runbookEditor(c *ui.Context, p *runbooksPage, e *rbEditor) {
 		ui.Row(c).FillWidth().Gap(space6).Wrap().AlignItems(ui.Start).Children(func() {
 			ui.Column(c).Grow(1).Basis(sizeList).MinWidth(0).Gap(space3).Children(func() {
 				labeled(c, "Use when", &e.whenH, func() {
-					inputBox(c, "Use when", &e.when, "A Patroni replica is behind or its WAL stream keeps restarting.", &e.whenH, false, false, 300, nil)
+					inputBox(c, "Use when", &e.when, "A Patroni replica is behind or its WAL stream keeps restarting.", &e.whenH, false, false, limits.MaxRunbookWhenBytes, nil)
 					help(c, "The agent compares this line with the question and the panes in scope to decide whether the runbook fits.")
 				})
 				menuLabel(c, "Steps")
@@ -337,9 +336,9 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 	ui.Row(c).FillWidth().Key(s).Gap(space3).AlignItems(ui.Start).Label("runbook step " + n).Children(func() {
 		text(c, n, inkMuted, uiFontSize, weightSemibold).Shrink(0).Width(space6)
 		ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space1_5).Children(func() {
-			ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() { // wraps when the panel narrows the page
+			ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Children(func() {
 				ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
-					inputBox(c, "Step "+n+" title", &s.title, "What this step does", &s.titleH, false, false, 200, nil)
+					inputBox(c, "Step "+n+" title", &s.title, "What this step does", &s.titleH, false, false, limits.MaxRunbookTitleBytes, nil)
 				})
 				if s.command != "" || s.risk != "" {
 					label, kind := runbookStepKind(s.command, s.risk)
@@ -355,23 +354,23 @@ func (w *workspace) runbookStep(c *ui.Context, e *rbEditor, i int, s *rbStepStat
 					w.act(func() { e.steps = append(e.steps[:i:i], e.steps[i+1:]...) })
 				}
 			})
-			inputBox(c, "Step "+n+" description", &s.description, "Why, and what to look for", &s.descH, false, false, 1000, nil)
+			inputBox(c, "Step "+n+" description", &s.description, "Why, and what to look for", &s.descH, false, false, limits.MaxRunbookTextBytes, nil)
 			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {
 				ui.TextAreaBase(c, &s.command).Label("Step "+n+" command").Placeholder("Command (optional: a step without one is a check you mark done)").PlaceholderColor(inkFaint).
 					TextColor(ink).FontSize(captionSize).Font(monoStack).Lines(2, 8).FillWidth().Bind(&s.cmdH)
 			})
-			inputBox(c, "Step "+n+" expected result", &s.expect, "Expected result (optional)", &s.expH, false, false, 300, nil)
+			inputBox(c, "Step "+n+" expected result", &s.expect, "Expected result (optional)", &s.expH, false, false, limits.MaxRunbookExpectBytes, nil)
 			w.runbookStepTarget(c, s, n)
 		})
 	})
 }
 
 // runbookStepTarget is where a step runs in a group run (§17): a role, One host only and the values it captures
-// (ui/runbooks.js step-target and capturesHTML). A single-host run ignores all of it.
+// A single-host run ignores all of it.
 func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	ui.Row(c).FillWidth().Gap(space3).AlignItems(ui.Center).Wrap().Children(func() {
 		ui.Row(c).Grow(1).Basis(sizeRail).MinWidth(0).Children(func() {
-			inputBox(c, "Step "+n+" role", &s.role, "Role in a group run (empty: every host)", &s.roleH, false, false, 32, nil)
+			inputBox(c, "Step "+n+" role", &s.role, "Role in a group run (empty: every host)", &s.roleH, false, false, limits.MaxRoleBytes, nil)
 		})
 		ui.Row(c).Gap(space2).AlignItems(ui.Center).Shrink(0).Children(func() {
 			if checkBox(c, "Step "+n+" on one host only", boolCheck(s.oneHost), false) {
@@ -386,7 +385,7 @@ func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	for k := range s.captures {
 		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Key(k).Label("capture " + strconv.Itoa(k+1)).Children(func() {
 			ui.Row(c).Grow(1).Basis(0).MinWidth(0).Children(func() {
-				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" name", &s.captures[k].Name, "join_token", &s.capH[k][0], true, false, 32, nil)
+				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" name", &s.captures[k].Name, "join_token", &s.capH[k][0], true, false, runvars.MaxNameBytes, nil)
 			})
 			ui.Row(c).Grow(2).Basis(0).MinWidth(0).Children(func() {
 				inputBox(c, "Step "+n+" capture "+strconv.Itoa(k+1)+" pattern", &s.captures[k].Pattern, `--token\s+(\S+)`, &s.capH[k][1], true, false, maxPattern, nil)
@@ -404,7 +403,6 @@ func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 	}
 }
 
-// runbookBox is the box beside the steps: Agent may pick, the hosts, the meta lines and the rule for steps.
 func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb keelclient.Runbook) {
 	ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Padding(space3).Gap(space3).Radius(radiusMd).Border(1, line).Label("Runbook settings").Children(func() {
 		ui.Row(c).FillWidth().Gap(space3).Children(func() {
@@ -457,19 +455,18 @@ func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb keelclient.Runbook
 	})
 }
 
-// addHostChip ends the host being typed as a chip: "," ends it too in the app, ↵ here.
+// addHostChip ends the host being typed as a chip: ↵ ends it, "," does not.
 func (e *rbEditor) addHostChip() {
 	e.hosts, e.hostInput, e.focusHost = addHost(e.hosts, e.hostInput), "", true
 }
 
 // ---- the card of a runbook in use ----
 
-// stepMarkColor is a progress row's mark.
 func stepMarkColor(state string) ui.Color {
 	switch state {
-	case "done":
+	case wire.StepDone:
 		return tide
-	case "failed":
+	case wire.StepFailed:
 		return flare
 	case "now":
 		return accentInk
@@ -477,7 +474,7 @@ func stepMarkColor(state string) ui.Color {
 	return inkFaint
 }
 
-// runCard is the runbook in use, under "Agent" of the turn that started it (agentthread.js paintRun): the runbook, why it was
+// runCard is the runbook in use, under "Agent" of the turn that started it: the runbook, why it was
 // picked, every step's progress and what the user can do now. Every step is still a proposal card of its own, typed through
 // Approve before type; the card only asks (Propose step N), marks (done, skip, retry), moves or stops.
 func (w *workspace) runCard(c *ui.Context, runID string) {
@@ -505,7 +502,7 @@ func (w *workspace) runCard(c *ui.Context, runID string) {
 			})
 		}
 		switch {
-		case run == nil || (run.Status == "stopped" && !u.none):
+		case run == nil || (run.Status == wire.RunStopped && !u.none):
 			nameRow("Stopped")
 			return
 		case u.none:
@@ -605,7 +602,6 @@ func (w *workspace) runOthers(c *ui.Context, u *runUse) {
 	})
 }
 
-// runActions is what the run card offers for the current step (agentthread.js runActionsHTML).
 func (w *workspace) runActions(c *ui.Context, run *keelclient.ChatRunbook, act runAction) {
 	busy := w.agent.runs.busy
 	btn := func(name string, primary bool, do func()) {
@@ -678,7 +674,7 @@ func (w *workspace) runActions(c *ui.Context, run *keelclient.ChatRunbook, act r
 
 // ---- the card of a runbook the agent proposes ----
 
-// agentBookCard is "Save as a runbook?" (agentthread.js paintBookProp): nothing is saved until Save is pressed, and what is
+// agentBookCard is "Save as a runbook?": nothing is saved until Save is pressed, and what is
 // saved starts with Agent may pick off.
 func (w *workspace) agentBookCard(c *ui.Context, id string) {
 	rec := w.agent.books[id]
@@ -688,18 +684,18 @@ func (w *workspace) agentBookCard(c *ui.Context, id string) {
 	b := rec.b
 	warn := runbookProposalWarn(b)
 	border := line
-	if warn && b.Status == "open" && !b.Expired {
+	if warn && b.Status == wire.CardOpen && !b.Expired {
 		border = signal
 	}
 	card := ui.Column(c).FillWidth().Key("book "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposed runbook")
 	card.Children(func() {
-		if b.Status != "open" || b.Expired {
+		if b.Status != wire.CardOpen || b.Expired {
 			msg := runbookProposalDone(b)
-			if b.Status == "open" {
+			if b.Status == wire.CardOpen {
 				msg = "Not saved. This proposal expired; add the runbook yourself on the Runbooks page."
 			}
-			w.doneRow(c, b.Status == "saved", msg, func() {
-				if b.Status == "saved" && textBtn(c, "Open Runbooks", btnGhost) {
+			w.doneRow(c, b.Status == wire.CardSaved, msg, func() {
+				if b.Status == wire.CardSaved && textBtn(c, "Open Runbooks", btnGhost) {
 					w.act(w.openRunbooksPage)
 				}
 				if !b.Expired && textBtnOff(c, "Undo", btnGhost, rec.busy) {

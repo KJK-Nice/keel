@@ -1,6 +1,7 @@
 package native
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -10,13 +11,12 @@ import (
 )
 
 // The Keychain page (docs/ui-redesign.md §5.11): the identities in the vault, SSH keys then passwords, with the
-// selected one beside the list. The words and rules are KeychainPage and IdentityList in internal/ui, identityDialog
-// in dialogs.templ, identityDetailHTML in lib/vaultview.js and the identity handlers in term.js.
+// selected one beside the list.
 //
 // What the page can show is what GET /api/identities says: the kind, the user, when it was added and whether a
 // secret is stored. It never holds or shows a private key, a passphrase or a password (keelclient.Identity has no
-// field for one). The fingerprint, public key, comment and algorithm badge of §5.11 are not in that answer and
-// not in the webview; they wait for a server change (docs/native.md).
+// field for one). The fingerprint, public key, comment and algorithm badge of §5.11 are not in that answer, so they
+// wait for a server change (docs/native.md).
 
 // keychainPage is the state of the Keychain tab.
 type keychainPage struct {
@@ -28,28 +28,32 @@ type keychainPage struct {
 	filterH  ui.Handle
 }
 
+func (p *keychainPage) load(w *workspace)                { w.loadIdentities() }
+func (p *keychainPage) view(w *workspace, c *ui.Context) { w.keychainView(c, p) }
+func (p *keychainPage) newItem(w *workspace)             { w.newIdentity() }
+
 func (p *keychainPage) String() string {
 	return fmt.Sprintf("keychainPage{%d identities}", len(p.idents))
 }
 
 func (p *keychainPage) GoString() string { return p.String() }
 
-// identityKind is vaultview.js identityKind: anything but a key is a password.
+// identityKind is "Key" or "Password": anything but a key is a password.
 func identityKind(id keelclient.Identity) string {
-	if id.Kind == "key" {
-		return "key"
+	if id.Kind == keelclient.AuthKey {
+		return keelclient.AuthKey
 	}
-	return "password"
+	return keelclient.AuthPassword
 }
 
 func identityKindLabel(id keelclient.Identity) string {
-	if identityKind(id) == "key" {
+	if identityKind(id) == keelclient.AuthKey {
 		return "SSH key"
 	}
 	return "Password"
 }
 
-// identitiesOfKind is lists.templ identitiesOfKind.
+// identitiesOfKind lists the identities of one kind.
 func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Identity {
 	var out []keelclient.Identity
 	for _, id := range ids {
@@ -60,26 +64,24 @@ func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Ident
 	return out
 }
 
-// identityHostsOf are the hosts that sign in with id (vaultview.js identityHosts).
+// identityHostsOf are the hosts that sign in with id.
 func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 	var out []keelclient.Host
 	for _, h := range hosts {
-		if h.AuthType == "identity" && h.IdentityID == id {
+		if h.AuthType == keelclient.AuthIdentity && h.IdentityID == id {
 			out = append(out, h)
 		}
 	}
 	return out
 }
 
-func hostsWord(n int) string { return countWord(n, "host", "hosts") }
-
-// identitySubtitle is the list line under an identity: kind, user, hosts (lists.templ identitySubtitle).
+// identitySubtitle is the list line under an identity: kind, user, hosts.
 func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
 	parts := []string{identityKindLabel(id)}
 	if id.Username != "" {
 		parts = append(parts, id.Username)
 	}
-	parts = append(parts, hostsWord(len(identityHostsOf(hosts, id.ID))))
+	parts = append(parts, countWord(len(identityHostsOf(hosts, id.ID)), "host", "hosts"))
 	return strings.Join(parts, " · ")
 }
 
@@ -98,7 +100,7 @@ func (p *keychainPage) shown() []keelclient.Identity {
 	return out
 }
 
-// current is the identity the detail shows: the selected one, else the first (term.js syncIdentityPage).
+// current is the identity the detail shows: the selected one, else the first.
 func (p *keychainPage) current() (keelclient.Identity, bool) {
 	for _, id := range p.idents {
 		if id.ID == p.selected {
@@ -111,7 +113,7 @@ func (p *keychainPage) current() (keelclient.Identity, bool) {
 	return keelclient.Identity{}, false
 }
 
-// dateLabel is vaultview.js dateLabel in the form of logDateLabel: "Jan 2, 2006".
+// dateLabel is a date in the form of logDateLabel: "Jan 2, 2006".
 func dateLabel(id keelclient.Identity) string {
 	if id.CreatedAt.IsZero() {
 		return ""
@@ -123,22 +125,17 @@ func dateLabel(id keelclient.Identity) string {
 
 // loadIdentities reads the identities (and with them the hosts, so that "Used by" is as the server has it).
 func (w *workspace) loadIdentities() {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		ids, err := w.be.Identities(c)
-		w.post(func() {
-			t := w.pageTab("keychain")
-			if w.closed || t == nil {
-				return
-			}
-			p := t.pg.keychain
-			if err != nil {
-				p.err = "Could not read the Keychain: " + hostError(err)
-				return
-			}
-			p.err, p.loaded, p.idents = "", true, ids
-		})
+	call(w, w.be.Identities, func(ids []keelclient.Identity, err error) {
+		t := w.pageTab(pageKeychain)
+		if t == nil {
+			return
+		}
+		p := pageAs[*keychainPage](t)
+		if err != nil {
+			p.err = "Could not read the Keychain: " + hostError(err)
+			return
+		}
+		p.err, p.loaded, p.idents = "", true, ids
 	})
 }
 
@@ -178,7 +175,7 @@ func (w *workspace) editIdentity(id keelclient.Identity) { w.openIdentityDialog(
 
 func (w *workspace) openIdentityDialog(id *keelclient.Identity) {
 	w.closeIdentityDialog()
-	d := &identityDialog{f: identityForm{kind: "password"}, focus: true}
+	d := &identityDialog{f: identityForm{kind: keelclient.AuthPassword}, focus: true}
 	if id != nil {
 		d.id = id.ID
 		d.f = identityForm{name: id.Name, username: id.Username, kind: identityKind(*id)}
@@ -209,7 +206,7 @@ func (f identityForm) validate() string {
 func (f identityForm) input(id string) keelclient.IdentityInput {
 	in := keelclient.IdentityInput{ID: id, Name: strings.TrimSpace(f.name), Username: strings.TrimSpace(f.username), Kind: f.kind}
 	switch f.kind {
-	case "key":
+	case keelclient.AuthKey:
 		in.PrivateKey, in.Passphrase = f.privateKey, f.passphrase
 	default:
 		in.Password = f.password
@@ -230,53 +227,46 @@ func (w *workspace) saveIdentity() {
 	in := d.f.input(d.id)
 	d.saving, d.err = true, ""
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", "" // they are in in now, and in only goes in this request
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
+	call(w, func(c context.Context) (keelclient.Identity, error) {
 		saved, err := w.be.SaveIdentity(c, in)
 		in = keelclient.IdentityInput{}
-		w.post(func() {
-			d.saving = false
-			if err != nil {
-				d.err = hostError(err)
-				return
-			}
-			if w.identDlg == d {
-				w.closeIdentityDialog()
-			}
-			if t := w.pageTab("keychain"); t != nil && d.id == "" {
-				t.pg.keychain.selected = saved.ID
-			}
-			w.say("Identity saved")
-			w.loadIdentities()
-		})
+		return saved, err
+	}, func(saved keelclient.Identity, err error) {
+		d.saving = false
+		if err != nil {
+			d.err = hostError(err)
+			return
+		}
+		if w.identDlg == d {
+			w.closeIdentityDialog()
+		}
+		if t := w.pageTab(pageKeychain); t != nil && d.id == "" {
+			pageAs[*keychainPage](t).selected = saved.ID
+		}
+		w.say("Identity saved")
+		w.loadIdentities()
 	})
 }
 
 // ---- delete ----
 
-// askDeleteIdentity is Delete identity: it asks first, with the webview's words. An identity a host still uses is
-// not asked about: the server would clear it from those hosts, so the page refuses (vaultview.js identityDetailHTML).
+// askDeleteIdentity is Delete identity: it asks first. An identity a host still uses is
+// not asked about: the server would clear it from those hosts, so the page refuses.
 func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 	if n := len(identityHostsOf(w.hosts, id.ID)); n > 0 {
-		w.warn("Remove " + id.Name + " from " + hostsWord(n) + " first")
+		w.warn("Remove " + id.Name + " from " + countWord(n, "host", "hosts") + " first")
 		return
 	}
-	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
+	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
 }
 
 func (w *workspace) deleteIdentity(id keelclient.Identity) {
-	w.work(func() {
-		c, cancel := ctx()
-		defer cancel()
-		err := w.be.DeleteIdentity(c, id.ID)
-		w.post(func() {
-			if err != nil {
-				w.fail("delete identity", err)
-				return
-			}
-			w.loadIdentities()
-			w.reloadHosts()
-		})
+	callErr(w, func(c context.Context) error { return w.be.DeleteIdentity(c, id.ID) }, func(err error) {
+		if err != nil {
+			w.fail("delete identity", err)
+			return
+		}
+		w.loadIdentities()
+		w.reloadHosts()
 	})
 }

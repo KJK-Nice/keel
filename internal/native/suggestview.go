@@ -6,8 +6,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The notice, the card and the inserted look drawn over a pane's terminal (cmd/keel/web/js/ui/suggest.js render, the
-// k-sug-* rules of keel.css). The text on the line stays the terminal's: marks sit over its cells, the hint after the
+// The notice, the card and the inserted look drawn over a pane's terminal. The text on the line stays the terminal's: marks sit over its cells, the hint after the
 // words, the card under the line (above it when it does not fit). Cell rects come from gridFor (suggestgeom.go).
 
 const (
@@ -15,7 +14,7 @@ const (
 	sugHintWidth = 330 // the notice's hint is placed by this estimate: the row below takes it when it will not fit after the words
 )
 
-func noticeHintText(mac bool) (lead, tail string) { return "Looks like a request", "suggest a command" }
+func noticeHintText() (lead, tail string) { return "Looks like a request", "suggest a command" }
 
 // sugBadge is the card's risk badge.
 func sugBadge(c *ui.Context, o keelclient.SuggestOption) {
@@ -28,7 +27,7 @@ func sugBadge(c *ui.Context, o keelclient.SuggestOption) {
 		fg, bg = signal, signalSoft
 	}
 	ui.Row(c).Height(sizeControlSm-6).Padding(0, space1_5).Gap(space1).Radius(radiusFull).AlignItems(ui.Center).Shrink(0).Background(bg).Label("badge " + riskWords(o)).Children(func() {
-		if o.Risk == "destructive" {
+		if o.Risk == keelclient.RiskDestructive {
 			icon(c, "alert", fg)
 		}
 		label(c, riskWords(o), fg)
@@ -47,10 +46,6 @@ func (w *workspace) suggestOverlay(c *ui.Context, p *pane) {
 	g := gridFor(p.fontFamily, p.fontSize, p.sg.scale)
 	line := p.sg.line
 	b := p.handle.Bounds(c)
-	mac := true
-	if p.sg.m != nil {
-		mac = p.sg.m.d.mac
-	}
 	clip := func(start, n int) int { return max(min(n, cols-start), 0) }
 	mark := func(start, n int, bg ui.Color, name string, underline bool) (ui.Rect, bool) {
 		n = clip(start, n)
@@ -72,12 +67,12 @@ func (w *workspace) suggestOverlay(c *ui.Context, p *pane) {
 		ui.Row(c).Absolute().Left(left).Top(top).Height(g.ch).Padding(0, space1_5).Gap(space1_5).AlignItems(ui.Center).Background(stage).Label(name).
 			HitTest(func(float32, float32, ui.Rect) bool { return false }).Children(build)
 	}
-	k := keyLabels(mac)
+	k := keyLabels()
 	switch v.State {
 	case sugNotice:
 		r, ok := mark(line.Start, len([]rune(line.Input)), hazeSoft, "suggestion notice", true)
 		if ok {
-			lead, tail := noticeHintText(mac)
+			lead, tail := noticeHintText()
 			hint(r, "suggestion hint", func() {
 				icon(c, "ai-magic", accentInk)
 				caption(c, lead, inkFaint)
@@ -127,7 +122,7 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 	if v.Sug != nil && len(v.Sug.Options) > 0 {
 		opt = &v.Sug.Options[min(max(v.Selected, 0), len(v.Sug.Options)-1)]
 	}
-	danger := opt != nil && opt.Risk == "destructive"
+	danger := opt != nil && opt.Risk == keelclient.RiskDestructive
 	name := "suggestion card"
 	switch {
 	case v.State == sugLoading:

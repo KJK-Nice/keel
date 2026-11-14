@@ -1,71 +1,60 @@
 // Package gemini is a minimal Google Gemini API client (generateContent)
-// over net/http, behind provider.Provider.
+// behind provider.Provider: the endpoint, the key header and the request
+// and response mapping. The HTTP core is provider/transport.
 //
-// New is the only way to build one. In phase 6a nothing outside this
-// package's tests imports it (internal/agent/egress_test.go fails if
-// anything does); phase 6b adds the agent service as its one caller.
+// New is the only way to build one, and only the agent service calls it
+// (service.Real; internal/agent/invariants_test.go).
 package gemini
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"keel/internal/agent/provider"
+	"keel/internal/agent/provider/transport"
 )
 
 const (
-	defaultBaseURL = "https://generativelanguage.googleapis.com/v1beta"
-	maxBody        = 4 << 20
-	// defaultTimeout covers one request: a full answer after a long
-	// think takes a while on a thinking model.
-	defaultTimeout = 120 * time.Second
+	id = "gemini"
 	// maxOutputCap is the hard cap on maxOutputTokens (thinking and
 	// answer together), the output limit of the Gemini 3 models.
 	maxOutputCap = 65536
 )
 
-type Client struct {
-	key     string
-	baseURL string
-	http    *http.Client
+var config = transport.Config{
+	Name:    id,
+	BaseURL: "https://generativelanguage.googleapis.com/v1beta",
+	// One request: a full answer after a long think takes a while on a
+	// thinking model.
+	Timeout: 120 * time.Second,
+	MaxBody: 4 << 20,
+	// The key travels only in the x-goog-api-key header.
+	Auth:      func(h http.Header, key string) { h.Set("x-goog-api-key", key) },
+	ErrorText: true,
 }
 
-type Option func(*Client)
+type Client struct{ t *transport.Client }
+
+type Option = transport.Option
 
 // WithBaseURL points the client at another endpoint (tests use an
 // httptest server on loopback).
-func WithBaseURL(u string) Option {
-	return func(c *Client) { c.baseURL = strings.TrimRight(u, "/") }
-}
+func WithBaseURL(u string) Option { return transport.WithBaseURL(u) }
 
-// WithHTTPClient sets the HTTP client.
-func WithHTTPClient(h *http.Client) Option {
-	return func(c *Client) { c.http = h }
-}
-
-// New returns a client that authenticates with key. The key travels only
-// in the x-goog-api-key header, never in a URL, log line or error.
 func New(key string, opts ...Option) (*Client, error) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return nil, provider.ErrNoKey
+	t, err := transport.New(config, key, opts...)
+	if err != nil {
+		return nil, err
 	}
-	c := &Client{key: key, baseURL: defaultBaseURL, http: &http.Client{Timeout: defaultTimeout}}
-	for _, o := range opts {
-		o(c)
-	}
-	return c, nil
+	return &Client{t: t}, nil
 }
 
-func (c *Client) ID() string { return "gemini" }
+func (c *Client) ID() string { return id }
 
 type part struct {
 	Text string `json:"text"`
@@ -87,87 +76,46 @@ type genConfig struct {
 }
 
 // thinkingConfig is ThinkingConfig: thinkingLevel is the ThinkingLevel
-// enum (MINIMAL, LOW, MEDIUM, HIGH).
+// enum (MINIMAL, LOW, MEDIUM, HIGH), the provider.Thinking* level in
+// upper case.
 type thinkingConfig struct {
 	ThinkingLevel string `json:"thinkingLevel,omitempty"`
 }
 
-// noMinimal lists the models that reject the MINIMAL thinking level
-// (https://ai.google.dev/gemini-api/docs/thinking): their lowest is LOW.
-// A model not listed here is sent the level as asked.
-var noMinimal = map[string]bool{
-	"gemini-3.8-flash":       true,
-	"gemini-3.1-pro-preview": true,
-	"gemini-3-pro-preview":   true,
-	"gemini-2.5-pro":         true,
-	"gemini-2.5-flash":       true,
-	"gemini-2.5-flash-lite":  true,
-}
-
-// thinkingLevel maps a provider.Thinking* level to the API's enum for
-// model, or "" to leave the model's default.
-func thinkingLevel(model, level string) (string, error) {
-	switch level {
-	case "":
-		return "", nil
-	case provider.ThinkingMinimal:
-		if noMinimal[model] {
-			return "LOW", nil
-		}
-		return "MINIMAL", nil
-	case provider.ThinkingLow, provider.ThinkingMedium, provider.ThinkingHigh:
-		return strings.ToUpper(level), nil
-	}
-	return "", fmt.Errorf("gemini: unknown thinking level %q", level)
-}
-
-// thinkingRoom is the room maxOutputTokens leaves for thinking at a level
-// (the API's enum, "" for the model's default), on top of the answer:
-// Gemini counts thinking tokens toward maxOutputTokens, and Gemini 3
-// thinks at HIGH by default, so a small limit is spent on thinking and the
-// answer stops mid-sentence (finishReason MAX_TOKENS). Levels are
-// allowances, not budgets, so the room is generous and the answer is still
-// checked for MAX_TOKENS.
-func thinkingRoom(level string) int {
-	switch level {
-	case "MINIMAL":
-		return 1024
-	case "LOW":
-		return 4096
-	case "MEDIUM":
-		return 8192
-	}
-	return 24576 // HIGH, and the default
+// thinkingRoom is the room maxOutputTokens leaves for thinking at a level,
+// on top of the answer (transport.OutputLimit). Gemini 3 thinks at HIGH by
+// default. Levels are allowances, not budgets, so the room is generous.
+var thinkingRoom = map[string]int{
+	provider.ThinkingMinimal: 1024,
+	provider.ThinkingLow:     4096,
+	provider.ThinkingMedium:  8192,
+	provider.ThinkingHigh:    24576,
+	"":                       24576, // the model's default
 }
 
 // outputLimit is maxOutputTokens for an answer of up to answer tokens.
 func outputLimit(answer int, level string) int {
-	return min(answer+thinkingRoom(level), maxOutputCap)
+	return transport.OutputLimit(answer, thinkingRoom[level], maxOutputCap)
 }
 
-// stopReason maps a FinishReason to a provider.Stop* reason: "" when the
-// model finished (STOP, or no reason given).
-func stopReason(finish string) string {
-	switch finish {
-	case "", "STOP":
-		return ""
-	case "MAX_TOKENS":
-		return provider.StopLength
-	case "SAFETY", "PROHIBITED_CONTENT", "SPII", "BLOCKLIST", "IMAGE_SAFETY":
-		return provider.StopSafety
-	case "RECITATION":
-		return provider.StopRecitation
-	}
-	return provider.StopOther
+// stops maps a FinishReason to a provider.Stop* reason: "" when the model
+// finished (STOP, or no reason given).
+var stops = map[string]string{
+	"":                   "",
+	"STOP":               "",
+	"MAX_TOKENS":         provider.StopLength,
+	"SAFETY":             provider.StopSafety,
+	"PROHIBITED_CONTENT": provider.StopSafety,
+	"SPII":               provider.StopSafety,
+	"BLOCKLIST":          provider.StopSafety,
+	"IMAGE_SAFETY":       provider.StopSafety,
+	"RECITATION":         provider.StopRecitation,
 }
-
-// SupportsMinimal reports whether model takes the MINIMAL thinking level.
-func SupportsMinimal(model string) bool { return !noMinimal[model] }
 
 type genRequest struct {
-	SystemInstruction *content   `json:"systemInstruction,omitempty"`
-	Contents          []content  `json:"contents"`
-	GenerationConfig  *genConfig `json:"generationConfig,omitempty"`
+	SystemInstruction *content  `json:"systemInstruction,omitempty"`
+	Contents          []content `json:"contents"`
+	GenerationConfig  genConfig `json:"generationConfig"`
 }
 
 type genResponse struct {
@@ -192,67 +140,38 @@ type genResponse struct {
 
 // Generate sends one generateContent request built only from req.
 func (c *Client) Generate(ctx context.Context, req provider.Request) (provider.Response, error) {
-	model := strings.TrimSpace(req.Model)
-	if model == "" || strings.ContainsAny(model, "/?#% ") {
-		return provider.Response{}, fmt.Errorf("gemini: invalid model %q", model)
+	model, err := c.t.Model(req.Model)
+	if err != nil {
+		return provider.Response{}, err
 	}
 	body := genRequest{}
 	if sys := req.System.String(); sys != "" {
 		body.SystemInstruction = &content{Parts: []part{{Text: sys}}}
 	}
-	for _, m := range req.Messages {
-		role := "user"
-		if m.Role == provider.RoleModel {
-			role = "model"
-		}
-		body.Contents = append(body.Contents, content{Role: role, Parts: []part{{Text: m.Text.String()}}})
+	// An empty turn is kept: the API takes one, and the roles alternate.
+	for _, t := range transport.Turns(req, "user", "model", false) {
+		body.Contents = append(body.Contents, content{Role: t.Role, Parts: []part{{Text: t.Text}}})
 	}
 	if len(body.Contents) == 0 {
 		return provider.Response{}, errors.New("gemini: no messages")
 	}
-	level, err := thinkingLevel(model, req.Thinking)
+	level, err := provider.Thinking(id, model, req.Thinking)
 	if err != nil {
 		return provider.Response{}, err
 	}
-	if req.MaxOutputTokens > 0 || level != "" {
-		body.GenerationConfig = &genConfig{}
-		if req.MaxOutputTokens > 0 {
-			body.GenerationConfig.MaxOutputTokens = outputLimit(req.MaxOutputTokens, level)
-		}
-		if level != "" {
-			body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: level}
-		}
-	}
-	b, err := json.Marshal(body)
-	if err != nil {
-		return provider.Response{}, err
-	}
-	endpoint := c.baseURL + "/models/" + url.PathEscape(model) + ":generateContent"
-	hreq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(b))
-	if err != nil {
-		return provider.Response{}, err
-	}
-	hreq.Header.Set("Content-Type", "application/json")
-	hreq.Header.Set("x-goog-api-key", c.key)
-	resp, err := c.http.Do(hreq)
-	if err != nil {
-		return provider.Response{}, c.scrub(fmt.Errorf("gemini: %w", err))
-	}
-	defer resp.Body.Close()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxBody))
-	if err != nil {
-		return provider.Response{}, c.scrub(fmt.Errorf("gemini: read: %w", err))
+	body.GenerationConfig.MaxOutputTokens = outputLimit(req.MaxOutputTokens, level)
+	if level != "" {
+		body.GenerationConfig.ThinkingConfig = &thinkingConfig{ThinkingLevel: strings.ToUpper(level)}
 	}
 	var out genResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return provider.Response{}, fmt.Errorf("gemini: HTTP %d: unreadable response", resp.StatusCode)
-	}
-	if resp.StatusCode != http.StatusOK || out.Error != nil {
-		msg := http.StatusText(resp.StatusCode)
-		if out.Error != nil && out.Error.Message != "" {
-			msg = out.Error.Message
+	err = c.t.Post(ctx, "/models/"+url.PathEscape(model)+":generateContent", body, &out, func() (string, bool) {
+		if out.Error == nil {
+			return "", false
 		}
-		return provider.Response{}, c.scrub(fmt.Errorf("gemini: HTTP %d: %s", resp.StatusCode, msg))
+		return out.Error.Message, true
+	})
+	if err != nil {
+		return provider.Response{}, err
 	}
 	if out.PromptFeedback.BlockReason != "" {
 		return provider.Response{}, fmt.Errorf("gemini: prompt blocked (%s)", out.PromptFeedback.BlockReason)
@@ -275,17 +194,8 @@ func (c *Client) Generate(ctx context.Context, req provider.Request) (provider.R
 		InputTokens:   out.UsageMetadata.PromptTokenCount,
 		OutputTokens:  out.UsageMetadata.CandidatesTokenCount,
 		ThoughtTokens: out.UsageMetadata.ThoughtsTokenCount,
-		Stop:          stopReason(cand.FinishReason),
+		Stop:          transport.Stop(stops, cand.FinishReason),
 	}, nil
-}
-
-// scrub removes the key from an error, in case a transport or server
-// message ever echoes it.
-func (c *Client) scrub(err error) error {
-	if err == nil || !strings.Contains(err.Error(), c.key) {
-		return err
-	}
-	return errors.New(strings.ReplaceAll(err.Error(), c.key, "[key]"))
 }
 
 var _ provider.Provider = (*Client)(nil)

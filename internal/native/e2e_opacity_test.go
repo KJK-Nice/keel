@@ -43,13 +43,13 @@ func (e *win) shotOn(name string, back ui.Color) {
 	}
 }
 
-// Plan 028 step 2: the window at 70% opacity with the sidebar, a pane, the New tab page, Settings and the agent panel, in
+// The window at 70% opacity with the sidebar, a pane, the New tab page, Settings and the agent panel, in
 // both themes, over opacityBackdrop.
 func TestE2EControlsUnderWindowOpacity(t *testing.T) {
 	addr, dir := startServe(t, true)
 	e := newWin(t, addr, dir, nil)
 	e.putAgentKey()
-	e.w.translucentWin, e.w.win.Opacity = true, 70
+	e.w.translucentWin, e.w.prefs.Opacity = true, 70
 	e.w.alpha = alphaFor(70)
 	e.tt.Frame()
 	e.openLocal()
@@ -67,7 +67,7 @@ func TestE2EControlsUnderWindowOpacity(t *testing.T) {
 		e.settle(300 * time.Millisecond)
 		e.shotOn("TestE2EOpacity-agent-"+th, opacityBackdrop)
 		e.key(agentMods(), ui.KeyI)
-		e.pump(func() bool { return !e.w.agent.open }, "the agent panel to close")
+		e.pump(func() bool { return !e.w.prefs.AgentPanel }, "the agent panel to close")
 		e.click("New tab")
 		e.pump(func() bool { return e.tt.HasText("Where to?") }, "the New tab page")
 		e.settle(300 * time.Millisecond)

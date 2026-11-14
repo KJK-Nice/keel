@@ -72,7 +72,7 @@ func TestHostForConnectResolvesJump(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bastion := mustHost(t, st, Host{Name: "bastion", Address: "10.0.0.1", AuthType: "identity", IdentityID: ident.ID, Username: " "})
+	bastion := mustHost(t, st, Host{Name: "bastion", Address: "10.0.0.1", AuthType: "identity", IdentityID: ident.ID})
 	db := mustHost(t, st, Host{Name: "db", Address: "10.0.4.21", JumpHost: bastion.ID, Password: "db-pw"})
 	h, err := st.HostForConnect(db.ID)
 	if err != nil {
@@ -259,9 +259,8 @@ func TestTrustOfferedOnlyForTheRefusedKey(t *testing.T) {
 	if err := st.CheckHostKeyType("10.0.0.7:22", "ssh-ed25519", fp); !errors.As(err, &unk) {
 		t.Fatal(err)
 	}
-	defer func(f func() time.Time) { offerNow = f }(offerNow)
 	later := time.Now().Add(OfferTTL + time.Second)
-	offerNow = func() time.Time { return later }
+	st.now = func() time.Time { return later }
 	if _, err := st.TrustOffered(unk.Token, "10.0.0.7:22", fp, false); !errors.Is(err, ErrNoOffer) {
 		t.Fatalf("expired offer: %v", err)
 	}
@@ -323,7 +322,7 @@ func TestKnownHostReadAndForget(t *testing.T) {
 		t.Fatalf("type lost: %+v", k)
 	}
 	// The type survives a reload.
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}

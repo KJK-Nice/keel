@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+
+	"keel/internal/wire"
 )
 
 // Saved agent conversations (docs/ui-redesign.md §5.4.1).
@@ -128,7 +130,6 @@ type AgentChatRunStep struct {
 	Typed  string `json:"typed,omitempty"`
 }
 
-// Copy returns a deep copy.
 func (r *AgentChatRunbook) Copy() *AgentChatRunbook {
 	if r == nil {
 		return nil
@@ -315,7 +316,7 @@ func (c AgentChat) Summary() AgentChatSummary {
 			out.Turns++
 		}
 		for _, st := range t.Trace {
-			if st.Status == "read" {
+			if st.Status == wire.TraceRead {
 				add(st.Host)
 			}
 		}
@@ -483,7 +484,6 @@ func (s *Store) ListAgentChats() ([]AgentChatSummary, error) {
 	return out, nil
 }
 
-// GetAgentChat returns one saved conversation.
 func (s *Store) GetAgentChat(id string) (AgentChat, error) {
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()

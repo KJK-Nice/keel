@@ -20,11 +20,11 @@ import (
 	"keel/internal/native/joinpeer"
 )
 
-// Share and Join end to end (plan 014). The owner is a window on a scratch keel serve with KEEL_SIGNAL on a loopback
+// Share and Join end to end. The owner is a window on a scratch keel serve with KEEL_SIGNAL on a loopback
 // keel-signal; the joiner is a second window on its own scratch keel serve, as a second machine would be. The joiner's
 // peers have no ICE server (e2eJoiner) and the signal server is loopback. The one request that leaves the machine is
 // the STUN binding request keel serve's own share hub makes after Allow (internal/share/hub.go acceptPeer), which
-// the maintainer allowed for these tests (plan 014, amendment 1).
+// the maintainer allowed for these tests.
 
 // e2eJoiner opens the peer of a join with no ICE server and loopback candidates, and keeps it for the assertions.
 func (e *win) joiner(l joinpeer.Link, name string) (session, error) {
@@ -98,7 +98,7 @@ func (r *shareE2E) admitAndWait(t *testing.T) time.Duration {
 	return time.Since(start)
 }
 
-// noOffMachine asserts what the plan asks of every scenario: the window's peers were built with an empty ICE list and
+// noOffMachine asserts, for every scenario, that the window's peers were built with an empty ICE list and
 // dial a loopback signal server.
 func (e *win) noOffMachine() {
 	e.t.Helper()
@@ -244,7 +244,7 @@ func TestE2EShareAndAdmissionPrompt(t *testing.T) {
 
 	r.joinWith(link)
 	pumpAll(t, r.wins(), func() bool {
-		return len(r.b.w.tabs) == 2 && r.b.w.tab().remote && r.b.hasLabel("banner joining") && r.a.hasLabel("alertdialog "+r.b.w.joinName())
+		return r.b.w.tabCount() == 2 && r.b.w.activeTab().remote && r.b.hasLabel("banner joining") && r.a.hasLabel("alertdialog "+r.b.w.joinName())
 	}, "B waiting for the host and A's prompt")
 	if !r.a.tt.HasText("wants to watch Local Shell.") || !r.a.hasLabel("Share requests") {
 		t.Errorf("A's prompt: %q", r.a.tt.Texts())
@@ -261,7 +261,7 @@ func TestE2EShareAndAdmissionPrompt(t *testing.T) {
 		t.Fatal("the prompt went away or someone attached without Allow")
 	}
 
-	// Deny: B shows the app's refusal and has no terminal output, ever.
+	// Deny: B shows the refusal and has no terminal output, ever.
 	r.a.click("Deny")
 	pumpAll(t, r.wins(), func() bool {
 		return r.b.snap().Status == "error" && !r.a.hasLabel("Allow") && r.b.hasLabel("banner failed")
@@ -298,13 +298,13 @@ func TestE2EStopWhileARequestWaits(t *testing.T) {
 		t.Errorf("A has %d attached", n)
 	}
 	r.b.click("Leave")
-	pumpAll(t, r.wins(), func() bool { return len(r.b.w.tabs) == 1 }, "B's tab left")
+	pumpAll(t, r.wins(), func() bool { return r.b.w.tabCount() == 1 }, "B's tab left")
 
-	// The old link no longer admits: B's join does not even start.
+	// The old link does not admit: B's join does not even start.
 	r.joinWith(old)
 	pumpAll(t, r.wins(), func() bool { return r.b.tt.HasText("join: signal server: websocket: bad handshake") }, "the old link refused")
 	r.settle(300 * time.Millisecond)
-	if r.a.hasLabel("Allow") || len(r.b.w.tabs) != 1 {
+	if r.a.hasLabel("Allow") || r.b.w.tabCount() != 1 {
 		t.Error("the old link was accepted")
 	}
 
@@ -356,10 +356,10 @@ func TestE2EFollowerAsksForControlAndTheOwnerAnswers(t *testing.T) {
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
-		return len(b.w.tabs) == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("Ask for control")
+		return b.w.tabCount() == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("Ask for control")
 	}, "B following")
 
-	// B types: nothing is sent, and the notice is the app's, with Ask for control.
+	// B types: nothing is sent, and the notice offers Ask for control.
 	b.clickBody("1")
 	b.typeLine("echo from-b")
 	pumpAll(t, both, func() bool { return b.tt.HasText("Typing is off while you follow") }, "the follow notice")
@@ -409,8 +409,8 @@ func TestE2EFollowerAsksForControlAndTheOwnerAnswers(t *testing.T) {
 }
 
 // The whole path: A shares, B joins by the link, A allows, A types, B's terminal shows the output. The hub's own
-// STUN request (internal/share/hub.go acceptPeer) is the one off-machine request the maintainer allowed (plan 014,
-// amendment 1); B's peer has no ICE server and the signal server is loopback.
+// STUN request (internal/share/hub.go acceptPeer) is the one off-machine request the maintainer allowed;
+// B's peer has no ICE server and the signal server is loopback.
 func TestE2EShareAndJoin(t *testing.T) {
 	r := newShareE2E(t, true)
 	link := r.openShare()
@@ -522,14 +522,14 @@ func TestE2EDenyAllowAndStop(t *testing.T) {
 	r.a.click("Deny")
 	pump30(t, r.wins(), func() bool { return r.b.snap().Status == "error" }, "B refused")
 	r.b.click("Leave")
-	pump30(t, r.wins(), func() bool { return len(r.b.w.tabs) == 1 }, "B's tab left")
+	pump30(t, r.wins(), func() bool { return r.b.w.tabCount() == 1 }, "B's tab left")
 
 	// A second request is allowed.
 	r.joinWith(old)
 	r.admitAndWait(t)
 	r.b.shot("TestE2EDenyAllowAndStop-connected")
 
-	// Stop sharing: B's tab shows the app's ended state, and the old link no longer admits.
+	// Stop sharing: B's tab shows the ended state, and the old link does not admit.
 	if r.a.w.share == nil {
 		r.a.click("Share")
 	}
@@ -542,7 +542,7 @@ func TestE2EDenyAllowAndStop(t *testing.T) {
 	}
 	r.b.shot("TestE2EDenyAllowAndStop-ended")
 	r.b.click("Leave")
-	pump30(t, r.wins(), func() bool { return len(r.b.w.tabs) == 1 }, "B's tab left")
+	pump30(t, r.wins(), func() bool { return r.b.w.tabCount() == 1 }, "B's tab left")
 	r.joinWith(old)
 	pump30(t, r.wins(), func() bool { return r.b.tt.HasText("join: signal server: websocket: bad handshake") }, "the old link refused")
 	r.settle(500 * time.Millisecond)

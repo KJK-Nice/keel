@@ -8,19 +8,20 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 	"keel/internal/native/sshparse"
 )
 
 // The New tab page (docs/ui-redesign.md §5.3): one input, the recent host cards, the Start actions and the
-// recently closed rows. The rules are lib/newtab.js and term.js (paintStartPage, openSession, submitStartInput).
+// recently closed rows.
 // Typing filters the saved hosts; a pasted ssh command, ssh:// URL or user@host:port is parsed by sshparse and
 // offered, never run. A New tab is not written to the saved workspace.
 
 const (
-	recentCards = 6 // lib/newtab.js RECENT_CARDS
-	closedShown = 3 // CLOSED_SHOWN
+	recentCards = 6
+	closedShown = 3
 	maxInput    = sshparse.MaxInput
 )
 
@@ -49,7 +50,7 @@ const altPressFor = 500 * time.Millisecond
 
 func (a altPress) fresh() bool { return !a.at.IsZero() && time.Since(a.at) < altPressFor }
 
-func newStartTab() *tab { return &tab{panes: map[string]*pane{}, page: &startPage{focus: true}} }
+func newStartTab() *tab { return &tab{panes: map[string]*pane{}, start: &startPage{focus: true}} }
 
 // addStartTab opens a New tab and shows it.
 func (w *workspace) addStartTab() {
@@ -57,7 +58,7 @@ func (w *workspace) addStartTab() {
 	w.selectTab(len(w.tabs) - 1)
 }
 
-// settle keeps a tab in the window: with none left it shows a New tab (term.js settleTabs). It does nothing
+// settle keeps a tab in the window: with none left it shows a New tab. It does nothing
 // before the first listing has been read, or while the window says why it cannot work.
 func (w *workspace) settle() {
 	if len(w.tabs) == 0 && w.live && !w.closed && w.blocked == "" {
@@ -65,10 +66,7 @@ func (w *workspace) settle() {
 	}
 }
 
-const newTabLock = 300 * time.Millisecond // holding ⌘T must not open a tab per key repeat (term.js newTab)
-
-// newTab is the + button and the palette's New tab: a New tab.
-func (w *workspace) newTab() { w.addStartTab() }
+const newTabLock = 300 * time.Millisecond // holding ⌘T must not open a tab per key repeat
 
 // newTabKey is ⌘T, which a held key repeats: one tab per newTabLock.
 func (w *workspace) newTabKey() {
@@ -77,20 +75,20 @@ func (w *workspace) newTabKey() {
 		return
 	}
 	w.newTabLockUntil = now.Add(newTabLock)
-	w.newTab()
+	w.addStartTab()
 }
 
 func (w *workspace) localHost() (keelclient.Host, bool) {
 	for _, h := range w.hosts {
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			return h, true
 		}
 	}
 	return keelclient.Host{}, false
 }
 
-// hostMatches is term.js hostMatches: the query is one needle, looked for in the host's name, group, the names of every
-// folder above it, address, user and tags (lib/groups.js hostSearchHay).
+// hostMatches: the query is one needle, looked for in the host's name, group, the names of every
+// folder above it, address, user and tags.
 func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
 	needle := strings.ToLower(strings.TrimSpace(q))
 	if needle == "" {
@@ -99,7 +97,7 @@ func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
 	return strings.Contains(hostSearchHay(groups, h), needle)
 }
 
-// pickCards is lib/newtab.js recentCards: up to six hosts. With no query they are the recent hosts and the
+// pickCards is up to six hosts. With no query they are the recent hosts and the
 // local shell first; with a query, every host that matches, recent ones first.
 func pickCards(groups []keelclient.Group, hosts []keelclient.Host, recent []string, query string, local *keelclient.Host) []keelclient.Host {
 	byID := map[string]keelclient.Host{}
@@ -144,10 +142,10 @@ func (w *workspace) cards(p *startPage) []keelclient.Host {
 	if h, ok := w.localHost(); ok {
 		local = &h
 	}
-	return pickCards(w.folders, w.hosts, w.recentIDs, p.query, local)
+	return pickCards(w.folders, w.hosts, w.prefs.RecentHosts, p.query, local)
 }
 
-// ageLabel is lib/newtab.js ageLabel: "just now", "12 min ago", "3 h ago", "yesterday", "5 days ago".
+// ageLabel is "just now", "12 min ago", "3 h ago", "yesterday", "5 days ago".
 func ageLabel(at, now time.Time) string {
 	s := max(0, int(now.Sub(at).Seconds()))
 	if s < 60 {
@@ -167,10 +165,10 @@ func ageLabel(at, now time.Time) string {
 	return "yesterday"
 }
 
-// closedList is the recently closed entries whose host still exists, newest first (liveClosed).
+// closedList is the recently closed entries whose host still exists, newest first.
 func (w *workspace) closedList() []closedEntry {
 	var out []closedEntry
-	for _, e := range w.recent {
+	for _, e := range w.prefs.ClosedTabs {
 		if slices.ContainsFunc(w.hosts, func(h keelclient.Host) bool { return h.ID == e.hostID }) {
 			out = append(out, e)
 		}
@@ -182,10 +180,8 @@ func (w *workspace) closedList() []closedEntry {
 // "· split pane" for a pane.
 func (w *workspace) closedRow(e closedEntry) string {
 	name := e.title
-	for _, h := range w.hosts {
-		if h.ID == e.hostID {
-			name = h.Name
-		}
+	if h, ok := hostByID(w.hosts, e.hostID); ok {
+		name = h.Name
 	}
 	if name == "" {
 		name = "Session"
@@ -198,14 +194,11 @@ func (w *workspace) closedRow(e closedEntry) string {
 
 // ---- the pasted command ----
 
-// targetText is lib/newtab.js targetText: "deploy@10.0.4.21:2222" (IPv6 gets brackets).
+// targetText is "deploy@10.0.4.21:2222" (IPv6 gets brackets).
 func targetText(r *sshparse.Result) string {
-	host := r.Host
-	if strings.Contains(host, ":") {
-		host = "[" + host + "]"
-	}
+	host := keelclient.BracketIPv6(r.Host)
 	port := ""
-	if r.Port != 0 && r.Port != 22 {
+	if r.Port != 0 && r.Port != limits.DefaultPort {
 		port = fmt.Sprintf(":%d", r.Port)
 	}
 	user := ""
@@ -216,7 +209,7 @@ func targetText(r *sshparse.Result) string {
 }
 
 // offer is what the page shows under the input for the typed text: a read command (OK), an error, or nothing.
-// A half-typed user@host is not an error yet; ↵ makes it one (term.js startOfferHTML).
+// A half-typed user@host is not an error yet; ↵ makes it one.
 func (p *startPage) offer() (r *sshparse.Result, errText string) {
 	r = sshparse.ParseConnect(p.query)
 	switch {
@@ -230,7 +223,7 @@ func (p *startPage) offer() (r *sshparse.Result, errText string) {
 	return nil, r.Error
 }
 
-// sync resets what the typing resets (term.js: tab.pick = "", showError = false).
+// sync resets the pick and the error when the typing changes.
 func (p *startPage) sync(cards []keelclient.Host) {
 	if p.query != p.seen {
 		p.seen, p.pick, p.showError = p.query, "", false
@@ -245,10 +238,7 @@ func (p *startPage) sync(cards []keelclient.Host) {
 
 // ---- opening ----
 
-// openFrom opens h in the page's tab (term.js openSession with the tab).
-func (w *workspace) openFrom(t *tab, h keelclient.Host) { w.openHostIn(h, t) }
-
-// openHost starts a session on h in a new tab, or in the New tab that is showing (term.js fillableStartTab).
+// openHost starts a session on h in a new tab, or in the New tab that is showing.
 func (w *workspace) openHost(h keelclient.Host) {
 	fill := w.tab()
 	if fill != nil && !fill.isNew() {
@@ -261,16 +251,16 @@ func (w *workspace) openHost(h keelclient.Host) {
 func (w *workspace) openHostIn(h keelclient.Host, fill *tab) {
 	w.rememberRecent(h.ID)
 	if fill != nil {
-		if fill.page.connecting != "" {
+		if fill.start.connecting != "" {
 			return
 		}
-		fill.page.connecting, fill.page.pick = h.ID, h.ID
+		fill.start.connecting, fill.start.pick = h.ID, h.ID
 	}
 	w.work(func() {
 		conn, err := w.be.Spawn(h.ID, startCols, startRows)
 		w.post(func() {
-			if fill != nil && fill.page != nil {
-				fill.page.connecting = ""
+			if fill != nil && fill.isNew() {
+				fill.start.connecting = ""
 			}
 			switch {
 			case err != nil:
@@ -291,32 +281,32 @@ func (w *workspace) attach(fill *tab, p *pane) {
 		w.addTab(p)
 		return
 	}
-	fill.root, fill.panes, fill.focused, fill.page = layout.Leaf(p.id), map[string]*pane{p.id: p}, p.id, nil
+	fill.root, fill.panes, fill.focused, fill.start = layout.Leaf(p.id), map[string]*pane{p.id: p}, p.id, nil
 	w.selectTab(i)
 }
 
 // openCard is ⌥1 to ⌥6 and a click on a card.
 func (w *workspace) openCard(t *tab, n int) {
-	if t.page == nil { // the shortcut was registered while t was the page; an earlier key turned t into a session tab
+	if !t.isNew() { // the shortcut was registered while t was the page; an earlier key turned t into a session tab
 		return
 	}
-	cards := w.cards(t.page)
-	if a := &t.page.alt; a.fresh() { // the page saw this key too: one press opens one card, whichever path comes second
+	cards := w.cards(t.start)
+	if a := &t.start.alt; a.fresh() { // the page saw this key too: one press opens one card, whichever path comes second
 		if a.done {
 			return
 		}
 		a.done, cards = true, a.cards
 	}
 	if n >= 0 && n < len(cards) {
-		w.openFrom(t, cards[n])
+		w.openHostIn(cards[n], t)
 	}
 }
 
-// submitStart is ↵ in the page's input (term.js submitStartInput): a read command opens New host filled from it
+// submitStart is ↵ in the page's input: a read command opens New host filled from it
 // (nothing is saved or connected until Save), a refused one shows its error, and otherwise the highlighted card, or
 // the first, opens.
 func (w *workspace) submitStart(t *tab) {
-	p := t.page
+	p := t.start
 	if r := sshparse.ParseConnect(p.query); r != nil {
 		p.showError = !r.OK
 		if r.OK {
@@ -324,15 +314,15 @@ func (w *workspace) submitStart(t *tab) {
 		}
 		return
 	}
-	cards := w.cards(t.page)
+	cards := w.cards(t.start)
 	for _, h := range cards {
 		if h.ID == p.pick {
-			w.openFrom(t, h)
+			w.openHostIn(h, t)
 			return
 		}
 	}
 	if len(cards) > 0 {
-		w.openFrom(t, cards[0])
+		w.openHostIn(cards[0], t)
 		return
 	}
 	w.warn("No matching host")
@@ -340,10 +330,10 @@ func (w *workspace) submitStart(t *tab) {
 
 // movePick moves the highlighted card by delta (↑ ↓ in the input), stopping at the ends.
 func (w *workspace) movePick(t *tab, delta int) {
-	cards := w.cards(t.page)
-	i := slices.IndexFunc(cards, func(h keelclient.Host) bool { return h.ID == t.page.pick })
+	cards := w.cards(t.start)
+	i := slices.IndexFunc(cards, func(h keelclient.Host) bool { return h.ID == t.start.pick })
 	if len(cards) == 0 {
 		return
 	}
-	t.page.pick = cards[min(max(max(i, 0)+delta, 0), len(cards)-1)].ID
+	t.start.pick = cards[min(max(max(i, 0)+delta, 0), len(cards)-1)].ID
 }

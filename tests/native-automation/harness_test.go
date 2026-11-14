@@ -1,6 +1,6 @@
 //go:build nativeautomation
 
-// Package nativeautomation drives the built native app from outside, through MyGo's automation socket (plan 029):
+// Package nativeautomation drives the built native app from outside, through MyGo's automation socket:
 // a test binary (bin/keel-e2e, built with the tag keelautomation by make native-automation-build) opens a real
 // window, and these tests speak the socket's newline-delimited JSON protocol to it. Everything runs on scratch
 // data in a fresh temp directory, with a free loopback port, no keychain and the fake agent provider.
@@ -290,14 +290,12 @@ func (r *rig) act(id, action string) {
 	r.must("act", map[string]any{"id": id, "action": action}, nil)
 }
 
-// press waits for the element with the label, and presses it.
 func (r *rig) press(label string) {
 	r.t.Helper()
 	ns := r.waitFor("element "+label, has(label))
 	r.act(find(ns, label).ID, "press")
 }
 
-// pressIn presses the child labelled label of the element labelled parent.
 func (r *rig) pressIn(parent, label string) {
 	r.t.Helper()
 	ns := r.waitFor("element "+parent, has(parent))

@@ -63,7 +63,7 @@ func block(cmd, why, risk string) string {
 func newSuggestFixture(t *testing.T, reply string) *sfix {
 	t.Helper()
 	set := store.DefaultAgentSettings()
-	set.Detection = store.DetectionAuto // the default is hash-only (plan 036); these tests are about the opt-in detector
+	set.Detection = store.DetectionAuto // the default is hash-only; these tests are about the opt-in detector
 	st := &keyStore{
 		fakeStore: fakeStore{
 			settings: set,

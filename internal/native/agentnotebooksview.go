@@ -2,21 +2,21 @@ package native
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
-// The agent's notebooks drawn: the chips and the picker of the composer (agentpanel.js attachedChipsHTML, nbPickerHTML;
-// internal/ui/agent.templ and agentpage.templ), and the card of what the agent did to a notebook (agentthread.js
-// paintNbProp). Every word is the app's. A card's buttons ask the workspace (agentnotebooks.go); none of them changes a
+// The agent's notebooks drawn: the chips and the picker of the composer, and the card of what the agent did to a notebook. A card's buttons ask the workspace (agentnotebooks.go); none of them changes a
 // notebook, types, or marks one reviewed.
 
 // ---- the composer ----
 
-// nbChips draws one chip per attached notebook, with "Stop sending <name>" (agentpanel.js attachedChipsHTML).
+// nbChips draws one chip per attached notebook, with "Stop sending <name>".
 func (w *workspace) nbChips(c *ui.Context) {
 	for _, nb := range w.attachedNotebooks() {
 		id, name := nb.ID, notebookName(nb)
@@ -57,7 +57,7 @@ func (w *workspace) attachButton(c *ui.Context, where string) {
 				a.nbPicker = ""
 				return
 			}
-			a.picker, a.sessOpen, a.nbPicker = false, false, where // one popover at a time (agentpanel.js openNbPicker)
+			a.picker, a.sessOpen, a.nbPicker = false, false, where // one popover at a time
 		})
 	}
 	if on {
@@ -65,7 +65,7 @@ func (w *workspace) attachButton(c *ui.Context, where string) {
 	}
 }
 
-// nbPickerNote is the picker's foot, with the numbers of the rule (agentpanel.js nbPickerHTML).
+// nbPickerNote is the picker's foot, with the numbers of the rule.
 var nbPickerNote = fmt.Sprintf("At most %d, sent in full. The agent also sees the titles of your notebooks that are not private and may read them; it never sees a private one.", maxAttached)
 
 // nbPickerView is "Notebooks to send with your question": every saved notebook, at most two ticked. A private notebook is
@@ -87,7 +87,7 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 		if a.nbRowH == nil {
 			a.nbRowH = map[string]*ui.Handle{}
 		}
-		// ↑ ↓ walk between the rows, wrapping at both ends (agentpanel.js nbPickerKeys): from the row that has the keyboard.
+		// ↑ ↓ walk between the rows, wrapping at both ends: from the row that has the keyboard.
 		panel.ObserveInput(func(ev ui.InputEvent) {
 			if ev.Kind != ui.InputKeyDown || (ev.Key != ui.KeyDown && ev.Key != ui.KeyUp) || ev.Mods != 0 {
 				return
@@ -106,7 +106,7 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 		})
 		for _, nb := range all {
 			id, name := nb.ID, notebookName(nb)
-			ticked := contains(a.attached, id)
+			ticked := slices.Contains(a.attached, id)
 			off := (!ticked && full) || nb.Private
 			if a.nbRowH[id] == nil {
 				a.nbRowH[id] = new(ui.Handle)
@@ -164,7 +164,7 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 
 // ---- the card ----
 
-// nbBtn is a card's button: the app's word for it, named with the notebook so cards tell apart. A card whose request is
+// nbBtn is a card's button: named with the notebook so cards tell apart. A card whose request is
 // out ignores a press.
 func nbBtn(c *ui.Context, act, title string, busy bool) bool {
 	shown, kind := "", btnGhost
@@ -188,10 +188,10 @@ func nbBtn(c *ui.Context, act, title string, busy bool) bool {
 	return textBtnAs(c, name, shown, kind)
 }
 
-// nbCardLabels are the menu items of a card: its buttons, in order (cardmenu.js).
+// nbCardLabels are the menu items of a card: its buttons, in order.
 var nbCardLabels = map[string]string{actOpen: "Open", actUndo: "Undo", actRestore: "Restore", actKeep: "Keep", actDelete: "Delete…"}
 
-// agentNbCard is what the agent did to a notebook, or a delete it proposes (agentthread.js paintNbProp). Its buttons are
+// agentNbCard is what the agent did to a notebook, or a delete it proposes. Its buttons are
 // requests to keel serve; Delete asks first, and nothing is deleted until the user confirms.
 func (w *workspace) agentNbCard(c *ui.Context, id string) {
 	rec := w.agent.nbProps[id]
@@ -199,10 +199,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 		return
 	}
 	p := rec.p
-	live := p.Status == "created" || p.Status == "edited" || p.Status == "proposed"
+	live := p.Status == wire.CardCreated || p.Status == wire.CardEdited || p.Status == wire.CardProposed
 	warn := warned(p) && live && !p.Expired
 	border := line
-	if warn || (p.Kind == "delete" && p.Status == "proposed" && !p.Expired) {
+	if warn || (p.Kind == wire.NotebookDelete && p.Status == wire.CardProposed && !p.Expired) {
 		border = signal
 	}
 	head := cardHead(p)
@@ -215,16 +215,16 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 	card.Children(func() {
 		ui.Row(c).FillWidth().Padding(space3, space3, 0).Gap(space2).Wrap().Children(func() {
 			glyph := "notebook"
-			if p.Kind == "delete" {
+			if p.Kind == wire.NotebookDelete {
 				glyph = "agent-trash"
 			}
 			icon(c, glyph, inkMuted)
 			label(c, head, ink)
 			ui.Spacer(c)
-			if p.Kind == "create" && p.Status == "created" {
+			if p.Kind == wire.NotebookCreate && p.Status == wire.CardCreated {
 				outlineBadge(c, "From agent")
 			}
-			if p.Kind == "edit" && p.Status == "edited" {
+			if p.Kind == wire.NotebookEdit && p.Status == wire.CardEdited {
 				outlineBadge(c, "Edited by agent")
 			}
 			if warn {
@@ -244,7 +244,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 			switch {
 			case p.Expired && live:
 				cardNote(c, "agent-info", inkMuted, "Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")
-			case status != "" && p.Status == "refused":
+			case status != "" && p.Status == wire.CardRefused:
 				cardNote(c, "alert", signal, status)
 			case status != "":
 				cardNote(c, "agent-info", inkMuted, status)
@@ -254,10 +254,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 					ui.Text(c, p.Body).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 				})
 			}
-			if p.Summary != "" && p.Kind != "delete" {
+			if p.Summary != "" && p.Kind != wire.NotebookDelete {
 				ui.Text(c, p.Summary).TextColor(inkMuted).FontSize(captionSize)
 			}
-			if p.Summary != "" && p.Kind == "delete" {
+			if p.Summary != "" && p.Kind == wire.NotebookDelete {
 				ui.Text(c, "Why: "+p.Summary).TextColor(inkMuted).FontSize(captionSize)
 			}
 			if warn {
@@ -274,11 +274,8 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 			}
 		})
 		hairline(ui.Row(c).FillWidth().Margin(space3, 0, 0).Padding(space2, space3).Gap(space1_5).Background(w.ground(surface)), 1, 0, 0, 0).Children(func() {
-			if p.Kind != "delete" && p.Bytes > 0 {
-				size := strconv.Itoa(p.Bytes) + " bytes"
-				if p.Bytes == 1 {
-					size = "1 byte"
-				}
+			if p.Kind != wire.NotebookDelete && p.Bytes > 0 {
+				size := countWord(p.Bytes, "byte", "bytes")
 				if p.Rev > 0 {
 					size += " · rev " + strconv.Itoa(p.Rev)
 				}

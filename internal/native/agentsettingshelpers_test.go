@@ -9,8 +9,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The cases of cmd/keel/web/js/test/agentsettings.test.mjs that are rules and not markup, in Go.
-
 var testGemini = keelclient.AgentProvider{ID: "gemini", Name: "Google Gemini", Kind: "model", KeyLabel: "Gemini API key", Models: []string{"a", "b"}}
 
 func TestLinksMustBeHttps(t *testing.T) {

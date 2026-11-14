@@ -18,6 +18,7 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/sharelink"
 	keelsignal "keel/internal/signal"
 )
 
@@ -102,7 +103,7 @@ func (h *fakeHost) loop() {
 		case "signal":
 			switch m.Kind {
 			case "answer":
-				ok := CheckMAC(h.key, "join", m.SDP, m.Mac)
+				ok := sharelink.CheckMAC(h.key, "join", m.SDP, m.Mac)
 				h.answer <- ok
 				if ok && h.pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: m.SDP}) == nil {
 					h.mu.Lock()
@@ -186,7 +187,7 @@ func (h *fakeHost) admit(id string) {
 		h.t.Fatal(err)
 	}
 	imu.Lock()
-	h.send(map[string]any{"peerId": id, "kind": "offer", "sdp": offer.SDP, "mac": MAC(h.key, "host", offer.SDP)})
+	h.send(map[string]any{"peerId": id, "kind": "offer", "sdp": offer.SDP, "mac": hostMAC(h.key, offer.SDP)})
 	offered = true
 	for _, m := range held {
 		h.send(m)

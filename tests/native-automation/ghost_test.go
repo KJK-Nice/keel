@@ -2,12 +2,10 @@
 
 package nativeautomation
 
-// Plan 032 section 9: ghosting under a low Window opacity. A translucent window's shadow is cut from its content's alpha and
-// shows through its grounds; Keel's window kept the shadow of the first page (the New tab page) under every later page, so
-// "Where to?" and the cards stayed faintly visible under the terminal. The socket's capture does not show it (it is not the
-// compositor's picture), so the scenario photographs the screen with screencapture(1) over a solid window of its own
-// (backdrop.swift), where nothing else can show through, and checks that a part of the terminal pane with nothing in it is
-// one flat colour.
+// Ghosting under a low Window opacity: an earlier page (the New tab page) must not show faintly through a translucent
+// window under the terminal. The socket's capture is not the compositor's picture, so the scenario photographs the screen
+// with screencapture(1) over a solid window of its own (backdrop.swift), where nothing else can show through, and checks
+// that a part of the terminal pane with nothing in it is one flat colour.
 
 import (
 	"image"
@@ -89,7 +87,6 @@ func (r *rig) requireBackdrop(margin int) {
 func (r *rig) captureAround(name string, margin int) (image.Image, bounds, float64) {
 	r.t.Helper()
 	r.settle()
-	time.Sleep(700 * time.Millisecond)
 	var ws struct {
 		Windows []struct {
 			Bounds struct{ X, Y, Width, Height float64 }
@@ -151,8 +148,8 @@ func flatness(img image.Image, rect image.Rectangle) int {
 	return worst
 }
 
-// TestWindowHasNoShadow (plan 037 part C): the window never has a shadow. The backdrop is no lighter 40 pt below the window
-// than 6 pt below it, by the method TestWindowShadowSwitch used to find the shadow that is gone.
+// TestWindowHasNoShadow the window never has a shadow. The backdrop is no lighter 40 pt below the window
+// than 6 pt below it, the method that finds a shadow.
 func TestWindowHasNoShadow(t *testing.T) {
 	const margin = 60
 	r := newRig(t)
@@ -171,7 +168,7 @@ func TestWindowHasNoShadow(t *testing.T) {
 	r.quit()
 }
 
-// TestTerminalCursorAndSelectionAreNotBrass (plan 032 section 11): in a real window the terminal's cursor is its text colour and
+// TestTerminalCursorAndSelectionAreNotBrass: in a real window the terminal's cursor is its text colour and
 // the selection the system accent's, not the old brass (#e8b960 dark, #82510d light). The shots (term-accent-dark.png,
 // term-accent-light.png) are opened by eye; the scan fails on any pixel within 10 of the old cursor colour.
 func TestTerminalCursorAndSelectionAreNotBrass(t *testing.T) {
@@ -216,13 +213,13 @@ func abs(n int) int {
 	return n
 }
 
-// ghostFlatMax is what an empty part of the pane may differ by: its own shadow's soft edge. A ghost of the New tab page is
-// 20 to 60 in this measure (see the captures ghost-*).
+// ghostFlatMax is what an empty part of the pane may differ by. A ghost of the New tab page is 20 to 60 in this measure
+// (see the captures ghost-*).
 const ghostFlatMax = 8
 
 // TestNoGhostUnderLowOpacity: at Window opacity 30 (the lowest), with the blur off and with the default, in both themes, the
 // pane of a terminal that has just been opened, and again after a visit to the New tab page, shows nothing of an earlier
-// page. Failed before the fix: the pane's middle showed the New tab page's heading, input and cards.
+// page (no heading, input or cards of the New tab page in its middle).
 func TestNoGhostUnderLowOpacity(t *testing.T) {
 	cases := []struct {
 		opacity, blur int
@@ -255,7 +252,6 @@ func TestNoGhostUnderLowOpacity(t *testing.T) {
 			check := func(step string) {
 				t.Helper()
 				r.settle()
-				time.Sleep(700 * time.Millisecond) // the shadow is cut again 150 ms after the last frame
 				f, err := os.Open(r.screenPicture(name + "-" + step))
 				if err != nil {
 					t.Fatal(err)

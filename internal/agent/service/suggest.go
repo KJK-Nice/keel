@@ -1,6 +1,6 @@
 package service
 
-// Plain language → command in a pane (docs/ui-redesign.md §5.5, phase 6c).
+// Plain language → command in a pane (docs/ui-redesign.md §5.5).
 //
 // Three calls, all on the user's own session socket, so keel serve knows
 // the asking client's role in the pane (a follower gets nothing, §6.6):
@@ -35,6 +35,7 @@ import (
 	"keel/internal/agent"
 	"keel/internal/agent/provider"
 	"keel/internal/agent/redact"
+	"keel/internal/cmdrule"
 	"keel/internal/store"
 )
 
@@ -138,39 +139,43 @@ type Candidate struct {
 // snippets marked for the agent, picked by Jev) ahead of the model, and
 // fall through to it when it has nothing confident. Every candidate,
 // whatever its source, gets the same rating and the same ⇥ / ⇧⇥ gates.
+//
+// What a suggester sends off the machine goes through Service.send, which
+// logs it before the call: a provider that fails, times out or returns
+// nothing has still been sent the words.
 type Suggester interface {
 	Source() string
-	// SendsTo names where Suggest sends the words (a provider's name), or
-	// "" when it sends nothing off the machine. Suggest logs a non-empty
-	// one as agent.read before calling it.
-	SendsTo() string
 	Suggest(ctx context.Context, in SuggestInput) ([]Candidate, error)
 }
 
 // modelSuggester asks the model provider (Gemini or Claude) to write the command.
 type modelSuggester struct {
-	p        provider.Provider
+	s        *Service
+	to       line
+	desc     provider.Descriptor // the provider, for keel.log
 	model    string
 	thinking string
-	name     string // the provider's name, for keel.log
 }
 
 func (m modelSuggester) Source() string { return SourceGenerated }
 
-func (m modelSuggester) SendsTo() string { return m.name }
-
 func (m modelSuggester) Suggest(ctx context.Context, in SuggestInput) ([]Candidate, error) {
+	sent := in.Redactor.Report()
 	msg := in.Redactor.Text(SuggestPrefix + in.Words.String())
-	resp, err := m.p.Generate(ctx, provider.Request{
-		Model:           m.model,
-		Thinking:        m.thinking,
-		System:          suggestSafe,
-		Messages:        []provider.Message{{Role: provider.RoleUser, Text: msg}},
-		MaxOutputTokens: maxSuggestTokens,
+	rep, err := m.s.send(ctx, m.to, outbound{
+		model: &provider.Request{
+			Model:           m.model,
+			Thinking:        m.thinking,
+			System:          suggestSafe,
+			Messages:        []provider.Message{{Role: provider.RoleUser, Text: msg}},
+			MaxOutputTokens: maxSuggestTokens,
+		},
+		log: agent.Egress{Pane: in.Pane, What: "the words on the prompt line", N: 1, Report: sent, To: m.desc.Name, Why: "to suggest a command", Source: m.desc.ID},
 	})
 	if err != nil {
 		return nil, err
 	}
+	resp := rep.model
 	_, raws := parseResponse(resp.Text)
 	out := make([]Candidate, 0, len(raws))
 	for _, r := range raws {
@@ -186,11 +191,10 @@ type suggestState struct {
 	detectLogs  map[string]*detectLog
 }
 
-// detectLog gathers the detection reads of one pane in one window.
+// detectLog gathers the detection sends of one pane in one window: sum is
+// the entry that stands for all but the first.
 type detectLog struct {
-	pane  agent.Pane
-	n     int
-	rep   redact.Report
+	sum   agent.Egress
 	timer *time.Timer
 }
 
@@ -220,22 +224,16 @@ func (s *Service) paneFor(sessionID string, role agent.Role) (agent.Pane, agent.
 		return agent.Pane{}, agent.Host{}, nil, ErrNotFound
 	}
 	p.Role = role
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return agent.Pane{}, agent.Host{}, nil, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	var host agent.Host
-	for _, h := range hosts {
-		if h.ID == p.HostID {
-			host = h
-		}
-	}
+	host := hs.byID[p.HostID]
 	p.HostName = host.Name
-	if !agent.NewScope(hosts).Allows(p) {
+	if !hs.scope.Allows(p) {
 		return agent.Pane{}, agent.Host{}, nil, agent.ErrNotReadable
 	}
-	return p, host, hosts, nil
+	return p, host, hs.list, nil
 }
 
 // modelReady reports whether the configured model provider has a key. No
@@ -247,6 +245,22 @@ func (s *Service) modelReady(set store.AgentSettings) (provider.Descriptor, bool
 	}
 	configured, err := s.st.AgentKeyConfigured(desc.ID)
 	return desc, configured, err
+}
+
+// askableModel is the configured model provider, for a request that needs
+// an answer from it: ErrNotProvider when none is chosen, ErrNoKey when it
+// has no key.
+func (s *Service) askableModel(set store.AgentSettings) (provider.Descriptor, error) {
+	desc, ready, err := s.modelReady(set)
+	switch {
+	case err != nil:
+		return desc, err
+	case desc.Kind != provider.KindModel:
+		return desc, ErrNotProvider
+	case !ready:
+		return desc, ErrNoKey
+	}
+	return desc, nil
 }
 
 // Detect decides whether the prompt line is plain language (State 1,
@@ -297,36 +311,52 @@ func (s *Service) Detect(ctx context.Context, req DetectRequest) (DetectResult, 
 	if err != nil {
 		return DetectResult{Source: DetectOff}, err
 	}
-	line := r.Text(words)
-	s.noteDetect(p, r.Report())
+	promptLine := r.Text(words)
 	cctx, cancel := context.WithTimeout(ctx, detectTimeout)
 	defer cancel()
-	resp, err := judge.Judge(cctx, provider.JudgeRequest{
-		Fields:    map[string]redact.Safe{statePromptLine: line},
-		Questions: map[string]provider.Question{"plain": detectQuestion},
+	rep, err := s.send(cctx, judge, outbound{
+		judge: &provider.JudgeRequest{
+			Fields:    map[string]redact.Safe{statePromptLine: promptLine},
+			Questions: map[string]provider.Question{"plain": detectQuestion},
+		},
+		log:       agent.Egress{Pane: p, What: promptLines(1), N: 1, Report: r.Report(), To: jevName, Why: "to notice plain language", Source: DetectJev},
+		perWindow: true,
 	})
 	if err != nil {
 		return DetectResult{Source: DetectFallback}, nil
 	}
-	return DetectResult{Plain: resp.Nouls["plain"] >= NoticeThreshold, Source: DetectJev}, nil
+	return DetectResult{Plain: rep.judge.Nouls["plain"] >= NoticeThreshold, Source: DetectJev}, nil
 }
 
-// noteDetect logs a prompt line sent to Jev. The first line of a window
-// is logged at once; the rest of the window is summarised in one entry
-// when it ends, so a burst of pauses cannot flood keel.log and nothing
-// sent goes unlogged.
-func (s *Service) noteDetect(p agent.Pane, rep redact.Report) {
+func promptLines(n int) string {
+	if n == 1 {
+		return "1 prompt line"
+	}
+	return fmt.Sprintf("%d prompt lines", n)
+}
+
+// noteDetect logs a prompt line about to be sent to Jev (send calls it).
+// The first line of a window is logged at once; the rest of the window is
+// summarised in one entry when it ends, so a burst of pauses cannot flood
+// keel.log and nothing sent goes unlogged.
+func (s *Service) noteDetect(e agent.Egress) error {
+	id := e.Pane.SessionID
 	s.sug.mu.Lock()
 	defer s.sug.mu.Unlock()
-	if d := s.sug.detectLogs[p.SessionID]; d != nil {
-		d.n++
-		d.rep = agent.Merge(d.rep, rep)
-		return
+	if d := s.sug.detectLogs[id]; d != nil {
+		d.sum.N++
+		d.sum.What = promptLines(d.sum.N)
+		d.sum.Report = agent.Merge(d.sum.Report, e.Report)
+		return nil
 	}
-	s.audit.PromptLines(p, 1, rep, DetectJev)
-	d := &detectLog{pane: p, rep: redact.Report{Counts: map[redact.Kind]int{}}}
-	d.timer = time.AfterFunc(s.detectWindow, func() { s.flushDetect(p.SessionID) })
-	s.sug.detectLogs[p.SessionID] = d
+	if err := s.audit.Sent(e); err != nil {
+		return err
+	}
+	e.N, e.Report, e.Summary = 0, redact.Report{Counts: map[redact.Kind]int{}}, true
+	d := &detectLog{sum: e}
+	d.timer = time.AfterFunc(s.detectWindow, func() { s.flushDetect(id) })
+	s.sug.detectLogs[id] = d
+	return nil
 }
 
 func (s *Service) flushDetect(sessionID string) {
@@ -334,8 +364,9 @@ func (s *Service) flushDetect(sessionID string) {
 	d := s.sug.detectLogs[sessionID]
 	delete(s.sug.detectLogs, sessionID)
 	s.sug.mu.Unlock()
-	if d != nil && d.n > 0 {
-		s.audit.PromptLines(d.pane, d.n, d.rep, DetectJev)
+	if d != nil && d.sum.N > 0 {
+		// Already sent: the entry is owed if keel.log cannot take it now.
+		_ = s.audit.Sent(d.sum)
 	}
 }
 
@@ -393,15 +424,9 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 	if !set.SuggestionsEnabled() {
 		return Suggestion{}, nil, ErrSuggestOff
 	}
-	desc, ready, err := s.modelReady(set)
+	desc, err := s.askableModel(set)
 	if err != nil {
 		return Suggestion{}, nil, err
-	}
-	if desc.Kind != provider.KindModel {
-		return Suggestion{}, nil, ErrNotProvider
-	}
-	if !ready {
-		return Suggestion{}, nil, ErrNoKey
 	}
 	p, host, hosts, err := s.paneFor(req.SessionID, req.Role)
 	if err != nil {
@@ -425,16 +450,11 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 	if judge, err := s.judgeFor(); err == nil {
 		suggesters = append(suggesters, historySuggester{s: s, judge: judge, hosts: hosts, words: words})
 	}
-	suggesters = append(suggesters, modelSuggester{p: prov, model: model, thinking: thinking, name: desc.Name})
+	suggesters = append(suggesters, modelSuggester{s: s, to: prov, desc: desc, model: model, thinking: thinking})
 
 	var cands []Candidate
 	var modelTook, pickTook time.Duration
 	for _, sg := range suggesters {
-		// Logged before the call: a provider that fails, times out or
-		// returns nothing has still been sent the words.
-		if to := sg.SendsTo(); to != "" {
-			s.audit.Sent(p, "the words on the prompt line", 1, r.Report(), to, "to suggest a command", desc.ID)
-		}
 		start := s.now()
 		var c []Candidate
 		if sg.Source() == SourceGenerated {
@@ -499,16 +519,19 @@ func (s *Service) Suggest(ctx context.Context, req SuggestRequest) (Suggestion, 
 // runModel runs the model suggester with its own budget (suggestTimeout),
 // whatever the history step took, and turns its errors into the card's.
 func (s *Service) runModel(ctx context.Context, sg Suggester, in SuggestInput, start time.Time) ([]Candidate, time.Duration, error) {
-	cctx, cancel := context.WithTimeout(ctx, suggestTimeout)
+	cctx, cancel := context.WithTimeout(ctx, s.suggestTimeout)
 	defer cancel()
 	c, err := sg.Suggest(cctx, in)
 	if err != nil {
+		if errors.Is(err, agent.ErrAuditLog) {
+			return nil, 0, err // nothing was sent
+		}
 		if ctx.Err() != nil {
 			return nil, 0, context.Canceled
 		}
 		if errors.Is(cctx.Err(), context.DeadlineExceeded) {
 			// Not providerErr: its message names the ask timeout (s.timeout), not this one.
-			return nil, 0, &ProviderError{Msg: fmt.Sprintf("The model did not answer within %s.", suggestTimeout)}
+			return nil, 0, &ProviderError{Msg: fmt.Sprintf("The model did not answer within %s.", s.suggestTimeout)}
 		}
 		var pe *ProviderError
 		if errors.As(err, &pe) {
@@ -531,14 +554,14 @@ func (s *Service) since(start time.Time) time.Duration {
 func codeRatings(cands []Candidate, production bool) []SuggestOption {
 	out := make([]SuggestOption, len(cands))
 	for i, c := range cands {
-		risk := rate(c.Command, c.ModelRisk)
+		risk := rate(c.Command, modelRisk(c.ModelRisk))
 		out[i] = SuggestOption{
 			Command:      c.Command,
 			Bytes:        insertBytes(c.Command),
 			Why:          c.Why,
 			Risk:         risk,
-			NeedsShift:   agent.NeedsShift(risk, production),
-			Placeholders: hasPlaceholder(c.Command),
+			NeedsShift:   cmdrule.NeedsShift(risk, production),
+			Placeholders: cmdrule.HasPlaceholder(c.Command),
 			Source:       c.Source,
 			codeRisk:     risk,
 		}
@@ -619,10 +642,14 @@ func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
 	var jevTook time.Duration
 	asked := false
 	if len(ask) > 0 {
-		start := s.now()
-		judged, asked = s.judgeRisks(context.WithoutCancel(ctx), c.pane, c.cands, ask, c.redactor)
-		if asked {
-			jevTook = s.since(start)
+		// Jev without a key, or one that cannot be built, is not asked:
+		// the code rating stands.
+		if judge, err := s.judgeFor(); err == nil {
+			start := s.now()
+			judged, asked = s.judgeRisks(context.WithoutCancel(ctx), judge, c.pane, c.cands, ask, c.redactor)
+			if asked {
+				jevTook = s.since(start)
+			}
 		}
 	}
 
@@ -640,13 +667,13 @@ func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
 		if i >= len(opts) {
 			continue
 		}
-		next := agent.Stricter(opts[i].Risk, j)
+		next := cmdrule.Stricter(opts[i].Risk, j)
 		if next != opts[i].Risk {
 			stricter = true
 		}
 		opts[i].Risk = next
 		opts[i].Judged = true
-		opts[i].NeedsShift = agent.NeedsShift(next, c.sug.Production)
+		opts[i].NeedsShift = cmdrule.NeedsShift(next, c.sug.Production)
 	}
 	if cur != nil {
 		cur.Options = opts
@@ -657,7 +684,7 @@ func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
 	for i, o := range opts {
 		upd.Options[i] = OptionRisk{Risk: o.Risk, NeedsShift: o.NeedsShift, Judged: o.Judged}
 	}
-	s.audit.SuggestTimed(c.pane, c.sent, riskLabel(opts[0].Risk), opts[0].Source, agent.Timing{Model: c.modelTook, Pick: c.pickTook, Jev: jevTook, Asked: asked})
+	s.audit.Suggest(c.pane, c.sent, riskLabel(opts[0].Risk), opts[0].Source, agent.Timing{Model: c.modelTook, Pick: c.pickTook, Jev: jevTook, Asked: asked})
 	return upd, SuggestTiming{
 		Model:    c.model,
 		Thinking: c.thinking,
@@ -670,12 +697,9 @@ func (c *RiskCheck) run(ctx context.Context) (RiskUpdate, SuggestTiming) {
 }
 
 // judgeRisks asks Jev about the candidates at idx, all in one request.
-// The egress is logged before the call.
-func (s *Service) judgeRisks(ctx context.Context, p agent.Pane, cands []Candidate, idx []int, r *redact.Redactor) (map[int]agent.Risk, bool) {
-	judge, err := s.judgeFor()
-	if err != nil {
-		return nil, false
-	}
+// asked is false only when nothing was sent (keel.log could not take the
+// entry); an answer that did not come leaves the map empty.
+func (s *Service) judgeRisks(ctx context.Context, judge line, p agent.Pane, cands []Candidate, idx []int, r *redact.Redactor) (judged map[int]agent.Risk, asked bool) {
 	cmds := make([]redact.Safe, len(idx))
 	qs := make(map[string]provider.Question, len(idx))
 	before := r.Report()
@@ -687,17 +711,19 @@ func (s *Service) judgeRisks(ctx context.Context, p agent.Pane, cands []Candidat
 	if len(idx) > 1 {
 		what = fmt.Sprintf("%d candidate commands", len(idx))
 	}
-	s.audit.Sent(p, what, len(idx), agent.Diff(before, r.Report()), "TypeSafe Jev", "to rate their risk", DetectJev)
 	cctx, cancel := context.WithTimeout(ctx, riskTimeout)
 	defer cancel()
-	resp, err := judge.Judge(cctx, provider.JudgeRequest{Lists: map[string][]redact.Safe{stateCommands: cmds}, Questions: qs})
+	rep, err := s.send(cctx, judge, outbound{
+		judge: &provider.JudgeRequest{Lists: map[string][]redact.Safe{stateCommands: cmds}, Questions: qs},
+		log:   agent.Egress{Pane: p, What: what, N: len(idx), Report: agent.Diff(before, r.Report()), To: jevName, Why: "to rate their risk", Source: DetectJev},
+	})
 	if err != nil {
 		// Asked (and logged) even so: the time spent still counts.
-		return nil, true
+		return nil, !errors.Is(err, agent.ErrAuditLog)
 	}
 	out := map[int]agent.Risk{}
 	for k, i := range idx {
-		if a, ok := resp.Choices[riskQuestionID(k)]; ok {
+		if a, ok := rep.judge.Choices[riskQuestionID(k)]; ok {
 			out[i] = judgedRisk(a)
 		}
 	}
@@ -756,120 +782,24 @@ type InsertRequest struct {
 	Shift        bool       // ⇧ was held
 }
 
-// InsertGrant is one authorised insert, reserved until InsertDone says
-// whether the write happened.
-type InsertGrant struct {
-	suggestionID string
-	pane         agent.Pane
-	bytes        string
-	source       string
-}
-
-// AuthorizeInsert checks an insert before keel serve writes it: the
+// AuthorizeInsert checks an insert before keel serve writes it, through
+// authorize (authorize.go, pathInsert): the client drives the session; the
 // suggestion exists, has not expired, has not been inserted already and
-// targets this session; the bytes are the option's; the ⇧ rule holds,
-// with the host counted as production if it was when suggested, is now,
-// or can no longer be found; and the client drives the session. It then
-// reserves the suggestion, so a resent insert is refused. It writes and
-// logs nothing: keel serve writes, then calls InsertDone, which logs
-// agent.insert only for a write that happened.
+// targets this session; the bytes are the option's; the ⇧ rule holds, with
+// the host counted as production if it was when suggested, is now, or can
+// no longer be found. It then reserves the suggestion, so a resent insert
+// is refused. It writes and logs nothing: keel serve writes, then calls
+// InsertDone, which logs agent.insert only for a write that happened.
 func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
-	if err := agent.CanInsert(req.Role); err != nil {
-		return InsertGrant{}, err
-	}
-	s.sug.mu.Lock()
-	sug := s.sug.suggestions[req.SuggestionID]
-	var snap Suggestion
-	if sug != nil {
-		snap = *sug
-	}
-	s.sug.mu.Unlock()
-	if sug == nil || s.now().Sub(snap.created) > suggestionTTL {
-		return InsertGrant{}, ErrExpired
-	}
-	if snap.used {
-		return InsertGrant{}, ErrUsed
-	}
-	if snap.SessionID != req.SessionID {
-		return InsertGrant{}, ErrWrongPane
-	}
-	if req.Option < 0 || req.Option >= len(snap.Options) {
-		return InsertGrant{}, ErrNotFound
-	}
-	opt := snap.Options[req.Option]
-	if req.Bytes != opt.Bytes || strings.ContainsAny(req.Bytes, "\r\n") {
-		return InsertGrant{}, ErrChanged
-	}
-	current, err := s.hostProduction(snap.HostID)
-	if err != nil {
-		return InsertGrant{}, err
-	}
-	prod := snap.Production || current
-	if err := shiftRule(opt, prod, req.Shift); err != nil {
-		return InsertGrant{}, err
-	}
-	if s.beforeReserve != nil {
-		s.beforeReserve()
-	}
-	s.sug.mu.Lock()
-	defer s.sug.mu.Unlock()
-	cur := s.sug.suggestions[req.SuggestionID]
-	if cur == nil {
-		return InsertGrant{}, ErrExpired
-	}
-	if cur.used {
-		return InsertGrant{}, ErrUsed
-	}
-	// Again under the lock that reserves it: a RiskCheck may have made
-	// the rating stricter since the snapshot above.
-	if req.Option >= len(cur.Options) {
-		return InsertGrant{}, ErrNotFound
-	}
-	opt = cur.Options[req.Option]
-	if req.Bytes != opt.Bytes {
-		return InsertGrant{}, ErrChanged
-	}
-	if err := shiftRule(opt, prod, req.Shift); err != nil {
-		return InsertGrant{}, err
-	}
-	cur.used = true
-	return InsertGrant{
-		suggestionID: snap.ID,
-		pane:         agent.Pane{SessionID: snap.SessionID, HostID: snap.HostID, HostName: snap.Host, Role: req.Role},
-		bytes:        opt.Bytes,
-		source:       opt.Source,
-	}, nil
-}
-
-// shiftRule is the ⇧ rule for one option (§6.5).
-func shiftRule(opt SuggestOption, production, shift bool) error {
-	if !agent.NeedsShift(opt.Risk, production) || shift {
-		return nil
-	}
-	if opt.Judged && !agent.NeedsShift(opt.codeRisk, production) {
-		return ErrNeedsShiftJudged
-	}
-	return ErrNeedsShiftInsert
+	sub := suggestionSubject{s: s, id: req.SuggestionID, option: req.Option}
+	return s.authorize(context.Background(), &pathInsert, sub, typeAsk{sessionID: req.SessionID, role: req.Role, bytes: req.Bytes, shift: req.Shift})
 }
 
 // InsertDone records the outcome of an authorised insert. A write that
 // happened is logged as agent.insert and the suggestion stays used; a
 // write that failed is not logged as an insert, and the suggestion may be
-// inserted again.
-func (s *Service) InsertDone(g InsertGrant, writeErr error) {
-	if g.suggestionID == "" {
-		return
-	}
-	if writeErr != nil {
-		s.sug.mu.Lock()
-		if cur := s.sug.suggestions[g.suggestionID]; cur != nil {
-			cur.used = false
-		}
-		s.sug.mu.Unlock()
-		return
-	}
-	_ = s.audit.InsertFrom(g.pane, g.bytes, g.source)
-}
+// inserted again. It returns the log's error.
+func (s *Service) InsertDone(g InsertGrant, writeErr error) error { return s.settle(g, writeErr) }
 
 // ErrNeedsShiftInsert is ErrNeedsShift worded for ⇥.
 var ErrNeedsShiftInsert = errors.New("agent: this command is destructive, or changes state on a production host; press ⇧⇥ to insert it")

@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The cards of what the agent did to notebooks (plan 024, step 4): every kind and status draws the app's head, status and
+// The cards of what the agent did to notebooks : every kind and status draws its head, status and
 // buttons; each button is one request to keel serve and the card shows what it answers; Delete asks first; an agent edit of
 // an open notebook shows in its pane, or is refused while the user is typing. Cards are also in saved conversations.
 
@@ -117,7 +117,7 @@ func TestACreatedNotebookIsInTheListMarkedFromAgentAndItsUndoMovesItToRecentlyDe
 	if nb, ok := r.w.notebook(rec.ID); !ok || nb.Source != byAgent || !nb.AgentUnreviewed {
 		t.Fatalf("the notebook the agent made is not in the list: %+v", nb)
 	}
-	if card := r.w.agent.nbProps["nbc_1"]; card == nil || card.p.Record != nil {
+	if card := r.w.agentState().nbProps["nbc_1"]; card == nil || card.p.Record != nil {
 		t.Fatal("the card keeps the notebook it carried")
 	}
 	r.w.sideSeg = "snippets"
@@ -137,7 +137,7 @@ func TestACreatedNotebookIsInTheListMarkedFromAgentAndItsUndoMovesItToRecentlyDe
 		return keelclient.NotebookAction{Proposal: p}, nil
 	}
 	r.click(t, "Undo Runbook for disks")
-	if n := len(r.fb.nbCards().reqs); n != 1 || r.fb.nbCards().reqs[0] != "undo "+r.w.agent.conv+"/nbc_1" {
+	if n := len(r.fb.nbCards().reqs); n != 1 || r.fb.nbCards().reqs[0] != "undo "+r.w.agentState().conv+"/nbc_1" {
 		t.Fatalf("Undo must be one request: %v", r.fb.nbCards().reqs)
 	}
 	r.frames(2)
@@ -251,7 +251,7 @@ func TestADeleteTheAgentProposesDeletesNothingUntilTheUserConfirms(t *testing.T)
 	}
 	// Cancel posts nothing.
 	r.click(t, "Cancel")
-	if len(r.fb.nbCards().reqs) != 0 || r.w.confirm != nil {
+	if len(r.fb.nbCards().reqs) != 0 || r.w.confirmOpen() {
 		t.Fatalf("Cancel posted %v", r.fb.nbCards().reqs)
 	}
 	// Keep: one request, nothing deleted.
@@ -370,7 +370,7 @@ func TestACardsRightClickMenuIsItsOwnButtonsInOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tt.Frame()
-	if r.w.confirm == nil || len(r.fb.nbCards().reqs) != 0 {
+	if !r.w.confirmOpen() || len(r.fb.nbCards().reqs) != 0 {
 		t.Fatal("the menu's Delete… did not ask")
 	}
 }
@@ -404,7 +404,7 @@ func TestSavedConversationsShowTheirNotebookCardsAndALegacyDraftHasNoSave(t *tes
 	}
 }
 
-// ---- the review banner's actions (plan 024, step 5) ----
+// ---- the review banner's actions ----
 
 // editedRig is a window with notebook nb1 open and an agent edit on it that the user has not reviewed.
 func editedRig(t *testing.T) (*rig, *pane, string) {

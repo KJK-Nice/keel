@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -34,7 +35,7 @@ func TestGroupNestPersistAndReload(t *testing.T) {
 		t.Fatalf("host group view = %+v", host)
 	}
 
-	st2, err := New(st.path)
+	st2, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,14 +152,131 @@ func TestDeleteGroupReparents(t *testing.T) {
 	}
 }
 
-func TestEnsureGroupsDedupesLegacyNames(t *testing.T) {
+// legacyGroupsFile is a keel.json from before groups had ids: a host's
+// group is its folder's name.
+const legacyGroupsFile = `{
+  "hosts": [
+    {"id":"h1","name":"a","group":"prod","address":"10.0.0.1","port":22,"username":"u","authType":"password"},
+    {"id":"h2","name":"b","group":"prod","address":"10.0.0.2","port":22,"username":"u","authType":"password"}
+  ],
+  "knownHosts": {}
+}`
+
+func legacyGroupsStore(t *testing.T) *Store {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "keel.json")
+	if err := os.WriteFile(path, []byte(legacyGroupsFile), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	st, err := New(path, TestVault())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
+// A read never writes: an old file is brought up to date when it is
+// loaded, so listing hosts, groups or a group's members leaves keel.json
+// as it is and tells no listener of a change.
+func TestReadsOfAMigratedStoreDoNotWrite(t *testing.T) {
+	st := legacyGroupsStore(t)
+	before, err := os.ReadFile(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(before), `"groups"`) {
+		t.Fatalf("the migration was not saved at load:\n%s", before)
+	}
+	changes := 0
+	st.OnChange(func() { changes++ })
+	hosts, err := st.ListHosts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, err := st.ListGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 1 || hosts[0].GroupID != groups[0].ID {
+		t.Fatalf("groups = %+v, host group id %q", groups, hosts[0].GroupID)
+	}
+	if _, _, err := st.GroupMembers(groups[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) || changes != 0 {
+		t.Fatalf("a read wrote: file changed %v, %d change notices", string(after) != string(before), changes)
+	}
+}
+
+// An old file loaded while the vault is locked is saved, migrated, by the
+// unlock: its groups keep their ids over a restart.
+func TestLegacyGroupsSavedAtUnlock(t *testing.T) {
 	st := testStore(t)
-	st.mu.Lock()
-	st.data.Hosts = append(st.data.Hosts,
-		persistHost{ID: "h1", Name: "a", Group: "prod", Address: "10.0.0.1", Username: "u", AuthType: "password"},
-		persistHost{ID: "h2", Name: "b", Group: "prod", Address: "10.0.0.2", Username: "u", AuthType: "password"},
-	)
-	st.mu.Unlock()
+	h, err := st.UpsertHost(Host{Name: "a", Address: "10.0.0.1", Username: "u", AuthType: "password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old persistData
+	if err := json.Unmarshal(raw, &old); err != nil {
+		t.Fatal(err)
+	}
+	for i := range old.Hosts {
+		if old.Hosts[i].ID == h.ID {
+			old.Hosts[i].Group = "legacy"
+		}
+	}
+	raw, err = json.Marshal(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(st.path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	locked, err := New(st.path, TestVault())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !locked.Locked() {
+		t.Fatal("expected a locked store")
+	}
+	if err := locked.Unlock("test-vault-pass"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := locked.GetHost(h.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Group != "legacy" || got.GroupID == "" {
+		t.Fatalf("host group = %q id %q", got.Group, got.GroupID)
+	}
+	raw, err = os.ReadFile(st.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved persistData
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		t.Fatal(err)
+	}
+	for _, sh := range saved.Hosts {
+		if sh.ID == h.ID && sh.Group != got.GroupID {
+			t.Fatalf("saved host group = %q, want the id %q", sh.Group, got.GroupID)
+		}
+	}
+}
+
+func TestEnsureGroupsDedupesLegacyNames(t *testing.T) {
+	st := legacyGroupsStore(t)
 
 	listed, err := st.ListHosts()
 	if err != nil {

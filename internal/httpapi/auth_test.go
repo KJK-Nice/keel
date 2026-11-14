@@ -21,8 +21,7 @@ const testToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc
 func authServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,6 +31,16 @@ func authServer(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(New(st, rt, nil).WithAuth(testToken).Handler())
 	t.Cleanup(srv.Close)
 	return srv
+}
+
+// There is no open server: without a token Handler does not build one.
+func TestHandlerRefusesToBuildWithoutAToken(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("Handler built a server with no token: /api would be open")
+		}
+	}()
+	New(nil, nil, nil).Handler()
 }
 
 // noRedirect keeps the client from following a redirect, so a test can see that there is none.
@@ -112,7 +121,7 @@ func TestAuthOpenRoutesAndNoUI(t *testing.T) {
 			}
 		}
 	}
-	// The herd socket is gone too: the token gets a 404, no token a 401.
+	// No other socket exists: the token gets a 404, no token a 401.
 	herd := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws/herd"
 	if got := wsStatus(t, herd, h); got != http.StatusNotFound {
 		t.Errorf("/ws/herd with the token = %d, want 404", got)
@@ -130,7 +139,7 @@ func TestAuthHeader(t *testing.T) {
 	}
 }
 
-// The browser-only credentials are gone: a cookie alone opens nothing, and the old ?keel_token= parameter, right or
+// A cookie alone opens nothing, and a ?keel_token= parameter, right or
 // wrong, opens nothing, sets no cookie and redirects nowhere.
 func TestAuthCookieAndTokenParamGrantNothing(t *testing.T) {
 	srv := authServer(t)
@@ -194,7 +203,7 @@ func TestHealthProof(t *testing.T) {
 func TestLoopbackHostRequired(t *testing.T) {
 	srv := authServer(t)
 	u, _ := url.Parse(srv.URL)
-	for _, host := range []string{"attacker.example:" + u.Port(), "attacker.example", "192.168.1.5:" + u.Port()} {
+	for _, host := range []string{"attacker.example:" + u.Port(), "attacker.example", "192.168.1.5:" + u.Port(), "[[::1]]", "[[::1]]:" + u.Port()} {
 		req, _ := http.NewRequest(http.MethodGet, srv.URL+"/api/health", nil)
 		req.Host = host
 		res, err := srv.Client().Do(req)
@@ -222,13 +231,12 @@ func TestLoopbackHostRequired(t *testing.T) {
 
 func TestHealthReportsBuild(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_VAULT_FAST", "1")
-	st, err := store.New(t.TempDir() + "/keel.json")
+	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
 	}
 	rt := runtime.New(st, func(store.Host, int, int) (session.Bridge, error) { return newFakeBridge(), nil })
-	srv := httptest.NewServer(New(st, rt, nil).WithBuild("abc123-def456").Handler())
+	srv := httptest.NewServer(New(st, rt, nil).WithBuild("abc123-def456").openHandler())
 	t.Cleanup(srv.Close)
 	var body struct {
 		Build string `json:"build"`

@@ -142,7 +142,7 @@ func TestE2ELocalForward(t *testing.T) {
 	e.click("Trust and connect")
 	e.pump(func() bool { return e.snap().Status == "ready" }, "the session to be ready")
 	e.click("Close pane")
-	e.pump(func() bool { return len(e.w.tabs) == 1 && e.w.tabs[0].isNew() }, "the pane to close")
+	e.pump(func() bool { return e.w.tabCount() == 1 && e.w.tabAt(0).isNew() }, "the pane to close")
 
 	e.openForwardsPage()
 	e.click("New forward")
@@ -275,8 +275,8 @@ func TestE2EPanesSection(t *testing.T) {
 	// A click into a terminal of the split tab shows Panes and leaves the keyboard in the terminal.
 	e.clickBody("1")
 	e.pump(func() bool { return e.hasLabel("Filter panes") }, "the Panes section after a click into a pane")
-	if !e.tt.Focused("pane 1") && e.w.tab().focused != "1" {
-		t.Errorf("focused %q", e.w.tab().focused)
+	if !e.tt.Focused("pane 1") && e.w.activeTab().focused != "1" {
+		t.Errorf("focused %q", e.w.activeTab().focused)
 	}
 	n := 0
 	for _, i := range []string{"1", "2", "3"} {
@@ -297,8 +297,8 @@ func TestE2EPanesSection(t *testing.T) {
 	}
 	e.tt.ClickAt(row.X+row.W/2, row.Y+(paneRowHeight+space1)+row.H/2)
 	e.step()
-	if e.w.tab().focused != "2" {
-		t.Fatalf("the second row focused pane %q", e.w.tab().focused)
+	if e.w.activeTab().focused != "2" {
+		t.Fatalf("the second row focused pane %q", e.w.activeTab().focused)
 	}
 	e.typeLine("echo row-$((2+3))")
 	e.waitScrollback(e.paneSID("2"), "row-5")
@@ -324,9 +324,9 @@ func TestE2EPanesSection(t *testing.T) {
 // useSavedWindowPrefs is what Run does at start: the window prefs from keel-native.json, and a translucent window
 // when the opacity is below 100.
 func (e *win) useSavedWindowPrefs() {
-	e.w.win, e.w.term = loadPrefs(e.w.dataDir), loadTermPrefs(e.w.dataDir)
-	if e.w.win.Opacity < opacityMax {
-		e.w.translucentWin, e.w.alpha = true, e.w.win.alpha()
+	e.w.prefs = loadPrefs(e.w.dataDir)
+	if e.w.prefs.Opacity < opacityMax {
+		e.w.translucentWin, e.w.alpha = true, e.w.prefs.alpha()
 	}
 	e.tt.Frame()
 }
@@ -355,7 +355,7 @@ func TestE2ESettingsAppearanceLive(t *testing.T) {
 	e.shot("TestE2ESettingsAppearanceLive-appearance")
 	// 66 to 80 by the keyboard: a click puts the slider in the middle (65), the arrow keys step it.
 	e.click("Window opacity slider")
-	for e.w.win.Opacity < 80 {
+	for e.w.prefs.Opacity < 80 {
 		e.key(0, ui.KeyRight)
 	}
 	e.pump(func() bool { a := titleAlpha(); return a >= 202 && a <= 206 }, "the title bar to repaint at about 0.8")
@@ -371,13 +371,13 @@ func TestE2ESettingsAppearanceLive(t *testing.T) {
 	// A second window on the same data starts at 80.
 	e2 := newWin(t, addr, data, nil)
 	e2.useSavedWindowPrefs()
-	if e2.w.win.Opacity != 80 || !(e2.w.alpha > 0.79 && e2.w.alpha < 0.81) {
-		t.Fatalf("the second window starts at opacity %d alpha %v", e2.w.win.Opacity, e2.w.alpha)
+	if e2.w.prefs.Opacity != 80 || !(e2.w.alpha > 0.79 && e2.w.alpha < 0.81) {
+		t.Fatalf("the second window starts at opacity %d alpha %v", e2.w.prefs.Opacity, e2.w.alpha)
 	}
 	e2.key(ui.Cmd, ui.KeyComma)
 	e2.pump(func() bool { return e2.hasLabel("Window opacity slider") }, "Settings in the second window")
-	if e2.w.pageTab("settings").pg.settings.opacityV != 80 {
-		t.Errorf("the slider starts at %v", e2.w.pageTab("settings").pg.settings.opacityV)
+	if e2.w.settingsPage().sliders[keyOpacity].v != 80 {
+		t.Errorf("the slider starts at %v", e2.w.settingsPage().sliders[keyOpacity].v)
 	}
 	e2.w.closeWindow()
 }
@@ -390,7 +390,7 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 	e.pump(func() bool { return e.hasLabel("tab Settings") }, "Settings")
 	e.click("settings nav Runtime")
 	e.pump(func() bool { return e.hasLabel("value 1") && e.tt.HasText("Running sessions") }, "the Runtime section with one session")
-	if want := versionOf(e.w.pageTab("settings").pg.settings.rt.Build); want == "" || !e.tt.HasText(want) {
+	if want := versionOf(e.w.settingsPage().rt.Build); want == "" || !e.tt.HasText(want) {
 		t.Errorf("the version %q is not shown", want)
 	}
 	e.shot("TestE2ESettingsRuntimeStop-runtime")
@@ -403,7 +403,7 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 		r.Body.Close()
 		return r.StatusCode == 200
 	}
-	// Stop asks first with the app's words; Cancel changes nothing.
+	// Stop asks first; Cancel changes nothing.
 	e.click("Stop runtime…")
 	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Keel runtime?") }, "the confirm")
 	if !e.tt.HasText("This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again.") {
@@ -455,7 +455,9 @@ func TestE2EToasts(t *testing.T) {
 	e.key(ui.Cmd, ui.KeyComma)
 	e.pump(func() bool { return e.hasLabel("tab Settings") }, "Settings")
 	e.click("settings nav Sharing")
-	e.pump(func() bool { return e.hasLabel("Signal server input") && e.w.pageTab("settings").pg.settings.rt != nil }, "the Sharing section")
+	e.pump(func() bool {
+		return e.hasLabel("Signal server input") && e.w.settingsPage().rt != nil
+	}, "the Sharing section")
 	code, body := e.raw("PUT", "/api/share/signal", map[string]string{"url": "ftp://not-a-signal-server"})
 	var refusal struct{ Error string }
 	json.Unmarshal([]byte(body), &refusal)

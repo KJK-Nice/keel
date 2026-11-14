@@ -68,7 +68,7 @@ func TestAskSendsTheQuestionAndTheSessionIdsAndNothingElse(t *testing.T) {
 	if p := res.Proposals[0]; p.Bytes != "\x15echo keel-agent-ok\n" || p.Risk != "readonly" || !p.Production {
 		t.Fatalf("%+v", p)
 	}
-	// No scope still sends a list, as the app does.
+	// No scope still sends a list.
 	r.c.Ask(context.Background(), AskRequest{ConversationID: "c1", Question: "q"})
 	if _, body := r.last(); !strings.Contains(body, `"panes":[]`) {
 		t.Fatal(body)
@@ -221,7 +221,7 @@ func TestAnAgentTypeThatKeelServeNeverAnswersIsNotTyped(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 	if ErrNoAgentAnswer.Error() != "keel serve did not answer." {
-		t.Fatal("not the webview's words")
+		t.Fatal("the error words changed")
 	}
 }
 

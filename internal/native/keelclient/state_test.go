@@ -18,7 +18,7 @@ import (
 const offerToken = "one-time-offer-token"
 
 // script serves /ws/session sending the frames pushed on out, records what the client sends, and
-// serves the POST endpoints N3 uses, recording method, path and body.
+// serves the POST endpoints the window uses, recording method, path and body.
 type script struct {
 	c    *Client
 	out  chan string
@@ -197,7 +197,7 @@ func TestReconnectAndTrustHostKeySendTheOffer(t *testing.T) {
 	parts := strings.SplitN(reqs[1], " ", 3)
 	var m map[string]any
 	if err := json.Unmarshal([]byte(parts[2]), &m); err != nil || parts[0] != "POST" || parts[1] != "/api/known-hosts" ||
-		m["token"] != offerToken || m["hostname"] != "h:22" || m["fingerprint"] != "SHA256:abc" || m["replace"] != true || len(m) != 4 {
+		m["trustToken"] != offerToken || m["hostname"] != "h:22" || m["fingerprint"] != "SHA256:abc" || m["replace"] != true || len(m) != 4 {
 		t.Fatalf("trust request %q", reqs[1])
 	}
 }

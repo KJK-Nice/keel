@@ -6,22 +6,23 @@ import (
 	"sort"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The pure rules of notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12): the words of the trace, the picker,
-// the cards and their buttons. They are cmd/keel/web/js/lib/notebooks.js (the parts above "history", which
-// notebookslogic.go has), pinned there by test/notebooks.test.mjs and here by agentnotebookslogic_test.go. keel serve
+// the cards and their buttons (agentnotebookslogic_test.go pins them; notebookslogic.go has the rest). keel serve
 // decides everything; nothing here talks to it, draws or types.
 
-// maxAttached is how many notebooks one question may carry (lib/notebooks.js MAX_ATTACHED; keel serve refuses more).
-const maxAttached = 2
+// maxAttached is how many notebooks one question may carry (keel serve refuses more).
+const maxAttached = limits.MaxAttachedNotebooks
 
-// Texts of the app (lib/notebooks.js).
+var attachLimit = fmt.Sprintf("Attach at most %d notebooks to a question", maxAttached)
+
 const (
 	privateRefused = "This notebook is private: the agent cannot read it. Turn Private off on the notebook first."
-	attachLimit    = "Attach at most 2 notebooks to a question"
-	// saveFirst is what "Ask the agent about this notebook" says for a notebook that is not saved (term.js).
+	// saveFirst is what "Ask the agent about this notebook" says for a notebook that is not saved.
 	saveFirst = "Save the notebook first, then ask the agent about it"
 )
 
@@ -33,39 +34,27 @@ func redactedCount(counts map[string]int) (n int) {
 	return n
 }
 
-func bytesNoun(n int) string {
-	if n == 1 {
-		return "1 byte"
-	}
-	return fmt.Sprintf("%d bytes", n)
-}
-
-// isNotebookStep reports a trace step about notebooks (lib/notebooks.js isNotebookStep).
 func isNotebookStep(s keelclient.TraceStep) bool {
-	return s.Status == "notebook" || s.Status == "notebook-index" || strings.HasPrefix(s.Reason, "notebook-")
+	return s.Status == wire.TraceNotebook || s.Status == wire.TraceNotebookIndex || strings.HasPrefix(s.Reason, "notebook-")
 }
 
 // notebookStepText is a trace line about notebooks: the titles sent, a notebook sent (attached) or read (the agent
-// asked), or why one was not (lib/notebooks.js notebookStepText).
+// asked), or why one was not.
 func notebookStepText(s keelclient.TraceStep) string {
-	if s.Status == "notebook-index" {
-		noun := "notebooks"
-		if s.Count == 1 {
-			noun = "notebook"
-		}
-		return fmt.Sprintf("Sent the titles of %d %s (not private)", s.Count, noun)
+	if s.Status == wire.TraceNotebookIndex {
+		return "Sent the titles of " + countWord(s.Count, "notebook", "notebooks") + " (not private)"
 	}
-	if s.Status == "skipped" {
+	if s.Status == wire.TraceSkipped {
 		switch s.Reason {
-		case "notebook-missing":
+		case wire.SkipNotebookMissing:
 			return "Skipped a notebook · it was deleted"
-		case "notebook-private":
+		case wire.SkipNotebookPrivate:
 			return "Not sent · a private notebook (the agent cannot read it)"
-		case "notebook-limit":
+		case wire.SkipNotebookLimit:
 			return "Stopped reading notebooks · Keel's limit for one question"
 		}
 	}
-	parts := []string{bytesNoun(s.Bytes)}
+	parts := []string{countWord(s.Bytes, "byte", "bytes")}
 	if s.Truncated {
 		parts = append(parts, "cut by Keel")
 	}
@@ -79,7 +68,7 @@ func notebookStepText(s keelclient.TraceStep) string {
 // ---- attaching ----
 
 // attachable are the notebooks the picker lists: saved ones, pinned first, then by name. Private ones are listed but
-// cannot be ticked (lib/notebooks.js attachable).
+// cannot be ticked.
 func attachable(nbs []keelclient.Notebook) []keelclient.Notebook {
 	var out []keelclient.Notebook
 	for _, n := range nbs {
@@ -100,8 +89,7 @@ func attachable(nbs []keelclient.Notebook) []keelclient.Notebook {
 	return out
 }
 
-// reconcileAttached keeps the attached ids that still name a notebook the agent may read (not private), once each
-// (lib/notebooks.js reconcileAttached).
+// reconcileAttached keeps the attached ids that still name a notebook the agent may read (not private), once each.
 func reconcileAttached(ids []string, nbs []keelclient.Notebook) (out []string) {
 	for _, id := range ids {
 		if slices.Contains(out, id) {
@@ -114,8 +102,7 @@ func reconcileAttached(ids []string, nbs []keelclient.Notebook) (out []string) {
 	return out
 }
 
-// toggleAttached adds or removes one notebook; never more than maxAttached, never a private one (lib/notebooks.js
-// toggleAttached).
+// toggleAttached adds or removes one notebook; never more than maxAttached, never a private one.
 func toggleAttached(ids []string, id string, nbs []keelclient.Notebook) []string {
 	list := slices.Clone(ids)
 	if id == "" {
@@ -135,7 +122,6 @@ func toggleAttached(ids []string, id string, nbs []keelclient.Notebook) []string
 	return append(list, id)
 }
 
-// attachHint is the line under the chips (lib/notebooks.js attachHint).
 func attachHint(n int) string {
 	if n == 0 {
 		return ""
@@ -148,10 +134,9 @@ func attachHint(n int) string {
 
 // ---- what the agent did to a notebook (the cards) ----
 
-// warned: a change written after reading a pane gets the warning look (lib/notebooks.js warned).
+// warned: a change written after reading a pane gets the warning look.
 func warned(p keelclient.NotebookProposal) bool { return p.FromPane || len(p.PanesRead) > 0 }
 
-// paneWarning is the warning's text (lib/notebooks.js paneWarning).
 func paneWarning(p keelclient.NotebookProposal) string {
 	where := ""
 	if p.FromPane && p.SeenIn != "" {
@@ -161,20 +146,19 @@ func paneWarning(p keelclient.NotebookProposal) string {
 }
 
 var refusedTexts = map[string]string{
-	"conflict":  "You changed it after the agent read it, so Keel did not apply the agent's edit. Your text is as you left it.",
-	"editing":   "You were typing in it, so Keel did not apply the agent's edit.",
-	"private":   "It is private, so the agent cannot change it.",
-	"not-read":  "The agent had not read it in this question, so Keel did not apply the edit.",
-	"not-found": "It is not a notebook the agent may change.",
-	"deleted":   "It was deleted.",
-	"no-match":  "The text the agent meant to change was not found exactly once, so nothing changed.",
-	"redacted":  "Keel had removed values from it before the agent saw it, so the agent may change it only piece by piece. Nothing changed.",
-	"truncated": "Keel had sent only part of it, so the agent may change it only piece by piece. Nothing changed.",
-	"too-large": "The edit would make the notebook larger than Keel allows. Nothing changed.",
-	"history":   "Keel could not keep the previous version, so it made no change.",
+	wire.RefusedConflict:  "You changed it after the agent read it, so Keel did not apply the agent's edit. Your text is as you left it.",
+	wire.RefusedEditing:   "You were typing in it, so Keel did not apply the agent's edit.",
+	wire.RefusedPrivate:   "It is private, so the agent cannot change it.",
+	wire.RefusedNotRead:   "The agent had not read it in this question, so Keel did not apply the edit.",
+	wire.RefusedNotFound:  "It is not a notebook the agent may change.",
+	wire.RefusedDeleted:   "It was deleted.",
+	wire.RefusedNoMatch:   "The text the agent meant to change was not found exactly once, so nothing changed.",
+	wire.RefusedRedacted:  "Keel had removed values from it before the agent saw it, so the agent may change it only piece by piece. Nothing changed.",
+	wire.RefusedTruncated: "Keel had sent only part of it, so the agent may change it only piece by piece. Nothing changed.",
+	wire.RefusedTooLarge:  "The edit would make the notebook larger than Keel allows. Nothing changed.",
+	wire.RefusedHistory:   "Keel could not keep the previous version, so it made no change.",
 }
 
-// refusedText says why an edit was refused (lib/notebooks.js refusedText).
 func refusedText(reason string) string {
 	if t, ok := refusedTexts[reason]; ok {
 		return t
@@ -182,21 +166,20 @@ func refusedText(reason string) string {
 	return "The agent's edit was not valid. Nothing changed."
 }
 
-// cardHead is the card's title line (lib/notebooks.js cardHead).
 func cardHead(p keelclient.NotebookProposal) string {
 	switch p.Kind {
-	case "create":
-		if p.Status == "refused" {
+	case wire.NotebookCreate:
+		if p.Status == wire.CardRefused {
 			return "Notebook not created"
 		}
 		return "Created notebook"
-	case "edit":
-		if p.Status == "refused" {
+	case wire.NotebookEdit:
+		if p.Status == wire.CardRefused {
 			return "Notebook not changed"
 		}
 		return "Edited notebook"
-	case "delete":
-		if p.Status == "proposed" {
+	case wire.NotebookDelete:
+		if p.Status == wire.CardProposed {
 			return "Delete notebook?"
 		}
 		return "Delete notebook"
@@ -204,44 +187,44 @@ func cardHead(p keelclient.NotebookProposal) string {
 	return "Notebook draft"
 }
 
-// cardStatus is the line under the title, or "" for none (lib/notebooks.js cardStatus).
+// cardStatus is the line under the title, or "" for none.
 func cardStatus(p keelclient.NotebookProposal) string {
 	k, s := p.Kind, p.Status
 	switch k {
-	case "create":
+	case wire.NotebookCreate:
 		switch s {
-		case "created":
+		case wire.CardCreated:
 			return "Created by the agent and saved to Notebooks, marked From agent."
-		case "undone":
+		case wire.CardUndone:
 			return "Undone. The notebook is in Notebooks · Recently deleted."
-		case "refused":
+		case wire.CardRefused:
 			return refusedText(p.Reason)
 		}
-	case "edit":
+	case wire.NotebookEdit:
 		switch s {
-		case "edited":
+		case wire.CardEdited:
 			return "The agent changed this notebook. Keel kept the version before it: Undo puts it back, and History has every version."
-		case "undone":
+		case wire.CardUndone:
 			return "Undone. The notebook is back to the version before the agent's edit."
-		case "refused":
+		case wire.CardRefused:
 			return refusedText(p.Reason)
 		}
-	case "delete":
+	case wire.NotebookDelete:
 		switch s {
-		case "proposed":
+		case wire.CardProposed:
 			return "The agent asks to delete this notebook. Nothing is deleted unless you confirm."
-		case "deleted":
+		case wire.CardDeleted:
 			return "Deleted. It is in Notebooks · Recently deleted."
-		case "dismissed":
+		case wire.CardDismissed:
 			return "Kept. Nothing was deleted."
-		case "restored":
+		case wire.CardRestored:
 			return "Restored to Notebooks."
 		}
 	case "":
 		switch s {
-		case "saved":
+		case wire.CardSaved:
 			return "Saved to Notebooks as a new notebook, marked From agent."
-		case "dismissed":
+		case wire.CardDismissed:
 			return "Dismissed. Nothing was saved."
 		}
 		return "A draft from an earlier version of Keel. It was not saved; ask the agent again."
@@ -249,7 +232,7 @@ func cardStatus(p keelclient.NotebookProposal) string {
 	return ""
 }
 
-// The buttons of a card (lib/notebooks.js cardActions).
+// The buttons of a card.
 const (
 	actOpen    = "open"
 	actUndo    = "undo"
@@ -262,49 +245,48 @@ const (
 func cardActions(p keelclient.NotebookProposal) []string {
 	k, s := p.Kind, p.Status
 	if p.Expired {
-		if p.NotebookID != "" && (s == "created" || s == "edited" || s == "undone" || s == "saved") && k != "delete" {
+		if p.NotebookID != "" && (s == wire.CardCreated || s == wire.CardEdited || s == wire.CardUndone || s == wire.CardSaved) && k != wire.NotebookDelete {
 			return []string{actOpen}
 		}
 		return nil
 	}
 	switch k {
-	case "create":
-		if s == "created" {
+	case wire.NotebookCreate:
+		if s == wire.CardCreated {
 			return []string{actOpen, actUndo}
 		}
-		if s == "undone" && p.VersionID != "" {
+		if s == wire.CardUndone && p.VersionID != "" {
 			return []string{actRestore}
 		}
-	case "edit":
+	case wire.NotebookEdit:
 		switch s {
-		case "edited":
+		case wire.CardEdited:
 			return []string{actOpen, actUndo}
-		case "undone", "refused":
-			if p.NotebookID != "" && p.Reason != "private" && p.Reason != "not-found" && p.Reason != "deleted" {
+		case wire.CardUndone, wire.CardRefused:
+			if p.NotebookID != "" && p.Reason != wire.RefusedPrivate && p.Reason != wire.RefusedNotFound && p.Reason != wire.RefusedDeleted {
 				return []string{actOpen}
 			}
 			return nil
 		}
-	case "delete":
+	case wire.NotebookDelete:
 		switch s {
-		case "proposed":
+		case wire.CardProposed:
 			return []string{actOpen, actKeep, actDelete}
-		case "deleted":
+		case wire.CardDeleted:
 			if p.VersionID != "" {
 				return []string{actRestore}
 			}
-		case "restored", "dismissed":
+		case wire.CardRestored, wire.CardDismissed:
 			return []string{actOpen}
 		}
 	case "":
-		if s == "saved" && p.NotebookID != "" {
+		if s == wire.CardSaved && p.NotebookID != "" {
 			return []string{actOpen}
 		}
 	}
 	return nil
 }
 
-// deleteConfirmText is the question a proposed delete asks before it posts (lib/notebooks.js deleteConfirmText).
 func deleteConfirmText(p keelclient.NotebookProposal) string {
 	return fmt.Sprintf("Delete the notebook “%s”? The agent asked for this. It goes to Notebooks · Recently deleted, where you can restore it for 30 days.", orElse(p.Title, "Notebook"))
 }

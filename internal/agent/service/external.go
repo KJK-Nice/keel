@@ -18,11 +18,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"keel/internal/agent"
-	"keel/internal/agent/redact"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 const (
@@ -32,7 +31,7 @@ const (
 	// ExternalSource names the outside agent in keel.log (Source).
 	ExternalSource = "claude-code"
 	// ExternalTitle is that conversation's title.
-	ExternalTitle = "Claude Code"
+	ExternalTitle = wire.ExternalTitle
 	// maxExternalPanes caps one pane list.
 	maxExternalPanes = 64
 )
@@ -47,19 +46,19 @@ type PaneLister interface {
 	PaneIDs() []string
 }
 
-// ExternalPane is one pane an outside agent may read.
-type ExternalPane struct {
-	PaneID     string `json:"paneId"`
-	Host       string `json:"host"`
-	Production bool   `json:"production"`
-}
-
-// ExternalPaneList is the panes an outside agent may read, and how many
-// others are open on hosts it may not read (never their names).
-type ExternalPaneList struct {
-	Panes      []ExternalPane `json:"panes"`
-	NotAllowed int            `json:"notAllowed"`
-}
+// The shapes keel mcp reads are internal/wire's.
+type (
+	// ExternalPane is one pane an outside agent may read.
+	ExternalPane = wire.ExternalPane
+	// ExternalPaneList is the panes an outside agent may read, and how many
+	// others are open on hosts it may not read (never their names).
+	ExternalPaneList = wire.ExternalPaneList
+	// ExternalExcerpt is one pane as an outside agent reads it: redacted.
+	ExternalExcerpt = wire.ExternalExcerpt
+	// ExternalProposalState is what an outside agent may know of a proposal
+	// it made: whether the user typed it, and when.
+	ExternalProposalState = wire.ExternalProposalState
+)
 
 // ExternalPanes lists the open panes an outside agent may read. A host's
 // name goes through the request Redactor, so it is hidden when Settings ·
@@ -73,17 +72,11 @@ func (s *Service) ExternalPanes() (ExternalPaneList, error) {
 	if err != nil {
 		return ExternalPaneList{}, err
 	}
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return ExternalPaneList{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	byID := make(map[string]agent.Host, len(hosts))
-	for _, h := range hosts {
-		byID[h.ID] = h
-	}
-	scope := agent.NewScope(hosts)
-	r, err := s.requestRedactor(set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hs.list)
 	if err != nil {
 		return ExternalPaneList{}, err
 	}
@@ -93,14 +86,14 @@ func (s *Service) ExternalPanes() (ExternalPaneList, error) {
 		if !ok {
 			continue
 		}
-		if !scope.Allows(p) {
+		if !hs.scope.Allows(p) {
 			out.NotAllowed++
 			continue
 		}
 		if len(out.Panes) >= maxExternalPanes {
 			break
 		}
-		h := byID[p.HostID]
+		h := hs.byID[p.HostID]
 		out.Panes = append(out.Panes, ExternalPane{PaneID: p.SessionID, Host: r.Text(hostName(h)).String(), Production: h.Production})
 	}
 	return out, nil
@@ -113,17 +106,6 @@ func hostName(h agent.Host) string {
 	return h.Name
 }
 
-// ExternalExcerpt is one pane as an outside agent reads it: redacted.
-type ExternalExcerpt struct {
-	PaneID      string         `json:"paneId"`
-	Host        string         `json:"host"`
-	Production  bool           `json:"production"`
-	Lines       int            `json:"lines"`
-	LastCommand string         `json:"lastCommand,omitempty"` // "exit 1", "still running", … when read from OSC 133 marks
-	Redactions  map[string]int `json:"redactions,omitempty"`
-	Text        string         `json:"text"`
-}
-
 // ExternalRead reads one pane for an outside agent: at most lines lines
 // (0 or more than Settings · Agent's scrollback lines means that setting),
 // through the Auditor, redacted like an Ask. A pane on a host the agent may
@@ -133,23 +115,22 @@ func (s *Service) ExternalRead(paneID string, lines int) (ExternalExcerpt, error
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	p, h, scope, err := s.externalPane(paneID, hosts)
+	p, h, err := s.externalPane(paneID, hs)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
-	r, err := s.requestRedactor(set.Redact, hosts)
+	r, err := s.requestRedactor(set.Redact, hs.list)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
 	if lines <= 0 || lines > set.ScrollbackLines {
 		lines = set.ScrollbackLines
 	}
-	ex, err := s.audit.ReadPaneFrom(s.panes, scope, p, lines, r, ExternalSource)
+	ex, err := s.audit.ReadPane(s.panes, hs.scope, p, lines, r, ExternalSource)
 	if err != nil {
 		return ExternalExcerpt{}, err
 	}
@@ -162,28 +143,21 @@ func (s *Service) ExternalRead(paneID string, lines int) (ExternalExcerpt, error
 
 // externalPane resolves a pane an outside agent names, refusing one that
 // is not open or is on a host the agent may not read.
-func (s *Service) externalPane(paneID string, hosts []agent.Host) (agent.Pane, agent.Host, agent.Scope, error) {
+func (s *Service) externalPane(paneID string, hs hostSet) (agent.Pane, agent.Host, error) {
 	paneID = strings.TrimSpace(paneID)
 	if paneID == "" {
-		return agent.Pane{}, agent.Host{}, agent.Scope{}, badRequest("name a pane (paneId from list_panes)")
+		return agent.Pane{}, agent.Host{}, badRequest("name a pane (paneId from list_panes)")
 	}
 	p, ok := s.panes.Pane(paneID)
 	if !ok {
-		return agent.Pane{}, agent.Host{}, agent.Scope{}, ErrNotFound
+		return agent.Pane{}, agent.Host{}, ErrNotFound
 	}
-	scope := agent.NewScope(hosts)
-	if !scope.Allows(p) {
-		return agent.Pane{}, agent.Host{}, agent.Scope{}, agent.ErrNotReadable
+	if !hs.scope.Allows(p) {
+		return agent.Pane{}, agent.Host{}, agent.ErrNotReadable
 	}
-	var h agent.Host
-	for _, x := range hosts {
-		if x.ID == p.HostID {
-			h = x
-			break
-		}
-	}
+	h := hs.byID[p.HostID]
 	p.HostName = hostName(h)
-	return p, h, scope, nil
+	return p, h, nil
 }
 
 // ExternalProposeRequest is a command an outside agent proposes.
@@ -203,16 +177,15 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 		return Proposal{}, badRequest(fmt.Sprintf("a command is 1 to %d bytes and %d lines, with no control characters", maxCommandBytes, maxCommandLines))
 	}
 	why := truncate(strings.TrimSpace(req.Why), maxWhyBytes)
-	storeHosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return Proposal{}, err
 	}
-	hosts := agent.HostsFrom(storeHosts)
-	pane, h, _, err := s.externalPane(req.PaneID, hosts)
+	pane, h, err := s.externalPane(req.PaneID, hs)
 	if err != nil {
 		return Proposal{}, err
 	}
-	r, err := s.commandRedactor()
+	r, err := s.redactorFor(forKeptCommand)
 	if err != nil {
 		return Proposal{}, err
 	}
@@ -227,13 +200,7 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 	defer s.end(conv)
 
 	now := s.now()
-	risk := agent.Classify(cmd)
-	p := &Proposal{
-		ID: newID("p_"), SessionID: pane.SessionID, HostID: pane.HostID, Host: pane.HostName, Production: h.Production,
-		Command: cmd, Bytes: typedBytes(cmd), Why: why, Risk: risk,
-		NeedsShift: agent.NeedsShift(risk, h.Production), Placeholders: hasPlaceholder(cmd), ProposedAt: &now,
-	}
-	s.audit.SuggestFrom(pane, redact.Report{}, riskLabel(risk), ExternalSource)
+	p := s.newProposal(proposalSpec{Command: cmd, Why: why, Pane: pane, Production: h.Production, Source: ExternalSource}, now)
 
 	// What is kept goes through the Redactor, as for an Ask.
 	answer := "Claude Code proposed a command for " + pane.HostName + "."
@@ -260,15 +227,6 @@ func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) 
 	s.mu.Unlock()
 	s.persist(conv)
 	return out, nil
-}
-
-// ExternalProposalState is what an outside agent may know of a proposal
-// it made: whether the user typed it, and when.
-type ExternalProposalState struct {
-	ProposalID string     `json:"proposalId"`
-	Typed      bool       `json:"typed"`
-	TypedAt    *time.Time `json:"typedAt,omitempty"`
-	Edited     bool       `json:"edited"`
 }
 
 // ExternalProposal reports whether the user typed a proposal of the

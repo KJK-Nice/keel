@@ -6,10 +6,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Snippets page, the sidebar's Snippets section and the snippet dialog, drawn as SnippetsPage, SnippetList,
-// SidebarSnippets and snippetDialog (internal/ui) with the Keychain page's split layout (keychainview.go).
+// The Snippets page, the sidebar's Snippets section and the snippet dialog, with the Keychain page's split layout
+// (keychainview.go).
 
-// snippetMenu is the row menu (rowmenus.templ snippetMenuItems): Type into pane…, Copy, Edit, Delete. "Type into
+// snippetMenu is the row menu: Type into pane…, Copy, Edit, Delete. "Type into
 // pane…" asks Approve before type; nothing in the menu types.
 func (w *workspace) snippetMenu(c *ui.Context, s keelclient.Snippet) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
@@ -17,7 +17,7 @@ func (w *workspace) snippetMenu(c *ui.Context, s keelclient.Snippet) func(m *ui.
 			w.act(func() { w.typeSnippet(s.ID) })
 		}
 		if menuItem(m, "Copy").Chosen() {
-			w.act(func() { c.WriteClipboard(s.Command) })
+			w.act(func() { w.copyQuiet(s.Command) })
 		}
 		m.Separator()
 		if menuItem(m, "Edit").Chosen() {
@@ -131,7 +131,7 @@ func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur keelcl
 			})
 			help(c, "One command per line. Each line ends with Enter when typed.")
 		})
-		// "Preview of what gets typed": k-bytes, each line with its Enter as a k-ctl chip, then the count (pages.templ).
+		// "Preview of what gets typed": each line with its Enter as a chip, then the count.
 		lines, summary := snippetPreview(e.command)
 		ui.Column(c).FillWidth().Gap(space1).Children(func() {
 			label(c, "Preview of what gets typed", inkMuted)
@@ -170,7 +170,7 @@ func saveBtn(c *ui.Context, saving bool) bool {
 	return capButton(c, "Save", "⌘S", saving).Clicked() && !saving
 }
 
-// snippetKeys is ⌘S in the editor (term.js: the editor's keydown handler).
+// snippetKeys is ⌘S in the editor.
 func (w *workspace) snippetKeys(ev ui.InputEvent) {
 	if ev.Kind == ui.InputKeyDown && ev.Key == ui.KeyS && ev.Mods == ui.Cmd {
 		w.act(w.saveEditor)
@@ -179,8 +179,8 @@ func (w *workspace) snippetKeys(ev ui.InputEvent) {
 
 // ---- the sidebar's Snippets section ----
 
-// sidebarSnippets is SidebarSnippets: the snippets, each a row that asks Approve before type for the focused pane,
-// and Manage snippets. Notebooks (below the snippets in the webview) wait for their phase.
+// sidebarSnippets lists the snippets, each a row that asks Approve before type for the focused pane,
+// and Manage snippets.
 func (w *workspace) sidebarSnippets(c *ui.Context) {
 	ui.Column(c).FillWidth().Gap(space0_5).Children(func() {
 		shown := w.shownSnippets(w.snipQuery)
@@ -198,7 +198,7 @@ func (w *workspace) sidebarSnippets(c *ui.Context) {
 			}
 		}
 		if textBtn(c, "Manage snippets", btnGhost) {
-			w.act(func() { w.openPage("snippets") })
+			w.act(func() { w.openPage(pageSnippets) })
 		}
 		w.sidebarNotebooks(c) // the Notebooks half of the segment, under the same filter
 	})
@@ -230,7 +230,7 @@ func (w *workspace) sideSnippetRow(c *ui.Context, s keelclient.Snippet) {
 
 func (w *workspace) snippetDialogView(c *ui.Context) {
 	d := w.snipDlg
-	if d == nil || w.confirm != nil {
+	if d == nil {
 		return
 	}
 	title := "New snippet"
