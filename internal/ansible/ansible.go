@@ -18,7 +18,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Host is one inventory host. It deliberately has NO field for passwords,
@@ -34,9 +34,8 @@ type Host struct {
 	Jump       *Jump // nil = direct
 }
 
-// IsLocal reports whether h is the local shell (store.Host.IsLocal: this
-// package imports nothing of Keel's, so the word is repeated here once).
-func (h Host) IsLocal() bool { return h.Auth == store.AuthLocal }
+// IsLocal reports whether h is the local shell.
+func (h Host) IsLocal() bool { return h.Auth == wire.AuthLocal }
 
 // Jump is the jump host a Host connects through.
 type Jump struct {
@@ -274,9 +273,9 @@ func jumpArg(inv Inventory, h Host) string {
 func hostHints(inv Inventory, h Host, name string) []string {
 	var out []string
 	switch h.Auth {
-	case store.AuthKey, store.AuthIdentity:
+	case wire.AuthKey, wire.AuthIdentity:
 		out = append(out, name+": Keel keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.")
-	case store.AuthPassword:
+	case wire.AuthPassword:
 		out = append(out, name+": this host signs in with a password kept in Keel's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.")
 	}
 	if h.Production {
