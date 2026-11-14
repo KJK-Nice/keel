@@ -65,7 +65,10 @@ func loadTyped() ([]*typedPkg, error) {
 		}
 		return nil, err
 	}
-	type listed struct{ ImportPath, Export, Dir string; GoFiles []string }
+	type listed struct {
+		ImportPath, Export, Dir string
+		GoFiles                 []string
+	}
 	exports := map[string]string{}
 	var own []listed
 	dec := json.NewDecoder(strings.NewReader(string(out)))
