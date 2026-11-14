@@ -241,9 +241,6 @@ func (p *startPage) sync(cards []keelclient.Host) {
 
 // ---- opening ----
 
-// openFrom opens h in the page's tab (term.js openSession with the tab).
-func (w *workspace) openFrom(t *tab, h keelclient.Host) { w.openHostIn(h, t) }
-
 // openHost starts a session on h in a new tab, or in the New tab that is showing (term.js fillableStartTab).
 func (w *workspace) openHost(h keelclient.Host) {
 	fill := w.tab()
@@ -304,7 +301,7 @@ func (w *workspace) openCard(t *tab, n int) {
 		a.done, cards = true, a.cards
 	}
 	if n >= 0 && n < len(cards) {
-		w.openFrom(t, cards[n])
+		w.openHostIn(cards[n], t)
 	}
 }
 
@@ -323,12 +320,12 @@ func (w *workspace) submitStart(t *tab) {
 	cards := w.cards(t.page)
 	for _, h := range cards {
 		if h.ID == p.pick {
-			w.openFrom(t, h)
+			w.openHostIn(h, t)
 			return
 		}
 	}
 	if len(cards) > 0 {
-		w.openFrom(t, cards[0])
+		w.openHostIn(cards[0], t)
 		return
 	}
 	w.warn("No matching host")

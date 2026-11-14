@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,10 +20,6 @@ func dayDiff(a, b time.Time) int {
 	by := time.Date(b.Year(), b.Month(), b.Day(), 0, 0, 0, 0, time.UTC)
 	return int(ay.Sub(by).Hours() / 24)
 }
-
-func hhmm(t time.Time) string { return clockHM(t) }
-
-func monthDay(t time.Time) string { return clockMD(t) }
 
 // dayGroup puts a time in "Today", "Yesterday" or "Older" by local date. A time that is not set is "Older".
 func dayGroup(when, now time.Time) string {
@@ -44,9 +41,9 @@ func sessionWhen(when, now time.Time) string {
 	case when.IsZero():
 		return ""
 	case dayGroup(when, now) == "Older":
-		return monthDay(when)
+		return clockMD(when)
 	}
-	return hhmm(when)
+	return clockHM(when)
 }
 
 // stampLabel is a message's time in a transcript: 16:02 today, Oct 14, 16:02 before.
@@ -55,9 +52,9 @@ func stampLabel(when, now time.Time) string {
 	case when.IsZero():
 		return ""
 	case dayGroup(when, now) == "Today":
-		return hhmm(when)
+		return clockHM(when)
 	}
-	return monthDay(when) + ", " + hhmm(when)
+	return clockMD(when) + ", " + clockHM(when)
 }
 
 // agoLabel says how long ago a conversation was last used (the Resumed divider).
@@ -101,7 +98,7 @@ type sessionGroup struct {
 func sessionGroups(sessions []keelclient.ConversationSummary, query string, now time.Time, host string) []sessionGroup {
 	q := strings.ToLower(strings.TrimSpace(query))
 	match := func(s keelclient.ConversationSummary) bool {
-		if host != "" && !contains(s.Hosts, host) {
+		if host != "" && !slices.Contains(s.Hosts, host) {
 			return false
 		}
 		if q == "" || strings.Contains(strings.ToLower(s.Title), q) {
@@ -166,7 +163,7 @@ func hostFilters(sessions []keelclient.ConversationSummary, max int) []string {
 			if len(out) >= max {
 				return out
 			}
-			if h != "" && !contains(out, h) {
+			if h != "" && !slices.Contains(out, h) {
 				out = append(out, h)
 			}
 		}
@@ -185,7 +182,7 @@ type convTurn struct {
 func conversationHosts(turns []convTurn) []string {
 	var out []string
 	add := func(h string) {
-		if h != "" && !contains(out, h) {
+		if h != "" && !slices.Contains(out, h) {
 			out = append(out, h)
 		}
 	}
@@ -263,9 +260,9 @@ func startedLabel(when time.Time, questions int, now time.Time) string {
 	}
 	day := dayGroup(when, now)
 	if day == "Older" {
-		day = monthDay(when)
+		day = clockMD(when)
 	}
-	return day + " " + hhmm(when) + " · " + count
+	return day + " " + clockHM(when) + " · " + count
 }
 
 // sessionsEmptyText says why a list shows no rows, or "" when it has some: the panel and the page say the same.

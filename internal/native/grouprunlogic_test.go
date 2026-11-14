@@ -99,7 +99,7 @@ func TestTheApproveDialogOneRowPerHostNothingTickedUnlessItIsTheOnlyOne(t *testi
 	if !rowsNeedShift(rows) || typeLabel(rows) != "Type into 1 pane" {
 		t.Errorf("shift %v, label %q", rowsNeedShift(rows), typeLabel(rows))
 	}
-	if !sameBytes(rows) {
+	if rowGroups(rows) != 1 {
 		t.Error("the rows type different bytes")
 	}
 	if one := approveRows(cells[:1]); !one[0].checked {

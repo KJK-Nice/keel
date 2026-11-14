@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
@@ -106,7 +107,7 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 		})
 		for _, nb := range all {
 			id, name := nb.ID, notebookName(nb)
-			ticked := contains(a.attached, id)
+			ticked := slices.Contains(a.attached, id)
 			off := (!ticked && full) || nb.Private
 			if a.nbRowH[id] == nil {
 				a.nbRowH[id] = new(ui.Handle)

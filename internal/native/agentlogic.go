@@ -3,6 +3,7 @@ package native
 import (
 	"crypto/rand"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -82,20 +83,11 @@ func reconcileScope(ids []string, ps []agentPane) []string {
 	}
 	out := []string{}
 	for _, id := range ids {
-		if ok[id] && !contains(out, id) {
+		if ok[id] && !slices.Contains(out, id) {
 			out = append(out, id)
 		}
 	}
 	return out
-}
-
-func contains(ids []string, id string) bool {
-	for _, x := range ids {
-		if x == id {
-			return true
-		}
-	}
-	return false
 }
 
 // toggleScope adds or removes one pane. A pane the agent cannot read, or a joined one, is never added.
@@ -104,7 +96,7 @@ func toggleScope(ids []string, p *agentPane) []string {
 	switch {
 	case p == nil:
 		return out
-	case contains(ids, p.sessionID):
+	case slices.Contains(ids, p.sessionID):
 		out = out[:0]
 		for _, id := range ids {
 			if id != p.sessionID {

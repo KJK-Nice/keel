@@ -50,7 +50,7 @@ func (w *workspace) joinDialogView(c *ui.Context) {
 func (w *workspace) joinBanner(c *ui.Context, t *tab, p *pane, st keelclient.State) {
 	leave := func() {
 		if textBtn(c, "Leave", btnGhost) {
-			w.act(func() { w.leaveJoin(t) })
+			w.act(func() { w.closeTab(t) })
 		}
 	}
 	if st.Status == wire.StatusError {

@@ -207,7 +207,7 @@ func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
 		}
 	})
 	if r.Clicked() {
-		w.act(func() { w.openFrom(t, h) })
+		w.act(func() { w.openHostIn(h, t) })
 	}
 }
 

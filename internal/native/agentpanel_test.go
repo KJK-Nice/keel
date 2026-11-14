@@ -309,7 +309,7 @@ func TestTheScopeChipCountsAndThePickerRefusesAHostTheAgentCannotRead(t *testing
 	}
 	r.click(t, "pick staging-web · staging-web")
 	r.click(t, "Choose what the agent can read")
-	if contains(r.w.agent.scope, "s2") {
+	if slices.Contains(r.w.agent.scope, "s2") {
 		t.Fatalf("a host the agent cannot read was picked: %v", r.w.agent.scope)
 	}
 }

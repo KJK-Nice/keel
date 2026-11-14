@@ -9,8 +9,6 @@ import (
 // The Keychain page drawn as KeychainPage and IdentityList (internal/ui) with .k-split, .k-item and .k-detail-* of
 // keel.css, and the detail of lib/vaultview.js identityDetailHTML.
 
-const ()
-
 // splitHead is the list column's head: the title with its New button, and the filter.
 func (w *workspace) splitHead(c *ui.Context, title, newLabel string, filter *string, filterLabel string, h *ui.Handle, onNew func()) {
 	hairline(ui.Column(c).FillWidth().Shrink(0).Padding(space6, space4, space3).Gap(space3), 0, 0, 1, 0).Children(func() {

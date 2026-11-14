@@ -120,10 +120,6 @@ func (w *workspace) joinedActive() bool {
 	return t != nil && t.remote
 }
 
-// leaveJoin is the banner's Leave: the same as closing the tab. The peer connection closes; the host's session is
-// not touched.
-func (w *workspace) leaveJoin(t *tab) { w.closeTab(t) }
-
 // followNotice is "Typing is off while you follow" with Ask for control (ui/sharecontrol.js wireFollowerNotice), shown
 // when a follower types. Feedback only: nothing was sent.
 const followNotice = "Typing is off while you follow"

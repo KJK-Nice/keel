@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -626,7 +627,7 @@ func TestTheViewsCodeIsTheFencesCodeForTheSameBlock(t *testing.T) {
 // A 256 KiB notebook in the text area: typing a character must not take more than 100 ms (plan 023 STOP 4).
 func TestAHugeDocumentIsUsableInTheTextArea(t *testing.T) {
 	var sb strings.Builder
-	for sb.Len() < notebookLimitText-64 {
+	for sb.Len() < limits.MaxNotebookBytes-64 {
 		sb.WriteString("echo a line of the notebook, long enough to be a real line of a runbook step\n")
 	}
 	r := nbRig(t, sb.String())
