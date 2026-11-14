@@ -2,10 +2,23 @@ package paths
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 )
 
 const DefaultListen = "127.0.0.1:47241"
+
+// LocalUser is the name of the user running Keel: $USER, else the account
+// the OS reports, else "".
+func LocalUser() string {
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	if u, err := user.Current(); err == nil {
+		return u.Username
+	}
+	return ""
+}
 
 func Addr() string {
 	if v := os.Getenv("KEEL_ADDR"); v != "" {

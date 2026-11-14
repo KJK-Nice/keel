@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"keel/internal/inject"
+	"keel/internal/paths"
 	"keel/internal/randid"
 	"keel/internal/scrollback"
 	"keel/internal/session"
@@ -1226,7 +1227,7 @@ func subtitle(h store.Host) string {
 
 func localSubtitle() string {
 	host, _ := os.Hostname()
-	user := os.Getenv("USER")
+	user := paths.LocalUser()
 	switch {
 	case user != "" && host != "":
 		return user + "@" + host

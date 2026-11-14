@@ -17,6 +17,7 @@ import (
 	"filippo.io/age"
 
 	"keel/internal/limits"
+	"keel/internal/paths"
 	"keel/internal/randid"
 	"keel/internal/wire"
 )
@@ -612,7 +613,7 @@ func seed() persistData {
 			Group:     "This machine",
 			Address:   "localhost",
 			Port:      0,
-			Username:  os.Getenv("USER"),
+			Username:  paths.LocalUser(),
 			AuthType:  AuthLocal,
 			Color:     DefaultHostColor,
 			CreatedAt: now,
