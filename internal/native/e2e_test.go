@@ -352,12 +352,7 @@ func (e *win) shot(name string) {
 	}
 }
 
-func (e *win) pixel(x, y float32) [3]uint8 {
-	img := e.tt.Image()
-	s := float64(img.Bounds().Dx()) / 1280
-	o := img.PixOffset(int(float64(x)*s), int(float64(y)*s))
-	return [3]uint8{img.Pix[o], img.Pix[o+1], img.Pix[o+2]}
-}
+func (e *win) pixel(x, y float32) [3]uint8 { return pixelAt(e.tt, x, y) }
 
 // inked counts pixels of r that differ from the stage ground: a terminal that drew text has many.
 func (e *win) inked(r ui.Rect) (n int) {

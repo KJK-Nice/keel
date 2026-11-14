@@ -15,7 +15,7 @@ func TestTheAgentPageComposerIsVisibleAtEveryWidthWithThePanelOpenOrNot(t *testi
 			r.tt.SetSize(width, 720)
 			r.openPageSettled()
 			r.w.setAgentOpen(panel)
-			r.settleFrames()
+			r.settle()
 			page, ok := r.tt.Find("agent page")
 			if !ok {
 				t.Fatalf("width %v panel %v: no page", width, panel)

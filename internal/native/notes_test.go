@@ -171,7 +171,7 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 	}
 	// Delete all notes asks first; Cancel keeps them.
 	r.click(t, "Delete all notes…")
-	r.settleFrames()
+	r.settle()
 	cf := r.w.confirm
 	if cf == nil || cf.title != "Delete all notes?" || cf.action != "Delete all notes" ||
 		cf.message != "Every host note and every note about you is deleted from the vault. Conversations and the log stay." {
@@ -181,14 +181,14 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 		t.Fatal("it deleted before it asked")
 	}
 	r.click(t, "Cancel")
-	r.settleFrames()
+	r.settle()
 	if r.fb.mem.gone != 0 || r.w.confirm != nil || len(r.fb.mem.notes) != 3 {
 		t.Fatalf("Cancel: deleted %d, notes %d", r.fb.mem.gone, len(r.fb.mem.notes))
 	}
 	r.click(t, "Delete all notes…")
-	r.settleFrames()
+	r.settle()
 	r.w.confirm.run() // the dialog's action (its button shares its words with the row's)
-	r.settleFrames()
+	r.settle()
 	if r.fb.mem.gone != 1 || len(r.fb.mem.notes) != 0 || !r.tt.HasText("Notes deleted") {
 		t.Fatalf("deleted %d, notes %v", r.fb.mem.gone, r.fb.mem.notes)
 	}

@@ -178,14 +178,14 @@ func TestLockedFirstRunShowsUnlockThenFirstRun(t *testing.T) {
 	fb.unlockWant = testPass
 	r := newRig(t, fb)
 	r.tt.Frame()
-	if !r.hasText("Unlock your vault") {
+	if !r.tt.HasText("Unlock your vault") {
 		t.Fatal("a locked vault with an open first run does not show Unlock")
 	}
 	fb.vault.FirstRun = true // Unlock opens it; the first run stays open
 	r.typeIn(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || !r.hasText("Welcome to Keel") {
+	if r.w.gate != nil || !r.tt.HasText("Welcome to Keel") {
 		t.Error("after unlocking, an open first run shows its step 1")
 	}
 }

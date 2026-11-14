@@ -526,13 +526,6 @@ func TestAServerRefusalIsShownOnTheCardAndNeverRetried(t *testing.T) {
 	}
 }
 
-// settle runs a few frames: nothing may happen by itself.
-func (r *rig) settle() {
-	for range 5 {
-		r.tt.Frame()
-	}
-}
-
 func TestEditSavesThroughTheServerAndWhatIsTypedIsWhatTheServerHolds(t *testing.T) {
 	r := agentRig(t)
 	r.answers(okProposal())

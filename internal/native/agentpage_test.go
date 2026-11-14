@@ -19,13 +19,13 @@ import (
 // after the first frame), as a click needs.
 func (r *rig) openPageSettled() {
 	r.w.openAgentPage()
-	r.settleFrames()
+	r.settle()
 }
 
-// settleFrames draws at least four frames and then until the texts and the page's rect stop changing (at most twelve): after a
+// settle draws at least four frames and then until the texts and the page's rect stop changing (at most twelve): after a
 // resize or a page opening, how many frames a layout needs is not the same on every platform (on Ubuntu CI the Agent page's
 // width was one resize behind after two frames, issue #140), so the tests wait for the layout, not for a count.
-func (r *rig) settleFrames() {
+func (r *rig) settle() {
 	prev := ""
 	for i := 0; i < 12; i++ {
 		r.tt.Frame()
@@ -90,7 +90,7 @@ func TestPickingARowResumesForThePanelAndThePage(t *testing.T) {
 	r := savedRig(t)
 	r.openPageSettled()
 	r.click(t, "conversation Why is pg-2 lagging")
-	r.settleFrames()
+	r.settle()
 	if r.w.agent.conv != "c-today" || !r.tt.HasText("why is replication slow") || !strings.Contains(strings.Join(r.tt.Texts(), "\n"), "1 question") {
 		t.Fatalf("the page did not resume: %v", r.tt.Texts())
 	}
@@ -141,7 +141,7 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	r := savedRig(t)
 	r.openPageSettled()
 	r.click(t, "conversation Why is pg-2 lagging")
-	r.settleFrames()
+	r.settle()
 	p := pageOf(t, r)
 	r.click(t, "Rename this conversation")
 	r.tt.Frame()
@@ -193,12 +193,12 @@ func TestTheHostChipsFilterTheList(t *testing.T) {
 		}
 	}
 	r.click(t, "host filter ceph-rgw-1")
-	r.settleFrames()
+	r.settle()
 	if r.has("conversation Why is pg-2 lagging") || !r.has("conversation TLS cert") || r.has("conversation Disk full") {
 		t.Errorf("the chip did not filter: %v", r.tt.Texts())
 	}
 	r.click(t, "host filter All")
-	r.settleFrames()
+	r.settle()
 	if !r.has("conversation Disk full") {
 		t.Error("All did not clear the filter")
 	}
@@ -267,7 +267,7 @@ func TestTheNarrowLayoutsFollowTheTabWidth(t *testing.T) {
 		t.Fatalf("width %v: not the three columns", p.width)
 	}
 	r.tt.SetSize(1100, 700) // 1100 - the sidebar is in the 660-960 range
-	r.settleFrames()
+	r.settle()
 	if pageLayout(p.width) != layoutMid {
 		t.Errorf("width %v: not the context under the list", p.width)
 	}
@@ -275,7 +275,7 @@ func TestTheNarrowLayoutsFollowTheTabWidth(t *testing.T) {
 		t.Errorf("the mid layout lost a column: %v", r.tt.Texts())
 	}
 	r.tt.SetSize(850, 700)
-	r.settleFrames()
+	r.settle()
 	if pageLayout(p.width) != layoutNarrow {
 		t.Errorf("width %v: not the narrow layout", p.width)
 	}

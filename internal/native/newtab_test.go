@@ -400,7 +400,7 @@ func TestConnectOnceAsksForThePasswordAndSavesAQuickHost(t *testing.T) {
 	r.tt.Type("ssh -p 2222 -i ~/.ssh/k deploy@10.0.0.5")
 	r.tt.Frame()
 	r.click(t, "Connect once")
-	if r.w.quick == nil || !r.hasText("dialog Quick connect") || !r.tt.HasText("Key file ~/.ssh/k was not read.") {
+	if r.w.quick == nil || !r.tt.HasText("dialog Quick connect") || !r.tt.HasText("Key file ~/.ssh/k was not read.") {
 		t.Fatal("Connect once did not open the Quick connect dialog with the note")
 	}
 	if r.w.quick.target != "deploy@10.0.0.5:2222" || r.w.quick.password != "" || !r.tt.Focused("Password") {
@@ -435,7 +435,7 @@ func TestConnectOnceAsksForThePasswordAndSavesAQuickHost(t *testing.T) {
 			t.Errorf("%s holds the password", filepath.Base(f))
 		}
 	}
-	if r.hasText(secret) {
+	if r.tt.HasText(secret) {
 		t.Error("the password is drawn")
 	}
 }
@@ -458,8 +458,6 @@ func TestQuickConnectRefusesWhatIsNotUserAtHost(t *testing.T) {
 		t.Error("Esc did not close the dialog")
 	}
 }
-
-func (r *rig) hasText(s string) bool { _, ok := r.tt.Find(s); return r.tt.HasText(s) || ok }
 
 func TestRecentlyClosedRowsReopenAsANewSession(t *testing.T) {
 	r := startRig(t)
