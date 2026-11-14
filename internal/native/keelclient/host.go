@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"keel/internal/limits"
+	"keel/internal/wire"
 )
 
 // What a Host says about itself, decided once. keel serve stores the defaults (a port of 0 on a saved SSH host is 22, an
@@ -15,10 +16,10 @@ func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
 
 // How a host signs in (Host.AuthType).
 const (
-	AuthPassword = "password"
-	AuthKey      = "key"
-	AuthIdentity = "identity"
-	AuthLocal    = "local"
+	AuthPassword = wire.AuthPassword
+	AuthKey      = wire.AuthKey
+	AuthIdentity = wire.AuthIdentity
+	AuthLocal    = wire.AuthLocal
 )
 
 // SSHPort is the port the host is reached on: its own, or 22 when none is set.

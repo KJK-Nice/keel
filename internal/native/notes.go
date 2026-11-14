@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15). The feature is the list in Edit host and in
@@ -266,7 +267,7 @@ func (a *agentPanel) registerNote(n keelclient.NoteProposal) *agentNote {
 }
 
 func (w *workspace) startEditNoteProposal(rec *agentNote) {
-	if rec.n.Expired || rec.n.Status != "open" {
+	if rec.n.Expired || rec.n.Status != wire.CardOpen {
 		return
 	}
 	rec.editing, rec.edit, rec.focusEdit = true, rec.n.Text, true
@@ -277,7 +278,7 @@ func (w *workspace) startEditNoteProposal(rec *agentNote) {
 func (w *workspace) saveNoteProposal(id string) {
 	a := w.agent
 	rec := a.notes[id]
-	if rec == nil || rec.busy || rec.n.Expired || rec.n.Status != "open" {
+	if rec == nil || rec.busy || rec.n.Expired || rec.n.Status != wire.CardOpen {
 		return
 	}
 	text := ""

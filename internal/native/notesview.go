@@ -4,6 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // Notes for the agent drawn: the list in Edit host and in Settings · Agent
@@ -187,17 +188,17 @@ func (w *workspace) agentNoteCard(c *ui.Context, id string, onPage bool) {
 		editH = &rec.editHP
 	}
 	border := line
-	if warn && n.Status == "open" && !n.Expired {
+	if warn && n.Status == wire.CardOpen && !n.Expired {
 		border = signal
 	}
 	card := ui.Column(c).FillWidth().Key("note "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposed note")
 	card.Children(func() {
-		if n.Status != "open" || n.Expired {
+		if n.Status != wire.CardOpen || n.Expired {
 			msg := noteProposalDone(n)
-			if n.Status == "open" {
+			if n.Status == wire.CardOpen {
 				msg = "Not saved. This proposal expired; add the note yourself in Edit host or Settings · Agent."
 			}
-			w.doneRow(c, n.Status == "saved", msg, func() {
+			w.doneRow(c, n.Status == wire.CardSaved, msg, func() {
 				if !n.Expired && textBtnOff(c, "Undo", btnGhost, rec.busy) {
 					w.act(func() { w.undoNoteProposal(id) })
 				}

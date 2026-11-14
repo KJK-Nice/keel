@@ -98,7 +98,7 @@ func (r *shareE2E) admitAndWait(t *testing.T) time.Duration {
 	return time.Since(start)
 }
 
-// noOffMachine asserts what the plan asks of every scenario: the window's peers were built with an empty ICE list and
+// noOffMachine asserts, for every scenario, that the window's peers were built with an empty ICE list and
 // dial a loopback signal server.
 func (e *win) noOffMachine() {
 	e.t.Helper()

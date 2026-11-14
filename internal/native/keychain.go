@@ -40,14 +40,14 @@ func (p *keychainPage) GoString() string { return p.String() }
 
 // identityKind is "Key" or "Password": anything but a key is a password.
 func identityKind(id keelclient.Identity) string {
-	if id.Kind == "key" {
-		return "key"
+	if id.Kind == keelclient.AuthKey {
+		return keelclient.AuthKey
 	}
-	return "password"
+	return keelclient.AuthPassword
 }
 
 func identityKindLabel(id keelclient.Identity) string {
-	if identityKind(id) == "key" {
+	if identityKind(id) == keelclient.AuthKey {
 		return "SSH key"
 	}
 	return "Password"
@@ -175,7 +175,7 @@ func (w *workspace) editIdentity(id keelclient.Identity) { w.openIdentityDialog(
 
 func (w *workspace) openIdentityDialog(id *keelclient.Identity) {
 	w.closeIdentityDialog()
-	d := &identityDialog{f: identityForm{kind: "password"}, focus: true}
+	d := &identityDialog{f: identityForm{kind: keelclient.AuthPassword}, focus: true}
 	if id != nil {
 		d.id = id.ID
 		d.f = identityForm{name: id.Name, username: id.Username, kind: identityKind(*id)}
@@ -206,7 +206,7 @@ func (f identityForm) validate() string {
 func (f identityForm) input(id string) keelclient.IdentityInput {
 	in := keelclient.IdentityInput{ID: id, Name: strings.TrimSpace(f.name), Username: strings.TrimSpace(f.username), Kind: f.kind}
 	switch f.kind {
-	case "key":
+	case keelclient.AuthKey:
 		in.PrivateKey, in.Passphrase = f.privateKey, f.passphrase
 	default:
 		in.Password = f.password

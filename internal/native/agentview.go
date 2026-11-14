@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // A card's buttons ask the workspace (agent.go); none of them types. Type into pane opens Approve before type.
@@ -397,11 +398,11 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 				traceRow(c, "agent-skip", inkFaint, "Stopped")
 			case t.done:
 				for _, s := range t.trace {
-					if s.Status == "read" {
+					if s.Status == wire.TraceRead {
 						traceRow(c, "tick", tide, traceText(s))
-					} else if s.Status == "notebook" || s.Status == "notebook-index" {
+					} else if s.Status == wire.TraceNotebook || s.Status == wire.TraceNotebookIndex {
 						traceRow(c, "notebook", inkFaint, traceText(s))
-					} else if s.Status == "notes" || s.Status == "runbook" {
+					} else if s.Status == wire.TraceNotes || s.Status == wire.TraceRunbook {
 						traceRow(c, "agent-info", inkFaint, traceText(s))
 					} else {
 						traceRow(c, "agent-skip", inkFaint, traceText(s))

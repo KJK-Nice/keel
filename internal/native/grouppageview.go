@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // memberCols are the table's columns as weights: Host, Address, Role, Tags, Agent.
@@ -327,7 +328,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 		ui.Scroll(c).FillWidth().Grow(1).Shrink(1).Children(func() {
 			ui.Column(c).FillWidth().Padding(space4).Gap(space3).Children(func() {
 				help(c, groupExportHelp)
-				segControl(c, "Inventory format", ex.format, [][2]string{{"ini", "INI"}, {"yaml", "YAML"}}, func(v string) {
+				segControl(c, "Inventory format", ex.format, [][2]string{{wire.FormatINI, "INI"}, {wire.FormatYAML, "YAML"}}, func(v string) {
 					w.act(func() { ex.format, ex.file = v, 0; w.exportRefresh(p) })
 				})
 				entries := []pickEntry{{"", "Inventory only", ""}}
@@ -345,7 +346,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 					})
 				})
 				if ex.runbook != "" {
-					segControl(c, "Playbook mode", ex.mode, [][2]string{{"rolling", "Rolling"}, {"parallel", "Parallel"}}, func(v string) {
+					segControl(c, "Playbook mode", ex.mode, [][2]string{{wire.ModeRolling, "Rolling"}, {wire.ModeParallel, "Parallel"}}, func(v string) {
 						w.act(func() { ex.mode = v; w.exportRefresh(p) })
 					})
 				}

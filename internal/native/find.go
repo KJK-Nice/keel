@@ -34,11 +34,11 @@ func (w *workspace) endFind() {
 	w.findPane, w.findDone = nil, ""
 }
 
-// closeFind is endFind that, with refocus, gives the keyboard back to the terminal.
-func (w *workspace) closeFind(refocus bool) {
+// closeFind is endFind that gives the keyboard back to the terminal.
+func (w *workspace) closeFind() {
 	p := w.findPane
 	w.endFind()
-	if refocus && p != nil {
+	if p != nil {
 		w.wantFocus = p.id
 	}
 }
@@ -91,7 +91,7 @@ func (w *workspace) findBar(c *ui.Context, p *pane) {
 		in.OnTextKey(func(k ui.TextKey) bool {
 			switch {
 			case k.Key == ui.KeyEscape && k.Mods == 0:
-				w.act(func() { w.closeFind(true) })
+				w.act(func() { w.closeFind() })
 			case k.Key == ui.KeyEnter && k.Mods == 0:
 				w.act(func() { w.findStep(true) })
 			case k.Key == ui.KeyEnter && k.Mods == ui.Shift:
@@ -109,7 +109,7 @@ func (w *workspace) findBar(c *ui.Context, p *pane) {
 			w.act(func() { w.findStep(true) })
 		}
 		if iconBtn(c, "cancel-01", "Close", sizeControlSm, false) {
-			w.act(func() { w.closeFind(true) })
+			w.act(func() { w.closeFind() })
 		}
 	})
 }

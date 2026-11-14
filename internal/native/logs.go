@@ -62,8 +62,8 @@ func logGroup(kind string) string {
 	return "other"
 }
 
-// logRows are the entries the search box and the chip keep, in the server's order (newest first). The search
-// matches the kind and the message, any case (data.go filterLogs).
+// rows are the entries the search box and the chip keep, in the server's order (newest first). The search
+// matches the kind and the message, any case.
 func (p *logsPage) rows() []keelclient.LogEntry {
 	q := strings.ToLower(strings.TrimSpace(p.filter))
 	var out []keelclient.LogEntry
@@ -86,7 +86,7 @@ func logTimeLabel(e keelclient.LogEntry) string {
 	return clockHMS(e.Time)
 }
 
-// logBadgeFailed marks failures with flare; every other kind stays neutral (data.go logBadgeClass).
+// logBadgeFailed marks failures with flare; every other kind stays neutral.
 func logBadgeFailed(kind string) bool {
 	switch strings.ToLower(kind) {
 	case "error", "fail", "denied":
@@ -106,7 +106,7 @@ func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
 	return "—"
 }
 
-// logFacts lists the counts an agent entry carries, as short labels in this order (data.go logFacts).
+// logFacts lists the counts an agent entry carries, as short labels in this order.
 func logFacts(e keelclient.LogEntry) []string {
 	var out []string
 	if e.Count > 1 {

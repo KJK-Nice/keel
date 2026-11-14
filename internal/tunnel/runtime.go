@@ -13,15 +13,16 @@ import (
 
 	"keel/internal/session"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 type Status string
 
 const (
-	StatusStopped    Status = "stopped"
-	StatusConnecting Status = "connecting"
-	StatusReady      Status = "ready"
-	StatusError      Status = "error"
+	StatusStopped    Status = wire.TunnelStopped
+	StatusConnecting Status = wire.TunnelConnecting
+	StatusReady      Status = wire.TunnelReady
+	StatusError      Status = wire.TunnelError
 )
 
 type Dialer interface {

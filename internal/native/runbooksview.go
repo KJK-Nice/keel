@@ -10,6 +10,7 @@ import (
 	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/runvars"
+	"keel/internal/wire"
 )
 
 // The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes. Colours and sizes are
@@ -463,9 +464,9 @@ func (e *rbEditor) addHostChip() {
 
 func stepMarkColor(state string) ui.Color {
 	switch state {
-	case "done":
+	case wire.StepDone:
 		return tide
-	case "failed":
+	case wire.StepFailed:
 		return flare
 	case "now":
 		return accentInk
@@ -501,7 +502,7 @@ func (w *workspace) runCard(c *ui.Context, runID string) {
 			})
 		}
 		switch {
-		case run == nil || (run.Status == "stopped" && !u.none):
+		case run == nil || (run.Status == wire.RunStopped && !u.none):
 			nameRow("Stopped")
 			return
 		case u.none:
@@ -683,18 +684,18 @@ func (w *workspace) agentBookCard(c *ui.Context, id string) {
 	b := rec.b
 	warn := runbookProposalWarn(b)
 	border := line
-	if warn && b.Status == "open" && !b.Expired {
+	if warn && b.Status == wire.CardOpen && !b.Expired {
 		border = signal
 	}
 	card := ui.Column(c).FillWidth().Key("book "+id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposed runbook")
 	card.Children(func() {
-		if b.Status != "open" || b.Expired {
+		if b.Status != wire.CardOpen || b.Expired {
 			msg := runbookProposalDone(b)
-			if b.Status == "open" {
+			if b.Status == wire.CardOpen {
 				msg = "Not saved. This proposal expired; add the runbook yourself on the Runbooks page."
 			}
-			w.doneRow(c, b.Status == "saved", msg, func() {
-				if b.Status == "saved" && textBtn(c, "Open Runbooks", btnGhost) {
+			w.doneRow(c, b.Status == wire.CardSaved, msg, func() {
+				if b.Status == wire.CardSaved && textBtn(c, "Open Runbooks", btnGhost) {
 					w.act(w.openRunbooksPage)
 				}
 				if !b.Expired && textBtnOff(c, "Undo", btnGhost, rec.busy) {

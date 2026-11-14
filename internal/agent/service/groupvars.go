@@ -45,22 +45,6 @@ import (
 // when the runbook ends, or after 1 hour").
 const captureTTL = time.Hour
 
-// Capture states, per host, as the run page shows them. Never the value.
-const (
-	CaptureCaptured = "captured"
-	CaptureNoMatch  = "no-match"
-	CaptureBlocked  = "blocked"   // holds a vault value: not kept
-	CaptureRefused  = "refused"   // a control character, or too long: not kept
-	CaptureNoOutput = "no-output" // no OSC 133 output to read
-	CaptureExpired  = "expired"
-	// CaptureTooShort is a value under 3 bytes: the Redactor cannot match
-	// one that short, so it could not be kept from the model; not kept.
-	CaptureTooShort = "too-short"
-	// CaptureFull is a value not kept because the redact-only set is full
-	// (maxWithheld); restarting keel serve clears the set.
-	CaptureFull = "full"
-)
-
 var (
 	// ErrVarsOutsideRun refuses typing a command that names a variable
 	// anywhere but a group run's step: nothing else fills them in.

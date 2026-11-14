@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The group run page (docs/ui-redesign.md §17, board GroupRunbook):
@@ -131,7 +132,7 @@ func (w *workspace) groupPaneIDs() (out []string) {
 // a fill or a Type is out, and never while the approve dialog is open.
 func (w *workspace) groupRunTick() {
 	p := w.groupRunPageState()
-	if w.closed || p == nil || p.run == nil || p.run.Status != "active" || p.typing || p.busy > 0 || w.approve != nil {
+	if w.closed || p == nil || p.run == nil || p.run.Status != wire.RunActive || p.typing || p.busy > 0 || w.approve != nil {
 		return
 	}
 	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
@@ -216,7 +217,7 @@ func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	p.run.open, p.run.busy = false, true
 	id := p.id
 	call(w, func(c context.Context) (keelclient.GroupRun, error) {
-		return w.be.StartGroupRun(c, runbookID, id, "rolling")
+		return w.be.StartGroupRun(c, runbookID, id, wire.ModeRolling)
 	}, func(run keelclient.GroupRun, err error) {
 		p.run.busy = false
 		if err != nil {

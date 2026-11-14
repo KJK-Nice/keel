@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // The group run page: on the left the runbook's steps with their marks and where each runs, the safety line and Stop
@@ -66,7 +67,7 @@ func markColor(state string) ui.Color {
 		return flare
 	case "now":
 		return accentFill
-	case "skipped":
+	case wire.StepSkipped:
 		return inkFaint
 	}
 	return inkMuted
@@ -115,7 +116,7 @@ func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.Gro
 			icon(c, "shield-01", inkMuted)
 			help(c, runSafetyLine).MaxLines(0)
 		})
-		if run.Status == "active" {
+		if run.Status == wire.RunActive {
 			ui.Row(c).Children(func() {
 				if textBtn(c, "Stop runbook", btnGhost) {
 					w.act(func() { w.askStopRun(p) })
@@ -137,13 +138,13 @@ func runBanner(c *ui.Context, glyph string, col ui.Color, label string, text fun
 
 func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	switch run.Status {
-	case "finished":
+	case wire.RunFinished:
 		runBanner(c, "tick", tide, "run finished", func() {
 			body(c, "All steps are done or skipped.", ink)
 			caption(c, "Logs keep what was typed on each host.", inkMuted)
 		}, nil)
 		return
-	case "stopped":
+	case wire.RunStopped:
 		runBanner(c, "agent-info", inkMuted, "run stopped", func() {
 			body(c, fmt.Sprintf("Runbook stopped at step %d.", stoppedAt(run)), ink)
 			caption(c, "Logs keep what was typed on each host. Nothing more is proposed.", inkMuted)
@@ -243,7 +244,7 @@ func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.Gr
 // runModeSeg is Rolling | Parallel; both are off while the mode may not change (keel serve refuses it too, with 409).
 func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	ui.Row(c).Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(stage).Border(1, line).Label("How to run on several hosts").Children(func() {
-		for _, o := range [][2]string{{"rolling", "Rolling"}, {"parallel", "Parallel"}} {
+		for _, o := range [][2]string{{wire.ModeRolling, "Rolling"}, {wire.ModeParallel, "Parallel"}} {
 			on := run.Mode == o[0]
 			r := ui.Row(c).Height(sizeControlSm).Padding(0, space3).Justify(ui.Center).Radius(radiusXs).Label(o[1]).Cursor(ui.CursorPointer)
 			col := inkMuted
@@ -550,7 +551,7 @@ func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *keelclient
 			})
 		}
 		ui.Row(c).Grow(5).Basis(0).MinWidth(0).Gap(space1).Wrap().Justify(ui.End).Children(func() {
-			if cur != nil && run.Status == "active" {
+			if cur != nil && run.Status == wire.RunActive {
 				if cell := cellOf(*cur, m.HostID); cell != nil {
 					w.runCellActions(c, p, m.Host, cell)
 				}
@@ -584,7 +585,7 @@ func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, 
 		btn("retry", "Retry", "Retry", btnDefault)
 		btn("skip", "Skip", "Skip", btnGhost)
 		btn("done", "Mark done", "Mark done", btnGhost)
-	case "proposed":
+	case wire.StepProposed:
 		btn("skip", "Skip", "Skip", btnGhost)
 	case "waiting":
 		if cell.HostID != "" {

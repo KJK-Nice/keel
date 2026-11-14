@@ -1,56 +1,53 @@
 package service
 
-// The words the service puts in what it returns and saves, in one place.
-// They are wire values: the window reads them, and saved conversations
-// hold them.
+import "keel/internal/wire"
 
-// What the agent did with one thing in scope (TraceStep.Status).
+// The words the service puts in what it returns and saves are wire values
+// (the window reads them, and saved conversations hold them): they live in
+// package wire, and the service uses them under these names.
+
 const (
-	TraceRead          = "read"           // a pane was read
-	TraceSkipped       = "skipped"        // not read: Reason says why
-	TraceNotes         = "notes"          // notes for the agent were sent
-	TraceRunbook       = "runbook"        // a runbook was sent, or picked
-	TraceNotebook      = "notebook"       // a notebook was sent
-	TraceNotebookIndex = "notebook-index" // the notebooks' titles were sent
-)
+	TraceRead          = wire.TraceRead
+	TraceSkipped       = wire.TraceSkipped
+	TraceNotes         = wire.TraceNotes
+	TraceRunbook       = wire.TraceRunbook
+	TraceNotebook      = wire.TraceNotebook
+	TraceNotebookIndex = wire.TraceNotebookIndex
 
-// Why a pane or a notebook was skipped (TraceStep.Reason). A notebook's
-// own reasons (NotebookProposal.Reason) are listed there.
-const (
-	SkipNotOpen       = "not-open"       // the pane is closed
-	SkipNotReadable   = "not-readable"   // Agent can read is off for its host
-	SkipReadFailed    = "read-failed"    // the read failed, or could not be logged
-	SkipNotebookLimit = "notebook-limit" // the agent asked for more notebooks than one ask reads
-)
+	SkipNotOpen       = wire.SkipNotOpen
+	SkipNotReadable   = wire.SkipNotReadable
+	SkipReadFailed    = wire.SkipReadFailed
+	SkipNotebookLimit = wire.SkipNotebookLimit
 
-// A card's Status. A note's and a runbook's card is open, saved or
-// dismissed; a notebook's card says what was done to the notebook.
-const (
-	CardOpen      = "open"
-	CardSaved     = "saved"
-	CardDismissed = "dismissed"
+	CardOpen      = wire.CardOpen
+	CardSaved     = wire.CardSaved
+	CardDismissed = wire.CardDismissed
+	CardCreated   = wire.CardCreated
+	CardEdited    = wire.CardEdited
+	CardRefused   = wire.CardRefused
+	CardUndone    = wire.CardUndone
+	CardProposed  = wire.CardProposed
+	CardDeleted   = wire.CardDeleted
+	CardRestored  = wire.CardRestored
 
-	CardCreated  = "created"  // the agent created the notebook
-	CardEdited   = "edited"   // the agent edited it
-	CardRefused  = "refused"  // the change was not made: Reason says why
-	CardUndone   = "undone"   // the user undid the change
-	CardProposed = "proposed" // a delete waiting for the user
-	CardDeleted  = "deleted"  // the user confirmed the delete
-	CardRestored = "restored" // the user brought the deleted notebook back
-)
+	NotebookCreate = wire.NotebookCreate
+	NotebookEdit   = wire.NotebookEdit
+	NotebookDelete = wire.NotebookDelete
 
-// What a notebook card is about (NotebookProposal.Kind).
-const (
-	NotebookCreate = "create"
-	NotebookEdit   = "edit"
-	NotebookDelete = "delete"
-)
+	ResultReported   = wire.ResultReported
+	ResultUser       = wire.ResultUser
+	ResultUnreported = wire.ResultUnreported
+	ResultAbandoned  = wire.ResultAbandoned
 
-// How a typed step's result is known: a runbook step's and a group run
-// cell's Result.
-const (
-	ResultReported   = "reported"   // the shell's marks (OSC 133) gave an exit status
-	ResultUser       = "user"       // the user marked it
-	ResultUnreported = "unreported" // the command ended with no status
-	ResultAbandoned  = "abandoned"  // the shell went away
+	ModeRolling  = wire.ModeRolling
+	ModeParallel = wire.ModeParallel
+
+	CaptureCaptured = wire.CaptureCaptured
+	CaptureNoMatch  = wire.CaptureNoMatch
+	CaptureBlocked  = wire.CaptureBlocked
+	CaptureRefused  = wire.CaptureRefused
+	CaptureNoOutput = wire.CaptureNoOutput
+	CaptureExpired  = wire.CaptureExpired
+	CaptureTooShort = wire.CaptureTooShort
+	CaptureFull     = wire.CaptureFull
 )

@@ -60,7 +60,7 @@ type hostDialog struct {
 	id     string // "" for New host
 	saved  *keelclient.Host
 	f      hostForm
-	err    string // the server's reason, or a field's (host-form-error)
+	err    string // the server's reason, or a field's
 	notes  *sshparse.Result
 	groups []keelclient.Group
 	idents []keelclient.Identity
@@ -266,7 +266,7 @@ func parseTags(s string) []string {
 	return out
 }
 
-// validate checks the form with the server's own words (httpapi validateHost, store ValidateStartupCommand), so
+// validate checks the form with the server's own words (store.CheckHostSignIn, store.ValidateStartupCommand), so
 // that a field's problem shows without a request. "" is fine.
 func (f hostForm) validate() string {
 	if strings.TrimSpace(f.name) == "" {
@@ -679,7 +679,7 @@ func identityEntries(ids []keelclient.Identity, current string) []pickEntry {
 	found := current == ""
 	for _, id := range ids {
 		kind := "Password"
-		if id.Kind == "key" {
+		if id.Kind == keelclient.AuthKey {
 			kind = "Private key"
 		}
 		desc := kind

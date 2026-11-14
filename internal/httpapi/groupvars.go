@@ -126,11 +126,11 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 		inv.Vars = append(inv.Vars, ansible.Var{Name: v.Name, Value: v.Value})
 	}
 	format := q.Get("format")
-	if format != "yaml" {
-		format = "ini"
+	if format != wire.FormatYAML {
+		format = wire.FormatINI
 	}
 	var files []ExportFile
-	if format == "yaml" {
+	if format == wire.FormatYAML {
 		files = append(files, exportFile("inventory.yml", "inventory", ansible.YAML(inv)))
 	} else {
 		files = append(files, exportFile("inventory.ini", "inventory", ansible.INI(inv)))
@@ -143,8 +143,8 @@ func (s *Server) groupAnsible(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		mode := q.Get("mode")
-		if mode != "parallel" {
-			mode = "rolling"
+		if mode != wire.ModeParallel {
+			mode = wire.ModeRolling
 		}
 		pb := ansible.Playbook{Name: b.Name, Mode: mode}
 		for _, st := range b.Steps {
