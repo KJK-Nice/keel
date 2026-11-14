@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"keel/internal/randid"
+	"keel/internal/sharelink"
 	"keel/internal/wire"
 )
 
@@ -24,11 +25,8 @@ const (
 	// maxRoomAge bounds a hosted room; the host's 30-minute read deadline
 	// alone let any traffic keep a room alive forever.
 	maxRoomAge = 24 * time.Hour
-	// maxJoiners caps peers per room: each joiner costs the host a WebRTC
-	// PeerConnection.
-	maxJoiners = 16
-	// maxMessage bounds one signaling message (SDP offers are a few KB).
-	maxMessage = 64 << 10
+	maxJoiners = sharelink.MaxViewers
+	maxMessage = sharelink.MaxSignalMessageBytes
 	// Room creation per client address: a burst, then one per interval.
 	roomBurst    = 6
 	roomInterval = 10 * time.Second

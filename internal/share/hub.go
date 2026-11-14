@@ -79,8 +79,7 @@ type pendingPeer struct {
 }
 
 const (
-	// maxPeers caps WebRTC viewers per share (each is a PeerConnection).
-	maxPeers = 16
+	maxPeers = sharelink.MaxViewers
 	// sendHigh and sendLow pace a viewer's data channel, which pion queues
 	// without bound. Past sendHigh the attach loop waits for it to drain to
 	// sendLow, so unread output waits in the runtime's per-client queue,
@@ -384,7 +383,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 		close(live.ready)
 		return
 	}
-	conn.SetReadLimit(64 << 10)
+	conn.SetReadLimit(sharelink.MaxSignalMessageBytes)
 	h.mu.Lock()
 	live.joinURL = joinURL
 	h.mu.Unlock()
