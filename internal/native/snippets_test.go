@@ -84,7 +84,7 @@ func TestTheEditorsAgentSwitchIsSavedWithThePageAndNotByTheDialog(t *testing.T) 
 	}
 }
 
-func TestSnippetsPageListsEditsAndSavesWithTheWebviewsRules(t *testing.T) {
+func TestSnippetsPageListsEditsAndSavesWithTheirRules(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
 	r.w.showPage("snippets")
@@ -209,7 +209,7 @@ func TestEditSnippetFromTheRowMenuHoldsTheCommandAsSaved(t *testing.T) {
 	}
 }
 
-func TestDeleteSnippetAsksWithTheWebviewsWordsAndCancelDeletesNothing(t *testing.T) {
+func TestDeleteSnippetAsksWithItsWordsAndCancelDeletesNothing(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)
 	r.w.showPage("snippets")

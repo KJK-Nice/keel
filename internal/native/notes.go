@@ -299,7 +299,7 @@ func (w *workspace) saveNoteProposal(id string) {
 		if res.Proposal != nil {
 			rec.n = *res.Proposal
 		} else {
-			rec.n.Status, rec.n.NoteID = "saved", res.Note.ID
+			rec.n.Status, rec.n.NoteID = wire.CardSaved, res.Note.ID
 		}
 		rec.editing = false
 		if t := savedRedactedToast(res.Redacted); t != "" {

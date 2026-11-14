@@ -221,7 +221,7 @@ func TestAnAgentTypeThatKeelServeNeverAnswersIsNotTyped(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 	if ErrNoAgentAnswer.Error() != "keel serve did not answer." {
-		t.Fatal("not the webview's words")
+		t.Fatal("the error words changed")
 	}
 }
 

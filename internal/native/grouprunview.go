@@ -63,7 +63,7 @@ func markColor(state string) ui.Color {
 	switch state {
 	case "done":
 		return tide
-	case "failed":
+	case wire.StepFailed:
 		return flare
 	case "now":
 		return accentFill
@@ -570,7 +570,7 @@ func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, 
 		}
 	}
 	switch cell.State {
-	case "typed":
+	case wire.StepTyped:
 		switch {
 		case cell.Confirm:
 			btn("confirm", "Confirm", "Confirm", btnDefault)
@@ -581,13 +581,13 @@ func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, 
 			btn("done", "Mark done", "Mark done", btnGhost)
 			btn("retry", "Retry", "Retry", btnGhost)
 		}
-	case "failed":
+	case wire.StepFailed:
 		btn("retry", "Retry", "Retry", btnDefault)
 		btn("skip", "Skip", "Skip", btnGhost)
 		btn("done", "Mark done", "Mark done", btnGhost)
 	case wire.StepProposed:
 		btn("skip", "Skip", "Skip", btnGhost)
-	case "waiting":
+	case wire.StepWaiting:
 		if cell.HostID != "" {
 			btn("skip", "Skip", "Skip", btnGhost)
 		}

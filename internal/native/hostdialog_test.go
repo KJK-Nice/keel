@@ -587,7 +587,7 @@ func TestForgetHostKeyAsksFirst(t *testing.T) {
 	}
 }
 
-func TestPickersListWhatTheWebviewLists(t *testing.T) {
+func TestPickersListGroupsAndHosts(t *testing.T) {
 	groups := []keelclient.Group{{ID: "g1", Name: "production"}, {ID: "g2", Name: "web", ParentID: "g1"}, {ID: "g3", Name: "alpha"}}
 	var labels []string
 	for _, e := range folderEntries(groups) {

@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+
+	"keel/internal/wire"
 )
 
 // Saved agent conversations (docs/ui-redesign.md §5.4.1).
@@ -314,7 +316,7 @@ func (c AgentChat) Summary() AgentChatSummary {
 			out.Turns++
 		}
 		for _, st := range t.Trace {
-			if st.Status == "read" {
+			if st.Status == wire.TraceRead {
 				add(st.Host)
 			}
 		}

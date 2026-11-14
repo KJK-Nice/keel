@@ -45,7 +45,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 ## Type
 
 - `sans` is the **system UI font** (SF Pro Text on macOS, Segoe UI Variable on Windows, the desktop's sans on Linux) so Keel reads like a native app. `display` is the same system family at display optical size (SF Pro Display) for dialog titles, page titles and empty states. `mono` (JetBrains Mono) for terminals, addresses, paths, flags and commands only.
-- Default UI size is 12px (`body` = 1rem). The user scales the UI from 11–16px, so in the app text and the components written in rem scale with it (the type styles are rem = px ÷ 13); the fixed chrome dimensions (`--size-*`) are px and do not scale. Terminal text scales separately (10–22px, ⌘0 resets to 12).
+- Default UI size is 12px (`body`). The user scales the UI from 11–16px; text scales with it, and the fixed chrome dimensions (the `size-*` tokens) do not. Terminal text scales separately (10–22px, ⌘0 resets to 12).
 - Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `reading` 14/22, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 12/16 semibold sans in sentence case, `kbd` 11/14.
 - `reading` is for long-form prose only (the notebook's reading column, `size-reading` 68ch wide). The interface stays on `body`.
 - `tokens.json` carries each style as weight, size, line height and family; sizes in the window scale with the UI size setting.
@@ -61,7 +61,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 - Separation comes from ground steps and hairlines first. Shadows only on things that float: `shadow-pop` (menus, tooltips, toasts) and `shadow-modal` (dialogs, palette, over `scrim`).
 - **Selected tab.** A `raised` pill with `ink` text: no border, no underline.
-- **Split tabs.** Only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines (`.k-tiles`, or any container with two `.k-pane` children). The focused tile carries a soft ring (3px, `focus` at 30%, `shadow-tile-focus`) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring.
+- **Split tabs.** Only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines. The focused tile carries a soft ring (3px, `focus` at 30%, `shadow-tile-focus`) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring.
 - Never use colored rules, side bars or left-border accents to mark the selected tab or the focused pane.
 - Motion is functional: `duration-fast` 90ms for hover and focus, `duration-base` 160ms for menus, tooltips and the switch, `duration-slow` 240ms for dialogs and toasts. Ease-out in, ease-in out. The reconnecting dot pulses; under `prefers-reduced-motion` it is static and nothing slides.
 
@@ -78,14 +78,13 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 ## Choosing a value
 
-- **A list, or a list that changes** (identity, folder, jump host, forward host, role, runbook, terminal font, model, retention): a **combobox**, `.k-combobox`. A `.k-input` with `role="combobox"` shows the chosen label; typing filters the options (case-insensitive substring of the label and the second line). The popup is a `.k-menu` (`raised`, `radius-md`, `shadow-pop`) of `.k-menu-item` rows: optional leading icon, label, optional `ink-muted` second line, a check on the chosen row. ↑ ↓ move, Home / End jump, ↵ picks, Esc closes the list (not the dialog), a click outside closes it, Tab leaves it. Disabled rows are skipped. Nothing matching says "No matches"; no options at all says what to do ("Add an SSH host first").
-- **Two to four fixed choices** (theme, smoothing, translucency, right-click, authentication, identity kind, forward kind): a **segmented control**, `.k-seg`, every choice visible. Do not put a fixed set this small in a combobox.
+- **A list, or a list that changes** (identity, folder, jump host, forward host, role, runbook, terminal font, model, retention): a **combobox**. An input shows the chosen label; typing filters the options (case-insensitive substring of the label and the second line). The popup is a menu (`raised`, `radius-md`, `shadow-pop`) of rows: optional leading icon, label, optional `ink-muted` second line, a check on the chosen row. ↑ ↓ move, Home / End jump, ↵ picks, Esc closes the list (not the dialog), a click outside closes it, Tab leaves it. Disabled rows are skipped. Nothing matching says "No matches"; no options at all says what to do ("Add an SSH host first").
+- **Two to four fixed choices** (theme, smoothing, translucency, right-click, authentication, identity kind, forward kind): a **segmented control**, every choice visible. Do not put a fixed set this small in a combobox.
 - A "None" choice is the first option, with an empty value. Label it with what it means ("No group", "No role", "None").
-- The text is the system font. Only an option that is code is mono: an address line (`user@host:port`) uses `.k-combobox-desc--mono`, and a picker whose values are code (roles) is `.k-combobox--mono`.
-- Never a native `<select>`, and never a menu used as a value picker: menus are for actions.
+- The text is the system font. Only an option that is code is mono: an address line (`user@host:port`) is mono, and so is a picker whose values are code (roles).
+- Never a platform select, and never a menu used as a value picker: menus are for actions.
 - The popup is drawn above a modal dialog and is not clipped by its scroll.
 
 ## Building with it
 
 - The window is native (`internal/native`). `tokens.json` is the one source; `internal/native/tokens.go` holds both themes and `TestTokensMatchJSON` keeps it equal. Values that are the window's own (not in `tokens.json`) are in `internal/native/nativeonly.go`, with the reason beside each. Keep no second token layer.
-- The earlier web implementation (CSS classes with a `k-` prefix, `tokens.css`, `components.css`, templ and shadcn variables) was removed with the webview; where this file says `k-*` or "the page", read the native counterpart described in `docs/native.md`.

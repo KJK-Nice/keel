@@ -49,7 +49,7 @@ func TestSidebarHeadAndFootAreTheApps(t *testing.T) {
 	nh, _ := r.tt.Find("New host")
 	more, ok := r.tt.Find("More host actions")
 	if !ok || nh.H != sizeControlSm || more.H != sizeControlSm {
-		t.Fatalf("New host %v and More host actions %v (%v): both are k-btn--sm icon buttons", nh, more, ok)
+		t.Fatalf("New host %v and More host actions %v (%v): both are small icon buttons", nh, more, ok)
 	}
 	if f, _ := r.tt.Find("Filter hosts"); f.Y < sizeTitlebar+space3 {
 		t.Errorf("the filter is %v px under the title bar, want at least the head's 12", f.Y-sizeTitlebar)

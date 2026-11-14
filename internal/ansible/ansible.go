@@ -582,7 +582,7 @@ func convertCommand(cmd string) (string, bool) {
 func PlaybookYAML(pb Playbook, inv Inventory) string {
 	n := NamesFor(inv)
 	roles := stepRoles(n, pb)
-	rolling := pb.Mode != "parallel"
+	rolling := pb.Mode != wire.ModeParallel
 
 	var b strings.Builder
 	name := strings.TrimSpace(oneLine(pb.Name))

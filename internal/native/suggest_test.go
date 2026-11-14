@@ -555,7 +555,7 @@ func TestOffAtOnceDropsEverythingAndTheKeySaysSo(t *testing.T) {
 	h.m.OnInput("x")
 	h.fire()
 	if len(h.sent) != n {
-		t.Fatal("asked with suggestions off, where a 15 s backoff used to ask again")
+		t.Fatal("asked with suggestions off: no backoff retry may send a request")
 	}
 	h.m.Request()
 	h.state(sugError)
