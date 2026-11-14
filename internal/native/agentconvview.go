@@ -148,7 +148,7 @@ func (w *workspace) sessionRow(c *ui.Context, s keelclient.ConversationSummary, 
 	a := w.agent
 	title := orElse(s.Title, titleNewConv)
 	if o.actions && a.renameID == s.ID { // the inline title field (↵ saves, Esc leaves the title as it was)
-		w.renameField(c, s.ID, "Conversation title", true)
+		w.renameField(c, s.ID, "Conversation title")
 		return
 	}
 	row := ui.Row(c).FillWidth().Padding(space1, space2).Gap(space1).Radius(radiusSm).AlignItems(ui.Center).Key(s.ID)
@@ -194,9 +194,8 @@ func (w *workspace) sessionRow(c *ui.Context, s keelclient.ConversationSummary, 
 	})
 }
 
-// renameField is the title field of a row being renamed, or of the page's heading: ↵ and Save send the new title, Esc
-// leaves it as it was.
-func (w *workspace) renameField(c *ui.Context, id, name string, withSave bool) {
+// renameField is the title field of a row being renamed: ↵ and Save send the new title, Esc leaves it as it was.
+func (w *workspace) renameField(c *ui.Context, id, name string) {
 	a := w.agent
 	ui.Row(c).FillWidth().Padding(space1, space2).Gap(space1_5).AlignItems(ui.Center).Key("rename " + id).Children(func() {
 		ui.Row(c).Grow(1).Shrink(1).MinWidth(0).Children(func() {
@@ -213,7 +212,7 @@ func (w *workspace) renameField(c *ui.Context, id, name string, withSave bool) {
 				return false
 			})
 		})
-		if withSave && textBtn(c, "Save", btnPrimary) {
+		if textBtn(c, "Save", btnPrimary) {
 			t := a.renameText
 			w.act(func() { w.renameConversation(id, t) })
 		}

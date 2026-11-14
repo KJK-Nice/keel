@@ -133,7 +133,7 @@ func (w *workspace) shortcuts(c *ui.Context) {
 	if w.findPane != nil {
 		c.OnWindowShortcut(ui.Cmd, ui.KeyG, func() { w.act(func() { w.findStep(true) }) })
 		c.OnWindowShortcut(ui.Cmd|ui.Shift, ui.KeyG, func() { w.act(func() { w.findStep(false) }) })
-		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind(true) }) })
+		c.OnWindowShortcut(0, ui.KeyEscape, func() { w.act(func() { w.closeFind() }) })
 	}
 }
 
