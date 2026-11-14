@@ -1,6 +1,7 @@
 package native
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -240,9 +241,7 @@ func (w *workspace) openApprove(p *pane, src approveSource) {
 // openApproveAgent opens the dialog for an agent proposal in pane p, showing that pane's tab first so the approval names
 // the pane you can see. It sends nothing.
 func (w *workspace) openApproveAgent(p *pane, ag *approveAgent) {
-	if t := w.tabOf(p); t != nil && t != w.tab() {
-		w.selectTab(w.tabIndex(t))
-	}
+	w.showPane(p)
 	w.approve = &approveDialog{p: p, src: ag, focus: true}
 }
 
@@ -252,7 +251,7 @@ func (w *workspace) typeTarget() (*pane, string) {
 	t := w.tab()
 	if t == nil || len(t.panes) == 0 {
 		t = w.lastSession
-		if t == nil || !w.hasTab(t) || len(t.panes) == 0 {
+		if t == nil || !slices.Contains(w.tabs, t) || len(t.panes) == 0 {
 			return nil, msgNoSession
 		}
 	}
@@ -274,9 +273,7 @@ func (w *workspace) askType(source func() (string, bool)) {
 		w.say(why)
 		return
 	}
-	if t := w.tabOf(p); t != nil && t != w.tab() {
-		w.selectTab(w.tabIndex(t)) // the approval names the pane you can see
-	}
+	w.showPane(p) // the approval names the pane you can see
 	w.openApprove(p, approveSnippet{source})
 }
 
@@ -424,25 +421,4 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 			ref: &keelclient.AgentRef{GroupRunID: g.runID, ProposalID: r.proposalID, Shift: shift}})
 	}
 	return jobs
-}
-
-// hasTab, tabOf and tabIndex find where a pane or tab is.
-func (w *workspace) hasTab(t *tab) bool { return w.tabIndex(t) >= 0 }
-
-func (w *workspace) tabIndex(t *tab) int {
-	for i, o := range w.tabs {
-		if o == t {
-			return i
-		}
-	}
-	return -1
-}
-
-func (w *workspace) tabOf(p *pane) *tab {
-	for _, t := range w.tabs {
-		if t.panes[p.id] == p {
-			return t
-		}
-	}
-	return nil
 }

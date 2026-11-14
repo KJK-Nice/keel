@@ -9,6 +9,23 @@ import (
 // Tab and pane handling: focus view, closing tabs, the tab order, the recently closed
 // list and tab names.
 
+// tabOf is the tab that holds p, or nil.
+func (w *workspace) tabOf(p *pane) *tab {
+	for _, t := range w.tabs {
+		if t.panes[p.id] == p {
+			return t
+		}
+	}
+	return nil
+}
+
+// showPane selects the tab that holds p when another is shown.
+func (w *workspace) showPane(p *pane) {
+	if t := w.tabOf(p); t != nil && t != w.tab() {
+		w.selectTab(slices.Index(w.tabs, t))
+	}
+}
+
 // dropPane ends p's session (Kill) and frees its terminal and connection. The caller removes it from its tab.
 func (w *workspace) dropPane(p *pane) {
 	if w.findPane == p {
