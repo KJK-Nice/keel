@@ -487,7 +487,7 @@ func TestE2ERunbookProposalAndPlaceholder(t *testing.T) {
 
 	// A step whose command holds [secret:1] cannot exist in keel serve: it refuses to keep one, from the API and from the editor,
 	// so a step proposal never carries a placeholder from a saved runbook. The card for one that does (an ordinary proposal
-	// that holds a placeholder) is runbooks_test.go's: no Type button, the app's sentence, nothing typed.
+	// that holds a placeholder) is runbooks_test.go's: no Type button, the explanatory sentence, nothing typed.
 	if code, body := e.raw("POST", "/api/agent/runbooks", map[string]any{"name": "keel-rb-e2e placeholder", "agentMayPick": true,
 		"steps": []map[string]string{{"title": "Uses a placeholder", "command": "echo [secret:1]"}}}); code != 400 || !strings.Contains(body, "a step command holds a secret") {
 		t.Fatalf("keel serve kept, or did not explain refusing, a step with a placeholder: %d", code)

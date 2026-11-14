@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The cards of what the agent did to notebooks (plan 024, step 4): every kind and status draws the app's head, status and
+// The cards of what the agent did to notebooks : every kind and status draws its head, status and
 // buttons; each button is one request to keel serve and the card shows what it answers; Delete asks first; an agent edit of
 // an open notebook shows in its pane, or is refused while the user is typing. Cards are also in saved conversations.
 
@@ -404,7 +404,7 @@ func TestSavedConversationsShowTheirNotebookCardsAndALegacyDraftHasNoSave(t *tes
 	}
 }
 
-// ---- the review banner's actions (plan 024, step 5) ----
+// ---- the review banner's actions ----
 
 // editedRig is a window with notebook nb1 open and an agent edit on it that the user has not reviewed.
 func editedRig(t *testing.T) (*rig, *pane, string) {

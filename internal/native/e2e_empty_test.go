@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 4 against a real daemon: the vault is emptied of its seeded snippets, then each list that can be empty is
+// Against a real daemon: the vault is emptied of its seeded snippets, then each list that can be empty is
 // shot in both themes: the sidebar's segments, Keychain, Snippets, Notebooks, Runbooks, Logs, Port forwarding and the agent
 // panel.
 func TestE2EEmptyStates(t *testing.T) {

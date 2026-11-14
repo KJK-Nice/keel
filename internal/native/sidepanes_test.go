@@ -31,7 +31,6 @@ func TestPanesSegmentExistsOnlyWhileTheTabHasTwoPanesAndFallsBack(t *testing.T) 
 	}
 	r.click(t, "Split right")
 	r.texts(t, "Hosts", "Panes 2", "Snippets", "Forwards")
-	// The segments are in the app's order.
 	segs := r.w.panesTab() != nil
 	if !segs {
 		t.Fatal("no panes tab")

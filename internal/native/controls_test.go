@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 2: control fills under window opacity.
+// Control fills under window opacity.
 
 func TestControlAlphaFollowsTheWindowAlpha(t *testing.T) {
 	t.Cleanup(func() { useControls(1, true) })
@@ -17,7 +17,7 @@ func TestControlAlphaFollowsTheWindowAlpha(t *testing.T) {
 			t.Errorf("window alpha %v: control alpha %v, want %v", c.window, controlAlpha, c.want)
 		}
 	}
-	// Plan 030: a control over the ground covers about 0.8 of the backdrop at window opacity 0.7.
+	// A control over the ground covers about 0.8 of the backdrop at window opacity 0.7.
 	useControls(0.7, true)
 	if cover := 1 - (1-0.7)*(1-float64(controlAlpha)); math.Abs(cover-0.8) > 0.02 {
 		t.Errorf("a control over the ground covers %.2f at opacity 0.7, want about 0.8", cover)
@@ -99,7 +99,7 @@ func TestControlFillOnTheGlass(t *testing.T) {
 			t.Fatal("no filter input")
 		}
 		useControls(a, true)
-		fill := controlBase(true) // plan 030: the field is MyGo's SearchField, drawn in the theme's Surface
+		fill := controlBase(true) // the field is MyGo's SearchField, drawn in the theme's Surface
 		want := controlFill(fill)
 		useControls(1, true)
 		// The fill sits on the sidebar's ground, so what shows is the fill at ac over the ground at a: coverage

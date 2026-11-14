@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 1: the focused tile of a split tab has a 1.5 px border in focus (lineStrong while the window is not
+// The focused tile of a split tab has a 1.5 px border in focus (lineStrong while the window is not
 // the active one), the others 1 px in line, a single or zoomed pane none; focus never moves a tile.
 func TestTileRingByState(t *testing.T) {
 	for _, th := range []string{themeDark, themeLight} {

@@ -6,7 +6,7 @@ import (
 	"keel/internal/wire"
 )
 
-// Issue #139 (plan 037 part A): while a pane's session is not ready (connecting, failed, lost) its terminal view is not in the
+// Issue #139: while a pane's session is not ready (connecting, failed, lost) its terminal view is not in the
 // tree, so its last picture is not readable through the overlay and no caret blinks; when the session is ready the view is
 // back, and the pane takes the keyboard again if it had it. The terminal object (here the placeholder's p.view) is not rebuilt.
 func TestTheTerminalViewIsAbsentWhileTheSessionIsNotReadyAndBackWhenItIs(t *testing.T) {

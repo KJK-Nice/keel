@@ -166,7 +166,7 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	if p.renaming || len(r.fb.convs.renamed) != 1 {
 		t.Fatalf("Esc renamed or kept the field: %v", r.fb.convs.renamed)
 	}
-	// Delete acts at once, as the app's does, and the panel starts over.
+	// Delete acts at once, and the panel starts over.
 	r.click(t, "Delete this conversation")
 	r.tt.Frame()
 	if r.w.confirm != nil {

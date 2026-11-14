@@ -7,8 +7,6 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Ported from cmd/keel/web/js/test/settingspages.test.mjs.
-
 func TestSettingsFormatting(t *testing.T) {
 	for sec, want := range map[int64]string{5: "5 s", 125: "2 min", 3*3600 + 300: "3 h 05 min", 2*86400 + 4*3600: "2 d 4 h", -3: "0 s", 59: "59 s", 60: "1 min"} {
 		if got := uptimeText(sec); got != want {
@@ -85,7 +83,7 @@ func TestKeyCapsAndTheListedShortcuts(t *testing.T) {
 			t.Errorf("%q is not listed", want)
 		}
 	}
-	if !titles["Ask the agent (from the palette)"] { // the palette's ⌘↵ row is built (plan 025)
+	if !titles["Ask the agent (from the palette)"] { // the palette's ⌘↵ row is built
 		t.Error("Ask the agent (from the palette) is not listed")
 	}
 	if !titles["Put back your words after an inserted suggestion"] {

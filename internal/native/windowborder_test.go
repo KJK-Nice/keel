@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 037 part C, addition: a 1 pt border line round the window, in the strong line token at full alpha in both themes and at
+// A 1 pt border line round the window, in the strong line token at full alpha in both themes and at
 // any window opacity, rounded as the window is, none in full screen, and no layout moves by it.
 
 func borderRig(t *testing.T, theme string, alpha float32, r10 bool) *rig {

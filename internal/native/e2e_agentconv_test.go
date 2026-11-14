@@ -178,7 +178,7 @@ func (e *win) fillConversations(n int) {
 
 func TestE2EAgentExpiredProposal(t *testing.T) {
 	t.Run("restart", func(t *testing.T) {
-		// A daemon stopped and started again on the same data dir no longer holds the proposal: the saved card is Expired.
+		// A daemon stopped and started again on the same data dir does not hold the proposal: the saved card is Expired.
 		dir := scratchDir(t)
 		addr, stop := startServeAt(t, dir, "serve", true)
 		dataDir := filepath.Join(dir, "data")
@@ -344,7 +344,7 @@ func TestE2EAgentPage(t *testing.T) {
 	}, "keel serve to hold the new title")
 	e.pump(func() bool { return e.w.agent.title == "Page renamed" && e.hasLabel("Recent conversations") }, "the panel to follow")
 
-	// Delete on the page acts at once, as the app's does; keel serve and the panel follow.
+	// Delete on the page acts at once; keel serve and the panel follow.
 	e.click("Delete this conversation")
 	e.pump(func() bool { return len(e.convList().Sessions) == 1 && len(e.w.agent.turns) == 0 }, "the conversation to be gone on keel serve and in the panel")
 	if e.w.agent.title != "" || e.w.agent.conv == one.ID {

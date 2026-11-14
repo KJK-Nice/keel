@@ -15,7 +15,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// ---- the rules of lib/newtab.js (cases of test/newtab.test.mjs) ----
+// ---- the rules of the New tab page ----
 
 func hostsNamed(ids ...string) (out []keelclient.Host) {
 	for _, id := range ids {
@@ -65,7 +65,7 @@ func TestRecentCardsForAQuery(t *testing.T) {
 	}
 }
 
-// term.js hostMatches reads lib/groups.js hostSearchHay: the tags and the names of every folder above a host are searched too.
+// The tags and the names of every folder above a host are searched too.
 func TestTheNewTabSearchReadsTagsAndTheFolderPath(t *testing.T) {
 	groups := []keelclient.Group{{ID: "g1", Name: "Infra"}, {ID: "g2", Name: "Replicas", ParentID: "g1"}}
 	hosts := hostsNamed("a", "b", "c")
@@ -126,7 +126,7 @@ func cardNames(r *rig) (out []string) {
 	return
 }
 
-// Plan 032 item 8b: a card's name and its user@address line stay inside the card's padding at every UI size and in a
+// A card's name and its user@address line stay inside the card's padding at every UI size and in a
 // narrow window, and a tip on each carries the full text.
 func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
 	defer setUISize(uiSizeDefault)
@@ -268,7 +268,7 @@ func TestAltNumberOpensThatCardsHost(t *testing.T) {
 }
 
 // A Mac types "™" for ⌥2 into the focused input before the shortcut runs. The card is the one the number stood for when
-// the key went down, the character does not stay, and one press opens one card (found in a real window, plan 036).
+// the key went down, the character does not stay, and one press opens one card (found in a real window).
 func TestAltNumberWithTheInputFocusedOpensTheCardAndKeepsTheText(t *testing.T) {
 	r := startRig(t)
 	r.w.prefs.RecentHosts = []string{"h3", "h1"}
@@ -544,8 +544,7 @@ func TestRecentHostsSurviveAPrefsRoundTripAndHoldOnlyIDs(t *testing.T) {
 	}
 }
 
-// The app keeps recently closed in localStorage, so it survives closing the window (term.js CLOSED_KEY); here it is kept in
-// keel-native.json, read as lib/newtab.js normalizeClosed reads it.
+// Recently closed is kept in keel-native.json, so it survives closing the window.
 func TestRecentlyClosedSurvivesClosingTheWindow(t *testing.T) {
 	dir := t.TempDir()
 	r := newRigIn(t, okBackend(), dir)

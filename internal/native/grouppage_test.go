@@ -178,7 +178,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	if miss := r.lacks("k8s_version", "1.31.2"); len(miss) > 0 || p.varName != "" || p.varValue != "" {
 		t.Errorf("the variable is not listed, or the fields were kept: %v %q %q", miss, p.varName, p.varValue)
 	}
-	// Edit changes the value; Esc leaves it; an empty value is refused with the app's words.
+	// Edit changes the value; Esc leaves it; an empty value is refused.
 	r.click(t, "Edit k8s_version")
 	r.fill(t, "Value of k8s_version", "1.31.3")
 	r.press(0, ui.KeyEnter)
@@ -317,7 +317,7 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	}
 }
 
-// groups.js Download: the shown file's text goes where the system's save dialog says (the dialog is the test's), under the
+// Download: the shown file's text goes where the system's save dialog says (the dialog is the test's), under the
 // file's own name; a cancelled dialog writes nothing; a failure is said.
 func TestTheAnsibleDrawersDownloadSavesTheShownFileWhereTheDialogSays(t *testing.T) {
 	r := groupRig(t)
@@ -423,7 +423,7 @@ func TestTheRunbookEditorEditsARoleOneHostOnlyAndCaptures(t *testing.T) {
 	if in.Steps[1].Role != "worker" || in.Steps[1].OneHost || len(in.Steps[1].Captures) != 0 || in.Steps[1].Command != "kubeadm join --token {{join_token}}" {
 		t.Errorf("step 2 %+v", in.Steps[1])
 	}
-	// Remove capture takes it out of the next save; a name taken by another step is refused with the app's words and sends nothing.
+	// Remove capture takes it out of the next save; a name taken by another step is refused and sends nothing.
 	r.click(t, "Remove capture join_token")
 	if got := r.w.runbooksPage().ed.steps[0].captures; len(got) != 0 {
 		t.Fatalf("Remove capture left %v", got)

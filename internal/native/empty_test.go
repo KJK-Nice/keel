@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-// Plan 028 step 4: one empty state. Each place that can be empty renders it, its action does what the page's own button
+// One empty state. Each place that can be empty renders it, its action does what the page's own button
 // does, and where a list can be filtered or can fail the three states are told apart.
 
-// emptyTitle is the title emptySentences makes of one of the app's empty lines.
+// emptyTitle is the title emptySentences makes of an empty line.
 func emptyTitle(words string) string { return emptySentences("", words, "").title }
 
 func emptyRig(t *testing.T) *rig {

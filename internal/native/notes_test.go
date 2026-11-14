@@ -12,7 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notes for the agent on the fake backend: each list and action sends the app's request; a proposal is kept only by its
+// Notes for the agent on the fake backend: each list and action sends its request; a proposal is kept only by its
 // card's Save; Dismiss keeps nothing; Delete all notes asks first; and nothing is written to disk by the client. Every text
 // is made up.
 
@@ -80,7 +80,7 @@ func TestHostNotesInEditHostAddEditDeleteAreSavedAtOnce(t *testing.T) {
 	if !r.tt.HasText("deploys run from /srv/app with make deploy") {
 		t.Error("the edit is not listed")
 	}
-	// Delete asks nothing, as the app does.
+	// Delete asks nothing.
 	r.click(t, "Delete note")
 	if got := r.fb.mem.noteReqs; got[len(got)-1] != "delete n1" || r.w.confirm != nil {
 		t.Fatalf("requests %v, confirm %v", got, r.w.confirm)
@@ -169,7 +169,7 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 	if !r.tt.HasText("2 notes · 30 chars") {
 		t.Error("count")
 	}
-	// Delete all notes asks first, with the app's words; Cancel keeps them.
+	// Delete all notes asks first; Cancel keeps them.
 	r.click(t, "Delete all notes…")
 	r.settleFrames()
 	cf := r.w.confirm

@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Issue #140 (plan 037 part B, round 1): what would explain a layout difference between macOS and Linux, logged when a test
+// Issue #140: what would explain a layout difference between macOS and Linux, logged when a test
 // fails (and only then), so the Ubuntu job's log answers "what differs" without another round. Not product code: it asks
 // nothing of the product but what the tests already read.
 
@@ -41,7 +41,7 @@ func TestTheDiagnosticProbeMeasuresText(t *testing.T) {
 	}
 }
 
-// TestDiagRegisteredFontMetrics (issue #140, round 2) registers each shipped woff2 file by itself under a private family and logs
+// TestDiagRegisteredFontMetrics (issue #140) registers each shipped woff2 file by itself under a private family and logs
 // what MyGo measures and draws: the width of ten Ms at the UI size (a 600-unit mono advance gives 7.8 px each at 13 px), the
 // number of lit pixels of a render, and what ui.FontFamilies says of the family. It only logs: on Ubuntu CI the registered
 // families measured about 1.8 times too wide, and this tells which file, and whether the first Linux fix (not registering them)
@@ -70,7 +70,7 @@ func TestDiagRegisteredFontMetrics(t *testing.T) {
 			t.Logf("linux-diag: family %q monospaced %v registered %v", ff.Name, ff.Monospaced, ff.Registered)
 		}
 	}
-	// Round 3: is the registered face a monospace face at some size, and does its width scale with the size? A real 600-unit mono
+	// Is the registered face a monospace face at some size, and does its width scale with the size? A real 600-unit mono
 	// gives the same advance to every glyph (7.8 px at 13) and doubles when the size does; ten Ms at 15 px each and a text that is
 	// not 15 px a character would be a proportional face, or the family resolved to a different font than the file's.
 	fam := "keel-diag-jetbrains-mono-latin-400-normal"

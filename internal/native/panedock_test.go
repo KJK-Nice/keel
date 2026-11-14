@@ -7,8 +7,7 @@ import (
 	"keel/internal/native/layout"
 )
 
-// Dragging a pane to the tab strip and a tab onto a pane (panedrag.go: extractPane and dockTab; ui/drag.js, term.js
-// extractPaneToTab and dockTabIntoPane). Nothing opens or closes a session.
+// Dragging a pane to the tab strip and a tab onto a pane (panedrag.go: extractPane and dockTab). Nothing opens or closes a session.
 
 // dockRig is a window with tab A of panes 1 and 2 (split right) and tab B of pane 3, B named "second". A is shown.
 func dockRig(t *testing.T) (*rig, *tab, *tab) {

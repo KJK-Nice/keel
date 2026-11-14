@@ -68,7 +68,7 @@ func TestNewHostDialogHasEveryGroupAndLabel(t *testing.T) {
 			t.Errorf("New host: no %q", s)
 		}
 	}
-	// The notes block is there, and waits for the host to be saved (dialogs.templ notesBlock, data-notes-unsaved).
+	// The notes block is there, and waits for the host to be saved.
 	for _, s := range []string{"Notes for the agent", "Save the host first, then add notes for the agent."} {
 		if !r.hasText(s) {
 			t.Errorf("New host: no %q", s)

@@ -6,7 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// sidebarresize.js and lib/sidebarwidth.js: the sash on the sidebar's right edge widens it by dragging right, steps with the
+// The sash on the sidebar's right edge widens it by dragging right, steps with the
 // arrows (space-4, ⇧ four times), goes to the bounds on Home and End, back to the default on a double click or Enter, and
 // the width is kept in keel-native.json and comes back with the window.
 func TestTheSidebarsSashResizesItAndTheWidthIsKept(t *testing.T) {

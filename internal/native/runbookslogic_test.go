@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Every case of cmd/keel/web/js/test/runbooks.test.mjs (11 tests), in the same order. The group-run fields (role, one host,
+// The group-run fields (role, one host,
 // captures) are carried through a save and are not edited here.
 
 func book(over func(*keelclient.Runbook)) keelclient.Runbook {

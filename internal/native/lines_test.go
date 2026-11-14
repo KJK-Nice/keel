@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 3: at the seams of the workspace there is one line, of one colour, one DIP wide (so whole device pixels at
+// At the seams of the workspace there is one line, of one colour, one DIP wide (so whole device pixels at
 // every scale), never two touching. MyGo snaps a Border to device pixels; this keeps the views from stacking a second one.
 
 // runs lists the runs of `want`-coloured pixels along a line of the tester image, as {start, length} in device pixels,
@@ -31,7 +31,7 @@ func runsOf(r *rig, x0, y0 float32, dx, dy, n int, want ui.Color, scale float32)
 	return out
 }
 
-// The app dims only the terminal's text in an unfocused tile (keel.css:942, .xterm), so both bodies are the same ground
+// Only the terminal's text is dimmed in an unfocused tile, so both bodies are the same ground
 // and the light theme does not show a white tile beside a grey one.
 func TestUnfocusedTileBodyKeepsItsGround(t *testing.T) {
 	for _, th := range []string{themeLight, themeDark} {
@@ -50,8 +50,8 @@ func TestUnfocusedTileBodyKeepsItsGround(t *testing.T) {
 	}
 }
 
-// Plan 028 step 5: a key cap is flat, inline and held, in both themes: the same colour on all four edges, one device pixel
-// wide at scale 1, nothing under the bottom edge (no shadow, no thicker edge), the same box as before (kbdBox).
+// A key cap is flat, inline and held, in both themes: the same colour on all four edges, one device pixel
+// wide at scale 1, nothing under the bottom edge (no shadow, no thicker edge), the same box as kbdBox.
 func TestKeyCapsAreFlat(t *testing.T) {
 	for _, dark := range []bool{true, false} {
 		for _, held := range []bool{false, true} {
@@ -104,7 +104,7 @@ func TestKeyCapsAreFlat(t *testing.T) {
 	useTheme(true)
 }
 
-// The token values themselves, measured for the maintainer (docs/design/tokens.json is not changed by plan 028): how far each
+// The token values themselves, measured for the maintainer (docs/design/tokens.json is not changed by them): how far each
 // line stands from the ground it sits on. Read with -v.
 func TestLineTokenContrastIsReported(t *testing.T) {
 	for _, dark := range []bool{true, false} {

@@ -12,9 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Go side of cmd/keel/web/js/test/typedirect.test.mjs. The JS file has 12 tests; the ones about group runs
-// (stepDirect, typedNoteMany), notebooks (commandOf), and xterm.js's own buffer (altScreen, cursorLine on a JS object)
-// have no Go twin, and screenOf stands in for the last two against a real terminal.
+// screenOf reads the alt screen and the cursor line against a real terminal.
 
 func TestSnippetLineDropsTheNewlineThatWouldRunIt(t *testing.T) {
 	for in, want := range map[string]string{"uptime\n": "uptime", "uptime\r\n\n": "uptime", "  uptime  ": "  uptime  ", "a\nb\n": "a\nb"} {

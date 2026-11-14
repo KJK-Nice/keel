@@ -106,7 +106,7 @@ func TestWorkspaceRestoresZoomAndTheActiveTab(t *testing.T) {
 	r.click(t, "host api-1")
 	r.w.splitFocused(layout.Row)
 	r.w.zoomFocused()
-	r.tt.Frame() // plan 030: the section switch is taller, so the sidebar settles before the row is clicked
+	r.tt.Frame() // the section switch is taller, so the sidebar settles before the row is clicked
 	r.click(t, "host api-1")
 	r.w.closeWindow()
 

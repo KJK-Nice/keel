@@ -103,7 +103,7 @@ func TestPreviewFollowsTheSourceAndNothingIsCached(t *testing.T) {
 }
 
 func TestControlCharactersAreShownAsTheyAreSent(t *testing.T) {
-	// The webview puts the text in a <pre> as it is; so does this dialog, and the same string is sent.
+	// The dialog shows the text as it is, and the same string is sent.
 	r := approveRig(t)
 	cmd := "printf 'a\tb'\x1b[2J\r"
 	r.w.askType(fixed(cmd))

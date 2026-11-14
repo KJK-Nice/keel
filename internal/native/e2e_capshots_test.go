@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Plan 028 step 5: the flat key caps where they show beside text: the palette's footer and rows, the New tab page, and the
+// The flat key caps where they show beside text: the palette's footer and rows, the New tab page, and the
 // Keyboard settings page, in both themes. (The ⌘-held caps are TestE2EKeyCaps-dark and -light.)
 func TestE2EFlatKeyCapShots(t *testing.T) {
 	addr, dir := startServe(t, true)

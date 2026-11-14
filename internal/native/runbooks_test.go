@@ -97,7 +97,7 @@ func TestCreatingEditingAndDeletingARunbookSendsTheEditorsStateAndDeleteAsksFirs
 	if r.fb.mem.rbReqs[len(r.fb.mem.rbReqs)-1] != "pick rb1 false" || r.fb.mem.runbooks[0].AgentMayPick {
 		t.Fatalf("requests %v", r.fb.mem.rbReqs)
 	}
-	// Delete asks first, with the app's words.
+	// Delete asks first.
 	r.click(t, "Delete")
 	r.settleFrames()
 	cf := r.w.confirm
@@ -238,7 +238,7 @@ func TestADraftFromAConversationIsNotKeptUntilSaveAndStartsWithPickOff(t *testin
 	if in := r.fb.mem.rbSaved[0]; in.DraftID != "dr_1" || in.AgentMayPick {
 		t.Fatalf("sent %+v", in)
 	}
-	// Nothing to make steps from: 422, and a toast with the app's words.
+	// Nothing to make steps from: 422, and a toast says why.
 	r.fb.mem.draftErr = &keelclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
 	r.click(t, "From a conversation…")
 	r.click(t, "draft from nginx 502")
@@ -263,7 +263,7 @@ func (r *rig) answersBooks(bs ...keelclient.RunbookProposal) {
 func TestARunbookProposalIsKeptOnlyBySaveWithPickOffAndDismissKeepsNothing(t *testing.T) {
 	r := agentRig(t)
 	r.answersBooks(bookProposal())
-	r.tt.SetSize(1280, 900) // plan 030: the body text is 13 pt, so the card's footer needs a taller window to be in view
+	r.tt.SetSize(1280, 900) // the body text is 13 pt, so the card's footer needs a taller window to be in view
 	r.ask(t, "save this as a runbook")
 	if miss := r.lacks("Save as a runbook?", "keel-runbook-e2e proposed", "Use when: The marker needs checking", "After reading panes", "2 steps", "echo keel-runbook-proposed",
 		"This runbook was written after reading terminal output. Check every step before saving: a saved runbook can be offered to the agent, and text in a pane can be written to mislead it.",

@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Issue #139 (plan 037 part A): a session that ends while its pane is open leaves no terminal picture and no blinking caret
+// Issue #139: a session that ends while its pane is open leaves no terminal picture and no blinking caret
 // behind the overlay, in a translucent window too (where a ground that is not opaque lets the picture through). The shots are
 // opened by eye.
 func TestE2ELostWhileOpenShowsNoTerminalBehindTheOverlay(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// History and Recently deleted (test/notebookhistory.test.mjs, in the window), and the palette's notebook items.
+// History and Recently deleted, in the window, and the palette's notebook items.
 
 func nbHistoryRig(t *testing.T) *rig {
 	t.Helper()
@@ -31,7 +31,7 @@ func TestHistoryListsTheVersionsAndDiffsTheSelectedOneAgainstNow(t *testing.T) {
 	if miss := r.lacks("History · Deploy", historyDesc, "Before the agent's edit", "Then: Adds a step", "2 min ago", "Your version", "Delete this version", "Close", "Restore this version"); len(miss) > 0 {
 		t.Fatalf("missing %q in %q", miss, r.tt.Texts())
 	}
-	// The newest is selected: "line a" against now ("line a\nline b\n"): two lines added (the empty last one counts, as in the app).
+	// The newest is selected: "line a" against now ("line a\nline b\n"): two lines added (the empty last one counts).
 	if !r.tt.HasText("From this version to now: 2 lines added · 0 removed") {
 		t.Fatalf("diff head: %q", r.tt.Texts())
 	}

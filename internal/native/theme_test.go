@@ -97,7 +97,7 @@ func TestThemeIsKeptAndTheNextWindowStartsInIt(t *testing.T) {
 func TestSettingsThemeRowChoosesTheTheme(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.texts(t, "Theme", "Light, dark, or follow the system.")
-	for _, name := range []string{"Light", "System", "Dark"} { // the app's three labels, in its order
+	for _, name := range []string{"Light", "System", "Dark"} { // the three labels, in order
 		if !r.has("Color theme "+name) && !r.has(name) {
 			t.Errorf("no %q in the theme control", name)
 		}

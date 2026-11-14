@@ -70,7 +70,7 @@ func (r *rig) startRun(run keelclient.GroupRun) {
 	r.tt.Frame()
 }
 
-// keel.css #page-grouprun container query: the steps (size-agentpage-context wide) are beside the detail; under 760 px of page
+// The steps (size-agentpage-context wide) are beside the detail; under 760 px of page
 // width they are above it, across the width and at most 40% of the height.
 func TestTheRunPagePutsTheStepsAboveTheDetailUnderSevenHundredSixtyPixels(t *testing.T) {
 	r := runRig(t, 2)
@@ -293,7 +293,7 @@ func TestGroupFollowersAndClosedPanesCannotBeTicked(t *testing.T) {
 	if !r.hasText(msgGroupPaneFollow) {
 		t.Errorf("the row does not say it is followed: %v", r.tt.Texts())
 	}
-	r.click(t, "Type into 1 pane") // wk-4 only: wk-1's tick no longer counts
+	r.click(t, "Type into 1 pane") // wk-4 only: wk-1's tick does not count
 	got := r.injected()
 	if len(got[0]) != 0 || len(got[3]) != 1 || len(got[1]) != 0 || len(got[2]) != 0 {
 		t.Fatalf("typed %q", got)
