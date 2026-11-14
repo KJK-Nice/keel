@@ -394,11 +394,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 			case t.pending:
 				msg := "Asking without reading a pane"
 				if t.scoped > 0 {
-					noun := "panes"
-					if t.scoped == 1 {
-						noun = "pane"
-					}
-					msg = "Reading " + strconv.Itoa(t.scoped) + " " + noun + " and asking"
+					msg = "Reading " + countWord(t.scoped, "pane", "panes") + " and asking"
 				}
 				ui.Row(c).FillWidth().Gap(space2).Children(func() {
 					workingBlocks(c, accentInk, "Agent is working")

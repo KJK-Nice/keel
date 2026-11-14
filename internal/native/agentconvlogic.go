@@ -70,10 +70,10 @@ func agoLabel(when, now time.Time) string {
 	case mins < 1:
 		return "just now"
 	case mins < 60:
-		return fmt.Sprintf("%d %s ago", mins, plural(mins, "minute", "minutes"))
+		return countWord(mins, "minute", "minutes") + " ago"
 	case dayGroup(when, now) == "Today":
 		h := mins / 60
-		return fmt.Sprintf("%d %s ago", h, plural(h, "hour", "hours"))
+		return countWord(h, "hour", "hours") + " ago"
 	}
 	days := dayDiff(now, when)
 	if days <= 1 {
@@ -82,18 +82,11 @@ func agoLabel(when, now time.Time) string {
 	return fmt.Sprintf("%d days ago", days)
 }
 
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
-}
-
 func proposalsLabel(n int) string {
 	if n <= 0 {
 		return "no proposals"
 	}
-	return fmt.Sprintf("%d %s", n, plural(n, "proposal", "proposals"))
+	return countWord(n, "proposal", "proposals")
 }
 
 // sessionGroup is a heading of the list and its rows.
@@ -161,7 +154,7 @@ func retentionNote(historyDays int) string {
 	case historyDays == 365:
 		return "Kept 1 year"
 	}
-	return fmt.Sprintf("Kept %d %s", historyDays, plural(historyDays, "day", "days"))
+	return "Kept " + countWord(historyDays, "day", "days")
 }
 
 // hostFilters are the Agent page's host chips: the hosts the saved conversations read or proposed for, most recent
@@ -242,7 +235,7 @@ func readSummary(turns []convTurn) []readRow {
 		}
 	}
 	for i := range out {
-		out[i].linesLabel = fmt.Sprintf("%d %s", out[i].lines, lines(out[i].lines))
+		out[i].linesLabel = countWord(out[i].lines, "line", "lines")
 		out[i].redactLabel = fmt.Sprintf("%d redacted", out[i].redacted)
 	}
 	return out
@@ -264,7 +257,7 @@ func proposalState(p keelclient.Proposal, typed bool) (label, kind string) {
 
 // startedLabel is the page header's "Today 09:14 · 2 questions".
 func startedLabel(when time.Time, questions int, now time.Time) string {
-	count := fmt.Sprintf("%d %s", questions, plural(questions, "question", "questions"))
+	count := countWord(questions, "question", "questions")
 	if when.IsZero() {
 		return count
 	}

@@ -182,7 +182,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 		}
 	})
 	ui.Column(c).FillWidth().Gap(space1).Children(func() {
-		label(c, "Used by "+hostsWord(len(used)), inkMuted)
+		label(c, "Used by "+countWord(len(used), "host", "hosts"), inkMuted)
 		if len(used) == 0 {
 			help(c, "No host uses it yet. Pick it in a host's Authentication.")
 			return
@@ -200,7 +200,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 		ui.Spacer(c)
 		b := ctlButton(c, "Delete identity", "Delete identity", btnDanger).Disabled(inUse)
 		if inUse {
-			b.Tooltip("Remove it from " + hostsWord(len(used)) + " first")
+			b.Tooltip("Remove it from " + countWord(len(used), "host", "hosts") + " first")
 		}
 		if !inUse && b.Clicked() {
 			w.act(func() { w.askDeleteIdentity(id) })
@@ -208,7 +208,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 	})
 	if inUse {
 		ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
-			help(c, "Remove it from "+hostsWord(len(used))+" before you can delete it.")
+			help(c, "Remove it from "+countWord(len(used), "host", "hosts")+" before you can delete it.")
 		})
 	}
 }

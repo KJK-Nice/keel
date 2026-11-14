@@ -105,12 +105,6 @@ func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
 	return "—"
 }
 
-func pluralWord(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
-}
 
 // logFacts lists the counts an agent entry carries, as short labels in this order (data.go logFacts).
 func logFacts(e keelclient.LogEntry) []string {
@@ -118,10 +112,10 @@ func logFacts(e keelclient.LogEntry) []string {
 	if e.Count > 1 {
 		out = append(out, fmt.Sprintf("%d sent", e.Count))
 	} else if e.Lines > 0 {
-		out = append(out, fmt.Sprintf("%d %s", e.Lines, pluralWord(e.Lines, "line", "lines")))
+		out = append(out, countWord(e.Lines, "line", "lines"))
 	}
 	if e.Bytes > 0 {
-		out = append(out, fmt.Sprintf("%d %s", e.Bytes, pluralWord(e.Bytes, "byte", "bytes")))
+		out = append(out, countWord(e.Bytes, "byte", "bytes"))
 	}
 	n := 0
 	for _, v := range e.Redactions {

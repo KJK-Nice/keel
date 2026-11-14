@@ -2,7 +2,6 @@ package native
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -62,14 +61,7 @@ func snippetPreview(text string) (lines []string, summary string) {
 		lines = strings.Split(text, "\n")
 		lines = lines[:len(lines)-1]
 	}
-	lw, bw := "lines", "bytes"
-	if len(lines) == 1 {
-		lw = "line"
-	}
-	if len(text) == 1 {
-		bw = "byte"
-	}
-	return lines, fmt.Sprintf("%d %s · %d %s. Typing always goes through Approve before type.", len(lines), lw, len(text), bw)
+	return lines, countWord(len(lines), "line", "lines") + " · " + countWord(len(text), "byte", "bytes") + ". Typing always goes through Approve before type."
 }
 
 // snippetFirstLine is lists.templ snippetFirstLine: the first line, with " …" when there are more.

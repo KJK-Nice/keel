@@ -96,13 +96,6 @@ func leadText(p keelclient.SSHPreview) string {
 	return fmt.Sprintf("Keel found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
 }
 
-func countWord(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return fmt.Sprintf("%d %s", n, many)
-}
-
 func selectedCount(p keelclient.SSHPreview, s *importSel) (n int) {
 	for _, h := range p.Hosts {
 		if s.hosts[h.Alias] {

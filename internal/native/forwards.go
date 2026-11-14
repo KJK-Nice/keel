@@ -185,10 +185,7 @@ func (w *workspace) runningForwards() (n int) {
 
 // forwardsLabel is the status bar's "1 forward" / "2 forwards".
 func forwardsLabel(n int) string {
-	if n == 1 {
-		return "1 forward"
-	}
-	return fmt.Sprintf("%d forwards", n)
+	return countWord(n, "forward", "forwards")
 }
 
 // forwardsShown reports that the page or the sidebar's Forwards section is on screen: the 2 s read runs then.

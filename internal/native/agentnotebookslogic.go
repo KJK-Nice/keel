@@ -35,13 +35,6 @@ func redactedCount(counts map[string]int) (n int) {
 	return n
 }
 
-func bytesNoun(n int) string {
-	if n == 1 {
-		return "1 byte"
-	}
-	return fmt.Sprintf("%d bytes", n)
-}
-
 // isNotebookStep reports a trace step about notebooks (lib/notebooks.js isNotebookStep).
 func isNotebookStep(s keelclient.TraceStep) bool {
 	return s.Status == "notebook" || s.Status == "notebook-index" || strings.HasPrefix(s.Reason, "notebook-")
@@ -51,11 +44,7 @@ func isNotebookStep(s keelclient.TraceStep) bool {
 // asked), or why one was not (lib/notebooks.js notebookStepText).
 func notebookStepText(s keelclient.TraceStep) string {
 	if s.Status == "notebook-index" {
-		noun := "notebooks"
-		if s.Count == 1 {
-			noun = "notebook"
-		}
-		return fmt.Sprintf("Sent the titles of %d %s (not private)", s.Count, noun)
+		return "Sent the titles of " + countWord(s.Count, "notebook", "notebooks") + " (not private)"
 	}
 	if s.Status == "skipped" {
 		switch s.Reason {
@@ -67,7 +56,7 @@ func notebookStepText(s keelclient.TraceStep) string {
 			return "Stopped reading notebooks · Keel's limit for one question"
 		}
 	}
-	parts := []string{bytesNoun(s.Bytes)}
+	parts := []string{countWord(s.Bytes, "byte", "bytes")}
 	if s.Truncated {
 		parts = append(parts, "cut by Keel")
 	}

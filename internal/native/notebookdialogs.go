@@ -336,11 +336,7 @@ func (w *workspace) versionDiff(c *ui.Context, d *nbDialog) {
 	ui.Text(c, "From this version to now: "+diffSummary(diff)).TextColor(inkMuted).FontSize(captionSize)
 	for _, r := range diffView(diff, 2) {
 		if r.Op == "gap" {
-			word := "lines"
-			if r.Count == 1 {
-				word = "line"
-			}
-			caption(c, strconv.Itoa(r.Count)+" unchanged "+word, inkFaint)
+			caption(c, strconv.Itoa(r.Count)+" unchanged "+plural(r.Count, "line", "lines"), inkFaint)
 			continue
 		}
 		mark, col, bg := " ", ink, ui.Transparent
