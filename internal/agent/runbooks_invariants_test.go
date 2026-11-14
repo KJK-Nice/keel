@@ -84,6 +84,7 @@ func TestRunbooksOnlyThroughTheirPaths(t *testing.T) {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}
 	}
+	noValueUses(t, allowed, func(f goFile) bool { return inAgentTree(f.pkg) })
 }
 
 // Runbook text is refused, before anything is redacted or logged, unless

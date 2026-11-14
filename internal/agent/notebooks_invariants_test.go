@@ -96,6 +96,19 @@ func TestNotebooksOnlyThroughTheirPaths(t *testing.T) {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}
 	}
+	noValueUses(t, allowed, func(f goFile) bool { return inAgentTree(f.pkg) })
+	wide := map[string][]string{}
+	for name := range moduleWide {
+		wide[name] = allowed[name]
+	}
+	noValueUses(t, wide, func(f goFile) bool { return !inAgentTree(f.pkg) })
+	never := map[string][]string{}
+	for name, banned := range forbidden {
+		if banned {
+			never[name] = nil
+		}
+	}
+	noValueUses(t, never, func(f goFile) bool { return inAgentTree(f.pkg) })
 }
 
 // ReadNotebook redacts, frames every line behind "| " with the revision,

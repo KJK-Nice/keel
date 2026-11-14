@@ -78,6 +78,7 @@ func TestNotesOnlyThroughTheirPaths(t *testing.T) {
 			t.Errorf("%s is never called: the check is out of date", name)
 		}
 	}
+	noValueUses(t, allowed, func(f goFile) bool { return inAgentTree(f.pkg) })
 }
 
 type memLog struct{ entries []applog.Entry }
