@@ -35,9 +35,15 @@ func (w *workspace) approveView(c *ui.Context) {
 	if d == nil {
 		return
 	}
-	if d.group != nil {
+	hint, note, glyphs := approveHint, "", false
+	switch s := d.src.(type) {
+	case *approveGroup:
 		w.groupApproveView(c, d)
 		return
+	case approveNotebook:
+		hint, note = approveHintNotebook, s.note
+	case *approveAgent: // the bytes as the proposal card draws them: ^U, the command, ↵
+		glyphs = true
 	}
 	open := true
 	why := d.blocked() // driver only, and the session ready: else Type is off and this says why
@@ -46,25 +52,21 @@ func (w *workspace) approveView(c *ui.Context) {
 		modalChrome(c, backdrop, panel)
 		panel.Width(dialogWidth).Padding(space4).Gap(space3).Label("dialog " + approveTitle)
 		text(c, approveTitle, ink, titleSize, weightSemibold)
-		hint := approveHint
-		if d.notebook {
-			hint = approveHintNotebook
-		}
 		ui.Text(c, hint).TextColor(inkMuted).FontSize(uiFontSize)
 		ui.Row(c).FillWidth().Gap(space1).Children(func() {
 			caption(c, "Session:", inkMuted)
 			caption(c, d.session(), inkMuted).MinWidth(0)
 		})
 		ui.Scroll(c).FillWidth().MaxHeight(approvePreviewMax).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("approve preview").Children(func() {
-			if d.agent != nil { // the bytes as the proposal card draws them: ^U, the command, ↵
+			if glyphs {
 				bytesView(c, shown)
 			} else {
 				ui.Text(c, shown).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 			}
 		})
-		if d.note != "" { // .k-review.pty-inject-agent, after the preview as the app has it
+		if note != "" { // .k-review.pty-inject-agent, after the preview as the app has it
 			ui.Row(c).FillWidth().Padding(space2, space3).Radius(radiusMd).Background(hoverGround).Label("approve note").Children(func() {
-				ui.Text(c, d.note).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
+				ui.Text(c, note).TextColor(inkMuted).FontSize(captionSize).MaxLines(0)
 			})
 		}
 		switch {

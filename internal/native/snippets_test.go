@@ -271,7 +271,7 @@ func TestEveryEntryPointOpensTheDialogAndNoneTypes(t *testing.T) {
 			t.Errorf("%s: no Approve dialog", name)
 			continue
 		}
-		if got, _ := r.w.approve.source(); got != "cd /var/log\nls -la\n" {
+		if got, _ := r.w.approve.src.(approveSnippet).text(); got != "cd /var/log\nls -la\n" {
 			t.Errorf("%s: dialog holds %q", name, got)
 		}
 		r.tt.Frame()

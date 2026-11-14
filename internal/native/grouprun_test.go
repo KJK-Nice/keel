@@ -134,10 +134,10 @@ func (r *rig) nothingTyped(t *testing.T) {
 
 func (r *rig) groupDlg(t *testing.T) *approveGroup {
 	t.Helper()
-	if r.w.approve == nil || r.w.approve.group == nil {
+	if r.w.approve == nil || r.w.approve.group() == nil {
 		t.Fatal("the group approve dialog is not open")
 	}
-	return r.w.approve.group
+	return r.w.approve.group()
 }
 
 // ---- rule 10 ----

@@ -258,13 +258,22 @@ func TestAOneLineShellFenceGoesThroughTypeNowAsANotebookFence(t *testing.T) {
 	}
 }
 
+// fenceDialog is the open Approve dialog's notebook source; false when no dialog is open or it is not a fence's.
+func (r *rig) fenceDialog() (approveNotebook, bool) {
+	if r.w.approve == nil {
+		return approveNotebook{}, false
+	}
+	s, ok := r.w.approve.src.(approveNotebook)
+	return s, ok
+}
+
 func TestATwoLineShellFenceOpensTheDialogWithExactlyTheBytesAndTypesOnlyOnType(t *testing.T) {
 	r := nbRig(t, "```sh\necho one\necho two\n```\n")
 	np := r.openNB(t, "nb1")
 	fs := fences(np.nb.md)
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
-	if len(r.directs()) != 0 || r.w.approve == nil || !r.w.approve.notebook {
+	if _, fence := r.fenceDialog(); len(r.directs()) != 0 || !fence {
 		t.Fatalf("directs %d approve %+v: a two-line fence is never a direct type", len(r.directs()), r.w.approve)
 	}
 	if got := r.w.approve.shown(); got != "echo one\necho two\n" {
@@ -304,7 +313,7 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "unreviewed"}
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
-	if len(r.directs()) != 1 || r.w.approve == nil || r.w.approve.note != unreviewedNote {
+	if s, _ := r.fenceDialog(); len(r.directs()) != 1 || s.note != unreviewedNote {
 		t.Fatalf("directs %d approve %+v", len(r.directs()), r.w.approve)
 	}
 	if !r.tt.HasText(unreviewedNote) {

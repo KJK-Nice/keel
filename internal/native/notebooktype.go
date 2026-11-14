@@ -54,10 +54,10 @@ func (w *workspace) typeNotebookFence(np *pane, f fence) {
 
 // askNotebookType opens Approve before type for a fence's line. It sends nothing.
 func (w *workspace) askNotebookType(term, np *pane, line string) {
-	w.openApprove(term, func() (string, bool) { return line, true })
-	d := w.approve
-	d.notebook = true
+	note := ""
 	if rec, ok := w.notebook(np.nb.id); ok && rec.AgentUnreviewed {
-		d.note = unreviewedNote
+		note = unreviewedNote
 	}
+	w.openApprove(term, func() (string, bool) { return line, true })
+	w.approve.fromNotebook(note)
 }
