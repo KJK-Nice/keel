@@ -270,7 +270,14 @@ func VerifyServe(addr, token string) error {
 	return err
 }
 
+// postRuntimeStop asks keel serve to stop. The token goes only to a server that proved it holds it, and never on
+// through a redirect.
 func postRuntimeStop(addr, token string) error {
+	if token != "" {
+		if err := VerifyServe(addr, token); err != nil {
+			return err
+		}
+	}
 	req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/api/runtime/stop", strings.NewReader("{}"))
 	if err != nil {
 		return err
@@ -279,7 +286,7 @@ func postRuntimeStop(addr, token string) error {
 	if token != "" {
 		req.Header.Set(authtoken.Header, token)
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
 	res, err := client.Do(req)
 	if err != nil {
 		return err

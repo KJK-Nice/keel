@@ -1,6 +1,7 @@
 package app
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -162,22 +163,66 @@ func TestStopServeAlreadyDown(t *testing.T) {
 	}
 }
 
-func TestPostRuntimeStopSendsToken(t *testing.T) {
+// The token goes to a server that proves it holds it, and to nothing else: not to one that cannot prove it, and not on
+// through a redirect.
+func TestPostRuntimeStopSendsTokenOnlyToItsServe(t *testing.T) {
+	const token = "tok"
+	var leaked []string
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(authtoken.Header) != "" {
+			leaked = append(leaked, "redirect target")
+		}
+	}))
+	t.Cleanup(elsewhere.Close)
+	serve := func(proves bool, stop http.HandlerFunc) string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/api/health" {
+				proof := "nope"
+				if proves {
+					proof = authtoken.Proof(token, r.URL.Query().Get("nonce"))
+				}
+				_, _ = io.WriteString(w, `{"proof":"`+proof+`"}`)
+				return
+			}
+			stop(w, r)
+		}))
+		t.Cleanup(srv.Close)
+		u, err := url.Parse(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return u.Host
+	}
+
 	var got string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	own := serve(true, func(w http.ResponseWriter, r *http.Request) {
 		got = r.Header.Get(authtoken.Header)
 		w.WriteHeader(http.StatusAccepted)
-	}))
-	t.Cleanup(srv.Close)
-	u, err := url.Parse(srv.URL)
-	if err != nil {
+	})
+	if err := postRuntimeStop(own, token); err != nil {
 		t.Fatal(err)
 	}
-	if err := postRuntimeStop(u.Host, "tok"); err != nil {
-		t.Fatal(err)
+	if got != token {
+		t.Fatalf("%s = %q, want the token", authtoken.Header, got)
 	}
-	if got != "tok" {
-		t.Fatalf("%s = %q, want tok", authtoken.Header, got)
+
+	impostor := serve(false, func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(authtoken.Header) != "" {
+			leaked = append(leaked, "impostor")
+		}
+	})
+	if err := postRuntimeStop(impostor, token); err == nil {
+		t.Fatal("stop went through on a server that did not prove the token")
+	}
+
+	redirecting := serve(true, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/api/runtime/stop", http.StatusTemporaryRedirect)
+	})
+	if err := postRuntimeStop(redirecting, token); err == nil {
+		t.Fatal("a redirect was taken as a stop")
+	}
+	if len(leaked) != 0 {
+		t.Fatalf("the token reached: %v", leaked)
 	}
 }
 
