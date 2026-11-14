@@ -28,7 +28,7 @@ func TestDirectSafeAllowedForms(t *testing.T) {
 
 func TestDirectSafeRefusesOutsideTheGrammar(t *testing.T) {
 	for _, c := range []string{
-		// reads the old allowlist took, now outside the grammar
+		// reads outside the grammar
 		`ls -lh --color=auto`, `id -u`, `hostname -f`, `date +%F`, `du -sh /var/log`, `cat /etc/hosts`,
 		`head -n 20 f`, `tail -n 50 f`, `grep -n x f`, `ps aux | grep nginx`, `ps -ef`, `ss -ltnp`,
 		`echo keel-agent-ok`, `wc -l f`, `systemctl --no-pager status nginx`, `journalctl --no-pager -u x`,
@@ -40,7 +40,7 @@ func TestDirectSafeRefusesOutsideTheGrammar(t *testing.T) {
 		`systemctl status nginx`, `systemctl status --no-pager nginx`, `systemctl status -x --no-pager`,
 		`systemctl show nginx --no-pager`, `systemctl cat nginx --no-pager`, `systemctl status 'nginx' --no-pager`,
 		`docker ps -q`, `docker ps  -a`, ` pwd`, `pwd `, `pwd  `,
-		// fourth review: optional-value flags, swallowed --no-pager
+		// optional-value flags, swallowed --no-pager
 		`lsof -i -P`, `lsof -i`, `journalctl -n --no-pager`, `systemctl -p --no-pager status x`,
 		// macOS ps -C / -E (environment)
 		`ps -C`, `ps -E`, `ps auxE`, `ps -Ef`,

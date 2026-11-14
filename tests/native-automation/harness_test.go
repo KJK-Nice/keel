@@ -290,14 +290,12 @@ func (r *rig) act(id, action string) {
 	r.must("act", map[string]any{"id": id, "action": action}, nil)
 }
 
-// press waits for the element with the label, and presses it.
 func (r *rig) press(label string) {
 	r.t.Helper()
 	ns := r.waitFor("element "+label, has(label))
 	r.act(find(ns, label).ID, "press")
 }
 
-// pressIn presses the child labelled label of the element labelled parent.
 func (r *rig) pressIn(parent, label string) {
 	r.t.Helper()
 	ns := r.waitFor("element "+parent, has(parent))

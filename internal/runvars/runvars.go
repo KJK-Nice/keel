@@ -124,10 +124,8 @@ func Names(cmd string) []string {
 	return out
 }
 
-// HasRefs reports whether cmd references any variable.
 func HasRefs(cmd string) bool { return len(Refs(cmd)) > 0 }
 
-// ValidName reports whether name can be declared.
 func ValidName(name string) bool { return NameRe.MatchString(name) && !reserved[name] }
 
 // badRune is a rune no value may hold: controls (C0, DEL, C1), format,

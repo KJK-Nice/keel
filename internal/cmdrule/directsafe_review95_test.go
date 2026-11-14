@@ -60,7 +60,7 @@ func TestDirectSafeReview95Refuses(t *testing.T) {
 		`kubectl get pods --server=https://x`,
 		`kubectl get pods --as=admin`,
 		`docker logs --follow=true x`,
-		// third review: a flag's value taken as the verb
+		// a flag's value taken as the verb
 		`kubectl -n get delete pod x`,
 		`kubectl -n get delete ns prod`,
 		`kubectl --namespace get delete ns prod`,

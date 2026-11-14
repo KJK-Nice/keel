@@ -26,7 +26,6 @@ const (
 	RiskDestructive = wire.RiskDestructive
 )
 
-// Stricter returns the stricter of a and b.
 func Stricter(a, b Risk) Risk {
 	if b.Rank() > a.Rank() {
 		return b
@@ -488,7 +487,6 @@ func hasAny(args []string, flags ...string) bool {
 	return false
 }
 
-// hasShort reports whether a short flag letter appears in any -abc group.
 func hasShort(args []string, letter byte) bool {
 	for _, a := range args {
 		if len(a) > 1 && a[0] == '-' && a[1] != '-' && strings.IndexByte(a[1:], letter) >= 0 {
@@ -498,7 +496,6 @@ func hasShort(args []string, letter byte) bool {
 	return false
 }
 
-// firstArg returns the first argument that is not a flag.
 func firstArg(args []string) (string, []string) {
 	for i, a := range args {
 		if !strings.HasPrefix(a, "-") {

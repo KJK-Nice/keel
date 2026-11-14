@@ -484,7 +484,6 @@ func sameState(t *testing.T, path string, before fileState) {
 	}
 }
 
-// writeTestKey writes an ed25519 private key in OpenSSH format.
 func writeTestKey(t *testing.T, path, passphrase string, mode os.FileMode) {
 	t.Helper()
 	_, priv, err := ed25519.GenerateKey(rand.Reader)

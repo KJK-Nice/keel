@@ -90,7 +90,6 @@ func (r *rig) typeKeys(s string) {
 	}
 }
 
-// sh types a command and presses Enter.
 func (r *rig) sh(cmd string) { r.t.Helper(); r.typeKeys(cmd); r.key("Enter") }
 
 // typedReaches types "echo <marker>" with Enter and reports whether the shell printed the marker.

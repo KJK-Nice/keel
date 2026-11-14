@@ -183,7 +183,6 @@ func oneLine(s string) string {
 	}, s)
 }
 
-// hasJinja reports whether s holds a Jinja opening delimiter.
 func hasJinja(s string) bool {
 	return strings.Contains(s, "{{") || strings.Contains(s, "{%") || strings.Contains(s, "{#")
 }
@@ -320,7 +319,6 @@ func comment(b *strings.Builder, indent, text string) {
 	b.WriteString(indent + "# " + oneLine(text) + "\n")
 }
 
-// INI renders the inventory in Ansible's INI format.
 func INI(inv Inventory) string {
 	n := NamesFor(inv)
 	var sections []string
@@ -405,7 +403,6 @@ func INI(inv Inventory) string {
 	return strings.Join(sections, "\n")
 }
 
-// YAML renders the inventory in Ansible's YAML format.
 func YAML(inv Inventory) string {
 	n := NamesFor(inv)
 	var b strings.Builder
