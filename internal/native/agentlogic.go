@@ -1,13 +1,13 @@
 package native
 
 import (
-	"crypto/rand"
 	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/randid"
 	"keel/internal/wire"
 )
 
@@ -313,15 +313,7 @@ func atTrigger(s string) bool {
 }
 
 // newConversationID makes an id for keel serve's in-memory history: it matches the server's ^[A-Za-z0-9_-]{8,64}$.
-func newConversationID() string {
-	const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz"
-	b := make([]byte, 19)
-	rand.Read(b)
-	for i := range b {
-		b[i] = alphabet[int(b[i])%len(alphabet)]
-	}
-	return "c" + string(b)
-}
+func newConversationID() string { return "c" + randid.Hex(10) }
 
 // cutNotice is the line under an answer the provider cut before the model finished it: a cut answer is never shown as
 // if it were whole. "" for a finished one.
