@@ -106,7 +106,7 @@ func (r *shareRig) event(kind string) runtime.Event {
 	}
 }
 
-// joiner is a Go stand-in for the desktop/browser joiner.
+// joiner is a Go stand-in for the joiner.
 type joiner struct {
 	t      *testing.T
 	key    string
@@ -245,7 +245,7 @@ func (j *joiner) next(kind string) wire.Signal {
 	return wire.Signal{}
 }
 
-// answer verifies the offer the way the JS joiner does and answers it,
+// answer verifies the offer the way a joiner does and answers it,
 // with the joiner MAC computed by mac.
 func (j *joiner) answer(offer wire.Signal, mac func(sdp string) string) {
 	j.t.Helper()

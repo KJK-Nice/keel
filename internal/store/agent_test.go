@@ -301,8 +301,8 @@ func TestDuplicateKeepsAgentFlags(t *testing.T) {
 	}
 }
 
-// Plan 036: the detection default moved from auto to hash-only. A file written before that holds "auto" for people who never
-// chose it, so it is moved once on load; an "auto" saved by the new build is a choice and stays.
+// The detection default is hash-only. A file written when it was auto holds "auto" for people who never chose it, so it
+// is moved once on load; an "auto" saved by the new build is a choice and stays.
 func TestOldAutoDetectionMovesOnceToHashOnly(t *testing.T) {
 	st, path := agentStore(t)
 	if d, _ := st.AgentSettings(); d.Detection != DetectionHashOnly {

@@ -21,15 +21,15 @@ func TestAltScreenFollowsPrivateModes(t *testing.T) {
 		{"other private mode", []string{"\x1b[?25l\x1b[?2004h"}, false},
 		{"not private", []string{"\x1b[1049h"}, false},
 		{"ESC inside resets", []string{"\x1b[?10\x1b[?1049h"}, true},
-		// Too long to read: fails closed (xterm.js reads it).
+		// Too long to read: fails closed (a terminal reads it).
 		{"too long param", []string{"\x1b[?" + strings.Repeat("0;", 20) + "1049h"}, true},
 		{"too long then leave", []string{"\x1b[?" + strings.Repeat("0;", 20) + "1049h", "\x1b[?1049l"}, false},
-		// The 8-bit CSI, as UTF-8 (c2 9b), as xterm.js reads it.
+		// The 8-bit CSI, as UTF-8 (c2 9b), as a terminal reads it.
 		{"8-bit CSI", []string{"\u009b?1049h"}, true},
 		{"8-bit CSI split", []string{"\xc2", "\x9b?1049h"}, true},
 		{"8-bit CSI leave", []string{"\x1b[?1049h", "\u009b?1049l"}, false},
 		{"other c2 char", []string{"\u00a0?1049h"}, false},
-		// ':' sub-parameters and leading zeros, as xterm.js reads them.
+		// ':' sub-parameters and leading zeros, as a terminal reads them.
 		{"sub-parameter", []string{"\x1b[?1049:1h"}, true},
 		{"sub-parameter leave", []string{"\x1b[?1049h", "\x1b[?1049:1l"}, false},
 		{"leading zeros", []string{"\x1b[?01049h"}, true},

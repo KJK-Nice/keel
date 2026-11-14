@@ -19,7 +19,7 @@ import (
 // bytes, at the moment of the write; it never adds a newline; anything it
 // cannot call a read-only line goes to the dialog.
 
-// directOverSocket runs the page's direct Type: a server nonce for the
+// directOverSocket runs the window's direct Type: a server nonce for the
 // bytes, then an inject marked direct. It returns the type-direct answer.
 func directOverSocket(t *testing.T, conn *websocket.Conn, command string, direct, agentPart map[string]any) map[string]any {
 	t.Helper()

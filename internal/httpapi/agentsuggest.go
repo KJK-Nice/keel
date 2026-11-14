@@ -14,7 +14,7 @@ import (
 	"keel/internal/wire"
 )
 
-// In-pane suggestions (docs/ui-redesign.md §5.5, phase 6c) ride on the
+// In-pane suggestions (docs/ui-redesign.md §5.5) ride on the
 // session socket, so keel serve knows which client asks and its role in
 // the pane as it is now: only the driver gets a notice or a suggestion
 // (§6.6). Like agentask.go this file never writes to a session: the user's

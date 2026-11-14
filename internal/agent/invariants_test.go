@@ -1,7 +1,7 @@
 package agent_test
 
 // Source checks for the agent invariants (docs/ui-redesign.md §6) and for
-// "nothing leaves the machine in phase 6a". They parse the module's Go
+// "nothing leaves the machine unasked". They parse the module's Go
 // files with go/parser (no extra dependency) and look at imports, calls
 // and field reads. Test files are skipped: tests may build a client
 // against a loopback httptest server.
@@ -292,7 +292,7 @@ func TestRolesMatchRuntime(t *testing.T) {
 }
 
 // clientImporters is the list of packages allowed to build a real provider
-// client (Gemini, Anthropic, Jev): exactly the agent service (phase 6b),
+// client (Gemini, Anthropic, Jev): exactly the agent service,
 // which builds one only for a user's Ask or ⇥ (service.Real and
 // service.RealJudge, called from providerFor and judgeFor).
 var clientImporters = []string{module + "/internal/agent/service"}

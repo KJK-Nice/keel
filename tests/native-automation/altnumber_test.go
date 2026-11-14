@@ -59,7 +59,7 @@ func countLabel(ns []node, label string) (n int) {
 	return n
 }
 
-// Plan 036 bug 3: ⌥1 to ⌥6 open the nth card of the New tab page, with the caret in "Where to?" and with nothing focused,
+// ⌥1 to ⌥6 open the nth card of the New tab page, with the caret in "Where to?" and with nothing focused,
 // and the input never takes the character the key types.
 func TestOptionDigitOpensACardWithTheInputFocused(t *testing.T) {
 	r := newTabRig(t)

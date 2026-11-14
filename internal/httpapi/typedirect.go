@@ -19,7 +19,7 @@ import (
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
-// review). On the session socket the page sends:
+// review). On the session socket the window sends:
 //
 //	{"type":"inject", "command", "nonce", "direct":{…}, "agent":{…}}
 //	    → {"type":"type-direct", "ref", "ok", "dialog", "reason", "message"}
@@ -29,7 +29,7 @@ import (
 // consumes the server nonce and writes the bytes: the command alone, never
 // a newline, so it waits on the prompt line for the user's Enter. When
 // any check is not met the answer is dialog:true and nothing is written:
-// the page then opens the approve dialog, the path that was there before.
+// the window then opens the approve dialog.
 
 // The "direct" part of an inject is wire.DirectType: where the command
 // comes from (an agent proposal, with the frame's "agent" part, a snippet
@@ -59,7 +59,7 @@ func looksLikeInput(line string) bool {
 // promptCheck sends a direct type to the dialog unless the pane is at its
 // shell's prompt: with OSC 133 marks, at a prompt with no command open;
 // in any case, not on a line that asks for input (keel serve's view of the
-// output tail, or the page's xterm line).
+// output tail, or the window's own line).
 func promptCheck(sess *runtime.Session, d *wire.DirectType) error {
 	marks, atPrompt, last := sess.PromptState()
 	if marks && !atPrompt {

@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	// AppKit/WKWebView must run on thread 0. Lock before any other package
+	// AppKit must run on thread 0. Lock before any other package
 	// hops the main goroutine off the main OS thread.
 	runtime.LockOSThread()
 }

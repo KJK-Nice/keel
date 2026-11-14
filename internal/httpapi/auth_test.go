@@ -139,7 +139,7 @@ func TestAuthHeader(t *testing.T) {
 	}
 }
 
-// The browser-only credentials are gone: a cookie alone opens nothing, and the old ?keel_token= parameter, right or
+// A cookie alone opens nothing, and a ?keel_token= parameter, right or
 // wrong, opens nothing, sets no cookie and redirects nowhere.
 func TestAuthCookieAndTokenParamGrantNothing(t *testing.T) {
 	srv := authServer(t)

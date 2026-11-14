@@ -1,6 +1,6 @@
 //go:build nativeautomation
 
-// Package nativeautomation drives the built native app from outside, through MyGo's automation socket (plan 029):
+// Package nativeautomation drives the built native app from outside, through MyGo's automation socket:
 // a test binary (bin/keel-e2e, built with the tag keelautomation by make native-automation-build) opens a real
 // window, and these tests speak the socket's newline-delimited JSON protocol to it. Everything runs on scratch
 // data in a fresh temp directory, with a free loopback port, no keychain and the fake agent provider.

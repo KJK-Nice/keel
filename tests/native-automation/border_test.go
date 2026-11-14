@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Plan 037 part C, addition: the real window has a 1 pt line round it, in the strong line token, in both themes and at window
+// The real window has a 1 pt line round it, in the strong line token, in both themes and at window
 // opacity 100 and 30. The socket's capture is the app's own render (no compositor), so it holds the line and nothing behind the
 // window: the four edge pixels carry the token colour at full alpha, and the corner pixel does not (the corners are rounded).
 // The shots (.scratch-native/automation/border-*.png) are opened by eye for the continuity round the corners.

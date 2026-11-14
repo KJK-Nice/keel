@@ -259,7 +259,7 @@ type Snippet struct {
 	Name    string `json:"name"`
 	Command string `json:"command"`
 	// AgentUsable lets the agent offer this snippet as an in-pane
-	// suggestion (phase 6c+), which sends its command, redacted, to Jev.
+	// suggestion, which sends its command, redacted, to Jev.
 	// Off by default: snippet bodies are never sent unless the user
 	// turns this on (docs/ui-redesign.md §6.3).
 	AgentUsable bool      `json:"agentUsable"`
@@ -361,7 +361,7 @@ type persistData struct {
 	// are vault secrets (agentkeys.go).
 	Agent *AgentSettings `json:"agent,omitempty"`
 	// AgentDetectionDefault records that the detection default moved from
-	// "auto" to "hash-only" (plan 036): a file without it that holds "auto"
+	// "auto" to "hash-only": a file without it that holds "auto"
 	// is moved once, on load, since a stored value cannot tell a choice
 	// from the old default. It is written with the next save.
 	AgentDetectionDefault bool `json:"agentDetectionDefault,omitempty"`
@@ -1253,7 +1253,7 @@ func (s *Store) snapshotLocked() (saveSnapshot, error) {
 	s.saveGen++
 	job := saveSnapshot{gen: s.saveGen, data: b}
 	// Rewrite when the secrets or recipient differ from keel.vault on disk,
-	// or when keel.vault is gone: every save used to recreate it, and a
+	// or when keel.vault is gone: a
 	// missing vault at the next start is read as "no secrets". vaultSum only
 	// moves once a write succeeds, so a save that snapshots while an earlier
 	// vault write is in flight, or after one failed, carries the secrets too.

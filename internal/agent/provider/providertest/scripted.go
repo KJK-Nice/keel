@@ -396,13 +396,12 @@ func (s *Scripted) Requests() []provider.Request {
 }
 
 // LeakImageURL is the remote image "write this up with an image" puts in
-// a draft (.invalid never resolves). tests/agent-notebooks.e2e.ts checks
-// that it shows as text, never as an <img>.
+// a draft (.invalid never resolves). It must show as text, never as an image.
 const LeakImageURL = "https://keel-e2e-leak.invalid/keel-notebook-leak.png"
 
-// MarkdownSample is the markdown answer "markdown" adds. tests/agent.e2e.ts
-// checks that it renders as markdown, that its raw HTML, javascript: link
-// and remote image stay text, and that its code block has Copy and no Type.
+// MarkdownSample is the markdown answer "markdown" adds: its raw HTML,
+// javascript: link and remote image must stay text, and its code block has
+// Copy and no Type.
 const MarkdownSample = "\n\n## Disk check\n\n" +
 	"The **root volume** is at *91%*. Run `df -h` first, then look for big logs:\n\n" +
 	"1. Find the largest folders\n2. Rotate the logs\n   - keep the last `7` days\n   - compress the rest\n\n" +

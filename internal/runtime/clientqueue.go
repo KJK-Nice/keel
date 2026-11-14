@@ -7,11 +7,11 @@ import (
 )
 
 // Each attached client gets its events through a queue measured in bytes,
-// not events. A burst of small reads (yes | head over SSH) used to fill a
-// 512-event channel in a few KB and drop a client that was only a moment
-// behind, closing its WebSocket. Now output waits in the queue, adjacent
-// chunks are merged so the consumer sends fewer, larger frames, and a
-// client is dropped only when its unread output passes the byte budget.
+// not events, so a burst of small reads (yes | head over SSH) does not drop
+// a client that is only a moment behind. Output waits in the queue,
+// adjacent chunks are merged so the consumer sends fewer, larger frames,
+// and a client is dropped only when its unread output passes the byte
+// budget.
 const (
 	// clientMaxQueuedBytes is how much unread output a client may hold
 	// before it is dropped as a slow consumer. Share viewers are paced by

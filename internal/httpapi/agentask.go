@@ -15,7 +15,7 @@ import (
 	"keel/internal/wire"
 )
 
-// The agent panel's routes (phase 6b). POST /api/agent/ask is the only
+// The agent panel's routes. POST /api/agent/ask is the only
 // route in Keel that sends anything off the machine, and only what the
 // agent service has read through the Auditor and redacted. These handlers
 // never write to a session: typing a proposal goes through the session

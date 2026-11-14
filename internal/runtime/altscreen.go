@@ -9,7 +9,7 @@ import "strings"
 // bytes would be keystrokes for that program, not a command line.
 //
 // It parses only CSI ? Pm h / l (CSI as ESC [ or as the 8-bit U+009B,
-// which xterm.js reads in UTF-8 as c2 9b) and RIS (ESC c, a full reset
+// which a terminal reads in UTF-8 as c2 9b) and RIS (ESC c, a full reset
 // back to the normal screen), and keeps its state across writes, so a
 // sequence split over two reads is still seen. Anything else is skipped.
 // It fails closed: a private mode sequence too long to read counts as
@@ -81,7 +81,7 @@ func (a *altScreen) Feed(b []byte) {
 					a.param = append(a.param, c)
 				} else {
 					// Too long to read: it may set the alternate
-					// screen, which xterm.js honours. Fail closed.
+					// screen, which a terminal honours. Fail closed.
 					a.on, a.state = true, altGround
 				}
 			case c == 'h' || c == 'l':
@@ -95,7 +95,7 @@ func (a *altScreen) Feed(b []byte) {
 				a.state = altC2
 			default:
 				// Anything else in a sequence naming 47, 1047 or 1049 is
-				// not read here; xterm.js may still act on it. Fail closed.
+				// not read here; a terminal may still act on it. Fail closed.
 				if altModes(a.param) {
 					a.on = true
 				}
@@ -111,7 +111,7 @@ func (a *altScreen) Reset() {
 }
 
 // altModes reports whether a parameter list names an alternate screen mode.
-// Each parameter is read as xterm.js reads it: its number before any ':'
+// Each parameter is read as a terminal reads it: its number before any ':'
 // sub-parameter, leading zeros and all ("01049:1" is 1049).
 func altModes(p []byte) bool {
 	for _, part := range strings.Split(string(p), ";") {

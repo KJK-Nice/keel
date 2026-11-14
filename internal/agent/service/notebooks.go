@@ -481,7 +481,7 @@ var inlineImageRe = regexp.MustCompile(`^!\[([^\]\n]*)\]\(\s*<?([^\s()<>]*)>?(?:
 
 // defuseImages turns every markdown image the agent writes into text,
 // except a data: image. The notebook editor renders an image as <img src>,
-// and the webview would fetch its URL when the notebook opens: a model
+// and the window would fetch its URL when the notebook opens: a model
 // steered by pane text could put what it read into that URL. An inline
 // image becomes its alt text and its URL as inline code; any other "![" (a
 // reference image) is escaped so it reads as text. Fenced code and code

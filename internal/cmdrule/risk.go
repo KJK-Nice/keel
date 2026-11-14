@@ -16,8 +16,8 @@ import (
 
 // Risk is how much a command can change on the host it runs on. It is the
 // label shown on every proposal (§5.4) and the input to the ⇧ gate
-// (§6.5). Phase 6b rates commands with the code rule below; a model's
-// judgment (6c) may only make a rating stricter, never looser.
+// (§6.5). The code rule below rates commands; a model's
+// judgment may only make a rating stricter, never looser.
 type Risk = wire.Risk
 
 const (

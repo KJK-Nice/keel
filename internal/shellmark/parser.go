@@ -70,8 +70,7 @@ const (
 // code U+009D (UTF-8 C2 9D); it ends with BEL, ST (ESC \ or U+009C), or
 // any other ESC (which then starts a new sequence); CAN and SUB, and the
 // other C1 codes, abandon it; C0 controls inside it are dropped. The one
-// deliberate difference is the length cap (MaxPayload), which the
-// terminal side (js/lib/cmdmarks.js) applies too.
+// deliberate difference is the length cap (MaxPayload).
 type Parser struct {
 	state    int
 	buf      []byte

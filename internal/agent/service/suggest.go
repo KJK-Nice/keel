@@ -1,6 +1,6 @@
 package service
 
-// Plain language → command in a pane (docs/ui-redesign.md §5.5, phase 6c).
+// Plain language → command in a pane (docs/ui-redesign.md §5.5).
 //
 // Three calls, all on the user's own session socket, so keel serve knows
 // the asking client's role in the pane (a follower gets nothing, §6.6):

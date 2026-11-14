@@ -11,8 +11,7 @@ import (
 
 // The questions Keel asks the detector (TypeSafe Jev) and the numbers it
 // acts on, in one place so they can be reviewed and tuned together
-// (docs/ui-redesign.md §5.5, §7). The client's debounce is in
-// cmd/keel/web/js/lib/suggest.js (DETECT_PAUSE_MS).
+// (docs/ui-redesign.md §5.5, §7).
 //
 // Tuned against jev-1.13.0 (provider.JevModel) on 2026-10-15 with 14
 // prompt lines and 6 commands: plain requests scored 0.80–0.98 ("list
@@ -66,7 +65,7 @@ const (
 // this long, the history pick and a margin (internal/native suggestWait) before it gives up on an answer.
 const defaultSuggestTimeout = 30 * time.Second
 
-// History first (phase 6c+): before the model writes a command, code
+// History first: before the model writes a command, code
 // gathers commands the user already ran in the pane (its scrollback) or
 // marked agent-usable in Snippets, and Jev picks one in one request:
 //

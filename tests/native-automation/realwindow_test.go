@@ -2,7 +2,7 @@
 
 package nativeautomation
 
-// Plan 032 in a real window: what the headless Tester cannot show. Typing is made as a keyboard makes it (a key press, the
+// What the headless Tester cannot show. Typing is made as a keyboard makes it (a key press, the
 // text it produces, the release), a drag has a frame between its events, and the text on screen is judged by keel serve's
 // scrollback and by captures (.scratch-native/automation/, with the pane corners cut out at 5x as <name>-corners.png).
 
@@ -156,9 +156,8 @@ func (r *rig) shot(name string) {
 	png.Encode(f, out)
 }
 
-// Plan 032 step 4 (item 3). A drag on the sidebar's sash gave the sash the keyboard and kept it: the next typing (text goes to
-// the focused element) reached nothing until the terminal was clicked. Found here: before the fix the keyboard stayed on
-// "Resize sidebar" and no echo came back.
+// A drag on the sidebar's sash must not leave the sash holding the keyboard: typing goes to the focused element, and
+// the shell must still get it without a click on the terminal.
 func TestTypingWorksAfterDraggingTheSash(t *testing.T) {
 	r := newRig(t)
 	r.startServe()
@@ -183,9 +182,9 @@ func TestTypingWorksAfterDraggingTheSash(t *testing.T) {
 	r.quit()
 }
 
-// Plan 032 step 3 (items 2 and 8): lots of output, then the layout changes, with a capture after each. Looked at by eye
+// Lots of output, then the layout changes, with a capture after each. Looked at by eye
 // (the pane corners for a straight line out of the rounded border, the text against keel serve's scrollback); the test
-// asserts only that the shell kept up. Not reproduced in the run of 2026-11-12 (see the plan 032 follow-up report).
+// asserts only that the shell kept up.
 func TestTerminalCapturesAfterLayoutChanges(t *testing.T) {
 	r := newRig(t)
 	r.startServe()
@@ -224,7 +223,7 @@ func TestTerminalCapturesAfterLayoutChanges(t *testing.T) {
 	r.quit()
 }
 
-// Plan 032 step 5 (item 4), in a real window and with the fake provider: the keys and settings are stored the way the
+// In a real window and with the fake provider: the keys and settings are stored the way the
 // agent panel does, a plain-language line is typed as keys, and the notice, the card and esc are followed by label.
 // Findings: with the default settings (no provider key, suggestions off) the pane shows nothing at all and ⇥ stays the
 // shell's, which is the app's behaviour too; the daemon's log shows no suggestion route because the questions are
@@ -251,7 +250,7 @@ func TestSuggestionInARealWindow(t *testing.T) {
 	r.typeKeys("show the files here")
 	r.waitFor("the notice", has("suggestion notice"))
 	r.shot("suggest-01-notice")
-	r.key("Cmd+Y") // a line noticed on its own leaves Tab to the shell; the suggest key asks (plan 036)
+	r.key("Cmd+Y") // a line noticed on its own leaves Tab to the shell; the suggest key asks
 	r.waitFor("the card", has("suggested command"))
 	r.shot("suggest-02-card")
 	r.key("Escape")
@@ -266,7 +265,7 @@ func TestSuggestionInARealWindow(t *testing.T) {
 	r.key("Escape")
 	r.waitFor("the notice gone", lacks("suggestion notice"))
 
-	// The notice's esc is also the shell's (the page's twin does the same), and a shell's line editor takes the next key
+	// The notice's esc is also the shell's and a shell's line editor takes the next key
 	// within its timeout (bash: 500 ms) as Meta+key: typed at once, the "x" below is lost ("\a" in the scrollback). That is
 	// a candidate for "the first keys do not register"; the scenario waits it out and does not decide it.
 	time.Sleep(900 * time.Millisecond)
@@ -280,7 +279,7 @@ func TestSuggestionInARealWindow(t *testing.T) {
 	r.quit()
 }
 
-// Plan 036 in a real window, with the default settings ("Only lines starting with #"): a typed plain line is not noticed
+// In a real window, with the default settings ("Only lines starting with #"): a typed plain line is not noticed
 // and is sent nowhere, ⌘Y asks for it and the card follows, and ⇥ is the shell's while nothing shows.
 func TestSuggestKeyAsksInARealWindow(t *testing.T) {
 	r := newRig(t)
@@ -378,7 +377,7 @@ func (r *rig) screenPicture(name string) string {
 	return p
 }
 
-// Plan 032 step 7 / plan 031 looks, in both themes: both sashes hovered, and a row's context menu (a native menu, so it is
+// Looks in both themes: both sashes hovered, and a row's context menu (a native menu, so it is
 // taken from the screen). Looked at by eye; the sash pixels are the headless tests' (sashpixels_test.go).
 func TestContextMenuAndSashesBothThemes(t *testing.T) {
 	r := newRig(t)
