@@ -18,7 +18,7 @@ func shellRows(es []menuEntry) (out []string) {
 }
 
 // The labels and chords of the File and View menus.
-func TestShellMenusAreTheWebviewsMenus(t *testing.T) {
+func TestShellMenusAndTheirAccelerators(t *testing.T) {
 	file := "New Tab CmdOrCtrl+t|Close Tab CmdOrCtrl+w|Reopen Tab CmdOrCtrl+Shift+t|-|New Host CmdOrCtrl+n|" +
 		"Quick Connect CmdOrCtrl+Shift+o|Join Session CmdOrCtrl+j|-|Split Right CmdOrCtrl+Shift+d|" +
 		"Split Down CmdOrCtrl+Shift+e|Split Notebook "

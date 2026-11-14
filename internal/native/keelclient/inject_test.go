@@ -174,7 +174,7 @@ func TestApprovedInjectFollowerAndNotReadySendNoFrameAtAll(t *testing.T) {
 		}
 	}
 	if ErrNotDriver.Error() != "You are following — take or request control to type" {
-		t.Fatalf("not the webview's words: %q", ErrNotDriver)
+		t.Fatalf("the error words changed: %q", ErrNotDriver)
 	}
 }
 

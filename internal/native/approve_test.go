@@ -33,7 +33,7 @@ func fixed(s string) func() (string, bool) { return func() (string, bool) { retu
 
 func (r *rig) typed() []string { return r.fb.conns[0].injected }
 
-func TestOpeningTheDialogSendsNothingAndShowsTheWebviewsWords(t *testing.T) {
+func TestOpeningTheDialogSendsNothingAndShowsItsWords(t *testing.T) {
 	r := approveRig(t)
 	r.w.askType(fixed("echo hi"))
 	r.tt.Frame()
@@ -43,13 +43,13 @@ func TestOpeningTheDialogSendsNothingAndShowsTheWebviewsWords(t *testing.T) {
 		}
 	}
 	if approveTitle != "Type into the terminal?" || !strings.Contains(approveHint, "The current line is cleared first. Nothing is typed until you approve.") {
-		t.Fatal("the title or sentence is not the webview's")
+		t.Fatal("the title or sentence changed")
 	}
 	if len(r.typed()) != 0 || r.fb.conns[0].wrote != 0 {
 		t.Fatalf("opening the dialog typed %v / wrote %d", r.typed(), r.fb.conns[0].wrote)
 	}
 	if !r.tt.Focused("Cancel") {
-		t.Error("the keyboard does not start on Cancel, as the webview's dialog does")
+		t.Error("the keyboard does not start on Cancel")
 	}
 }
 
@@ -170,7 +170,7 @@ func TestAFollowerOrASessionNotReadyCannotType(t *testing.T) {
 		}
 	}
 	if msgFollowing != "You are following — take or request control to type" || msgNotConnected != "Session is not connected" || msgNoSession != "Open a session first" {
-		t.Fatal("not the webview's toasts")
+		t.Fatal("the toast words changed")
 	}
 }
 

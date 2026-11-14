@@ -58,7 +58,7 @@ func TestCopySSHCommandPutsTheCommandOnTheClipboardOnly(t *testing.T) {
 	}
 }
 
-func TestSSHCommandHasTheWebviewsCases(t *testing.T) {
+func TestSSHCommandCases(t *testing.T) {
 	hosts := []keelclient.Host{
 		{ID: "j", Name: "bastion", Address: "bastion.example", Port: 2200, Username: "ed", AuthType: "password"},
 		{ID: "jd", Address: "bastion", Username: "-oProxyCommand=id", AuthType: "password"},
