@@ -60,8 +60,9 @@ type approveDialog struct {
 }
 
 // approveSource is where the dialog's bytes come from, and what differs between the sources: exactly one of
-// approveSnippet, approveNotebook, *approveAgent and *approveGroup. The group dialog has no pane of its own and draws its
-// own view (groupapproveview.go), so words, prepare and answered are the one-pane dialog's.
+// approveSnippet, approveNotebook, *approveAgent and *approveGroup. The group dialog has no pane of its own, draws its
+// own view (groupapproveview.go) and makes its own jobs (groupJobs), so words, prepare and answered are the one-pane
+// dialog's.
 type approveSource interface {
 	// shown is the text the dialog previews and Type sends, as it is now; false when it is gone (deleted elsewhere).
 	shown() (string, bool)
@@ -217,7 +218,7 @@ func paneSession(p *pane) string {
 
 // blocked is why Type cannot type into the pane now, or "" (rule: driver only).
 func (d *approveDialog) blocked() string {
-	if d.p == nil { // the group dialog: every row says for itself why it cannot be typed
+	if d.group() != nil { // every row says for itself why it cannot be typed
 		return ""
 	}
 	st := d.p.conn.Snapshot()

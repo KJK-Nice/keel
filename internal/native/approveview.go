@@ -34,7 +34,7 @@ func (w *workspace) approveView(c *ui.Context) {
 	if d == nil {
 		return
 	}
-	if d.p == nil {
+	if d.group() != nil {
 		w.groupApproveView(c, d)
 		return
 	}
