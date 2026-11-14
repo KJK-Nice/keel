@@ -283,14 +283,14 @@ type tab struct {
 
 	h ui.Handle // the tab in the strip, for where a dragged tab lands
 
-	page *startPage // set while the tab is the New tab page: it has no panes
-	pg   *tabPage   // set while the tab is a page (Keychain, Logs…): it has no panes either
+	start *startPage // set while the tab is the New tab page: it has no panes
+	pg    *tabPage   // set while the tab is a page (Keychain, Logs…): it has no panes either
 
 	remote bool // the tab joined someone else's share: a terminal and nothing else, never saved
 }
 
 // isNew reports the New tab page.
-func (t *tab) isNew() bool { return t.page != nil }
+func (t *tab) isNew() bool { return t.start != nil }
 
 // tabMode is what a tab is: the New tab page, a page, someone else's share, notebooks only, or sessions. A tab is exactly
 // one of them.
@@ -321,8 +321,11 @@ func (t *tab) mode() tabMode {
 // hasPanes reports a tab that holds panes (a page and the New tab page hold none).
 func (m tabMode) hasPanes() bool { return m != modeNew && m != modePage }
 
+// local reports a tab of this machine's panes: sessions, notebooks or both.
+func (m tabMode) local() bool { return m == modeSession || m == modeNotebooks }
+
 func (t *tab) name() string {
-	if t.pg != nil { // a page is named by what it is: no rename
+	if t.isPage() { // a page is named by what it is: no rename
 		if p, ok := t.pg.page.(pageTitled); ok && p.tabTitle() != "" {
 			return p.tabTitle() // the Group page by its folder, the group run page by its runbook
 		}
@@ -639,10 +642,10 @@ func (w *workspace) selectTab(i int) {
 		w.lastSession = w.tabs[i]
 	}
 	w.wantFocus = w.tabs[i].focused
-	if p := w.tabs[i].page; p != nil {
+	if p := w.tabs[i].start; p != nil {
 		p.focus = true // the New tab page's input has the keyboard
 	}
-	if w.tabs[i].pg != nil {
+	if w.tabs[i].isPage() {
 		w.loadPage(w.tabs[i]) // a page shows what the server has now
 	}
 }

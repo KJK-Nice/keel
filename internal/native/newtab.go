@@ -50,7 +50,7 @@ const altPressFor = 500 * time.Millisecond
 
 func (a altPress) fresh() bool { return !a.at.IsZero() && time.Since(a.at) < altPressFor }
 
-func newStartTab() *tab { return &tab{panes: map[string]*pane{}, page: &startPage{focus: true}} }
+func newStartTab() *tab { return &tab{panes: map[string]*pane{}, start: &startPage{focus: true}} }
 
 // addStartTab opens a New tab and shows it.
 func (w *workspace) addStartTab() {
@@ -251,16 +251,16 @@ func (w *workspace) openHost(h keelclient.Host) {
 func (w *workspace) openHostIn(h keelclient.Host, fill *tab) {
 	w.rememberRecent(h.ID)
 	if fill != nil {
-		if fill.page.connecting != "" {
+		if fill.start.connecting != "" {
 			return
 		}
-		fill.page.connecting, fill.page.pick = h.ID, h.ID
+		fill.start.connecting, fill.start.pick = h.ID, h.ID
 	}
 	w.work(func() {
 		conn, err := w.be.Spawn(h.ID, startCols, startRows)
 		w.post(func() {
-			if fill != nil && fill.page != nil {
-				fill.page.connecting = ""
+			if fill != nil && fill.isNew() {
+				fill.start.connecting = ""
 			}
 			switch {
 			case err != nil:
@@ -281,17 +281,17 @@ func (w *workspace) attach(fill *tab, p *pane) {
 		w.addTab(p)
 		return
 	}
-	fill.root, fill.panes, fill.focused, fill.page = layout.Leaf(p.id), map[string]*pane{p.id: p}, p.id, nil
+	fill.root, fill.panes, fill.focused, fill.start = layout.Leaf(p.id), map[string]*pane{p.id: p}, p.id, nil
 	w.selectTab(i)
 }
 
 // openCard is ⌥1 to ⌥6 and a click on a card.
 func (w *workspace) openCard(t *tab, n int) {
-	if t.page == nil { // the shortcut was registered while t was the page; an earlier key turned t into a session tab
+	if !t.isNew() { // the shortcut was registered while t was the page; an earlier key turned t into a session tab
 		return
 	}
-	cards := w.cards(t.page)
-	if a := &t.page.alt; a.fresh() { // the page saw this key too: one press opens one card, whichever path comes second
+	cards := w.cards(t.start)
+	if a := &t.start.alt; a.fresh() { // the page saw this key too: one press opens one card, whichever path comes second
 		if a.done {
 			return
 		}
@@ -306,7 +306,7 @@ func (w *workspace) openCard(t *tab, n int) {
 // (nothing is saved or connected until Save), a refused one shows its error, and otherwise the highlighted card, or
 // the first, opens.
 func (w *workspace) submitStart(t *tab) {
-	p := t.page
+	p := t.start
 	if r := sshparse.ParseConnect(p.query); r != nil {
 		p.showError = !r.OK
 		if r.OK {
@@ -314,7 +314,7 @@ func (w *workspace) submitStart(t *tab) {
 		}
 		return
 	}
-	cards := w.cards(t.page)
+	cards := w.cards(t.start)
 	for _, h := range cards {
 		if h.ID == p.pick {
 			w.openHostIn(h, t)
@@ -330,10 +330,10 @@ func (w *workspace) submitStart(t *tab) {
 
 // movePick moves the highlighted card by delta (↑ ↓ in the input), stopping at the ends.
 func (w *workspace) movePick(t *tab, delta int) {
-	cards := w.cards(t.page)
-	i := slices.IndexFunc(cards, func(h keelclient.Host) bool { return h.ID == t.page.pick })
+	cards := w.cards(t.start)
+	i := slices.IndexFunc(cards, func(h keelclient.Host) bool { return h.ID == t.start.pick })
 	if len(cards) == 0 {
 		return
 	}
-	t.page.pick = cards[min(max(max(i, 0)+delta, 0), len(cards)-1)].ID
+	t.start.pick = cards[min(max(max(i, 0)+delta, 0), len(cards)-1)].ID
 }

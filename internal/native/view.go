@@ -186,7 +186,7 @@ func (w *workspace) barStatus() string {
 	case t == nil || t.mode() == modePage:
 		return ""
 	case t.mode() == modeNew:
-		if t.page.connecting != "" {
+		if t.start.connecting != "" {
 			return "Connecting…"
 		}
 		return "New tab"

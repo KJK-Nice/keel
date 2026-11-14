@@ -240,7 +240,7 @@ func (t *tab) onlyNotebooks() bool { return len(t.panes) > 0 && t.firstTerm() ==
 // placeNotebook shows a notebook pane: beside the terminal of a session tab, else in a tab of its own.
 func (w *workspace) placeNotebook(np *pane) {
 	t := w.tab()
-	if t != nil && (t.mode() == modeSession || t.mode() == modeNotebooks) && t.root != nil && len(t.panes) > 0 {
+	if t != nil && t.mode().local() && t.root != nil && len(t.panes) > 0 {
 		sibling := t.firstTerm()
 		if sibling == nil {
 			sibling = t.panes[t.focused]

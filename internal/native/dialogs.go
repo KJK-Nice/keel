@@ -114,7 +114,7 @@ func (w *workspace) returnKeyboard(toPage bool) {
 	}
 	if t.panes[t.focused] != nil {
 		w.wantFocus = t.focused
-	} else if toPage && t.page != nil {
-		t.page.focus = true
+	} else if toPage && t.isNew() {
+		t.start.focus = true
 	}
 }
