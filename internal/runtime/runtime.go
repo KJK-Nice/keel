@@ -841,10 +841,14 @@ func (s *Session) requestReconnect() error {
 	if looping {
 		return nil
 	}
-	s.setStatus(StatusConnecting, "reconnecting")
-	s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+	s.markReconnecting()
 	go s.runLoop()
 	return nil
+}
+
+func (s *Session) markReconnecting() {
+	s.setStatus(StatusConnecting, "reconnecting")
+	s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
 }
 
 func (s *Session) runLoop() {
@@ -862,8 +866,7 @@ func (s *Session) runLoop() {
 		restart := !s.closed && s.forceReconnect
 		s.mu.Unlock()
 		if restart {
-			s.setStatus(StatusConnecting, "reconnecting")
-			s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+			s.markReconnecting()
 			go s.runLoop()
 		}
 	}()
@@ -1000,13 +1003,12 @@ func (s *Session) runLoop() {
 			kind := session.BridgeExit(br)
 			if force || (auto && kind == session.ExitDrop) {
 				dropped = true
-				s.setStatus(StatusConnecting, "reconnecting")
 				if force {
 					s.noteLine("Reconnecting…")
 				} else {
 					s.noteLine("Connection lost — reconnecting…")
 				}
-				s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: "reconnecting", Info: s.Info()})
+				s.markReconnecting()
 				if !force && !s.backoffWait() {
 					return
 				}
