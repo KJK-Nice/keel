@@ -79,12 +79,7 @@ func (b *localBridge) Read(p []byte) (int, error)  { return b.file.Read(p) }
 func (b *localBridge) Write(p []byte) (int, error) { return b.file.Write(p) }
 
 func (b *localBridge) Resize(cols, rows int) error {
-	if cols < 1 {
-		cols = 80
-	}
-	if rows < 1 {
-		rows = 24
-	}
+	cols, rows = ClampSize(cols, rows)
 	return pty.Setsize(b.file, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
 }
 

@@ -41,12 +41,7 @@ func openSSH(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error)
 		ssh.TTY_OP_ISPEED: 14400,
 		ssh.TTY_OP_OSPEED: 14400,
 	}
-	if cols < 1 {
-		cols = 80
-	}
-	if rows < 1 {
-		rows = 24
-	}
+	cols, rows = ClampSize(cols, rows)
 	if err := sess.RequestPty("xterm-256color", rows, cols, modes); err != nil {
 		_ = sess.Close()
 		_ = client.Close()
@@ -278,12 +273,7 @@ func (b *sshBridge) Read(p []byte) (int, error)  { return b.stdout.Read(p) }
 func (b *sshBridge) Write(p []byte) (int, error) { return b.stdin.Write(p) }
 
 func (b *sshBridge) Resize(cols, rows int) error {
-	if cols < 1 {
-		cols = 80
-	}
-	if rows < 1 {
-		rows = 24
-	}
+	cols, rows = ClampSize(cols, rows)
 	return b.session.WindowChange(rows, cols)
 }
 

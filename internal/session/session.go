@@ -38,11 +38,19 @@ func Open(host store.Host, cols, rows int, checkKey CheckKey) (Bridge, error) {
 func ParseSize(colsQ, rowsQ string) (int, int) {
 	cols, _ := strconv.Atoi(colsQ)
 	rows, _ := strconv.Atoi(rowsQ)
+	return ClampSize(cols, rows)
+}
+
+const maxTerminalDim = 1000
+
+// ClampSize defaults a non-positive size to 80x24 and caps each side so it
+// fits the uint16 the PTY and SSH window-change calls take.
+func ClampSize(cols, rows int) (int, int) {
 	if cols < 1 {
 		cols = 80
 	}
 	if rows < 1 {
 		rows = 24
 	}
-	return cols, rows
+	return min(cols, maxTerminalDim), min(rows, maxTerminalDim)
 }

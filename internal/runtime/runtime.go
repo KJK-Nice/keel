@@ -156,12 +156,7 @@ func (r *Runtime) Spawn(hostID string, cols, rows int) (Info, error) {
 	if err != nil {
 		return Info{}, err
 	}
-	if cols < 1 {
-		cols = 80
-	}
-	if rows < 1 {
-		rows = 24
-	}
+	cols, rows = session.ClampSize(cols, rows)
 	s := &Session{
 		rt:            r,
 		id:            newID(),
