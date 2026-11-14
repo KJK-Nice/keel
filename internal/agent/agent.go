@@ -202,7 +202,6 @@ func LastLines(s string, n int) (string, int) {
 	return strings.Join(lines, "\n"), len(lines)
 }
 
-// ClampLines keeps a requested line count within the settings range.
 func ClampLines(n int) int {
 	switch {
 	case n <= 0:

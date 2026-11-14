@@ -442,7 +442,6 @@ func (s *Service) UpdateRunbook(id string, in RunbookInput) (SavedRunbook, error
 	return SavedRunbook{Runbook: runbookView(saved), Redacted: rep.Total()}, nil
 }
 
-// SetRunbookAgentMayPick is the list's switch.
 func (s *Service) SetRunbookAgentMayPick(id string, on bool) (RunbookView, error) {
 	if s.books == nil {
 		return RunbookView{}, ErrNoRunbooks

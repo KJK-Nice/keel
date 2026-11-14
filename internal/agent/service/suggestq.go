@@ -122,7 +122,6 @@ func historyKey(i int) string { return fmt.Sprintf("c%d", i) }
 
 func historyFitID(i int) string { return "fit_" + historyKey(i) }
 
-// historyPickQuestion picks the candidate that does what was asked.
 func historyPickQuestion(n int) provider.Question {
 	opts := make([]provider.Option, 0, n+1)
 	for i := 0; i < n; i++ {
@@ -144,7 +143,6 @@ var historyExistsQuestion = provider.Question{
 	False:        "None does it, or each would need different arguments or another command",
 }
 
-// historyFitQuestion asks whether one candidate does what was asked.
 func historyFitQuestion(i int) provider.Question {
 	return provider.Question{
 		Type:         provider.QuestionNoul,
@@ -199,7 +197,6 @@ var riskOptions = []provider.Option{
 
 func riskQuestionID(i int) string { return fmt.Sprintf("risk_%d", i) }
 
-// riskQuestion asks for the worst effect of one candidate command.
 func riskQuestion(i int) provider.Question {
 	return provider.Question{
 		Type:         provider.QuestionChoice,

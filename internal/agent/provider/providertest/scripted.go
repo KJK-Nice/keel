@@ -125,7 +125,6 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	}
 	if reply, ok := notebookReply(question, index, frames); ok {
 		if strings.HasPrefix(reply, readFence) {
-			// Only the read request: Keel answers with the notebooks.
 			return provider.Response{Text: reply, InputTokens: len(last) / 4, OutputTokens: len(reply) / 4}, nil
 		}
 		b.WriteString(reply)

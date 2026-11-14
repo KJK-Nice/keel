@@ -429,7 +429,6 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		"Now answer the user's question.", steps, nil
 }
 
-// notebookText is a notebook's markdown: its cells, in order.
 func notebookText(nb store.Notebook) string {
 	parts := make([]string, 0, len(nb.Cells))
 	for _, c := range nb.Cells {
@@ -520,7 +519,6 @@ func defuseLine(ln string) string {
 	var b strings.Builder
 	for i := 0; i < len(ln); {
 		if ln[i] == '`' {
-			// A code span: copy it up to the matching run of backticks.
 			n := 0
 			for i+n < len(ln) && ln[i+n] == '`' {
 				n++

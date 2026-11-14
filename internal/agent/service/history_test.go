@@ -40,7 +40,6 @@ func (f *sfix) setPane(id, host, text string) {
 	f.panes.panes[id] = pane{host: host, text: text}
 }
 
-// historyRequests is the Jev requests that were history picks.
 func (f *sfix) historyRequests() []provider.JudgeRequest {
 	var out []provider.JudgeRequest
 	for _, r := range f.judge.Requests() {
@@ -51,7 +50,6 @@ func (f *sfix) historyRequests() []provider.JudgeRequest {
 	return out
 }
 
-// confident makes the fake Jev sure of candidate key.
 func (f *sfix) confident(key string) {
 	f.judge.Choices["pick"] = provider.ChoiceAnswer{Choice: key, Probabilities: map[string]float64{key: 0.97, historyNone: 0.03}}
 	f.judge.Nouls["exists"] = 0.95

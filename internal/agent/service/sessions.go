@@ -93,7 +93,6 @@ type Sessions struct {
 	Unreadable bool `json:"unreadable,omitempty"`
 }
 
-// saving reports whether conversations are saved now.
 func (s *Service) saving() (int, bool) {
 	if s.chats == nil {
 		return 0, false
@@ -475,7 +474,6 @@ func (c *conversation) addRecordLocked(t store.AgentChatTurn) {
 	}
 }
 
-// recordProposalLocked finds a proposal in c's saved record.
 func (c *conversation) recordProposalLocked(id string) *store.AgentChatProposal {
 	for i := len(c.record) - 1; i >= 0; i-- {
 		for j := range c.record[i].Proposals {
