@@ -14,8 +14,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The feasibility gate: three things the terminal view must allow before any suggestion feature is built.
-// Each is held here against a real terminal.Terminal (libghostty-vt) under ui.Tester, and stays in the suite.
+// The feasibility gate: three things the terminal view must allow for in-pane suggestions to work.
+// Each is held here against a real terminal.Terminal (libghostty-vt) under ui.Tester.
 //
 //  1. The pane's prompt line is known as the user types (Terminal.Snapshot, read by cursorRow in suggestgeom.go).
 //  2. Tab, Shift+Tab, Esc, the option keys and Cmd+Z are taken before the terminal only while the window says so
@@ -242,7 +242,7 @@ func caretCell(t *testing.T, tt *ui.Tester) ui.Rect {
 // gateStack is the terminal's family list in the gate tests: Keel's default (JetBrains Mono) on macOS, where the window registers
 // it; the system mono elsewhere. On Linux the window registers no bundled font (registerFonts), but the fontconfig of a test
 // process holds the shipped woff2 files its font tests registered, under their own family names too, and those measure about
-// 1.9 times too wide (issue #140): the gate must not depend on which tests ran before it.
+// 1.9 times too wide: the gate must not depend on which tests ran before it.
 func gateStack() string {
 	if runtime.GOOS == "darwin" {
 		return termStack(fontJetBrains)
@@ -271,7 +271,7 @@ func TestGateCellRectsAreThePluginsOwn(t *testing.T) {
 				row, text, ok := cursorRow(snap, rows)
 				m := snapCursor.FindStringSubmatch(snap[strings.Index(snap, "\x1b[H"):])
 				if !ok || m == nil {
-					// Issue #140 diagnostics: a line that exactly fills the columns leaves the cursor on the next row (pending wrap),
+					// Diagnostics: a line that exactly fills the columns leaves the cursor on the next row (pending wrap),
 					// where there is no text line to read. The cell width the plugin used decides the columns: log it, with the
 					// widths this process measures for the family (a cell of 13.8 px at size 13 is not JetBrains Mono's 7.8).
 					gg := gridFor(gateStack(), size, sc)
