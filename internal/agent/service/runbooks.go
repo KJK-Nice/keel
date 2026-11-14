@@ -85,7 +85,7 @@ const (
 	// maxRunbookProposalsKept is how many proposed runbooks a conversation
 	// keeps in memory; an answer may propose one.
 	maxRunbookProposalsKept = 8
-	maxRunbookWhyBytes      = 300
+	maxRunbookWhyBytes      = maxWhyBytes
 
 	runActive   = "active"
 	runFinished = "finished"

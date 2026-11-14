@@ -81,7 +81,6 @@ const (
 	maxNotebookEditsPerAnswer = 2
 	maxNotebookFindReplace    = 20
 	maxNotebookFindBytes      = 4 * 1024
-	maxNotebookTitleBytes     = 120
 	maxNotebookSummaryBytes   = 160
 	maxNotebookDraftBytes     = 32 * 1024
 	// maxNotebookProposalsKept is how many notebook cards a conversation
@@ -658,7 +657,7 @@ func refusalForModel(reason string) string {
 }
 
 func (s *Service) notebookCreate(conv *conversation, raw *rawNotebook, excerpts []agent.Excerpt, r *redact.Redactor, now time.Time) *nbProposal {
-	title := agentLine(raw.Title, r, maxNotebookTitleBytes)
+	title := agentLine(raw.Title, r, limits.MaxNotebookNameBytes)
 	if title == "" {
 		title = "Notes from the agent"
 	}
@@ -755,7 +754,7 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	}
 	title := ""
 	if strings.TrimSpace(raw.Title) != "" {
-		title = agentLine(raw.Title, r, maxNotebookTitleBytes)
+		title = agentLine(raw.Title, r, limits.MaxNotebookNameBytes)
 	}
 	var body *string
 	if raw.Body != nil {

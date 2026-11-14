@@ -18,9 +18,9 @@ import (
 // a frame. Each read is logged as agent.read with the notebook's id and the
 // byte count, never its name or text.
 
-// MaxNotebookBytes caps one notebook's text as sent, after redaction. A
+// MaxSentNotebookBytes caps one notebook's text as sent, after redaction. A
 // longer notebook is cut at a line and ends with a marker.
-const MaxNotebookBytes = 32 * 1024
+const MaxSentNotebookBytes = 32 * 1024
 
 const maxNotebookNameBytes = limits.MaxNotebookNameBytes
 
@@ -65,9 +65,9 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 	text := strings.ReplaceAll(r.Text(body).String(), "\r\n", "\n")
 	total := len(text)
 	truncated := false
-	if len(text) > MaxNotebookBytes {
-		cut := text[:MaxNotebookBytes]
-		if i := strings.LastIndexByte(cut, '\n'); i > MaxNotebookBytes/2 {
+	if len(text) > MaxSentNotebookBytes {
+		cut := text[:MaxSentNotebookBytes]
+		if i := strings.LastIndexByte(cut, '\n'); i > MaxSentNotebookBytes/2 {
 			cut = cut[:i]
 		}
 		for len(cut) > 0 && cut[len(cut)-1]&0xC0 == 0x80 {
