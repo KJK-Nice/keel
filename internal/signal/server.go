@@ -66,6 +66,8 @@ type room struct {
 	mu      sync.Mutex
 	host    *peer
 	joiners map[string]*peer
+	// hosted is closed when the host arrives: a joiner that came first waits on it.
+	hosted chan struct{}
 }
 
 type Server struct {
@@ -132,7 +134,7 @@ func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "too many rooms", http.StatusServiceUnavailable)
 		return
 	}
-	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}}
+	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}, hosted: make(chan struct{})}
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	// hostKey proves the caller created the room: anyone who learns the
@@ -210,19 +212,18 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rm.host = p
+		close(rm.hosted) // a second host is refused above, so this closes once
 		rm.mu.Unlock()
 	} else {
-		deadline := time.Now().Add(8 * time.Second)
-		var host *peer
-		for time.Now().Before(deadline) {
-			rm.mu.Lock()
-			host = rm.host
-			rm.mu.Unlock()
-			if host != nil {
-				break
-			}
-			time.Sleep(20 * time.Millisecond)
+		wait := time.NewTimer(8 * time.Second)
+		select {
+		case <-rm.hosted:
+		case <-wait.C:
 		}
+		wait.Stop()
+		rm.mu.Lock()
+		host := rm.host
+		rm.mu.Unlock()
 		if host == nil {
 			_ = conn.Close()
 			return
