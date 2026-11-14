@@ -454,6 +454,18 @@ func TestAChangeOnTheServerWhileTypingKeepsTheTypingAndSaysSoWhenTheAgentMadeIt(
 	}
 }
 
+func TestASaveThatFailsAtCloseIsReported(t *testing.T) {
+	r := nbRig(t, "text\n")
+	np := r.openNB(t, "nb1")
+	np.nb.auto.edit(time.Now())
+	np.nb.md += "typed\n"
+	r.fb.nb.saveErr = &keelclient.StatusError{Code: 500, Status: "500"}
+	r.w.closeWindow()
+	if r.fb.nb.reqsWith("put") != 1 || !np.nb.failed || !slices.ContainsFunc(r.w.queued, func(t ui.Toast) bool { return t.Title == "Could not save notebook" }) {
+		t.Errorf("reqs %v failed %v toasts %+v", r.fb.nb.reqs, np.nb.failed, r.w.queued)
+	}
+}
+
 func TestAFailedSaveKeepsTheTypingAndTheNextEditTriesAgain(t *testing.T) {
 	r := nbRig(t, "text\n")
 	np := r.openNB(t, "nb1")

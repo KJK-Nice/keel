@@ -409,13 +409,18 @@ func (w *workspace) flushNotebooksNow() {
 		}
 		n.auto.begin()
 		c, cancel := ctx()
+		var err error
 		if n.id == "" {
-			_, _ = w.be.CreateNotebook(c, n.payload())
+			_, err = w.be.CreateNotebook(c, n.payload())
 		} else {
-			_, _ = w.be.SaveNotebook(c, n.id, n.payload())
+			_, err = w.be.SaveNotebook(c, n.id, n.payload())
 		}
 		cancel()
 		n.auto.end()
+		if err != nil {
+			n.failed = true
+			w.warn(nbErr(err, "Could not save notebook"))
+		}
 	}
 }
 
