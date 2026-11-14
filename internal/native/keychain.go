@@ -76,7 +76,6 @@ func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 	return out
 }
 
-
 // identitySubtitle is the list line under an identity: kind, user, hosts (lists.templ identitySubtitle).
 func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
 	parts := []string{identityKindLabel(id)}

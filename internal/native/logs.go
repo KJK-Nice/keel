@@ -105,7 +105,6 @@ func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
 	return "—"
 }
 
-
 // logFacts lists the counts an agent entry carries, as short labels in this order (data.go logFacts).
 func logFacts(e keelclient.LogEntry) []string {
 	var out []string
