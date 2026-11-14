@@ -9,6 +9,7 @@ import (
 
 	"keel/internal/agent/provider"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Agent settings and provider keys. These routes store choices
@@ -93,7 +94,7 @@ func (s *Server) putAgentSettings(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("agent", "agent settings saved", "", "", "")
+	s.note(wire.LogAgent, "agent settings saved", "", "", "")
 	// A shorter Keep conversations (or Only while open) applies now, not
 	// at the next hourly prune.
 	if s.agent != nil {
@@ -134,7 +135,7 @@ func (s *Server) putAgentKey(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("agent", "agent key saved for "+d.Name, "", "", "")
+	s.note(wire.LogAgent, "agent key saved for "+d.Name, "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"provider": d.ID, "configured": true})
 }
 
@@ -148,6 +149,6 @@ func (s *Server) deleteAgentKey(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	s.note("agent", "agent key removed for "+d.Name, "", "", "")
+	s.note(wire.LogAgent, "agent key removed for "+d.Name, "", "", "")
 	writeJSON(w, http.StatusOK, map[string]any{"provider": d.ID, "configured": false})
 }

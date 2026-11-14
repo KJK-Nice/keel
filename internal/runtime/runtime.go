@@ -441,7 +441,7 @@ func (s *Session) dropClient(id uint64, slow bool) {
 		msg = "dropped (slow consumer)"
 		// The name is chosen by the joining peer: quote it so it cannot
 		// forge log lines.
-		s.rt.note("session", fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
+		s.rt.note(wire.LogSession, fmt.Sprintf("client %q (%s) dropped: %s", c.Client.Name, c.Client.Kind, c.dropped()), hostID, s.id)
 	}
 	s.emitPresence(msg)
 }
@@ -1046,10 +1046,10 @@ func (s *Session) sendStartupCommand(br session.Bridge, host store.Host) {
 	s.startupSent = true
 	s.mu.Unlock()
 	if _, err := br.Write([]byte(cmd + "\r")); err != nil {
-		s.rt.note("session", "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
+		s.rt.note(wire.LogSession, "startup command not sent to "+host.Name+": "+err.Error(), host.ID, s.id)
 		return
 	}
-	s.rt.note("session", "startup command sent to "+host.Name, host.ID, s.id)
+	s.rt.note(wire.LogSession, "startup command sent to "+host.Name, host.ID, s.id)
 }
 
 func shouldRetryConnect(err error) bool {

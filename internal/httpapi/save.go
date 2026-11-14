@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // The save helpers the JSON handlers call: each saves through the store, which checks what the caller sent, and
@@ -19,9 +20,9 @@ func (s *Server) saveHost(h store.Host) (store.Host, error) {
 		return store.Host{}, err
 	}
 	if isNew {
-		s.note("host", "host created: "+saved.Name, saved.ID, "", "")
+		s.note(wire.LogHost, "host created: "+saved.Name, saved.ID, "", "")
 	} else {
-		s.note("host", "host updated: "+saved.Name, saved.ID, "", "")
+		s.note(wire.LogHost, "host updated: "+saved.Name, saved.ID, "", "")
 	}
 	return saved, nil
 }
@@ -36,9 +37,9 @@ func (s *Server) saveIdentity(in store.Identity) (store.Identity, error) {
 		return store.Identity{}, err
 	}
 	if isNew {
-		s.note("identity", "identity created: "+saved.Name, "", "", "")
+		s.note(wire.LogIdentity, "identity created: "+saved.Name, "", "", "")
 	} else {
-		s.note("identity", "identity updated: "+saved.Name, "", "", "")
+		s.note(wire.LogIdentity, "identity updated: "+saved.Name, "", "", "")
 	}
 	return saved, nil
 }
@@ -52,9 +53,9 @@ func (s *Server) saveTunnel(tn store.Tunnel) (store.Tunnel, error) {
 		return store.Tunnel{}, otherwise(err, http.StatusBadRequest)
 	}
 	if isNew {
-		s.note("tunnel", "tunnel created: "+saved.Name, saved.HostID, "", saved.ID)
+		s.note(wire.LogTunnel, "tunnel created: "+saved.Name, saved.HostID, "", saved.ID)
 	} else {
-		s.note("tunnel", "tunnel updated: "+saved.Name, saved.HostID, "", saved.ID)
+		s.note(wire.LogTunnel, "tunnel updated: "+saved.Name, saved.HostID, "", saved.ID)
 	}
 	return saved, nil
 }
@@ -91,9 +92,9 @@ func (s *Server) saveSnippet(id, name, command string, agentUsable *bool) (store
 		return store.Snippet{}, err
 	}
 	if id == "" {
-		s.note("snippet", "snippet created: "+saved.Name, "", "", "")
+		s.note(wire.LogSnippet, "snippet created: "+saved.Name, "", "", "")
 	} else {
-		s.note("snippet", "snippet updated: "+saved.Name, "", "", "")
+		s.note(wire.LogSnippet, "snippet updated: "+saved.Name, "", "", "")
 	}
 	s.noteSnippetFlag(saved.Name, old.AgentUsable, saved.AgentUsable)
 	return saved, nil

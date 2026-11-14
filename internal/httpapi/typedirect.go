@@ -318,7 +318,7 @@ func (s *Server) typeDirect(ctx context.Context, c *sessionsock.Conn, command, n
 
 func logKind(kind string) string {
 	if kind == wire.DirectAgent {
-		return "agent"
+		return wire.LogAgent
 	}
 	return kind
 }

@@ -36,7 +36,7 @@ const (
 	EventNotebook = "agent.notebook"
 	// EventAgent: the agent service saying something about itself that is
 	// none of the above (a reply cut off, a conversation not saved).
-	EventAgent = "agent"
+	EventAgent = wire.LogAgent
 )
 
 // Role is the client's role in a session: the session socket's own
