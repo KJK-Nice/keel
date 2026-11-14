@@ -238,7 +238,7 @@ func (b *sshBridge) ExitKind() ExitKind {
 
 func sshAuth(host store.Host) ([]ssh.AuthMethod, error) {
 	switch host.AuthType {
-	case "key":
+	case store.AuthKey:
 		if host.PrivateKey == "" {
 			return nil, fmt.Errorf("private key is required")
 		}

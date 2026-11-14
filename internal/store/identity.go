@@ -190,7 +190,7 @@ func (s *Store) DeleteIdentity(id string) error {
 
 func ValidateIdentityKind(kind string) error {
 	switch kind {
-	case "password", "key":
+	case AuthPassword, AuthKey:
 		return nil
 	default:
 		return fmt.Errorf("kind must be password or key")

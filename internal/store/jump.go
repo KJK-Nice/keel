@@ -49,7 +49,7 @@ func (s *Store) checkHostFieldsLocked(h Host) error {
 	if err := CheckHostSignIn(h); err != nil {
 		return err
 	}
-	if h.AuthType == "identity" && strings.TrimSpace(h.Username) == "" {
+	if h.AuthType == AuthIdentity && strings.TrimSpace(h.Username) == "" {
 		// A connect takes the identity's user then (withIdentityLocked).
 		if ident, err := s.identityFullLocked(h.IdentityID); err != nil || strings.TrimSpace(ident.Username) == "" {
 			return fieldErr("username is required")
@@ -75,18 +75,18 @@ func CheckHostSignIn(h Host) error {
 	switch h.AuthType {
 	case AuthLocal:
 		return nil
-	case "identity":
+	case AuthIdentity:
 		if strings.TrimSpace(h.IdentityID) == "" {
 			return fieldErr("identity is required")
 		}
-	case "password", "key":
+	case AuthPassword, AuthKey:
 	default:
 		return fieldErr("authType must be local, password, key, or identity")
 	}
 	if strings.TrimSpace(h.Address) == "" {
 		return fieldErr("address is required")
 	}
-	if strings.TrimSpace(h.Username) == "" && h.AuthType != "identity" {
+	if strings.TrimSpace(h.Username) == "" && h.AuthType != AuthIdentity {
 		return fieldErr("username is required")
 	}
 	return nil
@@ -199,7 +199,7 @@ func (s *Store) ResolveDraft(draft Host) (Host, error) {
 	draft.Password = cleanSecret(draft.Password)
 	draft.PrivateKey = cleanSecret(draft.PrivateKey)
 	draft.Passphrase = cleanSecret(draft.Passphrase)
-	if draft.AuthType != "identity" {
+	if draft.AuthType != AuthIdentity {
 		draft.IdentityID = ""
 	}
 	changed := "This host is not saved"
@@ -222,9 +222,9 @@ func (s *Store) ResolveDraft(draft Host) (Host, error) {
 	}
 	if changed != "" {
 		switch draft.AuthType {
-		case "identity":
+		case AuthIdentity:
 			return Host{}, fieldErr("%s: save it first to test with a Keychain identity, or type a password or key", changed)
-		case "key":
+		case AuthKey:
 			if draft.PrivateKey == "" {
 				return Host{}, fieldErr("%s: paste the private key to test it", changed)
 			}
@@ -270,7 +270,7 @@ func draftChange(d Host, saved persistHost) string {
 		return "Authentication changed"
 	case strings.TrimSpace(d.JumpHost) != saved.JumpHost:
 		return "Jump host changed"
-	case d.AuthType == "identity" && d.IdentityID != saved.IdentityID:
+	case d.AuthType == AuthIdentity && d.IdentityID != saved.IdentityID:
 		return "Identity changed"
 	}
 	return ""

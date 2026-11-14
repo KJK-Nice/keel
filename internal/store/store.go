@@ -27,9 +27,21 @@ var ErrNotFound = errors.New("not found")
 // ErrLocalDuplicate refuses to duplicate the seeded local shell host.
 var ErrLocalDuplicate = errors.New("the local shell host cannot be duplicated")
 
-// AuthLocal is the AuthType of the local shell host: a shell on this
-// machine, no SSH.
-const AuthLocal = "local"
+// The AuthType values. AuthLocal is the local shell host: a shell on this
+// machine, no SSH. An Identity's Kind is AuthPassword or AuthKey.
+const (
+	AuthLocal    = "local"
+	AuthPassword = "password"
+	AuthKey      = "key"
+	AuthIdentity = "identity"
+)
+
+// The Tunnel Kind values.
+const (
+	TunnelLocal   = "local"
+	TunnelRemote  = "remote"
+	TunnelDynamic = "dynamic"
+)
 
 func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
 
