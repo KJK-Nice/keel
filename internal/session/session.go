@@ -1,7 +1,6 @@
 package session
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 
@@ -46,11 +45,4 @@ func ParseSize(colsQ, rowsQ string) (int, int) {
 		rows = 24
 	}
 	return cols, rows
-}
-
-func ConnectingMessage(h store.Host) string {
-	if h.IsLocal() {
-		return "Opening local shell…"
-	}
-	return fmt.Sprintf("Connecting to %s@%s…", h.Username, h.Address)
 }
