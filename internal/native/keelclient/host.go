@@ -11,7 +11,15 @@ import (
 
 // IsLocal reports the local shell. keel serve sends authType "local" for it and never "" for a saved host, so "" is not
 // local.
-func (h Host) IsLocal() bool { return h.AuthType == "local" }
+func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
+
+// How a host signs in (Host.AuthType).
+const (
+	AuthPassword = "password"
+	AuthKey      = "key"
+	AuthIdentity = "identity"
+	AuthLocal    = "local"
+)
 
 // SSHPort is the port the host is reached on: its own, or 22 when none is set.
 func (h Host) SSHPort() int {

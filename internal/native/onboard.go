@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -74,7 +75,7 @@ func hostAddress(h keelclient.ConfigHost) string {
 	if addr == "" {
 		addr = h.Alias
 	}
-	if h.Port != 0 && h.Port != 22 {
+	if h.Port != 0 && h.Port != limits.DefaultPort {
 		return fmt.Sprintf("%s:%d", addr, h.Port)
 	}
 	return addr

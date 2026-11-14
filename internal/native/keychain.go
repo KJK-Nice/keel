@@ -69,7 +69,7 @@ func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Ident
 func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 	var out []keelclient.Host
 	for _, h := range hosts {
-		if h.AuthType == "identity" && h.IdentityID == id {
+		if h.AuthType == keelclient.AuthIdentity && h.IdentityID == id {
 			out = append(out, h)
 		}
 	}

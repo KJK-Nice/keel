@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 	"keel/internal/wire"
@@ -224,11 +225,11 @@ func (t *tab) dot() string {
 
 // hostSubtitle is lib/groups.js hostSubtitle: a host that signs in with a saved identity says so.
 func hostSubtitle(h keelclient.Host) string {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return "this machine"
 	}
 	port := ""
-	if h.Port != 0 && h.Port != 22 {
+	if h.SSHPort() != limits.DefaultPort {
 		port = fmt.Sprintf(":%d", h.Port)
 	}
 	ident := ""
@@ -312,7 +313,7 @@ func (w *workspace) paletteItems() []palItem {
 	// Hosts open a new session; ⌥↵ opens it in a split of the focused pane.
 	for _, h := range w.hosts {
 		ic := "server"
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			ic = "computer-terminal-01"
 		}
 		items = append(items, palItem{group: "Hosts", title: "New session on " + h.Name, hint: hostSubtitle(h), icon: ic, run: func(split bool) {

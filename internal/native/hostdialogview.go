@@ -150,7 +150,7 @@ func (w *workspace) hostDialogView(c *ui.Context) {
 	if d.id != "" {
 		title = "Edit host"
 	}
-	local := d.f.auth == "local"
+	local := d.f.auth == keelclient.AuthLocal
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
 		modalChrome(c, backdrop, panel)
@@ -240,7 +240,7 @@ func (w *workspace) hostRight(c *ui.Context, d *hostDialog, local bool) {
 		segControl(c, "Authentication", f.auth, opts, d.setAuth)
 	})
 	switch f.auth {
-	case "identity":
+	case keelclient.AuthIdentity:
 		labeled(c, "Identity", nil, func() {
 			entries := identityEntries(d.idents, f.identityID)
 			if len(entries) == 0 {
@@ -251,11 +251,11 @@ func (w *workspace) hostRight(c *ui.Context, d *hostDialog, local bool) {
 			}
 			picker(c, "Identity", f.identityID, entries, func(v string) { f.identityID = v })
 		})
-	case "password":
+	case keelclient.AuthPassword:
 		labeled(c, "Password", &d.passH, func() {
 			inputBox(c, "Host password", &f.password, "Leave blank to keep saved password", &d.passH, false, true, 0, nil)
 		})
-	case "key":
+	case keelclient.AuthKey:
 		// A text area has no mask (Password is ignored on it), and the webview's shows the key too: it is cleared
 		// when the dialog closes or the request is sent.
 		labeled(c, "Private key", &d.keyH, func() {
