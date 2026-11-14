@@ -14,6 +14,7 @@ import (
 	"keel/internal/native/joinpeer"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 const (
@@ -270,7 +271,7 @@ func (p *pane) sessionID() string {
 }
 
 // status is the session's last reported state; empty until the server says.
-func (p *pane) status() string { return p.conn.Snapshot().Status }
+func (p *pane) status() wire.Status { return p.conn.Snapshot().Status }
 
 type tab struct {
 	root    *layout.Node

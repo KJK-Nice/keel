@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 // The pane menu and the tab menu. Their items, order and words are the webview's: PaneMenu in
@@ -42,7 +43,7 @@ func (w *workspace) paneMenuFor(t *tab, p *pane, row bool) func(m *ui.Menu) {
 		if !p.remote && p.sessionID() != "" && menuItem(m, "Share").Chosen() { // a live terminal of this window
 			w.act(func() { w.pickPane(t, p.id); w.openShare() })
 		}
-		if (st.Status == "error" || st.Status == "exited") && p.sessionID() != "" {
+		if (st.Status == wire.StatusError || st.Status == wire.StatusExited) && p.sessionID() != "" {
 			if menuItem(m, "Reconnect").Chosen() {
 				w.act(func() { w.reconnect(p) })
 			}

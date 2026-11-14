@@ -33,7 +33,7 @@ func (w *workspace) hostMenu(h keelclient.Host) func(m *ui.Menu) {
 			w.act(func() { w.copy(cmd, "SSH command") })
 		}
 		if menuItem(m, "Move to folder…").Chosen() {
-			w.act(func() { w.moveHostToFolder(h) })
+			w.act(func() { w.editHost(h) })
 		}
 		on := h.AgentMayRead()
 		if menuItem(m, "Agent can read").Checked(on).Chosen() {

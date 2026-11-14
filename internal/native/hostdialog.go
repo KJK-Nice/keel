@@ -104,7 +104,7 @@ var hostColors = limits.HostColors
 
 // authKinds is the Authentication control's options, in the webview's order.
 var authKinds = []struct{ value, label string }{
-	{"password", "Password"}, {"key", "Private key"}, {"identity", "Identity"}, {"local", "Local shell"},
+	{keelclient.AuthPassword, "Password"}, {keelclient.AuthKey, "Private key"}, {keelclient.AuthIdentity, "Identity"}, {keelclient.AuthLocal, "Local shell"},
 }
 
 // isProductionGroup: the group's own name is production, any case (term.js isProductionGroup).
@@ -119,7 +119,7 @@ func isProductionGroup(groups []keelclient.Group, id string) bool {
 
 // newHostForm is term.js fillHostForm: the defaults of a new host, or the values of a saved one.
 func newHostForm(h *keelclient.Host) hostForm {
-	f := hostForm{port: strconv.Itoa(limits.DefaultPort), color: defaultColor, auth: "password", keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
+	f := hostForm{port: strconv.Itoa(limits.DefaultPort), color: defaultColor, auth: keelclient.AuthPassword, keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
 		autoReconnect: true, agentReadable: true, agentNotes: true}
 	if h == nil {
 		return f
@@ -215,10 +215,10 @@ func (w *workspace) closeHostDialog() {
 // defaultIdentity picks the first identity for a new Identity host, as fillIdentitySelect does ({first: !saved}):
 // a saved Identity host with none must not be shown, and saved, with the first one instead.
 func (d *hostDialog) defaultIdentity() {
-	if d.f.auth != "identity" || d.f.identityID != "" || len(d.idents) == 0 {
+	if d.f.auth != keelclient.AuthIdentity || d.f.identityID != "" || len(d.idents) == 0 {
 		return
 	}
-	if d.saved != nil && d.saved.AuthType == "identity" {
+	if d.saved != nil && d.saved.AuthType == keelclient.AuthIdentity {
 		return
 	}
 	d.f.identityID = d.idents[0].ID
@@ -236,7 +236,7 @@ func atoiClamp(s string, def, lo, hi int) int {
 
 // detail is hostFromForm: the host the form says.
 func (f hostForm) detail(id string) keelclient.HostDetail {
-	local := f.auth == "local"
+	local := f.auth == keelclient.AuthLocal
 	h := keelclient.HostDetail{
 		ID: id, Name: strings.TrimSpace(f.name), GroupID: f.groupID, Tags: parseTags(f.tags),
 		Address: strings.TrimSpace(f.address), Port: atoiClamp(f.port, limits.DefaultPort, 0, maxPort), Username: strings.TrimSpace(f.username),
@@ -247,11 +247,11 @@ func (f hostForm) detail(id string) keelclient.HostDetail {
 		h.Port = limits.DefaultPort
 	}
 	switch f.auth {
-	case "identity":
+	case keelclient.AuthIdentity:
 		h.IdentityID = f.identityID
-	case "password":
+	case keelclient.AuthPassword:
 		h.Password = f.password
-	case "key":
+	case keelclient.AuthKey:
 		h.PrivateKey, h.Passphrase = f.privateKey, f.passphrase
 	}
 	switch {
@@ -293,7 +293,7 @@ func (f hostForm) validate() string {
 	if strings.TrimSpace(f.name) == "" {
 		return "name is required"
 	}
-	if f.auth != "local" {
+	if f.auth != keelclient.AuthLocal {
 		if strings.TrimSpace(f.address) == "" {
 			return "address is required"
 		}
@@ -301,7 +301,7 @@ func (f hostForm) validate() string {
 			return "username is required"
 		}
 	}
-	if f.auth == "identity" && strings.TrimSpace(f.identityID) == "" {
+	if f.auth == keelclient.AuthIdentity && strings.TrimSpace(f.identityID) == "" {
 		return "identity is required"
 	}
 	return validStartup(strings.TrimSpace(f.startup))
@@ -578,7 +578,7 @@ func (d *hostDialog) dropStaleTest() {
 // it after 10 s, and the button cancels it.
 func (w *workspace) runHostTest() {
 	d := w.hostDlg
-	if d == nil || d.f.auth == "local" {
+	if d == nil || d.f.auth == keelclient.AuthLocal {
 		return
 	}
 	if d.test.running {

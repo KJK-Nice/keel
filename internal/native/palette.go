@@ -6,8 +6,10 @@ import (
 	"strings"
 	"unicode"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 // The command palette (docs/ui-redesign.md §5.2). The model here follows cmd/keel/web/js/lib/palette.js
@@ -187,13 +189,13 @@ func indexRunes(s, sub []rune) int {
 
 // tabDot is term.js paletteDot(tabStatus(tab)): live when every pane is ready, connecting while one is,
 // dead when one failed, else idle.
-func paneDot(status string) string {
+func paneDot(status wire.Status) string {
 	switch status {
-	case "ready":
+	case wire.StatusReady:
 		return "live"
-	case "connecting":
+	case wire.StatusConnecting:
 		return "connecting"
-	case "error", "exited":
+	case wire.StatusError, wire.StatusExited:
 		return "dead"
 	}
 	return "idle"
@@ -204,11 +206,11 @@ func (t *tab) dot() string {
 	for _, p := range t.panes {
 		n++
 		switch p.status() {
-		case "error", "exited":
+		case wire.StatusError, wire.StatusExited:
 			return "dead"
-		case "connecting":
+		case wire.StatusConnecting:
 			connecting++
-		case "ready":
+		case wire.StatusReady:
 			ready++
 		}
 	}
@@ -223,11 +225,11 @@ func (t *tab) dot() string {
 
 // hostSubtitle is lib/groups.js hostSubtitle: a host that signs in with a saved identity says so.
 func hostSubtitle(h keelclient.Host) string {
-	if h.AuthType == "local" {
+	if h.IsLocal() {
 		return "this machine"
 	}
 	port := ""
-	if h.Port != 0 && h.Port != 22 {
+	if h.SSHPort() != limits.DefaultPort {
 		port = fmt.Sprintf(":%d", h.Port)
 	}
 	ident := ""
@@ -282,7 +284,7 @@ func (w *workspace) paletteItems() []palItem {
 			hint += fmt.Sprintf(" · %d panes", len(leaves))
 		}
 		if p := t.panes[leaves[0]]; p != nil {
-			if p.conn.Snapshot().Role == "driver" {
+			if p.conn.Snapshot().Driving() {
 				hint += " · driving"
 			} else {
 				hint += " · following"
@@ -311,7 +313,7 @@ func (w *workspace) paletteItems() []palItem {
 	// Hosts open a new session; ⌥↵ opens it in a split of the focused pane.
 	for _, h := range w.hosts {
 		ic := "server"
-		if h.AuthType == "local" {
+		if h.IsLocal() {
 			ic = "computer-terminal-01"
 		}
 		items = append(items, palItem{group: "Hosts", title: "New session on " + h.Name, hint: hostSubtitle(h), icon: ic, run: func(split bool) {

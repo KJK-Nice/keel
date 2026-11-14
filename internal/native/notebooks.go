@@ -12,7 +12,6 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
 )
@@ -30,8 +29,6 @@ import (
 //     dialog (notebooktype.go); opening, rendering, editing, saving, restoring and deleting type nothing.
 
 const (
-	notebookLimitName = limits.MaxNotebookNameBytes
-	notebookLimitText = limits.MaxNotebookBytes
 	notebookReadLimit = 64 * 1024 // a longer notebook opens in Edit: rendering it takes seconds
 
 	// defaultNotebookMD is the starter text of a new notebook (term.js DEFAULT_NOTEBOOK_MD). The name is the title, so

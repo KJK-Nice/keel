@@ -313,7 +313,7 @@ func (w *workspace) varRow(c *ui.Context, p *groupPage, v keelclient.GroupVar) {
 			w.act(func() { w.startEditVar(p, v) })
 		}
 		if textBtn(c, "Remove "+v.Name, btnGhost) {
-			w.act(func() { w.removeVar(p, v.Name) })
+			w.act(func() { w.setVar(p, v.Name, "", nil) })
 		}
 	})
 }

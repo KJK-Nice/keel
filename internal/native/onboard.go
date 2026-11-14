@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"keel/internal/limits"
 	"keel/internal/native/keelclient"
 )
 
@@ -74,7 +75,7 @@ func hostAddress(h keelclient.ConfigHost) string {
 	if addr == "" {
 		addr = h.Alias
 	}
-	if h.Port != 0 && h.Port != 22 {
+	if h.Port != 0 && h.Port != limits.DefaultPort {
 		return fmt.Sprintf("%s:%d", addr, h.Port)
 	}
 	return addr
@@ -93,13 +94,6 @@ func leadText(p keelclient.SSHPreview) string {
 		return "Keel found no " + path + ". Add hosts later with New host."
 	}
 	return fmt.Sprintf("Keel found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
-}
-
-func countWord(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return fmt.Sprintf("%d %s", n, many)
 }
 
 func selectedCount(p keelclient.SSHPreview, s *importSel) (n int) {

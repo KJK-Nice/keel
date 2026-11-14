@@ -48,9 +48,8 @@ func (w *workspace) typeNow(p *pane, s typeSource) {
 	if p.screen != nil {
 		alt, promptLine = p.screen()
 	}
-	st := p.conn.Snapshot()
 	switch {
-	case p.remote, st.Status != "ready", st.Role != "driver": // the dialog's own refusals say why
+	case !p.canType(): // the dialog's own refusals say why
 		s.dialog()
 		return
 	case s.line == "", !cmdrule.DirectSafe(s.line), alt: // the dialog is certain: keel serve is not asked
@@ -69,7 +68,7 @@ func (w *workspace) typeNow(p *pane, s typeSource) {
 		ref.Kind, ref.SnippetID = "agent", ""
 		agent = &keelclient.AgentRef{ConversationID: s.conv, ProposalID: s.proposal, Shift: s.shift}
 	}
-	target := orElse(s.target, orElse(p.title(), st.Subtitle))
+	target := orElse(s.target, orElse(p.title(), p.conn.Snapshot().Subtitle))
 	conn, line := p.conn, s.line
 	p.typing = true
 	call(w, func(c context.Context) (keelclient.DirectResult, error) { return conn.DirectType(c, line, ref, agent) }, func(res keelclient.DirectResult, err error) {

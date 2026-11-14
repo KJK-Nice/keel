@@ -21,7 +21,6 @@ const (
 	groupValuesDiffer = "The filled-in values differ per host: each row shows the exact bytes for its pane."
 	groupShiftNeeded  = "A ticked host is production (or the command is destructive): hold ⇧ and press Type."
 	groupShiftRefused = "Hold ⇧ and press Type: a ticked host is production, or the command is destructive."
-	groupApproveGone  = "This host's proposal is no longer waiting; it is proposed again."
 )
 
 func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {

@@ -3,6 +3,7 @@ package native
 import (
 	"errors"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -165,7 +166,7 @@ func (w *workspace) agentPicker(c *ui.Context, anchor ui.Element) {
 		}
 		ui.Row(c).Padding(space1_5, space2, space1).Children(func() { menuLabel(c, "Panes the agent reads") })
 		for _, p := range all {
-			on := contains(a.scope, p.sessionID)
+			on := slices.Contains(a.scope, p.sessionID)
 			r := ui.Row(c).FillWidth().Padding(space1_5, space2).Gap(space2).Radius(radiusSm).Key(p.sessionID).Label("pick " + pickLabel(p, all)).Focusable()
 			if p.readable {
 				r.Cursor(ui.CursorPointer)
@@ -394,11 +395,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 			case t.pending:
 				msg := "Asking without reading a pane"
 				if t.scoped > 0 {
-					noun := "panes"
-					if t.scoped == 1 {
-						noun = "pane"
-					}
-					msg = "Reading " + strconv.Itoa(t.scoped) + " " + noun + " and asking"
+					msg = "Reading " + countWord(t.scoped, "pane", "panes") + " and asking"
 				}
 				ui.Row(c).FillWidth().Gap(space2).Children(func() {
 					workingBlocks(c, accentInk, "Agent is working")

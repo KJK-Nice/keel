@@ -537,3 +537,18 @@ func TestFolderRequestsFailWithTheServersWords(t *testing.T) {
 		t.Errorf("no toast: %v", r.tt.Texts())
 	}
 }
+
+// hostsInSubtree is the hosts in focus's subtree (all hosts with no focus) that match query.
+func hostsInSubtree(groups []keelclient.Group, hosts []keelclient.Host, focus, query string) (out []keelclient.Host) {
+	q := strings.ToLower(strings.TrimSpace(query))
+	allow := subtreeGroupIDs(groups, focus)
+	for _, h := range hosts {
+		if allow != nil && !allow[h.GroupID] {
+			continue
+		}
+		if q == "" || strings.Contains(hostSearchHay(groups, h), q) {
+			out = append(out, h)
+		}
+	}
+	return out
+}

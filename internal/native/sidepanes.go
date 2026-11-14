@@ -8,6 +8,7 @@ import (
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 // The sidebar's Panes section (docs/ui-redesign.md §5.1 "Panes in the sidebar"; term.js panesTab, applySidebarSeg,
@@ -77,13 +78,13 @@ type paneRow struct {
 }
 
 // statusWord is term.js dotFor's label for a session's state.
-func statusWord(status string) string {
+func statusWord(status wire.Status) string {
 	switch status {
-	case "ready":
+	case wire.StatusReady:
 		return "Connected"
-	case "connecting":
+	case wire.StatusConnecting:
 		return "Connecting"
-	case "error", "exited":
+	case wire.StatusError, wire.StatusExited:
 		return "Disconnected"
 	}
 	return "Idle"
@@ -108,7 +109,7 @@ func (w *workspace) paneRows(t *tab) (out []paneRow) {
 		shared := len(st.Attached) > 1
 		out = append(out, paneRow{
 			id: id, name: p.host.Name, sub: sub, host: p.host,
-			driving: shared && st.Role == "driver",
+			driving: shared && st.Driving(),
 			agent:   p.sessionID() != "" && p.host.ID != "" && p.host.AgentMayRead(),
 		})
 	}

@@ -50,7 +50,7 @@ func (w *workspace) submitQuick() {
 	}
 	h := keelclient.NewHost{
 		Name: r.User + "@" + r.Host, Group: "Quick connect", Address: r.Host, Port: r.Port, Username: r.User,
-		AuthType: "password", Password: q.password, Color: quickColor,
+		AuthType: keelclient.AuthPassword, Password: q.password, Color: quickColor,
 	}
 	w.quick = nil // the password leaves the dialog with the request
 	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved keelclient.Host, err error) {

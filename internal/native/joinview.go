@@ -4,6 +4,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // joinDialogView is the Join a session dialog.
@@ -49,10 +50,10 @@ func (w *workspace) joinDialogView(c *ui.Context) {
 func (w *workspace) joinBanner(c *ui.Context, t *tab, p *pane, st keelclient.State) {
 	leave := func() {
 		if textBtn(c, "Leave", btnGhost) {
-			w.act(func() { w.leaveJoin(t) })
+			w.act(func() { w.closeTab(t) })
 		}
 	}
-	if st.Status == "error" {
+	if st.Status == wire.StatusError {
 		w.bannerRow(c, "banner failed", flareSoft, flare, st.Message, "", "", leave)
 		return
 	}

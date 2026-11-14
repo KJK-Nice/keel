@@ -14,7 +14,7 @@ import (
 func failedRig(t *testing.T, st keelclient.State, hostID string) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.sessions = []keelclient.Session{{ID: "s-x", HostID: hostID, Status: st.Status}}
+	fb.sessions = []keelclient.Session{{ID: "s-x", HostID: hostID, Status: string(st.Status)}}
 	r := newRig(t, fb)
 	r.fb.conns[0].st = &st
 	r.tt.Frame()

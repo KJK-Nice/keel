@@ -10,6 +10,7 @@ import (
 
 	"keel/internal/native/keelclient"
 	"keel/internal/native/layout"
+	"keel/internal/wire"
 )
 
 // view draws the whole screen (docs/ui-redesign.md §5.1). It reads and changes the workspace
@@ -154,7 +155,7 @@ func (w *workspace) titlebar(c *ui.Context) {
 			w.tabPill(c, i, t)
 		}
 		if w.capBtn(c, "T", "add-01", "New tab", sizeControlSm, false, false) {
-			w.act(w.newTab)
+			w.act(w.addStartTab)
 		}
 		// The empty strip past the last tab: a tab dropped here goes last (ui/drag.js: a drop on the strip).
 		gap := ui.Box(c).Grow(1).FillHeight().Label("tab strip end")
@@ -197,7 +198,7 @@ func (w *workspace) barStatus() string {
 	if p.nb != nil {
 		return "Notebook"
 	}
-	if st := p.conn.Snapshot(); st.Role == "driver" {
+	if st := p.conn.Snapshot(); st.Driving() {
 		return paneSubtitle(p, st) + " · driving"
 	}
 	return paneSubtitle(p, p.conn.Snapshot()) + " · following"
@@ -227,7 +228,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 	r.PopoverMenu(w.tabMenu(t))
 	renaming := w.renaming == t
 	r.Children(func() {
-		status := ""
+		var status wire.Status
 		if p := t.panes[t.focused]; p != nil {
 			status = p.status()
 		}
@@ -742,7 +743,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			// ground. The terminal object and its scrollback stay alive in p; only the view is out of the tree, so nothing typed
 			// reaches it. A joined pane keeps its view (it has its own banner). When the session is ready the view is back,
 			// and the pane takes the keyboard again if it had it.
-			if st.Status != "ready" && !p.remote {
+			if !st.Ready() && !p.remote {
 				if t.focused == p.id {
 					p.regain = true
 				}

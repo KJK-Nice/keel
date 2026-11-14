@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,10 +20,6 @@ func dayDiff(a, b time.Time) int {
 	by := time.Date(b.Year(), b.Month(), b.Day(), 0, 0, 0, 0, time.UTC)
 	return int(ay.Sub(by).Hours() / 24)
 }
-
-func hhmm(t time.Time) string { return clockHM(t) }
-
-func monthDay(t time.Time) string { return clockMD(t) }
 
 // dayGroup puts a time in "Today", "Yesterday" or "Older" by local date. A time that is not set is "Older".
 func dayGroup(when, now time.Time) string {
@@ -44,9 +41,9 @@ func sessionWhen(when, now time.Time) string {
 	case when.IsZero():
 		return ""
 	case dayGroup(when, now) == "Older":
-		return monthDay(when)
+		return clockMD(when)
 	}
-	return hhmm(when)
+	return clockHM(when)
 }
 
 // stampLabel is a message's time in a transcript: 16:02 today, Oct 14, 16:02 before.
@@ -55,9 +52,9 @@ func stampLabel(when, now time.Time) string {
 	case when.IsZero():
 		return ""
 	case dayGroup(when, now) == "Today":
-		return hhmm(when)
+		return clockHM(when)
 	}
-	return monthDay(when) + ", " + hhmm(when)
+	return clockMD(when) + ", " + clockHM(when)
 }
 
 // agoLabel says how long ago a conversation was last used (the Resumed divider).
@@ -70,10 +67,10 @@ func agoLabel(when, now time.Time) string {
 	case mins < 1:
 		return "just now"
 	case mins < 60:
-		return fmt.Sprintf("%d %s ago", mins, plural(mins, "minute", "minutes"))
+		return countWord(mins, "minute", "minutes") + " ago"
 	case dayGroup(when, now) == "Today":
 		h := mins / 60
-		return fmt.Sprintf("%d %s ago", h, plural(h, "hour", "hours"))
+		return countWord(h, "hour", "hours") + " ago"
 	}
 	days := dayDiff(now, when)
 	if days <= 1 {
@@ -82,18 +79,11 @@ func agoLabel(when, now time.Time) string {
 	return fmt.Sprintf("%d days ago", days)
 }
 
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return one
-	}
-	return many
-}
-
 func proposalsLabel(n int) string {
 	if n <= 0 {
 		return "no proposals"
 	}
-	return fmt.Sprintf("%d %s", n, plural(n, "proposal", "proposals"))
+	return countWord(n, "proposal", "proposals")
 }
 
 // sessionGroup is a heading of the list and its rows.
@@ -108,7 +98,7 @@ type sessionGroup struct {
 func sessionGroups(sessions []keelclient.ConversationSummary, query string, now time.Time, host string) []sessionGroup {
 	q := strings.ToLower(strings.TrimSpace(query))
 	match := func(s keelclient.ConversationSummary) bool {
-		if host != "" && !contains(s.Hosts, host) {
+		if host != "" && !slices.Contains(s.Hosts, host) {
 			return false
 		}
 		if q == "" || strings.Contains(strings.ToLower(s.Title), q) {
@@ -161,7 +151,7 @@ func retentionNote(historyDays int) string {
 	case historyDays == 365:
 		return "Kept 1 year"
 	}
-	return fmt.Sprintf("Kept %d %s", historyDays, plural(historyDays, "day", "days"))
+	return "Kept " + countWord(historyDays, "day", "days")
 }
 
 // hostFilters are the Agent page's host chips: the hosts the saved conversations read or proposed for, most recent
@@ -173,7 +163,7 @@ func hostFilters(sessions []keelclient.ConversationSummary, max int) []string {
 			if len(out) >= max {
 				return out
 			}
-			if h != "" && !contains(out, h) {
+			if h != "" && !slices.Contains(out, h) {
 				out = append(out, h)
 			}
 		}
@@ -192,7 +182,7 @@ type convTurn struct {
 func conversationHosts(turns []convTurn) []string {
 	var out []string
 	add := func(h string) {
-		if h != "" && !contains(out, h) {
+		if h != "" && !slices.Contains(out, h) {
 			out = append(out, h)
 		}
 	}
@@ -242,7 +232,7 @@ func readSummary(turns []convTurn) []readRow {
 		}
 	}
 	for i := range out {
-		out[i].linesLabel = fmt.Sprintf("%d %s", out[i].lines, lines(out[i].lines))
+		out[i].linesLabel = countWord(out[i].lines, "line", "lines")
 		out[i].redactLabel = fmt.Sprintf("%d redacted", out[i].redacted)
 	}
 	return out
@@ -264,15 +254,15 @@ func proposalState(p keelclient.Proposal, typed bool) (label, kind string) {
 
 // startedLabel is the page header's "Today 09:14 · 2 questions".
 func startedLabel(when time.Time, questions int, now time.Time) string {
-	count := fmt.Sprintf("%d %s", questions, plural(questions, "question", "questions"))
+	count := countWord(questions, "question", "questions")
 	if when.IsZero() {
 		return count
 	}
 	day := dayGroup(when, now)
 	if day == "Older" {
-		day = monthDay(when)
+		day = clockMD(when)
 	}
-	return day + " " + hhmm(when) + " · " + count
+	return day + " " + clockHM(when) + " · " + count
 }
 
 // sessionsEmptyText says why a list shows no rows, or "" when it has some: the panel and the page say the same.

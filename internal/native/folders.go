@@ -70,20 +70,13 @@ func descendantDepth(groups []keelclient.Group, id string, seen map[string]bool)
 		return 0
 	}
 	seen[id] = true
-	max := 0
+	deepest := 0
 	for _, g := range groups {
 		if g.ParentID == id {
-			max = maxInt(max, 1+descendantDepth(groups, g.ID, seen))
+			deepest = max(deepest, 1+descendantDepth(groups, g.ID, seen))
 		}
 	}
-	return max
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return deepest
 }
 
 // isGroupUnder reports whether id is ancestorID or lies below it.
@@ -126,21 +119,6 @@ func hostSearchHay(groups []keelclient.Group, h keelclient.Host) string {
 		path = append(path, g.Name)
 	}
 	return strings.ToLower(h.Name + " " + h.Group + " " + strings.Join(path, " ") + " " + h.Address + " " + h.Username + " " + strings.Join(h.Tags, " "))
-}
-
-// hostsInSubtree is the hosts in focus's subtree (all hosts with no focus) that match query.
-func hostsInSubtree(groups []keelclient.Group, hosts []keelclient.Host, focus, query string) (out []keelclient.Host) {
-	q := strings.ToLower(strings.TrimSpace(query))
-	allow := subtreeGroupIDs(groups, focus)
-	for _, h := range hosts {
-		if allow != nil && !allow[h.GroupID] {
-			continue
-		}
-		if q == "" || strings.Contains(hostSearchHay(groups, h), q) {
-			out = append(out, h)
-		}
-	}
-	return out
 }
 
 // groupOptionLabel is "Parent / Child / Group".

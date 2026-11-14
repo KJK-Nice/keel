@@ -9,8 +9,6 @@ import (
 // The Keychain page drawn as KeychainPage and IdentityList (internal/ui) with .k-split, .k-item and .k-detail-* of
 // keel.css, and the detail of lib/vaultview.js identityDetailHTML.
 
-const ()
-
 // splitHead is the list column's head: the title with its New button, and the filter.
 func (w *workspace) splitHead(c *ui.Context, title, newLabel string, filter *string, filterLabel string, h *ui.Handle, onNew func()) {
 	hairline(ui.Column(c).FillWidth().Shrink(0).Padding(space6, space4, space3).Gap(space3), 0, 0, 1, 0).Children(func() {
@@ -182,7 +180,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 		}
 	})
 	ui.Column(c).FillWidth().Gap(space1).Children(func() {
-		label(c, "Used by "+hostsWord(len(used)), inkMuted)
+		label(c, "Used by "+countWord(len(used), "host", "hosts"), inkMuted)
 		if len(used) == 0 {
 			help(c, "No host uses it yet. Pick it in a host's Authentication.")
 			return
@@ -200,7 +198,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 		ui.Spacer(c)
 		b := ctlButton(c, "Delete identity", "Delete identity", btnDanger).Disabled(inUse)
 		if inUse {
-			b.Tooltip("Remove it from " + hostsWord(len(used)) + " first")
+			b.Tooltip("Remove it from " + countWord(len(used), "host", "hosts") + " first")
 		}
 		if !inUse && b.Clicked() {
 			w.act(func() { w.askDeleteIdentity(id) })
@@ -208,7 +206,7 @@ func (w *workspace) identityDetail(c *ui.Context, id keelclient.Identity) {
 	})
 	if inUse {
 		ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
-			help(c, "Remove it from "+hostsWord(len(used))+" before you can delete it.")
+			help(c, "Remove it from "+countWord(len(used), "host", "hosts")+" before you can delete it.")
 		})
 	}
 }

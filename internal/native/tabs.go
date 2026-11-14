@@ -216,7 +216,7 @@ func (w *workspace) reopenClosedAt(t *tab, i int) {
 	for _, h := range w.hosts {
 		if h.ID == e.hostID {
 			if t != nil && t.isNew() {
-				w.openFrom(t, h)
+				w.openHostIn(h, t)
 			} else {
 				w.openHost(h)
 			}

@@ -295,8 +295,6 @@ func (w *workspace) addVar(p *groupPage) {
 	w.setVar(p, p.varName, p.varValue, func() { p.varName, p.varValue, p.varNameFocus = "", "", true })
 }
 
-func (w *workspace) removeVar(p *groupPage, name string) { w.setVar(p, name, "", nil) }
-
 func (w *workspace) startEditVar(p *groupPage, v keelclient.GroupVar) {
 	p.varEdit, p.varEditTxt, p.varFocusEdit, p.varsErr = v.Name, v.Value, true, ""
 }

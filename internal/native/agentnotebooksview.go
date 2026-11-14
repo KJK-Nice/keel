@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/egoist/mygo/ui"
@@ -106,7 +107,7 @@ func (w *workspace) nbPickerView(c *ui.Context, anchor ui.Element, where string)
 		})
 		for _, nb := range all {
 			id, name := nb.ID, notebookName(nb)
-			ticked := contains(a.attached, id)
+			ticked := slices.Contains(a.attached, id)
 			off := (!ticked && full) || nb.Private
 			if a.nbRowH[id] == nil {
 				a.nbRowH[id] = new(ui.Handle)
@@ -275,10 +276,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 		})
 		hairline(ui.Row(c).FillWidth().Margin(space3, 0, 0).Padding(space2, space3).Gap(space1_5).Background(w.ground(surface)), 1, 0, 0, 0).Children(func() {
 			if p.Kind != "delete" && p.Bytes > 0 {
-				size := strconv.Itoa(p.Bytes) + " bytes"
-				if p.Bytes == 1 {
-					size = "1 byte"
-				}
+				size := countWord(p.Bytes, "byte", "bytes")
 				if p.Rev > 0 {
 					size += " · rev " + strconv.Itoa(p.Rev)
 				}

@@ -1,6 +1,10 @@
 package native
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/ui"
+
+	"keel/internal/wire"
+)
 
 // Small building blocks shared by the views. Colours and sizes come from tokens.go only.
 
@@ -70,11 +74,11 @@ func hairline(e ui.Element, top, right, bottom, left float32) ui.Element {
 }
 
 // statusColor is the state dot of a session: tide live, signal attention, flare failure.
-func statusColor(status string) ui.Color {
+func statusColor(status wire.Status) ui.Color {
 	switch status {
-	case "ready":
+	case wire.StatusReady:
 		return tide
-	case "error", "exited":
+	case wire.StatusError, wire.StatusExited:
 		return flare
 	}
 	return signal // connecting, or not heard yet

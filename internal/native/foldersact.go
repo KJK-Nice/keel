@@ -220,10 +220,6 @@ func (w *workspace) dropOnFolder(dest string, d *treeDrag) {
 	}
 }
 
-// moveHostToFolder is the host menu's Move to folder…: Edit host, whose Folder field is the same field and save
-// (term.js moveHostToFolder).
-func (w *workspace) moveHostToFolder(h keelclient.Host) { w.editHost(h) }
-
 // newHostIn is the folder menu's New host: New host with that folder picked (term.js newHostIn).
 func (w *workspace) newHostIn(groupID string) {
 	h := keelclient.Host{GroupID: groupID}

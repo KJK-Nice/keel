@@ -336,11 +336,7 @@ func diffSummary(d []diffLine) string {
 	if add == 0 && del == 0 {
 		return "No changes"
 	}
-	noun := "lines"
-	if add == 1 {
-		noun = "line"
-	}
-	return fmt.Sprintf("%d %s added · %d removed", add, noun, del)
+	return fmt.Sprintf("%s added · %d removed", countWord(add, "line", "lines"), del)
 }
 
 // diffRow is a row of diffView: a changed or context line, or a gap of Count unchanged lines (Op "gap").

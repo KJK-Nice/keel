@@ -2,6 +2,7 @@ package native
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -93,7 +94,7 @@ func (w *workspace) pageHostChips(c *ui.Context, p *agentPage) {
 	if !a.list.unreadable && a.list.err == "" {
 		hosts = hostFilters(a.list.sessions, hostChipMax)
 	}
-	if p.host != "" && !contains(hosts, p.host) {
+	if p.host != "" && !slices.Contains(hosts, p.host) {
 		p.host = ""
 	}
 	if len(hosts) == 0 {

@@ -64,11 +64,11 @@ func (s *sharePrompt) key() string {
 // roleOf is a client's role in a session as the share hub reports it: the driver drives, the owner may take control
 // back, everyone else follows. It is wire.RoleOf, except that id 0 (no client) is a follower and never matches an unset
 // driver or owner id.
-func roleOf(id, ownerID, driverID uint64) string {
+func roleOf(id, ownerID, driverID uint64) wire.Role {
 	if id == 0 {
-		return string(wire.RoleFollower)
+		return wire.RoleFollower
 	}
-	return string(wire.RoleOf(id, driverID, ownerID))
+	return wire.RoleOf(id, driverID, ownerID)
 }
 
 // kindLabel says how a client came.
@@ -88,7 +88,7 @@ type person struct {
 	name     string
 	initials string
 	you      bool
-	role     string
+	role     wire.Role
 	sub      string
 	viaLink  bool
 	at       time.Time
@@ -147,7 +147,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 		switch {
 		case r.you:
 			return 0
-		case r.role == "driver":
+		case r.role == wire.RoleDriver:
 			return 1
 		}
 		return 2
@@ -185,7 +185,7 @@ func clientName(attached []keelclient.Peer, id uint64) string {
 type seat struct{ owner, driving bool }
 
 func seatOf(st keelclient.State) seat {
-	return seat{owner: st.OwnerID != 0 && st.OwnerID == st.YouID, driving: st.Role == "driver"}
+	return seat{owner: st.OwnerID != 0 && st.OwnerID == st.YouID, driving: st.Driving()}
 }
 
 // followState is lib/share.js followState: who owns and who drives, by name, and whether that is you.
@@ -213,7 +213,7 @@ func followState(st keelclient.State) (owner, driver string, driving bool, host 
 func popoverAction(rows []person, s seat) (kind string, who person) {
 	var grantable []person
 	for _, p := range rows {
-		if (s.driving || s.owner) && !p.you && p.role != "driver" {
+		if (s.driving || s.owner) && !p.you && p.role != wire.RoleDriver {
 			grantable = append(grantable, p)
 		}
 	}

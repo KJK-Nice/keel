@@ -7,6 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
+	"keel/internal/wire"
 )
 
 // What a pane's session is doing, as the user sees it (docs/ui-redesign.md §5.1): a failure or
@@ -35,7 +36,7 @@ func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
 // failHeadline is term.js failHeadline for a session that is down.
 func failHeadline(st keelclient.State) string {
 	switch {
-	case st.Status == "exited":
+	case st.Status == wire.StatusExited:
 		return "Session ended"
 	case st.WasReady:
 		return "Connection lost"
@@ -89,7 +90,7 @@ func logText(lines []keelclient.LogLine) string {
 // connectLogView is .pane-fail-log: over the pane's body while the session is down or connecting, a row per line with its
 // glyph (person for what the user asked, gear for a step, a frown for a failure; a failure is in the flare colour).
 func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) {
-	if p.remote || !(st.Status == "error" || st.Status == "exited" || (st.Status == "connecting" && !p.host.IsLocal())) {
+	if p.remote || !(st.Status == wire.StatusError || st.Status == wire.StatusExited || (st.Status == wire.StatusConnecting && !p.host.IsLocal())) {
 		return
 	}
 	ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Background(w.ground(stage)).Padding(space3).Gap(space2).Label("connection log " + p.id).Children(func() {
@@ -151,16 +152,16 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		}
 	}
 	switch {
-	case st.Status == "error" || st.Status == "exited":
+	case st.Status == wire.StatusError || st.Status == wire.StatusExited:
 		w.bannerRow(c, "banner failed", flareSoft, flare, failHeadline(st), failEndpoint(p.host, st), st.Message, func() {
 			common()
 			if textBtn(c, "Reconnect", btnPrimary) {
 				w.act(func() { w.reconnect(p) })
 			}
 		})
-	case st.Status == "connecting" && !p.host.IsLocal():
+	case st.Status == wire.StatusConnecting && !p.host.IsLocal():
 		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", common)
-	case st.Role == "follower" || st.Role == "owner": // anyone who is not driving
+	case st.Role == wire.RoleFollower || st.Role == wire.RoleOwner:
 		who := "Nobody is driving"
 		for _, a := range st.Attached {
 			if st.DriverID != 0 && a.ID == st.DriverID && a.Name != "" {
@@ -211,20 +212,20 @@ func chipFollow(c *ui.Context, text string) {
 }
 
 // roleChip is the k-role chip of a shared session's pane bar; it never shrinks.
-func roleChip(c *ui.Context, role string) {
+func roleChip(c *ui.Context, role wire.Role) {
 	text, glyph, bg, fg := "", "steering", ui.Transparent, inkMuted
 	switch role {
-	case "driver":
+	case wire.RoleDriver:
 		text, bg, fg = "Driving", accentSoft, accentInk
-	case "owner":
+	case wire.RoleOwner:
 		text = "Owner"
-	case "follower":
+	case wire.RoleFollower:
 		text, glyph, bg, fg = "Following", "eye", hazeSoft, haze
 	default:
 		return
 	}
 	r := roleChipBox(c, "role "+text, bg)
-	if role == "owner" {
+	if role == wire.RoleOwner {
 		r.Border(1, lineStrong)
 	}
 	r.Children(func() { roleChipFace(c, glyph, text, fg) })

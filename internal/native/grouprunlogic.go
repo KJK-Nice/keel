@@ -255,16 +255,6 @@ func typeLabel(rows []*groupRow) string {
 	return "Type into " + countWord(n, "pane", "panes")
 }
 
-// sameBytes reports whether every row types the same bytes.
-func sameBytes(rows []*groupRow) bool {
-	for _, r := range rows {
-		if r.bytes != rows[0].bytes {
-			return false
-		}
-	}
-	return true
-}
-
 // rowGroups splits the rows that can be typed by their bytes: one group when every host types the same, else one per
 // distinct bytes (values captured per host can differ).
 func rowGroups(rows []*groupRow) (n int) {

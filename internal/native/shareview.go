@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/egoist/mygo/ui"
+
+	"keel/internal/wire"
 )
 
 // The Share controls and popover (§5.6): the words, the order and the rules are lib/share.js sharePopoverHTML and
@@ -167,7 +169,7 @@ func (w *workspace) personRow(c *ui.Context, p *pane, r person, s seat, grantOne
 			}
 		})
 		roleChip(c, r.role)
-		if (s.driving || s.owner) && !r.you && r.role != "driver" && !grantOne {
+		if (s.driving || s.owner) && !r.you && r.role != wire.RoleDriver && !grantOne {
 			if textBtnIcon(c, "steering", "Pass control to "+r.name, btnGhost) {
 				w.act(func() { w.passControl(p, r.id) })
 			}

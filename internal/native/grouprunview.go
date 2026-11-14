@@ -78,17 +78,13 @@ func markColor(state string) ui.Color {
 func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	changes := 0
 	for _, s := range run.Steps {
-		if s.Risk != "" && s.Risk != keelclient.RiskReadOnly {
+		if changesState(s.Risk) {
 			changes++
 		}
 	}
 	line := countWord(len(run.Steps), "step", "steps") + " · all read-only"
 	if changes > 0 {
-		verb := "change"
-		if changes == 1 {
-			verb = "changes"
-		}
-		line = countWord(len(run.Steps), "step", "steps") + " · " + fmt.Sprintf("%d %s state", changes, verb)
+		line = countWord(len(run.Steps), "step", "steps") + " · " + fmt.Sprintf("%d %s state", changes, plural(changes, "changes", "change"))
 	}
 	if !run.StartedAt.IsZero() {
 		line += " · started " + clockHM(run.StartedAt) + " by you"

@@ -3,6 +3,7 @@ package native
 import (
 	"crypto/rand"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -30,11 +31,7 @@ type agentPane struct {
 
 // scopeLabel is the chip text: "Reads 2 of 3 panes".
 func scopeLabel(n, m int) string {
-	noun := "panes"
-	if m == 1 {
-		noun = "pane"
-	}
-	return fmt.Sprintf("Reads %d of %d %s", n, m, noun)
+	return fmt.Sprintf("Reads %d of %s", n, countWord(m, "pane", "panes"))
 }
 
 // candidatePanes are the panes the panel counts (M): local terminal panes with a session. A joined pane is never in
@@ -86,20 +83,11 @@ func reconcileScope(ids []string, ps []agentPane) []string {
 	}
 	out := []string{}
 	for _, id := range ids {
-		if ok[id] && !contains(out, id) {
+		if ok[id] && !slices.Contains(out, id) {
 			out = append(out, id)
 		}
 	}
 	return out
-}
-
-func contains(ids []string, id string) bool {
-	for _, x := range ids {
-		if x == id {
-			return true
-		}
-	}
-	return false
 }
 
 // toggleScope adds or removes one pane. A pane the agent cannot read, or a joined one, is never added.
@@ -108,7 +96,7 @@ func toggleScope(ids []string, p *agentPane) []string {
 	switch {
 	case p == nil:
 		return out
-	case contains(ids, p.sessionID):
+	case slices.Contains(ids, p.sessionID):
 		out = out[:0]
 		for _, id := range ids {
 			if id != p.sessionID {
@@ -133,15 +121,7 @@ func lineCount(bytes string) int {
 
 // countLabel is the card's "1 line · 20 bytes".
 func countLabel(bytes string) string {
-	l, b := lineCount(bytes), len(bytes)
-	ln, bn := "lines", "bytes"
-	if l == 1 {
-		ln = "line"
-	}
-	if b == 1 {
-		bn = "byte"
-	}
-	return fmt.Sprintf("%d %s · %d %s", l, ln, b, bn)
+	return countWord(lineCount(bytes), "line", "lines") + " · " + countWord(len(bytes), "byte", "bytes")
 }
 
 // bytesRun is a stretch of the bytes Type sends: plain text, or a control character drawn as a glyph (k-ctl).
@@ -204,6 +184,9 @@ func riskBadge(risk string) (label, kind string) {
 	return "Changes state", "signal"
 }
 
+// changesState reports a rated command that is not read-only; an unrated one ("") is not counted.
+func changesState(risk string) bool { return risk != "" && risk != keelclient.RiskReadOnly }
+
 func redactedNote(counts map[string]int) string {
 	held, n := 0, 0
 	for kind, c := range counts { // captured values and group variables went as {{name}}
@@ -218,20 +201,9 @@ func redactedNote(counts map[string]int) string {
 		out = fmt.Sprintf(" · %d redacted", n)
 	}
 	if held > 0 {
-		noun := "values"
-		if held == 1 {
-			noun = "value"
-		}
-		out += fmt.Sprintf(" · %d %s withheld by Keel", held, noun)
+		out += " · " + countWord(held, "value", "values") + " withheld by Keel"
 	}
 	return out
-}
-
-func lines(n int) string {
-	if n == 1 {
-		return "line"
-	}
-	return "lines"
 }
 
 // traceText is one line of the trace: what the agent read, or why not.
@@ -255,9 +227,9 @@ func traceText(s keelclient.TraceStep) string {
 	host := orElse(s.Host, "a pane")
 	switch {
 	case s.Status == "read" && s.Command != "": // from the shell's OSC 133 marks
-		return fmt.Sprintf("Read %s · last command, %s · %d %s of output%s", host, s.Command, s.Lines, lines(s.Lines), redactedNote(s.Redactions))
+		return fmt.Sprintf("Read %s · last command, %s · %d %s of output%s", host, s.Command, s.Lines, plural(s.Lines, "line", "lines"), redactedNote(s.Redactions))
 	case s.Status == "read":
-		return fmt.Sprintf("Read %s · last %d %s%s", host, s.Lines, lines(s.Lines), redactedNote(s.Redactions))
+		return fmt.Sprintf("Read %s · last %d %s%s", host, s.Lines, plural(s.Lines, "line", "lines"), redactedNote(s.Redactions))
 	case s.Status != "skipped":
 		return "Used " + s.Status // a step this client has no words for: shown, never hidden
 	}

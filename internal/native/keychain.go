@@ -69,14 +69,12 @@ func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Ident
 func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 	var out []keelclient.Host
 	for _, h := range hosts {
-		if h.AuthType == "identity" && h.IdentityID == id {
+		if h.AuthType == keelclient.AuthIdentity && h.IdentityID == id {
 			out = append(out, h)
 		}
 	}
 	return out
 }
-
-func hostsWord(n int) string { return countWord(n, "host", "hosts") }
 
 // identitySubtitle is the list line under an identity: kind, user, hosts (lists.templ identitySubtitle).
 func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
@@ -84,7 +82,7 @@ func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
 	if id.Username != "" {
 		parts = append(parts, id.Username)
 	}
-	parts = append(parts, hostsWord(len(identityHostsOf(hosts, id.ID))))
+	parts = append(parts, countWord(len(identityHostsOf(hosts, id.ID)), "host", "hosts"))
 	return strings.Join(parts, " · ")
 }
 
@@ -257,7 +255,7 @@ func (w *workspace) saveIdentity() {
 // not asked about: the server would clear it from those hosts, so the page refuses (vaultview.js identityDetailHTML).
 func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 	if n := len(identityHostsOf(w.hosts, id.ID)); n > 0 {
-		w.warn("Remove " + id.Name + " from " + hostsWord(n) + " first")
+		w.warn("Remove " + id.Name + " from " + countWord(n, "host", "hosts") + " first")
 		return
 	}
 	w.askConfirm(&hostConfirm{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
