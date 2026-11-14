@@ -114,13 +114,13 @@ func startRig(t *testing.T) *rig {
 
 func (r *rig) onPage(t *testing.T) {
 	t.Helper()
-	if tb := r.w.tab(); tb == nil || !tb.isNew() || !r.tt.HasText("Where to?") {
-		t.Fatalf("the New tab page is not showing (tabs %d)", len(r.w.tabs))
+	if tb := r.w.activeTab(); tb == nil || !tb.isNew() || !r.tt.HasText("Where to?") {
+		t.Fatalf("the New tab page is not showing (tabs %d)", r.w.tabCount())
 	}
 }
 
 func cardNames(r *rig) (out []string) {
-	for _, h := range r.w.cards(r.w.tab().page) {
+	for _, h := range r.w.cards(r.w.activeTab().page) {
 		out = append(out, h.Name)
 	}
 	return
@@ -138,7 +138,7 @@ func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
 			setUISize(size)
 			r.w.prefs.UISize = size
 			r.tt.SetSize(width, 720)
-			r.w.tab().page.query = "production" // the card of a host that is not a recent one
+			r.w.activeTab().page.query = "production" // the card of a host that is not a recent one
 			r.tt.Frame()
 			r.tt.Frame()
 			card, ok := r.tt.Find("start card " + long.Name)
@@ -176,8 +176,8 @@ func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
 func TestEmptyWindowShowsTheNewTabPage(t *testing.T) {
 	r := startRig(t)
 	r.onPage(t)
-	if len(r.w.tabs) != 1 || !r.tt.Focused("Host to connect to") {
-		t.Fatalf("tabs %d, the input has the keyboard: %v", len(r.w.tabs), r.tt.Focused("Host to connect to"))
+	if r.w.tabCount() != 1 || !r.tt.Focused("Host to connect to") {
+		t.Fatalf("tabs %d, the input has the keyboard: %v", r.w.tabCount(), r.tt.Focused("Host to connect to"))
 	}
 	for _, s := range []string{"Where to?", "Recent", "Local Shell", "Start", "Quick connect", "Join session", "New host", "New tab"} {
 		if !r.tt.HasText(s) {
@@ -193,27 +193,27 @@ func TestEmptyWindowShowsTheNewTabPage(t *testing.T) {
 func TestNewTabFromShortcutPlusLastClosedAndRestore(t *testing.T) {
 	r := startRig(t)
 	r.click(t, "start card Local Shell") // the page's tab becomes a session
-	if r.w.tab().isNew() || len(r.w.tabs) != 1 {
-		t.Fatalf("the card did not fill the page's tab: tabs %d", len(r.w.tabs))
+	if r.w.activeTab().isNew() || r.w.tabCount() != 1 {
+		t.Fatalf("the card did not fill the page's tab: tabs %d", r.w.tabCount())
 	}
 	r.press(ui.Cmd, ui.KeyT)
 	r.onPage(t)
-	if len(r.w.tabs) != 2 {
-		t.Fatalf("⌘T: tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 2 {
+		t.Fatalf("⌘T: tabs %d", r.w.tabCount())
 	}
 	r.click(t, "New tab") // the + button, which the ⌘T lock does not hold back
-	if len(r.w.tabs) != 3 || !r.w.tabs[2].isNew() {
-		t.Fatalf("+: tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 3 || !r.w.tabAt(2).isNew() {
+		t.Fatalf("+: tabs %d", r.w.tabCount())
 	}
 	r.press(ui.Cmd, ui.KeyW) // closes the New tab
 	r.press(ui.Cmd, ui.KeyW)
 	r.press(ui.Cmd, ui.KeyW) // the session's tab: the window keeps a tab
 	r.onPage(t)
-	if len(r.w.tabs) != 1 {
-		t.Fatalf("after closing everything: tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 1 {
+		t.Fatalf("after closing everything: tabs %d", r.w.tabCount())
 	}
 	r.press(ui.Cmd, ui.KeyW) // the lone New tab stays
-	if len(r.w.tabs) != 1 {
+	if r.w.tabCount() != 1 {
 		t.Fatalf("⌘W closed the lone New tab")
 	}
 }
@@ -222,8 +222,8 @@ func TestHoldingCmdTMakesOneTab(t *testing.T) {
 	r := startRig(t)
 	r.press(ui.Cmd, ui.KeyT)
 	r.press(ui.Cmd, ui.KeyT) // a key repeat inside the lock
-	if len(r.w.tabs) != 2 {
-		t.Fatalf("tabs %d, want 2", len(r.w.tabs))
+	if r.w.tabCount() != 2 {
+		t.Fatalf("tabs %d, want 2", r.w.tabCount())
 	}
 }
 
@@ -257,8 +257,8 @@ func TestAltNumberOpensThatCardsHost(t *testing.T) {
 	r.w.prefs.RecentHosts = []string{"h3", "h1"}
 	r.tt.Frame()
 	r.press(ui.Alt, ui.Key2) // the second card: Local Shell is first
-	if !slices.Equal(r.fb.spawned, []string{"h3"}) || len(r.w.tabs) != 1 || r.w.tab().isNew() {
-		t.Fatalf("spawned %v tabs %d", r.fb.spawned, len(r.w.tabs))
+	if !slices.Equal(r.fb.spawned, []string{"h3"}) || r.w.tabCount() != 1 || r.w.activeTab().isNew() {
+		t.Fatalf("spawned %v tabs %d", r.fb.spawned, r.w.tabCount())
 	}
 	// A session tab has no cards: ⌥1 does nothing there.
 	r.press(ui.Alt, ui.Key1)
@@ -285,10 +285,10 @@ func TestAltNumberWithTheInputFocusedOpensTheCardAndKeepsTheText(t *testing.T) {
 	r.tt.Key(ui.Alt, ui.Key6)
 	r.tt.Type("º")
 	r.tt.Frame()
-	if len(r.fb.spawned) != 0 || r.w.tab().page.query != "ab" {
-		t.Fatalf("⌥6 with no sixth card: spawned %v, query %q", r.fb.spawned, r.w.tab().page.query)
+	if len(r.fb.spawned) != 0 || r.w.activeTab().page.query != "ab" {
+		t.Fatalf("⌥6 with no sixth card: spawned %v, query %q", r.fb.spawned, r.w.activeTab().page.query)
 	}
-	r.w.tab().page.query = ""
+	r.w.activeTab().page.query = ""
 	r.tt.Frame()
 	r.tt.Key(ui.Alt, ui.Key2)
 	r.tt.Type("™")
@@ -318,8 +318,8 @@ func TestTypingFiltersTheCardsAndEnterOpensTheHighlightedOne(t *testing.T) {
 	r.press(0, ui.KeyBackspace)
 	r.press(0, ui.KeyBackspace)
 	r.press(0, ui.KeyDown) // srv-1, srv-2, ...: ↓ highlights the next card
-	if r.w.tab().page.pick != "h2" {
-		t.Fatalf("pick %q", r.w.tab().page.pick)
+	if r.w.activeTab().page.pick != "h2" {
+		t.Fatalf("pick %q", r.w.activeTab().page.pick)
 	}
 	r.press(0, ui.KeyEnter)
 	if !slices.Equal(r.fb.spawned, []string{"h2"}) {
@@ -423,8 +423,8 @@ func TestConnectOnceAsksForThePasswordAndSavesAQuickHost(t *testing.T) {
 	if strings.Contains(r.fb.created[0].String(), secret) || strings.Contains(fmt.Sprintf("%v %+v", r.fb.created[0], r.fb.created[0]), secret) {
 		t.Error("a NewHost prints its password")
 	}
-	if !slices.Equal(r.fb.spawned, []string{"h-new1"}) || r.w.quick != nil || r.w.tab().isNew() {
-		t.Fatalf("spawned %v, dialog open %v, still a page %v", r.fb.spawned, r.w.quick != nil, r.w.tab().isNew())
+	if !slices.Equal(r.fb.spawned, []string{"h-new1"}) || r.w.quick != nil || r.w.activeTab().isNew() {
+		t.Fatalf("spawned %v, dialog open %v, still a page %v", r.fb.spawned, r.w.quick != nil, r.w.activeTab().isNew())
 	}
 	// The password lives in the request only: not in the window, the prefs or the saved workspace.
 	r.w.saveNow()
@@ -475,7 +475,7 @@ func TestRecentlyClosedRowsReopenAsANewSession(t *testing.T) {
 	}
 	spawned := len(r.fb.spawned)
 	r.click(t, "reopen srv-2")
-	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h2" || r.w.tab().isNew() {
+	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h2" || r.w.activeTab().isNew() {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
 	if len(r.w.closedList()) != 1 {
@@ -547,7 +547,7 @@ func TestRecentlyClosedSurvivesClosingTheWindow(t *testing.T) {
 	dir := t.TempDir()
 	r := newRigIn(t, okBackend(), dir)
 	r.click(t, "host api-1")
-	r.w.closeTab(r.w.tab())
+	r.w.closeTab(r.w.activeTab())
 	r.w.closeWindow()
 	b, _ := os.ReadFile(filepath.Join(dir, "keel-native.json"))
 	if !strings.Contains(string(b), `"closedTabs"`) || strings.Contains(string(b), "10.0.0") {

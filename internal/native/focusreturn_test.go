@@ -36,7 +36,7 @@ func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 			if ran {
 				t.Fatal("↵ on open ran the destructive action")
 			}
-			if r.w.confirm != nil || (r.w.hostDlg != nil && r.w.hostDlg.confirm != nil) {
+			if r.w.confirmOpen() || (r.w.hostDlg != nil && r.w.hostDlg.confirm != nil) {
 				t.Error("↵ on Cancel did not close the confirm")
 			}
 		})
@@ -110,7 +110,7 @@ func TestThePaneHasTheKeyboardAtOnce(t *testing.T) {
 	})
 	t.Run("after a split", func(t *testing.T) {
 		r := approveRig(t)
-		r.w.act(func() { r.w.split(r.w.tab(), r.w.tab().focused, layout.Row) })
+		r.w.act(func() { r.w.split(r.w.activeTab(), r.w.activeTab().focused, layout.Row) })
 		r.tt.Frame()
 		r.tt.Frame()
 		if len(r.fb.conns) < 2 {

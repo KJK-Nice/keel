@@ -244,7 +244,7 @@ func TestE2EShareAndAdmissionPrompt(t *testing.T) {
 
 	r.joinWith(link)
 	pumpAll(t, r.wins(), func() bool {
-		return len(r.b.w.tabs) == 2 && r.b.w.tab().remote && r.b.hasLabel("banner joining") && r.a.hasLabel("alertdialog "+r.b.w.joinName())
+		return r.b.w.tabCount() == 2 && r.b.w.activeTab().remote && r.b.hasLabel("banner joining") && r.a.hasLabel("alertdialog "+r.b.w.joinName())
 	}, "B waiting for the host and A's prompt")
 	if !r.a.tt.HasText("wants to watch Local Shell.") || !r.a.hasLabel("Share requests") {
 		t.Errorf("A's prompt: %q", r.a.tt.Texts())
@@ -298,13 +298,13 @@ func TestE2EStopWhileARequestWaits(t *testing.T) {
 		t.Errorf("A has %d attached", n)
 	}
 	r.b.click("Leave")
-	pumpAll(t, r.wins(), func() bool { return len(r.b.w.tabs) == 1 }, "B's tab left")
+	pumpAll(t, r.wins(), func() bool { return r.b.w.tabCount() == 1 }, "B's tab left")
 
 	// The old link does not admit: B's join does not even start.
 	r.joinWith(old)
 	pumpAll(t, r.wins(), func() bool { return r.b.tt.HasText("join: signal server: websocket: bad handshake") }, "the old link refused")
 	r.settle(300 * time.Millisecond)
-	if r.a.hasLabel("Allow") || len(r.b.w.tabs) != 1 {
+	if r.a.hasLabel("Allow") || r.b.w.tabCount() != 1 {
 		t.Error("the old link was accepted")
 	}
 
@@ -356,7 +356,7 @@ func TestE2EFollowerAsksForControlAndTheOwnerAnswers(t *testing.T) {
 	b := newWin(t, addr, dir, nil)
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
-		return len(b.w.tabs) == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("Ask for control")
+		return b.w.tabCount() == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("Ask for control")
 	}, "B following")
 
 	// B types: nothing is sent, and the notice offers Ask for control.
@@ -522,7 +522,7 @@ func TestE2EDenyAllowAndStop(t *testing.T) {
 	r.a.click("Deny")
 	pump30(t, r.wins(), func() bool { return r.b.snap().Status == "error" }, "B refused")
 	r.b.click("Leave")
-	pump30(t, r.wins(), func() bool { return len(r.b.w.tabs) == 1 }, "B's tab left")
+	pump30(t, r.wins(), func() bool { return r.b.w.tabCount() == 1 }, "B's tab left")
 
 	// A second request is allowed.
 	r.joinWith(old)
@@ -542,7 +542,7 @@ func TestE2EDenyAllowAndStop(t *testing.T) {
 	}
 	r.b.shot("TestE2EDenyAllowAndStop-ended")
 	r.b.click("Leave")
-	pump30(t, r.wins(), func() bool { return len(r.b.w.tabs) == 1 }, "B's tab left")
+	pump30(t, r.wins(), func() bool { return r.b.w.tabCount() == 1 }, "B's tab left")
 	r.joinWith(old)
 	pump30(t, r.wins(), func() bool { return r.b.tt.HasText("join: signal server: websocket: bad handshake") }, "the old link refused")
 	r.settle(500 * time.Millisecond)

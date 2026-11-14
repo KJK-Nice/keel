@@ -15,7 +15,7 @@ func TestTitleBarShowsTheBarStatusAndTheStatusBarDoesNot(t *testing.T) {
 	r.click(t, "host api-1")
 	// A session: the pane bar's line and whose hands are on it at the right of the
 	// title bar.
-	pane := r.w.tab().panes["1"]
+	pane := r.w.activeTab().panes["1"]
 	pane.conn.(*fakeConn).st = &keelclient.State{Status: "ready", Subtitle: "vm", Role: "driver"}
 	r.tt.Frame()
 	bar, ok := r.tt.Find("vm · driving")
@@ -37,7 +37,7 @@ func TestTitleBarShowsTheBarStatusAndTheStatusBarDoesNot(t *testing.T) {
 	if tx := r.tt.Texts(); len(tx) == 0 || !strings.HasPrefix(tx[len(tx)-1], "keel serve") { // the status bar is last, and has no "New tab"
 		t.Errorf("the status bar ends with %v", tx[len(tx)-3:])
 	}
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	if got := r.w.barStatus(); got != "" {
 		t.Errorf("a page has no bar status, got %q", got)
 	}

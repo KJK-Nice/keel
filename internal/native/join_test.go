@@ -82,7 +82,7 @@ func TestJoinDialogHasTheAppsWordsAndTheAppsErrors(t *testing.T) {
 		}
 	}
 	jr.click(t, "Cancel")
-	if jr.w.joinDlg != nil || len(jr.links) != 0 || len(jr.w.tabs) != 1 {
+	if jr.w.joinDlg != nil || len(jr.links) != 0 || jr.w.tabCount() != 1 {
 		t.Fatal("Cancel joined or left the dialog open")
 	}
 	jr.tt.Key(ui.Cmd, ui.KeyJ)
@@ -104,8 +104,8 @@ func TestJoiningOpensAFollowingTabWithTheAppsBannerAndNothingElse(t *testing.T) 
 	if jr.w.joinDlg != nil {
 		t.Fatal("the dialog is still open: it holds the pasted link")
 	}
-	if len(jr.w.tabs) != 2 || !jr.w.tab().remote || !jr.w.focusedPane().remote {
-		t.Fatalf("tabs %d", len(jr.w.tabs))
+	if jr.w.tabCount() != 2 || !jr.w.activeTab().remote || !jr.w.focusedPane().remote {
+		t.Fatalf("tabs %d", jr.w.tabCount())
 	}
 	// Waiting for the host to let us in.
 	if !jr.has("banner joining") || !jr.tt.HasText("Joining a shared session · waiting for the host") || !jr.has("Leave") || jr.has("Ask for control") {
@@ -184,8 +184,8 @@ func TestAskForControlLeaveAndTheFollowNotice(t *testing.T) {
 	}
 	// Leave closes the tab and the peer, and kills nothing.
 	jr.click(t, "Leave")
-	if !jr.conns[0].closed || len(jr.w.tabs) != 1 || jr.w.tabs[0].remote || len(jr.fb.killed) != 0 {
-		t.Errorf("closed %v tabs %d killed %v", jr.conns[0].closed, len(jr.w.tabs), jr.fb.killed)
+	if !jr.conns[0].closed || jr.w.tabCount() != 1 || jr.w.tabAt(0).remote || len(jr.fb.killed) != 0 {
+		t.Errorf("closed %v tabs %d killed %v", jr.conns[0].closed, jr.w.tabCount(), jr.fb.killed)
 	}
 	if len(jr.w.prefs.ClosedTabs) != 0 {
 		t.Errorf("a joined tab was recorded as recently closed: %v", jr.w.prefs.ClosedTabs)
@@ -206,13 +206,13 @@ func TestAJoinedTabIsNotSavedAndTakesNoSnippetOrSplit(t *testing.T) {
 	// Approve before type: refused for a joined pane, and nothing is typed.
 	jr.w.typeSnippet("sn1")
 	jr.tt.Frame()
-	if jr.w.approve != nil || !jr.tt.HasText("Open a session first") || len(jr.conns[0].injected) != 0 || len(jr.conns[0].directs) != 0 {
-		t.Errorf("approve %v injected %v directs %v", jr.w.approve != nil, jr.conns[0].injected, jr.conns[0].directs)
+	if jr.w.approveOpen() || !jr.tt.HasText("Open a session first") || len(jr.conns[0].injected) != 0 || len(jr.conns[0].directs) != 0 {
+		t.Errorf("approve %v injected %v directs %v", jr.w.approveOpen(), jr.conns[0].injected, jr.conns[0].directs)
 	}
 	// Split: refused.
 	jr.w.splitFocused(1)
 	jr.tt.Frame()
-	if !jr.tt.HasText("Split needs a local host session") || len(jr.w.tab().panes) != 1 {
+	if !jr.tt.HasText("Split needs a local host session") || len(jr.w.activeTab().panes) != 1 {
 		t.Error("a joined tab was split")
 	}
 	// The pane menu has no Share and no splits.
@@ -229,8 +229,8 @@ func TestPastingTheSameLinkAgainShowsTheTabAndAFailedOneJoinsAgain(t *testing.T)
 	jr.conns[0].st = following()
 	jr.click(t, "tab api-1")
 	jr.join(t, joinTestLink)
-	if len(jr.links) != 1 || !jr.w.tab().remote || len(jr.w.tabs) != 2 {
-		t.Fatalf("joins %d tabs %d: the same link opens no second tab", len(jr.links), len(jr.w.tabs))
+	if len(jr.links) != 1 || !jr.w.activeTab().remote || jr.w.tabCount() != 2 {
+		t.Fatalf("joins %d tabs %d: the same link opens no second tab", len(jr.links), jr.w.tabCount())
 	}
 	// A denied or lost join shows its error and Leave; pasting the link again retries in a new tab.
 	jr.conns[0].st = &keelclient.State{Status: "error", Message: "The host declined your request to join."}
@@ -239,8 +239,8 @@ func TestPastingTheSameLinkAgainShowsTheTabAndAFailedOneJoinsAgain(t *testing.T)
 		t.Errorf("error banner: %q", jr.tt.Texts())
 	}
 	jr.join(t, joinTestLink)
-	if len(jr.links) != 2 || !jr.conns[0].closed || len(jr.w.tabs) != 2 {
-		t.Fatalf("joins %d closed %v tabs %d", len(jr.links), jr.conns[0].closed, len(jr.w.tabs))
+	if len(jr.links) != 2 || !jr.conns[0].closed || jr.w.tabCount() != 2 {
+		t.Fatalf("joins %d closed %v tabs %d", len(jr.links), jr.conns[0].closed, jr.w.tabCount())
 	}
 }
 
@@ -248,8 +248,8 @@ func TestAJoinThatCannotStartIsAToastAndOpensNoTab(t *testing.T) {
 	jr := newJoinRig(t)
 	jr.err = errors.New("signal server: dial tcp 127.0.0.1:9: connect: connection refused")
 	jr.join(t, joinTestLink)
-	if len(jr.w.tabs) != 1 || !jr.tt.HasText("join: signal server: dial tcp 127.0.0.1:9: connect: connection refused") {
-		t.Errorf("tabs %d texts %q", len(jr.w.tabs), jr.tt.Texts())
+	if jr.w.tabCount() != 1 || !jr.tt.HasText("join: signal server: dial tcp 127.0.0.1:9: connect: connection refused") {
+		t.Errorf("tabs %d texts %q", jr.w.tabCount(), jr.tt.Texts())
 	}
 	if strings.Contains(fmt.Sprint(jr.tt.Texts()), shareTestKey) {
 		t.Error("the key is on screen")
@@ -303,7 +303,7 @@ func TestOnlyAJoinedPaneIsRemoteAndItsSessionIsNeverKilledOrReconnected(t *testi
 	jr.conns[0].id = "s-of-the-host" // even if a frame named the host's session, it is not ours to act on
 	jr.conns[0].st = &keelclient.State{Status: "error", Message: "x"}
 	jr.w.reconnect(p)
-	jr.w.closePane(jr.w.tab(), p.id)
+	jr.w.closePane(jr.w.activeTab(), p.id)
 	if len(jr.fb.killed) != 0 || len(jr.fb.reconnected) != 0 {
 		t.Fatalf("killed %v reconnected %v", jr.fb.killed, jr.fb.reconnected)
 	}

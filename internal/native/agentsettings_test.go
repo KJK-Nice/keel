@@ -214,25 +214,25 @@ func TestSettingsAgentKeepConversationsAndDeleteAllHistoryAsksFirst(t *testing.T
 	if p := r.lastSave(t); !slices.Equal(fields(p), []string{"HistoryDays"}) || *p.HistoryDays != 0 {
 		t.Errorf("history %+v", p)
 	}
-	if r.w.agent.savedNote() != "Not saved · kept while open" {
-		t.Errorf("the panel says %q", r.w.agent.savedNote())
+	if r.w.agentState().savedNote() != "Not saved · kept while open" {
+		t.Errorf("the panel says %q", r.w.agentState().savedNote())
 	}
 	// Delete all history asks first, and Cancel keeps everything.
 	r.click(t, "Delete all history…")
 	r.settle()
-	cf := r.w.confirm
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Delete all history?" || cf.action != "Delete all history" || r.fb.convs.deletedAll != 0 ||
 		cf.message != "Every agent conversation is forgotten, including the ones saved in the vault, in every window. The log entries that say what the agent read stay in Logs." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
 	}
 	r.click(t, "Cancel")
 	r.settle()
-	if r.fb.convs.deletedAll != 0 || r.w.confirm != nil {
+	if r.fb.convs.deletedAll != 0 || r.w.confirmOpen() {
 		t.Fatal("Cancel deleted the history")
 	}
 	r.click(t, "Delete all history…")
 	r.settle()
-	r.w.confirm.run() // the dialog's action (its button shares its words with the row's)
+	r.w.confirmDlg().run() // the dialog's action (its button shares its words with the row's)
 	r.settle()
 	if r.fb.convs.deletedAll != 1 {
 		t.Fatalf("confirming did not delete the history (%d)", r.fb.convs.deletedAll)
@@ -331,7 +331,7 @@ func TestSettingsAgentDisconnectAsksFirstWithTheAppsWords(t *testing.T) {
 	r := agentSettingsRig(t)
 	r.click(t, "Disconnect Google Gemini")
 	r.settle()
-	cf := r.w.confirm
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.title != "Disconnect Google Gemini?" || cf.action != "Disconnect" || len(r.fb.convs.keysGone) != 0 ||
 		cf.message != "The agent panel and suggestions will stop working until you connect a key again. The Google Gemini key is removed from the vault." {
 		t.Fatalf("no confirm, or not the app's: %+v", cf)
@@ -343,8 +343,8 @@ func TestSettingsAgentDisconnectAsksFirstWithTheAppsWords(t *testing.T) {
 	}
 	r.click(t, "Disconnect Google Gemini")
 	r.settle()
-	r.w.confirm.run() // the dialog's action (its button shares its words with the card's)
-	r.w.confirm = nil
+	r.w.confirmDlg().run() // the dialog's action (its button shares its words with the card's)
+	r.w.dismissConfirm()
 	r.settle()
 	if !slices.Equal(r.fb.convs.keysGone, []string{"gemini"}) || !r.has("badge Not connected Google Gemini") {
 		t.Fatalf("removed %v", r.fb.convs.keysGone)
@@ -373,7 +373,7 @@ func TestRetentionSettingsOpensSettingsAgent(t *testing.T) {
 	r.openPageSettled()
 	r.click(t, "Retention settings")
 	r.settle()
-	tb := r.w.tab()
+	tb := r.w.activeTab()
 	if tb == nil || tb.pg == nil || pageAs[*settingsPage](tb) == nil || pageAs[*settingsPage](tb).section != "agent" || !r.tt.HasText("Keep conversations") {
 		t.Fatalf("Retention settings did not open Settings · Agent: %v", r.tt.Texts())
 	}

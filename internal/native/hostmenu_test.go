@@ -111,7 +111,7 @@ func TestHostMenuActions(t *testing.T) {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
 	choose("staging-web", "Open in split")
-	if !slices.Equal(r.fb.spawned, []string{"h-api", "h-web"}) || len(r.w.tabs) != 1 || len(r.w.tabs[0].panes) != 2 {
+	if !slices.Equal(r.fb.spawned, []string{"h-api", "h-web"}) || r.w.tabCount() != 1 || len(r.w.tabAt(0).panes) != 2 {
 		t.Fatalf("spawned %v, panes %d", r.fb.spawned, r.w.paneCount())
 	}
 	choose("api-1", "Edit")
@@ -157,8 +157,8 @@ func TestAltEnterOnAFocusedHostRowOpensASplit(t *testing.T) {
 	if len(r.fb.spawned) != spawned+1 || r.fb.spawned[spawned] != "h-web" {
 		t.Fatalf("spawned %v", r.fb.spawned)
 	}
-	if len(r.w.tabs) != 1 || len(r.w.tabs[0].panes) != 2 {
-		t.Fatalf("not opened as a split: tabs %d", len(r.w.tabs))
+	if r.w.tabCount() != 1 || len(r.w.tabAt(0).panes) != 2 {
+		t.Fatalf("not opened as a split: tabs %d", r.w.tabCount())
 	}
 	// ↵ alone opens the focused row's host in a tab of its own.
 	r.click(t, "Filter hosts")
@@ -166,8 +166,8 @@ func TestAltEnterOnAFocusedHostRowOpensASplit(t *testing.T) {
 		r.press(0, ui.KeyTab)
 	}
 	r.press(0, ui.KeyEnter)
-	if got := r.fb.spawned[len(r.fb.spawned)-1]; got != "h-pg" || len(r.w.tabs) != 2 {
-		t.Errorf("↵ spawned %q, tabs %d", got, len(r.w.tabs))
+	if got := r.fb.spawned[len(r.fb.spawned)-1]; got != "h-pg" || r.w.tabCount() != 2 {
+		t.Errorf("↵ spawned %q, tabs %d", got, r.w.tabCount())
 	}
 }
 
@@ -184,8 +184,8 @@ func TestHostsReloadAfterAWriteKeepFilterGroupsAndTabs(t *testing.T) {
 	if r.fb.hostsCalls != before+1 || !r.tt.HasText("pg-replica") {
 		t.Fatalf("hosts calls %d→%d, new host shown %v", before, r.fb.hostsCalls, r.tt.HasText("pg-replica"))
 	}
-	if r.w.filter != "pg" || !r.w.prefs.Collapsed["staging"] || len(r.w.tabs) != 1 || r.tt.HasText("api-1 ") && false {
-		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.prefs.Collapsed, len(r.w.tabs))
+	if r.w.filter != "pg" || !r.w.prefs.Collapsed["staging"] || r.w.tabCount() != 1 || r.tt.HasText("api-1 ") && false {
+		t.Errorf("filter %q collapsed %v tabs %d", r.w.filter, r.w.prefs.Collapsed, r.w.tabCount())
 	}
 	// A pane takes its host's new name.
 	h := r.fb.hosts[0]
@@ -257,7 +257,7 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	if r.w.gate == nil || !r.tt.HasText("Unlock your vault") || r.tt.HasText("Filter hosts") {
 		t.Fatal("the Unlock screen is not over the window")
 	}
-	if r.w.paneCount() != panes || len(r.w.tabs) != 1 {
+	if r.w.paneCount() != panes || r.w.tabCount() != 1 {
 		t.Errorf("panes %d→%d", panes, r.w.paneCount())
 	}
 	for _, c := range r.fb.conns {
@@ -279,7 +279,7 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	r.tt.Type(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || r.w.paneCount() != panes || len(r.w.tabs) != 1 || r.fb.hostsCalls != hosts+1 || !r.tt.HasText("Filter hosts") {
+	if r.w.gate != nil || r.w.paneCount() != panes || r.w.tabCount() != 1 || r.fb.hostsCalls != hosts+1 || !r.tt.HasText("Filter hosts") {
 		t.Fatalf("gate %v panes %d hosts calls %d", r.w.gate != nil, r.w.paneCount(), r.fb.hostsCalls-hosts)
 	}
 }

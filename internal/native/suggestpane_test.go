@@ -275,7 +275,7 @@ func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
 	r.line = "sh-3.2$ show the files here"
 	r.noticed(t)
 	cur := r.w.agentVal()
-	r.w.agent.settings = &cur
+	r.w.agentState().settings = &cur
 	r.w.putAgent(keelclient.AgentSettingsPatch{Suggestions: ptr("off")}, nil)
 	r.tt.Frame()
 	if r.state() != sugIdle || r.has("suggestion notice") {

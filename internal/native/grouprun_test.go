@@ -134,10 +134,10 @@ func (r *rig) nothingTyped(t *testing.T) {
 
 func (r *rig) groupDlg(t *testing.T) *approveGroup {
 	t.Helper()
-	if r.w.approve == nil || r.w.approve.group() == nil {
+	if !r.w.approveOpen() || r.w.approveDlg().group() == nil {
 		t.Fatal("the group approve dialog is not open")
 	}
-	return r.w.approve.group()
+	return r.w.approveDlg().group()
 }
 
 // ---- rule 10 ----
@@ -216,7 +216,7 @@ func TestGroupDialogOnlyTickedRowsAreTypedEachWithItsOwnProposalAndConnection(t 
 	if len(r.fb.conns[0].agentRefs) != 0 {
 		t.Error("an agent reference went to the unticked pane")
 	}
-	if r.w.approve != nil {
+	if r.w.approveOpen() {
 		t.Error("the dialog stays after every ticked host typed")
 	}
 	// The run is read again afterwards.
@@ -235,7 +235,7 @@ func TestGroupDialogAHostThatNeedsShiftIsTypedOnlyWithShift(t *testing.T) {
 	if !r.tt.HasText("1 of these host is production. Typing there needs ⇧.") && !r.tt.HasText("1 of these host is production.") {
 		t.Errorf("no production note: %v", r.tt.Texts())
 	}
-	r.w.tabs[1].title = "ops" // wk-2's tab, named by the user: the row says which tab the pane is in
+	r.w.tabAt(1).title = "ops" // wk-2's tab, named by the user: the row says which tab the pane is in
 	r.tt.Frame()
 	r.pressTypeAll(t, 2)
 	for _, s := range []string{"tab ops", "Production", "⇧"} {
@@ -274,7 +274,7 @@ func TestGroupFollowersAndClosedPanesCannotBeTicked(t *testing.T) {
 	r.startRun(runOf("echo grp-1", "readonly", 4, nil))
 	// wk-2's pane is followed, wk-3's is closed: the window offers no row for them.
 	r.fb.conns[1].st = &keelclient.State{Status: "ready", Role: "follower"}
-	r.w.closePane(r.w.tabs[2], r.w.tabs[2].focused)
+	r.w.closePane(r.w.tabAt(2), r.w.tabAt(2).focused)
 	r.tt.Frame()
 	r.pressTypeAll(t, 2)
 	g := r.groupDlg(t)
@@ -306,7 +306,7 @@ func TestGroupDialogAClosedPaneWhileOpenIsNeverTypedAndTheOthersType(t *testing.
 	r.pressTypeAll(t, 2)
 	r.click(t, "Type into wk-1")
 	r.click(t, "Type into wk-2")
-	r.w.closePane(r.w.tabs[0], r.w.tabs[0].focused)
+	r.w.closePane(r.w.tabAt(0), r.w.tabAt(0).focused)
 	r.tt.Frame()
 	if !r.tt.HasText(msgGroupPaneGone) {
 		t.Errorf("the row does not say its pane is gone: %v", r.tt.Texts())
@@ -348,7 +348,7 @@ func TestGroupDialogARefusalForOneHostIsShownOnItsRowAndTheOthersStillTypeNothin
 	if len(got[0]) != 1 || len(got[1]) != 1 || len(got[2]) != 1 {
 		t.Fatalf("a retry typed again: %q", got)
 	}
-	if r.w.approve != nil {
+	if r.w.approveOpen() {
 		t.Error("Close leaves the dialog")
 	}
 }
@@ -360,13 +360,13 @@ func TestGroupDialogCancelAndEscapeTypeNothing(t *testing.T) {
 	r.click(t, "Type into wk-1")
 	r.click(t, "Cancel")
 	r.nothingTyped(t)
-	if r.w.approve != nil || r.w.groupRunPageState().typing {
+	if r.w.approveOpen() || r.w.groupRunPageState().typing {
 		t.Error("Cancel leaves the dialog open or the page typing")
 	}
 	r.pressTypeAll(t, 2)
 	r.press(0, ui.KeyEscape)
 	r.nothingTyped(t)
-	if r.w.approve != nil {
+	if r.w.approveOpen() {
 		t.Error("Esc leaves the dialog")
 	}
 }
@@ -560,7 +560,7 @@ func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostC
 func TestClosingAPaneKeepsTheRunAndOffersNothingForIt(t *testing.T) {
 	r := runRig(t, 2)
 	r.startRun(runOf("echo grp-1", "readonly", 2, nil))
-	r.w.closePane(r.w.tabs[1], r.w.tabs[1].focused)
+	r.w.closePane(r.w.tabAt(1), r.w.tabAt(1).focused)
 	r.tt.Frame()
 	if r.w.groupRunPageState().run == nil || r.w.groupRunPageState().run.Status != "active" {
 		t.Fatal("closing a pane ended the run")
@@ -683,7 +683,7 @@ func TestStopRunbookAsksFirstWithTheAppsWords(t *testing.T) {
 	}
 	r.click(t, "Stop runbook")
 	// The confirm's button has the page button's name, so the test presses it as the dialog's Remove does.
-	cf := r.w.confirm
+	cf := r.w.confirmDlg()
 	if cf == nil || cf.action != stopAction || cf.title != stopTitle {
 		t.Fatalf("confirm %+v", cf)
 	}
@@ -753,7 +753,7 @@ func TestStartingARunFromTheGroupPageOpensItsPageRollingAndTypesNothing(t *testi
 	if want := []string{"start rb1 gx rolling"}; !slices.Equal(r.fb.grp.runReqs[:1], want) {
 		t.Fatalf("requests %v, want %v", r.fb.grp.runReqs, want)
 	}
-	if p := r.w.groupRunPageState(); p == nil || r.w.tab() != r.w.pageTab("grouprun") || r.w.tab().name() != "Run · Print markers" {
+	if p := r.w.groupRunPageState(); p == nil || r.w.activeTab() != r.w.pageTab("grouprun") || r.w.activeTab().name() != "Run · Print markers" {
 		t.Fatalf("the run page is not shown: %+v", p)
 	}
 	r.nothingTyped(t)

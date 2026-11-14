@@ -68,7 +68,7 @@ func TestBlocksShowWhileTheModelWorksAndStopOnAnswerErrorAndTimeout(t *testing.T
 		}
 		release()
 		finish()
-		if r.has(workingLabel) || r.w.agent.busy != nil {
+		if r.has(workingLabel) || r.w.agentState().busy != nil {
 			t.Errorf("%s: Blocks still shows after the ask ended", c.name)
 		}
 	}

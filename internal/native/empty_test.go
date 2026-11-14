@@ -71,7 +71,7 @@ func TestPageEmptyStates(t *testing.T) {
 		{"runbooks", "No runbooks yet", "empty New runbook", func(w *workspace) bool { return pageAs[*runbooksPage](w.tab()).ed != nil }},
 	} {
 		r := emptyRig(t)
-		r.w.openPage(c.page)
+		r.w.showPage(c.page)
 		r.tt.Frame()
 		r.tt.Frame()
 		r.texts(t, c.title, c.action)
@@ -81,7 +81,7 @@ func TestPageEmptyStates(t *testing.T) {
 		}
 	}
 	r := emptyRig(t)
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
 	r.tt.Frame()
 	r.texts(t, "No log entries")
@@ -90,9 +90,9 @@ func TestPageEmptyStates(t *testing.T) {
 func TestLogsCannotLoadHasTryAgain(t *testing.T) {
 	r := newRig(t, logsBackend())
 	r.tt.Frame()
-	r.w.openPage("logs")
+	r.w.showPage("logs")
 	r.tt.Frame()
-	pageAs[*logsPage](r.w.tab()).err = "keel serve is not answering"
+	pageAs[*logsPage](r.w.activeTab()).err = "keel serve is not answering"
 	r.tt.Frame()
 	r.texts(t, "Cannot load the log", "keel serve is not answering", "empty Try again")
 	before := r.fb.logsCalls
@@ -104,7 +104,7 @@ func TestLogsCannotLoadHasTryAgain(t *testing.T) {
 
 func TestEmptyPageSitsAboveTheMiddleAndBelowTheHeader(t *testing.T) {
 	r := emptyRig(t)
-	r.w.openPage("forwards")
+	r.w.showPage("forwards")
 	r.tt.Frame()
 	r.tt.Frame()
 	title, ok := r.tt.Find("No forwards yet")

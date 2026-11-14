@@ -42,8 +42,8 @@ func (r *rig) openGroup(t *testing.T, folder string) *groupPage {
 func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testing.T) {
 	r := groupRig(t)
 	p := r.openGroup(t, "Infra")
-	if r.w.tab() != r.w.pageTab("group") || p.id != "infra" || r.w.tab().name() != "Infra" {
-		t.Fatalf("page %+v, tab %q", p, r.w.tab().name())
+	if r.w.activeTab() != r.w.pageTab("group") || p.id != "infra" || r.w.activeTab().name() != "Infra" {
+		t.Fatalf("page %+v, tab %q", p, r.w.activeTab().name())
 	}
 	if miss := r.lacks("Infra", "Folder · 2 hosts.", "Run a runbook on this group", "Export to Ansible", "pg-1", "pg-2", "Address", "Agent", "Role", "Tags", groupRoleHelp, "Group variables", emptyTitle(groupVarsEmpty)); len(miss) > 0 {
 		t.Errorf("the page lacks %q: %v", miss, r.tt.Texts())
@@ -53,13 +53,13 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 	r.tt.Frame()
 	r.openGroup(t, "Apps")
 	pages := 0
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		if tb.pg != nil && pageAs[*groupPage](tb) != nil {
 			pages++
 		}
 	}
-	if pages != 1 || r.w.tab().name() != "Apps" || r.w.groupPageState().id != "apps" {
-		t.Fatalf("%d group pages, %q", pages, r.w.tab().name())
+	if pages != 1 || r.w.activeTab().name() != "Apps" || r.w.groupPageState().id != "apps" {
+		t.Fatalf("%d group pages, %q", pages, r.w.activeTab().name())
 	}
 	// The palette has "Group <name> · roles and runbooks" for every folder.
 	r.openPal(t)
@@ -69,7 +69,7 @@ func TestTheGroupPageIsOpenedByTheFolderMenuAndThePaletteAsOneInstance(t *testin
 		t.Fatalf("palette rows %v", rows)
 	}
 	r.press(0, ui.KeyEnter)
-	if r.w.groupPageState().id != "rep" || r.w.tab().name() != "Replicas" {
+	if r.w.groupPageState().id != "rep" || r.w.activeTab().name() != "Replicas" {
 		t.Fatalf("the palette opened %+v", r.w.groupPageState())
 	}
 	if len(r.fb.spawned) != 0 || len(r.fb.conns) != 0 {
@@ -377,7 +377,7 @@ func TestTheGroupPageComesBackWithTheWorkspace(t *testing.T) {
 	w2.w.restore(&d, nil)
 	w2.tt.Frame()
 	q := w2.w.groupPageState()
-	if q == nil || q.id != p.id || q.title != "Infra" || w2.w.tab() != w2.w.pageTab("group") || !w2.tt.HasText("pg-1") {
+	if q == nil || q.id != p.id || q.title != "Infra" || w2.w.activeTab() != w2.w.pageTab("group") || !w2.tt.HasText("pg-1") {
 		t.Fatalf("the page did not come back: %+v", q)
 	}
 }

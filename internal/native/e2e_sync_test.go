@@ -19,7 +19,7 @@ func TestE2ESyncInput(t *testing.T) {
 	e.waitScrollback(b, "$ ")
 
 	e.click("Sync input") // the first pane bar's tool
-	if !e.w.tab().sync || !e.tt.HasText("Sync on") || !e.hasLabel("Stop syncing input") {
+	if !e.w.activeTab().sync || !e.tt.HasText("Sync on") || !e.hasLabel("Stop syncing input") {
 		t.Fatalf("sync did not turn on: %v", e.tt.Texts())
 	}
 	e.clickBody("1")
@@ -30,7 +30,7 @@ func TestE2ESyncInput(t *testing.T) {
 	e.shot("TestE2ESyncInput")
 
 	e.click("Stop syncing input")
-	if e.w.tab().sync || !e.tt.HasText("Sync off") {
+	if e.w.activeTab().sync || !e.tt.HasText("Sync off") {
 		t.Fatalf("sync did not turn off: %v", e.tt.Texts())
 	}
 	e.clickBody("1")

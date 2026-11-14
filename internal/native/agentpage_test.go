@@ -54,7 +54,7 @@ func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if tb := r.w.tab(); tb == nil || tb.pg == nil || pageAs[*agentPage](tb) == nil {
+	if tb := r.w.activeTab(); tb == nil || tb.pg == nil || pageAs[*agentPage](tb) == nil {
 		t.Fatal("the palette's Agent conversations did not open the page")
 	}
 	for _, s := range []string{"Conversations", "In scope", "Read so far", "Proposals", "Retention settings", "Every read and every typed proposal is also in Logs, under Agent.",
@@ -67,7 +67,7 @@ func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
 	r.w.openAgentPage()
 	r.tt.Frame()
 	n := 0
-	for _, tb := range r.w.tabs {
+	for _, tb := range r.w.allTabs() {
 		if tb.pg != nil && pageAs[*agentPage](tb) != nil {
 			n++
 		}
@@ -81,7 +81,7 @@ func TestTheAgentPageOpensFromThePaletteAndFromOpenAllInATab(t *testing.T) {
 	r.openRecent(t)
 	r.click(t, "Open all in a tab")
 	r.tt.Frame()
-	if tb := r.w.tab(); tb == nil || tb.pg == nil || pageAs[*agentPage](tb) == nil || r.w.agent.sessOpen {
+	if tb := r.w.activeTab(); tb == nil || tb.pg == nil || pageAs[*agentPage](tb) == nil || r.w.agentState().sessOpen {
 		t.Fatal("Open all in a tab did not open the page")
 	}
 }
@@ -91,7 +91,7 @@ func TestPickingARowResumesForThePanelAndThePage(t *testing.T) {
 	r.openPageSettled()
 	r.click(t, "conversation Why is pg-2 lagging")
 	r.settle()
-	if r.w.agent.conv != "c-today" || !r.tt.HasText("why is replication slow") || !strings.Contains(strings.Join(r.tt.Texts(), "\n"), "1 question") {
+	if r.w.agentState().conv != "c-today" || !r.tt.HasText("why is replication slow") || !strings.Contains(strings.Join(r.tt.Texts(), "\n"), "1 question") {
 		t.Fatalf("the page did not resume: %v", r.tt.Texts())
 	}
 	// The panel shows the same conversation.
@@ -131,7 +131,7 @@ func TestAnAskFromEitherShowsInBoth(t *testing.T) {
 		t.Errorf("the page does not show the panel's ask: %v", r.tt.Texts())
 	}
 	for _, a := range r.fb.agent.asks {
-		if a.ConversationID != r.w.agent.conv {
+		if a.ConversationID != r.w.agentState().conv {
 			t.Errorf("an ask went out under another conversation: %+v", a)
 		}
 	}
@@ -153,8 +153,8 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
-	if want := []string{"c-today: Replication lag"}; !slices.Equal(r.fb.convs.renamed, want) || r.w.agent.title != "Replication lag" || p.renaming {
-		t.Fatalf("renamed %v, title %q", r.fb.convs.renamed, r.w.agent.title)
+	if want := []string{"c-today: Replication lag"}; !slices.Equal(r.fb.convs.renamed, want) || r.w.agentState().title != "Replication lag" || p.renaming {
+		t.Fatalf("renamed %v, title %q", r.fb.convs.renamed, r.w.agentState().title)
 	}
 	// Esc leaves the title.
 	r.click(t, "Rename this conversation")
@@ -169,11 +169,11 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	// Delete acts at once, and the panel starts over.
 	r.click(t, "Delete this conversation")
 	r.tt.Frame()
-	if r.w.confirm != nil {
+	if r.w.confirmOpen() {
 		t.Fatal("Delete on the page asked: the app deletes one conversation without asking")
 	}
-	if !slices.Equal(r.fb.convs.deleted, []string{"c-today"}) || r.w.agent.conv == "c-today" || len(r.w.agent.turns) != 0 || r.w.agent.title != "" {
-		t.Fatalf("deleted %v, conv %q", r.fb.convs.deleted, r.w.agent.conv)
+	if !slices.Equal(r.fb.convs.deleted, []string{"c-today"}) || r.w.agentState().conv == "c-today" || len(r.w.agentState().turns) != 0 || r.w.agentState().title != "" {
+		t.Fatalf("deleted %v, conv %q", r.fb.convs.deleted, r.w.agentState().conv)
 	}
 	if r.tt.HasText("Why is pg-2 lagging") {
 		t.Error("the deleted conversation is still listed")
@@ -227,10 +227,10 @@ func TestTheContextColumnAddsUpFromTheTrace(t *testing.T) {
 			t.Errorf("the context column lacks %q: %v", s, r.tt.Texts())
 		}
 	}
-	if rs := readSummary(r.w.agent.convTurns()); len(rs) != 1 || rs[0].lines != 120 || rs[0].redacted != 2 {
+	if rs := readSummary(r.w.agentState().convTurns()); len(rs) != 1 || rs[0].lines != 120 || rs[0].redacted != 2 {
 		t.Errorf("read so far %+v: skipped panes must be left out", rs)
 	}
-	if ps := r.w.agent.pageProposals(); len(ps) != 1 || ps[0].p.ID != "p1" {
+	if ps := r.w.agentState().pageProposals(); len(ps) != 1 || ps[0].p.ID != "p1" {
 		t.Errorf("proposals %+v", ps)
 	}
 	if !r.tt.HasText("Reads only panes in scope now · ↵ send") {
@@ -288,13 +288,13 @@ func TestTheNewConversationKeyOnThePageStartsOne(t *testing.T) {
 	r := savedRig(t)
 	r.answers()
 	r.ask(t, "one")
-	old := r.w.agent.conv
+	old := r.w.agentState().conv
 	r.w.openAgentPage()
 	r.tt.Frame()
 	r.tt.Key(ui.Cmd, ui.KeyN) // ⌘N on a page tab runs the page's New
 	r.tt.Frame()
-	if r.w.agent.conv == old || len(r.w.agent.turns) != 0 || r.w.agent.title != "" {
-		t.Fatalf("⌘N did not start a new conversation: %q", r.w.agent.conv)
+	if r.w.agentState().conv == old || len(r.w.agentState().turns) != 0 || r.w.agentState().title != "" {
+		t.Fatalf("⌘N did not start a new conversation: %q", r.w.agentState().conv)
 	}
 	if strings.Contains(strings.Join(r.fb.calls, ","), "delete conversation") {
 		t.Error("New conversation deleted something")

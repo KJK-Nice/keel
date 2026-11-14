@@ -140,7 +140,7 @@ func TestKeyCapReplacesThePageTabsIcon(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.SetDark(false)
 	r.tt.Frame()
-	r.w.openPage("settings")
+	r.w.showPage("settings")
 	r.tt.Frame()
 	tab, ok := r.tt.Find("tab Settings")
 	if !ok {

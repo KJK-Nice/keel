@@ -121,7 +121,7 @@ func TestEveryOpenTerminalGetsTheThemesColours(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "Split right")
 	n := map[string]int{}
-	for id, p := range r.w.tab().panes {
+	for id, p := range r.w.activeTab().panes {
 		p.setTheme = func() { n[id]++ }
 	}
 	r.w.setTheme(themeLight)
