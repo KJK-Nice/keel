@@ -301,7 +301,7 @@ func (s *Server) typeDirect(ctx context.Context, c *sessionsock.Conn, command, n
 			if d.Kind == wire.DirectNotebook {
 				id = d.NotebookID
 			}
-			s.logs.Append(applog.Entry{
+			s.appendLog(applog.Entry{
 				Kind:      d.Kind,
 				Message:   fmt.Sprintf("%s %s typed without Enter into %s · %d bytes, 1 line · direct", d.Kind, id, paneName(info), len(command)),
 				HostID:    info.HostID,

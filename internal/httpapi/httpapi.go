@@ -1068,13 +1068,21 @@ func (s *Server) note(kind, msg, hostID, sessionID, tunnelID string) {
 	if s.logs == nil {
 		return
 	}
-	s.logs.Append(applog.Entry{
+	s.appendLog(applog.Entry{
 		Kind:      kind,
 		Message:   msg,
 		HostID:    hostID,
 		SessionID: sessionID,
 		TunnelID:  tunnelID,
 	})
+}
+
+// appendLog writes e to the log. A failed write is reported on stderr and
+// otherwise ignored: what the entry describes has already happened.
+func (s *Server) appendLog(e applog.Entry) {
+	if err := s.logs.Append(e); err != nil {
+		log.Printf("log: %v", err)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
