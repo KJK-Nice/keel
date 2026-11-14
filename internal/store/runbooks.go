@@ -403,7 +403,6 @@ func (s *Store) UpdateRunbook(b Runbook) (Runbook, error) {
 	return Runbook{}, ErrNotFound
 }
 
-// SetRunbookAgentMayPick turns "Agent may pick" on or off.
 func (s *Store) SetRunbookAgentMayPick(id string, on bool) (Runbook, error) {
 	return s.changeRunbook(id, func(b *Runbook) bool {
 		if b.AgentMayPick == on {

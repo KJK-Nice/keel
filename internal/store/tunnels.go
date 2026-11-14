@@ -123,7 +123,6 @@ func validateTunnel(tn Tunnel) error {
 // no authentication, so it would be open to the network.
 var ErrOpenSOCKS = errors.New("a dynamic (SOCKS) tunnel must bind to 127.0.0.1, ::1 or localhost: it has no authentication")
 
-// IsLoopbackAddr reports whether a bind address is loopback-only.
 func IsLoopbackAddr(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true

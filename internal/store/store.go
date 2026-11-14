@@ -31,7 +31,6 @@ var ErrLocalDuplicate = errors.New("the local shell host cannot be duplicated")
 // machine, no SSH.
 const AuthLocal = "local"
 
-// IsLocal reports whether h is the local shell and not an SSH host.
 func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
 
 // SavedSecret stands for a secret the vault holds wherever a host or an

@@ -128,7 +128,6 @@ type AgentChatRunStep struct {
 	Typed  string `json:"typed,omitempty"`
 }
 
-// Copy returns a deep copy.
 func (r *AgentChatRunbook) Copy() *AgentChatRunbook {
 	if r == nil {
 		return nil
