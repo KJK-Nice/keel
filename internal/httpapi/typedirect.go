@@ -200,7 +200,7 @@ func (s *Server) directCheck(ctx context.Context, sess *runtime.Session, clientI
 			SessionID:      info.ID,
 			Role:           sess.Role(clientID),
 			Bytes:          command,
-		}, true)
+		})
 	case wire.DirectSnippet:
 		// A snippet is the user's own text: one with a placeholder goes
 		// to the dialog, as before, rather than being refused.

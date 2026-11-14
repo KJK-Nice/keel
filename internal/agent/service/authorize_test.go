@@ -121,7 +121,7 @@ func TestAuthorizeOrderDirectConversation(t *testing.T) {
 		{orderStep{name: "plainly read-only", want: ReasonRisk}, req(ch, nil)},
 	}
 	for i, st := range steps {
-		_, err := f.svc.AuthorizeDirect(context.Background(), st.req, true)
+		_, err := f.svc.AuthorizeDirect(context.Background(), st.req)
 		checkOrder(t, "direct", i, st.orderStep, err)
 	}
 	// Jev is asked last, and only when everything else holds: an answer
@@ -130,20 +130,12 @@ func TestAuthorizeOrderDirectConversation(t *testing.T) {
 		t.Fatalf("Jev was asked %d times about refused types", n)
 	}
 	f.judge.Choices["risk_0"] = provider.ChoiceAnswer{Choice: "changes", Probabilities: map[string]float64{"changes": 0.9}}
-	_, err := f.svc.AuthorizeDirect(context.Background(), req(ro, nil), true)
+	_, err := f.svc.AuthorizeDirect(context.Background(), req(ro, nil))
 	if reason, ok := NeedsDialog(err); !ok || reason != ReasonJev {
 		t.Fatalf("Jev says changes: %v", err)
 	}
-	// A check without commit asks nobody and logs nothing.
-	calls := len(f.judge.Requests())
-	if _, err := f.svc.AuthorizeDirect(context.Background(), req(ro, nil), false); err != nil {
-		t.Fatalf("check only: %v", err)
-	}
-	if len(f.judge.Requests()) != calls {
-		t.Fatal("a check without commit asked Jev")
-	}
 	f.judge.Choices["risk_0"] = provider.ChoiceAnswer{Choice: "readonly", Probabilities: map[string]float64{"readonly": 0.9}}
-	g, err := f.svc.AuthorizeDirect(context.Background(), req(ro, nil), true)
+	g, err := f.svc.AuthorizeDirect(context.Background(), req(ro, nil))
 	if err != nil {
 		t.Fatalf("allowed: %v", err)
 	}
@@ -251,7 +243,7 @@ func TestAuthorizeOrderGroupRun(t *testing.T) {
 		if edit != nil {
 			edit(&r)
 		}
-		_, err := g.svc.AuthorizeDirect(context.Background(), r, true)
+		_, err := g.svc.AuthorizeDirect(context.Background(), r)
 		return err
 	}
 	checkOrder(t, "group direct", 0, orderStep{name: "role first", err: agent.ErrFollower}, direct(func(r *TypeRequest) { r.Role, r.Bytes = agent.RoleFollower, "a\nb" }))

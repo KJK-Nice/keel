@@ -56,14 +56,12 @@ func NeedsDialog(err error) (string, bool) {
 // goes to the dialog when any of them is production. A *DialogError means
 // the approve dialog decides instead.
 //
-// With commit a group run's host is claimed as AuthorizeType does; the
-// caller then writes req.Bytes, calls DirectTyped with the grant once the
-// write succeeded (agent.type, Source "direct", is logged only then), and
+// A group run's host is claimed as AuthorizeType does; the caller then
+// writes req.Bytes, calls DirectTyped with the grant once the write
+// succeeded (agent.type, Source "direct", is logged only then), and
 // TypeDoneAt or GroupTypeDoneAt (GroupTypeFailed if the write failed).
-// Without commit it changes nothing: the group run page checks every host
-// before one click types into them all.
-func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest, commit bool) (DirectGrant, error) {
-	return s.authorize(ctx, &pathDirect, req.subject(s), req.ask(!commit))
+func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest) (DirectGrant, error) {
+	return s.authorize(ctx, &pathDirect, req.subject(s), req.ask())
 }
 
 // DirectTyped logs agent.type (source "direct") for a grant whose bytes

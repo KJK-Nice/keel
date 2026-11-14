@@ -96,7 +96,7 @@ var (
 	ErrNotebookClosed  = errors.New("agent: this was already done or undone")
 	ErrNotebookExpired = errors.New("agent: Keel no longer holds this conversation's notebook changes; use History on the notebook, or Notebooks · Recently deleted")
 
-	notebookStatus = map[string]bool{"created": true, "edited": true, "refused": true, "undone": true, "proposed": true, "deleted": true, "dismissed": true, "restored": true, "open": true, "saved": true}
+	notebookStatus = map[string]bool{CardCreated: true, CardEdited: true, CardRefused: true, CardUndone: true, CardProposed: true, CardDeleted: true, CardDismissed: true, CardRestored: true, CardOpen: true, CardSaved: true}
 
 	errNoMatch = errors.New("no-match")
 	errNothing = errors.New("nothing")
@@ -614,7 +614,7 @@ func (s *Service) notebookWrites(conv *conversation, a *nbAsk, text string, edit
 	if create != nil {
 		if p := s.notebookCreate(conv, create, excerpts, r, now); p != nil {
 			w.props = append(w.props, p)
-			if p.Status == "created" {
+			if p.Status == CardCreated {
 				w.notes = append(w.notes, fmt.Sprintf("you created the notebook %q (rev %d)", p.Title, p.Rev))
 			}
 		}
@@ -622,7 +622,7 @@ func (s *Service) notebookWrites(conv *conversation, a *nbAsk, text string, edit
 	for _, e := range edits {
 		p := s.notebookEdit(conv, a, e, editing, excerpts, r, now)
 		w.props = append(w.props, p)
-		if p.Status == "edited" {
+		if p.Status == CardEdited {
 			w.notes = append(w.notes, fmt.Sprintf("your edit to the notebook %q was applied (now rev %d); the user can undo it", p.Title, p.Rev))
 		} else {
 			w.notes = append(w.notes, fmt.Sprintf("your edit to notebook %d (%q) was not applied: %s", e.Notebook, p.Title, refusalForModel(p.Reason)))
@@ -669,15 +669,15 @@ func (s *Service) notebookCreate(conv *conversation, raw *rawNotebook, excerpts 
 	if body == "" {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "create", Title: title, Bytes: len(body), Placeholders: cmdrule.HasPlaceholder(body) || cmdrule.HasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: NotebookCreate, Title: title, Bytes: len(body), Placeholders: cmdrule.HasPlaceholder(body) || cmdrule.HasPlaceholder(title), Withheld: namedRe.MatchString(body), ProposedAt: &now}}
 	fromPanes(&p.NotebookProposal, body, excerpts)
 	nb, err := s.nbs.AgentCreateNotebook(store.Notebook{Name: title, Cells: []store.NotebookCell{{Body: body}}})
 	if err != nil {
-		p.Status, p.Reason = "refused", storeReason(err)
+		p.Status, p.Reason = CardRefused, storeReason(err)
 		s.audit.NotebookEvent("notebook the agent wrote was not created: "+p.Reason, []string{p.ID, conv.id}, redact.Report{})
 		return p
 	}
-	p.Status, p.NotebookID, p.Rev, p.Record = "created", nb.ID, nb.Rev, &nb
+	p.Status, p.NotebookID, p.Rev, p.Record = CardCreated, nb.ID, nb.Rev, &nb
 	s.audit.NotebookEvent(fmt.Sprintf("notebook created by the agent (%d bytes, %d command blocks, placeholders: %t)", p.Bytes, countFences(body), p.Placeholders), []string{nb.ID, p.ID, conv.id}, redact.Report{})
 	return p
 }
@@ -718,7 +718,7 @@ func storeReason(err error) string {
 // is edited only at that revision (the store refuses it once the user
 // changed it).
 func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, editing map[string]bool, excerpts []agent.Excerpt, r *redact.Redactor, now time.Time) *nbProposal {
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "edit", Status: "refused", Title: fmt.Sprintf("notebook %d", raw.Notebook), ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: NotebookEdit, Status: CardRefused, Title: fmt.Sprintf("notebook %d", raw.Notebook), ProposedAt: &now}}
 	p.Summary = agentLine(raw.Summary, r, maxNotebookSummaryBytes)
 	refuse := func(reason string, ids ...string) *nbProposal {
 		p.Reason = reason
@@ -797,7 +797,7 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 		a.own = map[string]int{}
 	}
 	a.own[e.ID] = updated.Rev
-	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = "edited", "", updated.Rev, vid, &updated
+	p.Status, p.Reason, p.Rev, p.VersionID, p.Record = CardEdited, "", updated.Rev, vid, &updated
 	p.Title = agent.SafeNotebookName(updated.Name, r)
 	p.Bytes = len(notebookText(updated))
 	p.Placeholders = cmdrule.HasPlaceholder(added) || cmdrule.HasPlaceholder(title)
@@ -900,7 +900,7 @@ func (s *Service) notebookDeleteProposal(conv *conversation, a *nbAsk, raw *rawN
 	if e == nil {
 		return nil
 	}
-	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: "delete", Status: "proposed", NotebookID: e.ID, Title: agent.SafeNotebookName(e.Name, r), Summary: agentLine(raw.Why, r, maxNotebookSummaryBytes), Rev: e.Rev, Bytes: e.Bytes, ProposedAt: &now}}
+	p := &nbProposal{NotebookProposal: NotebookProposal{ID: newID("nbc_"), Kind: NotebookDelete, Status: CardProposed, NotebookID: e.ID, Title: agent.SafeNotebookName(e.Name, r), Summary: agentLine(raw.Why, r, maxNotebookSummaryBytes), Rev: e.Rev, Bytes: e.Bytes, ProposedAt: &now}}
 	s.audit.NotebookEvent("agent proposed deleting a notebook; nothing is deleted unless you confirm", []string{e.ID, p.ID, conv.id}, redact.Report{})
 	return p
 }
@@ -919,7 +919,7 @@ func notebookProposalFromRecord(r store.AgentChatNotebook) NotebookProposal {
 	at := r.ProposedAt
 	st := r.Status
 	if !notebookStatus[st] {
-		st = "refused"
+		st = CardRefused
 	}
 	bytes := r.Bytes
 	if bytes == 0 {
@@ -948,64 +948,40 @@ func (c *conversation) recordNbPropLocked(id string) *store.AgentChatNotebook {
 	return nil
 }
 
-// nbPropForLocked finds a card held in memory, or says why it cannot be
-// used. Call with s.mu held.
-func (s *Service) nbPropForLocked(convID, id string) (*conversation, *nbProposal, error) {
-	c := s.convs[convID]
-	if c == nil {
-		return nil, nil, ErrNotFound
-	}
-	p := c.nbPropLocked(id)
-	if p == nil {
-		if c.recordNbPropLocked(id) != nil {
-			return c, nil, ErrNotebookExpired
-		}
-		return c, nil, ErrNotFound
-	}
-	return c, p, nil
+// A notebook card's change is already in the notebook store when its action
+// ends, so its status is recorded even if the conversation was dropped
+// meanwhile.
+var nbCards = cardKind[nbProposal, NotebookProposal]{
+	find:       (*conversation).nbPropLocked,
+	saved:      func(c *conversation, id string) bool { return c.recordNbPropLocked(id) != nil },
+	busy:       func(p *nbProposal) *bool { return &p.busy },
+	view:       (*nbProposal).view,
+	expired:    ErrNotebookExpired,
+	closed:     ErrNotebookClosed,
+	finishGone: true,
 }
 
-func (s *Service) setNbStatusLocked(c *conversation, p *nbProposal, status, versionID string) {
-	p.Status, p.busy = status, false
-	if versionID != "" {
-		p.VersionID = versionID
-	}
-	if rec := c.recordNbPropLocked(p.ID); rec != nil {
-		rec.Status, rec.VersionID = status, p.VersionID
-	}
-}
-
-// claimNbProp takes a card for one action under the lock: two presses (two
-// windows) make one change, the other gets ErrNotebookClosed.
 func (s *Service) claimNbProp(convID, id string, ok func(*nbProposal) bool) (*conversation, *nbProposal, NotebookProposal, error) {
 	if s.nbs == nil {
 		return nil, nil, NotebookProposal{}, ErrNoNotebooks
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	c, p, err := s.nbPropForLocked(convID, id)
-	if err != nil {
-		return nil, nil, NotebookProposal{}, err
-	}
-	if p.busy || !ok(p) {
-		return nil, nil, NotebookProposal{}, ErrNotebookClosed
-	}
-	p.busy = true
-	return c, p, p.view(), nil
+	return nbCards.claim(s, convID, id, ok)
 }
 
-func (s *Service) releaseNbProp(p *nbProposal) {
-	s.mu.Lock()
-	p.busy = false
-	s.mu.Unlock()
-}
+func (s *Service) releaseNbProp(p *nbProposal) { nbCards.release(s, p) }
 
+// finishNbProp sets a claimed card's status, and the version the store kept
+// when the action made one.
 func (s *Service) finishNbProp(c *conversation, p *nbProposal, status, versionID string) NotebookProposal {
-	s.mu.Lock()
-	s.setNbStatusLocked(c, p, status, versionID)
-	view := p.view()
-	s.mu.Unlock()
-	s.persist(c)
+	view, _ := nbCards.finish(s, c, p.ID, p, func() {
+		p.Status = status
+		if versionID != "" {
+			p.VersionID = versionID
+		}
+		if rec := c.recordNbPropLocked(p.ID); rec != nil {
+			rec.Status, rec.VersionID = status, p.VersionID
+		}
+	})
 	return view
 }
 
@@ -1016,19 +992,19 @@ func (s *Service) finishNbProp(c *conversation, p *nbProposal, status, versionID
 // otherwise, and History can still restore it).
 func (s *Service) UndoNotebookChange(convID, id string) (NotebookAction, error) {
 	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool {
-		return (p.Kind == "create" && p.Status == "created") || (p.Kind == "edit" && p.Status == "edited")
+		return (p.Kind == NotebookCreate && p.Status == CardCreated) || (p.Kind == NotebookEdit && p.Status == CardEdited)
 	})
 	if err != nil {
 		return NotebookAction{}, err
 	}
-	if v.Kind == "create" {
+	if v.Kind == NotebookCreate {
 		vid, err := s.nbs.DeleteNotebookAgentProposed(v.NotebookID, v.Rev)
 		if err != nil {
 			s.releaseNbProp(p)
 			return NotebookAction{}, err
 		}
 		s.audit.NotebookEvent("notebook the agent created was undone by you (moved to Recently deleted)", []string{v.NotebookID, vid, v.ID}, redact.Report{})
-		return NotebookAction{Proposal: s.finishNbProp(c, p, "undone", vid)}, nil
+		return NotebookAction{Proposal: s.finishNbProp(c, p, CardUndone, vid)}, nil
 	}
 	nb, err := s.nbs.RestoreNotebookVersion(v.NotebookID, v.VersionID, v.Rev)
 	if err != nil {
@@ -1036,14 +1012,14 @@ func (s *Service) UndoNotebookChange(convID, id string) (NotebookAction, error) 
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent(fmt.Sprintf("agent edit undone by you (now rev %d)", nb.Rev), []string{v.NotebookID, v.VersionID, v.ID}, redact.Report{})
-	return NotebookAction{Proposal: s.finishNbProp(c, p, "undone", ""), Notebook: &nb}, nil
+	return NotebookAction{Proposal: s.finishNbProp(c, p, CardUndone, ""), Notebook: &nb}, nil
 }
 
 // ConfirmNotebookDelete is the user's confirmed Delete on a delete the
 // agent proposed. Only the user's route calls it; the notebook goes to
 // Recently deleted. A notebook made private since is refused.
 func (s *Service) ConfirmNotebookDelete(convID, id string) (NotebookAction, error) {
-	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == "delete" && p.Status == "proposed" })
+	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == NotebookDelete && p.Status == CardProposed })
 	if err != nil {
 		return NotebookAction{}, err
 	}
@@ -1055,24 +1031,24 @@ func (s *Service) ConfirmNotebookDelete(convID, id string) (NotebookAction, erro
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent("notebook deleted by you, as the agent proposed (moved to Recently deleted)", []string{v.NotebookID, vid, v.ID}, redact.Report{})
-	return NotebookAction{Proposal: s.finishNbProp(c, p, "deleted", vid)}, nil
+	return NotebookAction{Proposal: s.finishNbProp(c, p, CardDeleted, vid)}, nil
 }
 
 // DismissNotebookProposal is Keep on a delete card: nothing is deleted.
 func (s *Service) DismissNotebookProposal(convID, id string) (NotebookAction, error) {
-	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == "delete" && p.Status == "proposed" })
+	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool { return p.Kind == NotebookDelete && p.Status == CardProposed })
 	if err != nil {
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent("agent's proposal to delete a notebook dismissed by you", []string{v.NotebookID, v.ID}, redact.Report{})
-	return NotebookAction{Proposal: s.finishNbProp(c, p, "dismissed", "")}, nil
+	return NotebookAction{Proposal: s.finishNbProp(c, p, CardDismissed, "")}, nil
 }
 
 // RestoreNotebookChange brings back a notebook a card deleted (a confirmed
 // delete, or the Undo of one the agent created).
 func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, error) {
 	c, p, v, err := s.claimNbProp(convID, id, func(p *nbProposal) bool {
-		return p.VersionID != "" && ((p.Kind == "delete" && p.Status == "deleted") || (p.Kind == "create" && p.Status == "undone"))
+		return p.VersionID != "" && ((p.Kind == NotebookDelete && p.Status == CardDeleted) || (p.Kind == NotebookCreate && p.Status == CardUndone))
 	})
 	if err != nil {
 		return NotebookAction{}, err
@@ -1083,11 +1059,11 @@ func (s *Service) RestoreNotebookChange(convID, id string) (NotebookAction, erro
 		return NotebookAction{}, err
 	}
 	s.audit.NotebookEvent("notebook restored by you from Recently deleted", []string{nb.ID, v.VersionID, v.ID}, redact.Report{})
-	status := "restored"
+	status := CardRestored
 	s.mu.Lock()
-	if v.Kind == "create" {
+	if v.Kind == NotebookCreate {
 		// The notebook the agent created is back: Undo works again.
-		status = "created"
+		status = CardCreated
 		p.NotebookID, p.Rev, p.VersionID = nb.ID, nb.Rev, ""
 		if rec := c.recordNbPropLocked(p.ID); rec != nil {
 			rec.NotebookID, rec.Rev, rec.VersionID = nb.ID, nb.Rev, ""

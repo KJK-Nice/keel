@@ -208,19 +208,19 @@ func TestDirectFailsClosedWhenTheJudgeCannotBeBuilt(t *testing.T) {
 	req2 := req
 	req2.ProposalID = p2.ID
 	broken.set(errors.New("vault: cannot read"))
-	_, err = svc.AuthorizeDirect(context.Background(), req2, true)
+	_, err = svc.AuthorizeDirect(context.Background(), req2)
 	if reason, ok := NeedsDialog(err); !ok || reason != ReasonJevNone {
 		t.Fatalf("a vault error reading the Jev key: %v, want the dialog", err)
 	}
 	// No key at all: Jev is not asked and the allowlist decides.
 	broken.set(nil)
 	f.st.setKey("jev", "")
-	if _, err := svc.AuthorizeDirect(context.Background(), req2, true); err != nil {
+	if _, err := svc.AuthorizeDirect(context.Background(), req2); err != nil {
 		t.Fatalf("no Jev key: %v", err)
 	}
 	// With the key back and Jev answering, the first service types it.
 	f.st.setKey("jev", jevKey)
-	if _, err := f.svc.AuthorizeDirect(context.Background(), req, true); err != nil {
+	if _, err := f.svc.AuthorizeDirect(context.Background(), req); err != nil {
 		t.Fatalf("Jev says read-only: %v", err)
 	}
 }

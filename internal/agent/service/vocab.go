@@ -23,6 +23,29 @@ const (
 	SkipNotebookLimit = "notebook-limit" // the agent asked for more notebooks than one ask reads
 )
 
+// A card's Status. A note's and a runbook's card is open, saved or
+// dismissed; a notebook's card says what was done to the notebook.
+const (
+	CardOpen      = "open"
+	CardSaved     = "saved"
+	CardDismissed = "dismissed"
+
+	CardCreated  = "created"  // the agent created the notebook
+	CardEdited   = "edited"   // the agent edited it
+	CardRefused  = "refused"  // the change was not made: Reason says why
+	CardUndone   = "undone"   // the user undid the change
+	CardProposed = "proposed" // a delete waiting for the user
+	CardDeleted  = "deleted"  // the user confirmed the delete
+	CardRestored = "restored" // the user brought the deleted notebook back
+)
+
+// What a notebook card is about (NotebookProposal.Kind).
+const (
+	NotebookCreate = "create"
+	NotebookEdit   = "edit"
+	NotebookDelete = "delete"
+)
+
 // How a typed step's result is known: a runbook step's and a group run
 // cell's Result.
 const (

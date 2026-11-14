@@ -139,9 +139,6 @@ type typeAsk struct {
 	role      agent.Role
 	bytes     string
 	shift     bool
-	// checkOnly answers whether the write would be allowed now and changes
-	// nothing: no Jev call, no claim, no log entry.
-	checkOnly bool
 }
 
 // Grant is one authorized write. keel serve writes the bytes, then settles
@@ -257,9 +254,6 @@ func (s *Service) authorize(ctx context.Context, path *typePath, sub typeSubject
 	}
 	if err := shiftRule(risk, t.codeRisk, t.judged); err != nil {
 		return Grant{}, err
-	}
-	if ask.checkOnly {
-		return Grant{}, nil
 	}
 	if path.noDialog && sub.askJev() {
 		if err := s.jevReadOnly(ctx, t.pane.SessionID, command); err != nil {

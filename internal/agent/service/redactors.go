@@ -73,11 +73,11 @@ func (s *Service) redactorFor(p redactFor) (*redact.Redactor, error) {
 	if err != nil {
 		return nil, err
 	}
-	hosts, err := s.st.ListHosts()
+	hs, err := s.hosts()
 	if err != nil {
 		return nil, err
 	}
-	return s.buildRedactor(p, set.Redact, agent.HostsFrom(hosts))
+	return s.buildRedactor(p, set.Redact, hs.list)
 }
 
 // requestRedactor is redactorFor(forRequest) for a request that has read
