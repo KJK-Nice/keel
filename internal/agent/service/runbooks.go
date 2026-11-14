@@ -14,6 +14,7 @@ import (
 	"keel/internal/runvars"
 	"keel/internal/shellmark"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Runbooks (docs/ui-redesign.md §16).
@@ -87,16 +88,16 @@ const (
 	maxRunbookProposalsKept = 8
 	maxRunbookWhyBytes      = maxWhyBytes
 
-	runActive   = "active"
-	runFinished = "finished"
-	runStopped  = "stopped"
+	runActive   = wire.RunActive
+	runFinished = wire.RunFinished
+	runStopped  = wire.RunStopped
 
-	stepNext     = "next"
-	stepProposed = "proposed"
-	stepTyped    = "typed"
-	stepDone     = "done"
-	stepFailed   = "failed"
-	stepSkipped  = "skipped"
+	stepNext     = wire.StepNext
+	stepProposed = wire.StepProposed
+	stepTyped    = wire.StepTyped
+	stepDone     = wire.StepDone
+	stepFailed   = wire.StepFailed
+	stepSkipped  = wire.StepSkipped
 )
 
 var (

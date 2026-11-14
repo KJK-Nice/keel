@@ -36,9 +36,9 @@ const (
 
 // The Tunnel Kind values.
 const (
-	TunnelLocal   = "local"
-	TunnelRemote  = "remote"
-	TunnelDynamic = "dynamic"
+	TunnelLocal   = wire.TunnelLocal
+	TunnelRemote  = wire.TunnelRemote
+	TunnelDynamic = wire.TunnelDynamic
 )
 
 func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }

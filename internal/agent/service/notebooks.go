@@ -16,6 +16,7 @@ import (
 	"keel/internal/limits"
 	"keel/internal/runvars"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12).
@@ -97,7 +98,7 @@ var (
 
 	notebookStatus = map[string]bool{CardCreated: true, CardEdited: true, CardRefused: true, CardUndone: true, CardProposed: true, CardDeleted: true, CardDismissed: true, CardRestored: true, CardOpen: true, CardSaved: true}
 
-	errNoMatch = errors.New("no-match")
+	errNoMatch = errors.New(wire.RefusedNoMatch)
 	errNothing = errors.New("nothing")
 )
 
@@ -636,21 +637,21 @@ func (s *Service) notebookWrites(conv *conversation, a *nbAsk, text string, edit
 
 func refusalForModel(reason string) string {
 	switch reason {
-	case "conflict":
+	case wire.RefusedConflict:
 		return "the user changed it after you read it. Read it again (ask for it) before you edit it"
-	case "editing":
+	case wire.RefusedEditing:
 		return "the user is typing in it. Do not edit it now"
-	case "not-read":
+	case wire.RefusedNotRead:
 		return "you had not read it in this question. Ask to read it first, then edit it at the revision Keel sent"
-	case "no-match":
+	case wire.RefusedNoMatch:
 		return "a \"find\" text did not occur exactly once in one part of the notebook, or the edit would touch a value Keel redacted"
-	case "redacted", "truncated":
+	case wire.RefusedRedacted, wire.RefusedTruncated:
 		return "Keel removed or cut part of it before you saw it, so it may be changed only with find-and-replace edits"
-	case "private", "not-found", "deleted":
+	case wire.RefusedPrivate, wire.RefusedNotFound, wire.RefusedDeleted:
 		return "it is not a notebook you may change"
-	case "too-large":
+	case wire.RefusedTooLarge:
 		return "the notebook would be larger than Keel allows"
-	case "history":
+	case wire.RefusedHistory:
 		return "Keel could not keep its previous version, so it made no change"
 	}
 	return "the edit block was not valid"
@@ -692,21 +693,21 @@ func countFences(md string) int {
 func storeReason(err error) string {
 	switch {
 	case errors.Is(err, store.ErrNotebookConflict):
-		return "conflict"
+		return wire.RefusedConflict
 	case errors.Is(err, store.ErrNotebookPrivate):
-		return "private"
+		return wire.RefusedPrivate
 	case errors.Is(err, store.ErrNotFound):
-		return "deleted"
+		return wire.RefusedDeleted
 	case errors.Is(err, store.ErrNotebookTooLarge):
-		return "too-large"
+		return wire.RefusedTooLarge
 	case errors.Is(err, store.ErrHistoryUnavailable):
-		return "history"
+		return wire.RefusedHistory
 	case errors.Is(err, errNoMatch):
-		return "no-match"
+		return wire.RefusedNoMatch
 	case errors.Is(err, errNothing):
-		return "invalid"
+		return wire.RefusedInvalid
 	}
-	return "invalid"
+	return wire.RefusedInvalid
 }
 
 // notebookEdit applies one edit block, or says why not. The model names
@@ -727,30 +728,30 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 		e = a.byNum[raw.Notebook]
 	}
 	if e == nil {
-		return refuse("not-found")
+		return refuse(wire.RefusedNotFound)
 	}
 	p.NotebookID = e.ID
 	p.Title = agent.SafeNotebookName(e.Name, r)
 	sent, ok := a.read[e.ID]
 	switch {
 	case !ok:
-		return refuse("not-read", e.ID)
+		return refuse(wire.RefusedNotRead, e.ID)
 	case raw.Rev != nil && *raw.Rev != sent.rev:
-		return refuse("conflict", e.ID)
+		return refuse(wire.RefusedConflict, e.ID)
 	case editing[e.ID]:
-		return refuse("editing", e.ID)
+		return refuse(wire.RefusedEditing, e.ID)
 	case raw.Body != nil && sent.truncated:
-		return refuse("truncated", e.ID)
+		return refuse(wire.RefusedTruncated, e.ID)
 	case raw.Body != nil && sent.redacted > 0:
-		return refuse("redacted", e.ID)
+		return refuse(wire.RefusedRedacted, e.ID)
 	case raw.Body == nil && len(raw.Edits) == 0 && strings.TrimSpace(raw.Title) == "":
-		return refuse("invalid", e.ID)
+		return refuse(wire.RefusedInvalid, e.ID)
 	case len(raw.Edits) > maxNotebookFindReplace:
-		return refuse("invalid", e.ID)
+		return refuse(wire.RefusedInvalid, e.ID)
 	}
 	if strings.TrimSpace(raw.Title) != "" && sent.nameRedacted {
 		// A name that held a redacted value is not the agent's to replace.
-		return refuse("redacted", e.ID)
+		return refuse(wire.RefusedRedacted, e.ID)
 	}
 	title := ""
 	if strings.TrimSpace(raw.Title) != "" {
@@ -765,7 +766,7 @@ func (s *Service) notebookEdit(conv *conversation, a *nbAsk, raw rawNbEdit, edit
 	added := ""
 	for _, ed := range raw.Edits {
 		if ed.Find == "" || len(ed.Find) > maxNotebookFindBytes {
-			return refuse("no-match", e.ID)
+			return refuse(wire.RefusedNoMatch, e.ID)
 		}
 		rep := agentText(ed.Replace, r, store.MaxNotebookBytes+1)
 		subs = append(subs, findReplace{ed.Find, rep})

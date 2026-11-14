@@ -11,6 +11,7 @@ import (
 	"keel/internal/cmdrule"
 	"keel/internal/runvars"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 // Group runs (docs/ui-redesign.md §17, board GroupRunbook): one runbook
@@ -49,19 +50,16 @@ const (
 	maxGroupRuns     = 8
 	maxGroupRunHosts = 64
 
-	ModeRolling  = "rolling"
-	ModeParallel = "parallel"
-
-	cellWaiting  = "waiting"
-	cellProposed = "proposed"
-	cellTyped    = "typed"
-	cellDone     = "done"
-	cellFailed   = "failed"
-	cellSkipped  = "skipped"
+	cellWaiting  = wire.StepWaiting
+	cellProposed = wire.StepProposed
+	cellTyped    = wire.StepTyped
+	cellDone     = wire.StepDone
+	cellFailed   = wire.StepFailed
+	cellSkipped  = wire.StepSkipped
 	// cellTyping is a host whose proposal keel serve authorized and is
 	// writing now: between AuthorizeType and the write, nothing may reset
 	// it (a Retry there would let the command run twice).
-	cellTyping = "typing"
+	cellTyping = wire.StepTyping
 
 	// pendingResultFor is how long Mark done waits for a shell that sends
 	// OSC 133 marks to report a typed host's exit status.
