@@ -15,8 +15,8 @@ import (
 	"keel/internal/store"
 )
 
-// The runbook routes end to end with the scripted provider (docs/ui-
-// redesign.md §16): a runbook saved through the API is redacted and kept
+// The runbook routes end to end with the scripted provider (docs/ui-redesign.md §16):
+// a runbook saved through the API is redacted and kept
 // encrypted; asking with it proposes step 1 only; the step is typed only
 // through the session socket's approve-before-type path; the exit status
 // the pane's shell reports with OSC 133 marks is recorded for the step;

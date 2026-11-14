@@ -21,7 +21,7 @@ import (
 
 const (
 	recentCards = 6
-	closedShown = 3 // CLOSED_SHOWN
+	closedShown = 3
 	maxInput    = sshparse.MaxInput
 )
 
@@ -165,7 +165,7 @@ func ageLabel(at, now time.Time) string {
 	return "yesterday"
 }
 
-// closedList is the recently closed entries whose host still exists, newest first (liveClosed).
+// closedList is the recently closed entries whose host still exists, newest first.
 func (w *workspace) closedList() []closedEntry {
 	var out []closedEntry
 	for _, e := range w.prefs.ClosedTabs {

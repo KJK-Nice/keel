@@ -97,7 +97,7 @@ func (s *shell) menu() *mygo.Menu {
 	})
 }
 
-// closeWindow is File → Close Window: it hides the window in the menu bar, else quits (desktop.go actionQuit).
+// closeWindow is File → Close Window: it hides the window in the menu bar, else quits.
 func (s *shell) closeWindow() {
 	if s.menuBar {
 		s.hide()

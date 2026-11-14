@@ -266,8 +266,8 @@ func TestTypeNowIsCalledOnlyByTheEntryPoints(t *testing.T) {
 	}
 }
 
-// DirectCheck was a question to keel serve about typing (the type-check frame). keel serve does not answer it, so no
-// file may ask it or name the frame, keelclient/inject.go included.
+// keel serve decides a direct type at the write and answers no question about typing, so no file may ask one (a
+// DirectCheck call, a type-check frame), keelclient/inject.go included.
 func TestNoFileAsksATypeCheck(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"DirectCheck", "type-check"} {
