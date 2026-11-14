@@ -162,7 +162,6 @@ func Parse(opts Options) (Result, error) {
 	return p.res, nil
 }
 
-// display shortens a path under Home to ~/...
 func (p *parser) display(path string) string {
 	home := filepath.Clean(p.opts.Home)
 	if path == home {

@@ -358,7 +358,7 @@ func (s *Session) SubscribeSince(join Join, mark uint64) (Client, <-chan Event, 
 	return s.subscribe(join, mark, true)
 }
 
-// Mark returns the current output position for SubscribeSince.
+// Mark is the output position SubscribeSince takes.
 func (s *Session) Mark() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1131,9 +1131,9 @@ func (s *Session) noteLine(msg string) {
 
 // output appends b to the scrollback ring and fans it out to the attached
 // clients under s.mu, the lock Subscribe holds while it registers a client
-// and copies the ring. Doing the two steps under separate locks let a
-// Subscribe land between them: its snapshot already held b, and the
-// broadcast then delivered b again, so the new client printed it twice.
+// and copies the ring. Under separate locks a Subscribe could land between
+// the two steps: its snapshot would already hold b and the broadcast would
+// deliver b again, so the new client would print it twice.
 func (s *Session) output(b []byte) {
 	s.mu.Lock()
 	base := s.buf.Mark()

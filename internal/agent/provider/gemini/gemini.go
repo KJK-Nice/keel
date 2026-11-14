@@ -46,7 +46,6 @@ type Option = transport.Option
 // httptest server on loopback).
 func WithBaseURL(u string) Option { return transport.WithBaseURL(u) }
 
-// New returns a client that authenticates with key.
 func New(key string, opts ...Option) (*Client, error) {
 	t, err := transport.New(config, key, opts...)
 	if err != nil {

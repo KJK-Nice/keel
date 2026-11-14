@@ -442,7 +442,6 @@ func (s *Service) UpdateRunbook(id string, in RunbookInput) (SavedRunbook, error
 	return SavedRunbook{Runbook: runbookView(saved), Redacted: rep.Total()}, nil
 }
 
-// SetRunbookAgentMayPick is the list's switch.
 func (s *Service) SetRunbookAgentMayPick(id string, on bool) (RunbookView, error) {
 	if s.books == nil {
 		return RunbookView{}, ErrNoRunbooks
@@ -1548,7 +1547,6 @@ func (s *Service) SaveRunbookProposal(convID, id string) (SavedRunbook, error) {
 	return SavedRunbook{Runbook: runbookView(saved), Redacted: rep.Total(), Proposal: out}, nil
 }
 
-// DismissRunbookProposal closes a proposal without saving anything.
 func (s *Service) DismissRunbookProposal(convID, id string) (RunbookProposal, error) {
 	c, rp, _, err := bookCards.claim(s, convID, id, bookPropOpen)
 	if err != nil {

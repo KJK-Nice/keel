@@ -19,7 +19,7 @@ import (
 // bytes, at the moment of the write; it never adds a newline; anything it
 // cannot call a read-only line goes to the dialog.
 
-// directOverSocket runs the page's direct Type: a server nonce for the
+// directOverSocket runs the window's direct Type: a server nonce for the
 // bytes, then an inject marked direct. It returns the type-direct answer.
 func directOverSocket(t *testing.T, conn *websocket.Conn, command string, direct, agentPart map[string]any) map[string]any {
 	t.Helper()
@@ -43,7 +43,6 @@ func convPart(id string) map[string]any {
 	return map[string]any{"conversationId": askConv, "proposalId": id}
 }
 
-// wantDialog fails unless the answer sends the user to the dialog.
 func wantDialog(t *testing.T, what string, r map[string]any, reason string) {
 	t.Helper()
 	if r["ok"] != false || r["dialog"] != true || !strings.Contains(r["reason"].(string), reason) {
@@ -51,7 +50,6 @@ func wantDialog(t *testing.T, what string, r map[string]any, reason string) {
 	}
 }
 
-// nothingWritten fails if the PTY got bytes within a short wait.
 func nothingWritten(t *testing.T, got <-chan string, what string) {
 	t.Helper()
 	select {

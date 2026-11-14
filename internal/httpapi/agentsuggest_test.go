@@ -302,7 +302,7 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 }
 
 // A provider that never answers still gets an answer: keel serve ends the call at its own bound and sends the card's
-// error, so the window is never left loading (plan 036).
+// error, so the window is never left loading.
 func TestSuggestAlwaysAnswersWhenTheModelHangs(t *testing.T) {
 	askSuggestTimeout = 300 * time.Millisecond
 	f := newAskFixture(t, true)

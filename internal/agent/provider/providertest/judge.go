@@ -258,7 +258,6 @@ func (f *FakeJudge) Judge(ctx context.Context, req provider.JudgeRequest) (provi
 	return out, nil
 }
 
-// Requests returns what Judge received, in order.
 func (f *FakeJudge) Requests() []provider.JudgeRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -45,7 +45,6 @@ func (k cardKind[P, V]) claim(s *Service, convID, id string, ok func(*P) bool) (
 	return c, p, k.view(p), nil
 }
 
-// release frees a claimed card whose action failed.
 func (k cardKind[P, V]) release(s *Service, p *P) {
 	s.mu.Lock()
 	*k.busy(p) = false

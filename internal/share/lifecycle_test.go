@@ -38,7 +38,6 @@ func shareFixture(t *testing.T) (*runtime.Runtime, string) {
 	return rt, info.ID
 }
 
-// countingSignal wraps a signal server and counts room creations.
 func countingSignal(t *testing.T) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var rooms atomic.Int32

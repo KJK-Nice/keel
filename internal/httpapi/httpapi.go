@@ -664,7 +664,7 @@ func (s *Server) listSnippets(w http.ResponseWriter, _ *http.Request) {
 }
 
 // snippetPayload is a snippet as a client sends it. AgentUsable is a
-// pointer: a client that does not send it (the old edit modal) leaves the
+// pointer: a client that does not send it leaves the
 // flag as it is, so a stale list can never clear it by accident.
 type snippetPayload struct {
 	Name        string `json:"name"`
@@ -1044,7 +1044,6 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 	mark := sess.StreamMark()
 	if ierr := sess.InjectTicket(clientID, ctl.Command, ctl.Nonce); ierr != nil {
 		if ctl.Agent.GroupRunID != "" {
-			// The host goes back to proposed: nothing was written.
 			s.agent.GroupTypeFailed(ctl.Agent.GroupRunID, ctl.Agent.ProposalID)
 		}
 		s.note("agent", "agent command was not typed: "+ierr.Error(), info.HostID, info.ID, "")

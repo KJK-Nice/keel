@@ -272,7 +272,6 @@ func (r *groupRun) advanceLocked() {
 			r.Status = runFinished
 		}
 		r.NeedPane = nil
-		// Captured values live only as long as the run.
 		r.wipeCapturesLocked()
 		return
 	}
@@ -289,7 +288,6 @@ func (r *groupRun) advanceLocked() {
 	}
 }
 
-// groupMembers reads a group's members and the saved hosts' agent switches.
 func (s *Service) groupMembers(groupID string) (store.Group, []store.GroupMember, map[string]agent.Host, error) {
 	src, ok := s.st.(GroupMemberSource)
 	if !ok {
@@ -520,7 +518,6 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 		for _, j := range due {
 			c := &st.Cells[j]
 			if st.OneHost && c.HostID == "" {
-				// The first candidate with a pane open, still a target.
 				for _, h := range st.Candidates {
 					if ok(h.HostID) != "" {
 						continue

@@ -19,7 +19,7 @@ import (
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
-// review). On the session socket the page sends:
+// review). On the session socket the window sends:
 //
 //	{"type":"inject", "command", "nonce", "direct":{…}, "agent":{…}}
 //	    → {"type":"type-direct", "ref", "ok", "dialog", "reason", "message"}
@@ -29,7 +29,7 @@ import (
 // consumes the server nonce and writes the bytes: the command alone, never
 // a newline, so it waits on the prompt line for the user's Enter. When
 // any check is not met the answer is dialog:true and nothing is written:
-// the page then opens the approve dialog, the path that was there before.
+// the window then opens the approve dialog.
 
 // The "direct" part of an inject is wire.DirectType: where the command
 // comes from (an agent proposal, with the frame's "agent" part, a snippet
@@ -50,7 +50,6 @@ const (
 // above all). Case-insensitive, on the last line with spaces trimmed.
 var inputPromptRe = regexp.MustCompile(`(?i)pass(word|phrase|code)|\bpin\b|one-time|verification code|\botp\b|\[sudo\]|'s password|are you sure|\[y/n\]|\(y/n\)|\(yes/no|\[yes/no|\byes/no\b|\b(continue|proceed|overwrite|replace|delete)\?|\benter\b[^:]*:$|\b(login|username|user name|token|passcode|secret|key)\s*:$|^(mysql|mariadb|sqlite|redis[^>]*|ftp|sftp|irb[^>]*|\(gdb\)|\(pdb\)|>>>|\.\.\.|in \[\d+\]:)\s*>?$|^[\w-]+[=-][#>]$|^>$`)
 
-// looksLikeInput reports whether a terminal line is an input prompt.
 func looksLikeInput(line string) bool {
 	line = strings.TrimSpace(line)
 	return line != "" && inputPromptRe.MatchString(line)
@@ -59,7 +58,7 @@ func looksLikeInput(line string) bool {
 // promptCheck sends a direct type to the dialog unless the pane is at its
 // shell's prompt: with OSC 133 marks, at a prompt with no command open;
 // in any case, not on a line that asks for input (keel serve's view of the
-// output tail, or the page's xterm line).
+// output tail, or the window's own line).
 func promptCheck(sess *runtime.Session, d *wire.DirectType) error {
 	marks, atPrompt, last := sess.PromptState()
 	if marks && !atPrompt {
@@ -277,7 +276,6 @@ func (s *Server) typeDirect(ctx context.Context, c *sessionsock.Conn, command, n
 	mark := sess.StreamMark()
 	if err := sess.InjectTicket(clientID, command, nonce); err != nil {
 		if group {
-			// The host goes back to proposed: nothing was written.
 			s.agent.GroupTypeFailed(am.GroupRunID, am.ProposalID)
 		}
 		s.note(logKind(d.Kind), "a command was not typed: "+err.Error(), info.HostID, info.ID, "")

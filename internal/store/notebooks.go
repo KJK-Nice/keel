@@ -127,7 +127,6 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 			}
 			replacedAgent = base != ex.Rev
 		case now.Sub(ex.UpdatedAt) >= sessionGap && !sameNotebookContent(ex, nb):
-			// A new editing session: keep the version it starts from.
 			s.keepVersionLocked(ex, "session", "", now)
 		}
 		nb.CreatedAt = ex.CreatedAt

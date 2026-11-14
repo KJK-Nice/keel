@@ -35,7 +35,6 @@ func Normalize(s string) string {
 			b = append(b, '\n')
 		case r == '\b':
 			if n := len(b); n > 0 && b[n-1] != '\n' {
-				// Drop the last rune.
 				i := n - 1
 				for i > 0 && b[i]&0xC0 == 0x80 {
 					i--

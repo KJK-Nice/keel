@@ -228,7 +228,6 @@ func Descriptors() []Descriptor {
 	return out
 }
 
-// Lookup returns the descriptor for id.
 func Lookup(id string) (Descriptor, bool) {
 	for _, d := range Descriptors() {
 		if d.ID == id {
@@ -254,7 +253,7 @@ func ListedElsewhere(id, model string) bool {
 	return false
 }
 
-// Judge answers typed questions about a state (phase 6c, TypeSafe Jev). It
+// Judge answers typed questions about a state (TypeSafe Jev). It
 // never generates text: each answer is a probability (Noul) or a pick from
 // options the caller wrote (Choice). Like a Provider it takes only
 // redacted text: every state value is Safe, and the questions are

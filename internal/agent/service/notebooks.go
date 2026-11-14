@@ -429,7 +429,6 @@ func (s *Service) notebookReads(a *nbAsk, nums []int, r *redact.Redactor) (strin
 		"Now answer the user's question.", steps, nil
 }
 
-// notebookText is a notebook's markdown: its cells, in order.
 func notebookText(nb store.Notebook) string {
 	parts := make([]string, 0, len(nb.Cells))
 	for _, c := range nb.Cells {
@@ -481,7 +480,7 @@ var inlineImageRe = regexp.MustCompile(`^!\[([^\]\n]*)\]\(\s*<?([^\s()<>]*)>?(?:
 
 // defuseImages turns every markdown image the agent writes into text,
 // except a data: image. The notebook editor renders an image as <img src>,
-// and the webview would fetch its URL when the notebook opens: a model
+// and the window would fetch its URL when the notebook opens: a model
 // steered by pane text could put what it read into that URL. An inline
 // image becomes its alt text and its URL as inline code; any other "![" (a
 // reference image) is escaped so it reads as text. Fenced code and code
@@ -520,7 +519,6 @@ func defuseLine(ln string) string {
 	var b strings.Builder
 	for i := 0; i < len(ln); {
 		if ln[i] == '`' {
-			// A code span: copy it up to the matching run of backticks.
 			n := 0
 			for i+n < len(ln) && ln[i+n] == '`' {
 				n++

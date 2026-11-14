@@ -1,6 +1,6 @@
 package service
 
-// History-first suggestions (phase 6c+, docs/ui-redesign.md §5.5). Before
+// History-first suggestions (docs/ui-redesign.md §5.5). Before
 // the model writes a command, code gathers commands the user already ran
 // in the pane or curated as snippets, and Jev picks one. A confident pick
 // is the suggestion: fast, no model call, and not invented. Anything else

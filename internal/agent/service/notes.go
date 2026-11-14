@@ -450,7 +450,6 @@ func noteFromRecord(n store.AgentChatNote) NoteProposal {
 	return NoteProposal{ID: n.ID, For: n.For, HostID: n.HostID, Host: n.Host, Text: n.Text, FromPane: n.FromPane, SeenIn: n.SeenIn, PanesRead: n.PanesRead, Status: st, NoteID: n.NoteID, ProposedAt: &at, Expired: true}
 }
 
-// recordNoteLocked finds a note proposal in c's saved record.
 func (c *conversation) recordNoteLocked(id string) *store.AgentChatNote {
 	for i := len(c.record) - 1; i >= 0; i-- {
 		for j := range c.record[i].Notes {
@@ -571,7 +570,6 @@ func (s *Service) AddGroupNote(groupID, text string) (SavedNote, error) {
 	return SavedNote{Note: n, Redacted: rep.Total()}, nil
 }
 
-// EditNote replaces a note's text.
 func (s *Service) EditNote(id, text string) (SavedNote, error) {
 	if s.notesSt == nil {
 		return SavedNote{}, ErrNoNotes
@@ -592,7 +590,6 @@ func (s *Service) EditNote(id, text string) (SavedNote, error) {
 	return SavedNote{Note: n, Redacted: rep.Total()}, nil
 }
 
-// DeleteNote removes a note.
 func (s *Service) DeleteNote(id string) error {
 	if s.notesSt == nil {
 		return ErrNoNotes
@@ -701,7 +698,6 @@ func (s *Service) SaveNoteProposal(convID, id, text string) (SavedNote, error) {
 	return SavedNote{Note: n, Redacted: rep.Total(), Proposal: out}, nil
 }
 
-// DismissNoteProposal closes a proposal without saving anything.
 func (s *Service) DismissNoteProposal(convID, id string) (NoteProposal, error) {
 	c, np, _, err := noteCards.claim(s, convID, id, noteOpen)
 	if err != nil {

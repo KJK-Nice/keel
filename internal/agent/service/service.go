@@ -637,7 +637,6 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	hq.WriteString(question)
 	modelText := truncate(resp.Text, maxAnswerBytes)
 	if len(nbW.notes) > 0 {
-		// The model hears what Keel did with its notebook blocks.
 		modelText += "\n\n[Keel: " + strings.Join(nbW.notes, ". ") + ".]"
 	}
 	if resp.Stop != "" {

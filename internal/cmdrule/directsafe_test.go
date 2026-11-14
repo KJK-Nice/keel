@@ -140,7 +140,7 @@ func TestDirectSafeRefusesReviewPoCs(t *testing.T) {
 		`unknowncmd`,
 		``,
 		`ls 'unterminated`,
-		// second review: git runs a checkout's own config (fsmonitor,
+		// git runs a checkout's own config (fsmonitor,
 		// diff.external, textconv, filters) even for reads
 		`git status`,
 		`git --no-pager log --oneline -n 5`,

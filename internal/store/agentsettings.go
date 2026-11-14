@@ -55,7 +55,7 @@ type AgentSettings struct {
 	// without the field reads as on.
 	Suggestions string `json:"suggestions"`
 	// HistorySuggestions lets in-pane suggestions offer commands seen
-	// after the pane's prompt in its scrollback (phase 6c+): up to about
+	// after the pane's prompt in its scrollback: up to about
 	// 40 recent ones are sent to Jev, redacted, on each ⇥. "on" (the
 	// default) or "off"; off still offers agent-usable snippets.
 	HistorySuggestions string         `json:"historySuggestions"`

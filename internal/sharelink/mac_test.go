@@ -32,7 +32,7 @@ func TestMACMatchesTheKnownAnswer(t *testing.T) {
 }
 
 // HMAC-SHA256 as node:crypto computes it (3 keys by 3 messages, computed by node): MAC is HMAC over
-// "role\nfingerprints", so the same primitive is checked through the key and message the JS joiner used.
+// "role\nfingerprints", so the same primitive is checked through the key and message a joiner uses.
 func TestHMACRows(t *testing.T) {
 	long := strings.Repeat("x", 100)
 	rows := []struct{ key, msg, want string }{

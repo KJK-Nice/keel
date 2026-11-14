@@ -9,7 +9,7 @@ import (
 
 // Review fixes for notebooks and the agent (§18).
 
-// A remote image in a draft would be fetched by the webview when the draft
+// A remote image in a draft would be fetched when the draft
 // opens, with whatever the model put in its URL: every image but a data:
 // one becomes text. Code is left as written.
 func TestDefuseImages(t *testing.T) {

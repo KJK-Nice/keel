@@ -15,7 +15,7 @@ import (
 	"keel/internal/wire"
 )
 
-// The agent panel's routes (phase 6b). POST /api/agent/ask is the only
+// The agent panel's routes. POST /api/agent/ask is the only
 // route in Keel that sends anything off the machine, and only what the
 // agent service has read through the Auditor and redacted. These handlers
 // never write to a session: typing a proposal goes through the session
@@ -166,7 +166,6 @@ func (s *Server) agentEditProposal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-// agentSessions lists the saved conversations (the panel's session list).
 func (s *Server) agentSessions(w http.ResponseWriter, _ *http.Request) {
 	if s.agent == nil {
 		writeJSON(w, http.StatusOK, service.Sessions{Sessions: []store.AgentChatSummary{}})
@@ -223,7 +222,6 @@ func (s *Server) agentProposeAgain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, p)
 }
 
-// agentReset deletes one conversation, in memory and in the vault.
 func (s *Server) agentReset(w http.ResponseWriter, r *http.Request) {
 	if s.agent != nil {
 		if err := s.agent.Delete(r.PathValue("id")); err != nil {

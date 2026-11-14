@@ -318,7 +318,6 @@ func (s *Store) ListRunbooks() ([]Runbook, error) {
 	return out, nil
 }
 
-// GetRunbook returns one runbook.
 func (s *Store) GetRunbook(id string) (Runbook, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()
@@ -404,7 +403,6 @@ func (s *Store) UpdateRunbook(b Runbook) (Runbook, error) {
 	return Runbook{}, ErrNotFound
 }
 
-// SetRunbookAgentMayPick turns "Agent may pick" on or off.
 func (s *Store) SetRunbookAgentMayPick(id string, on bool) (Runbook, error) {
 	return s.changeRunbook(id, func(b *Runbook) bool {
 		if b.AgentMayPick == on {
@@ -452,7 +450,6 @@ func (s *Store) changeRunbook(id string, fn func(*Runbook) bool) (Runbook, error
 	return Runbook{}, ErrNotFound
 }
 
-// DeleteRunbook removes one runbook and returns it.
 func (s *Store) DeleteRunbook(id string) (Runbook, error) {
 	s.memMu.Lock()
 	defer s.memMu.Unlock()

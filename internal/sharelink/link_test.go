@@ -10,7 +10,7 @@ import (
 // key is a made-up link key; it opens nothing.
 const key = "00112233445566778899aabbccddeeff"
 
-// The cases of cmd/keel/web/js/test/joinlink.test.mjs, one row for each assertion.
+// One row for each assertion about a join link.
 func TestParseLinkTheCasesOfJoinlinkTest(t *testing.T) {
 	good, err := ParseLink(" https://sig.example/join?room=abc123#k=" + key + " ")
 	if err != nil || good != (Link{Origin: "https://sig.example", Room: "abc123", Key: key}) {

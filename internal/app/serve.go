@@ -232,7 +232,6 @@ func healthPid(addr string) (pid int, up bool) {
 	return body.Pid, true
 }
 
-// listening reports whether anything accepts TCP connections on addr.
 func listening(addr string) bool {
 	c, err := net.DialTimeout("tcp", addr, 400*time.Millisecond)
 	if err != nil {

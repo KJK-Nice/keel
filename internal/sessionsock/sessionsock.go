@@ -120,10 +120,8 @@ func Attach(sess *runtime.Session, t Transport, o Options) *Conn {
 	return c
 }
 
-// Session is the session the client is attached to.
 func (c *Conn) Session() *runtime.Session { return c.sess }
 
-// ClientID is the client's id in the session.
 func (c *Conn) ClientID() uint64 { return c.cl.ID }
 
 // Send sends the client a text frame. A failed send is the transport's to

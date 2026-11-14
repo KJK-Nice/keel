@@ -11,7 +11,7 @@ import (
 	"keel/internal/store"
 )
 
-// Agent settings and provider keys (phase 6a). These routes store choices
+// Agent settings and provider keys. These routes store choices
 // and keys; none of them calls a provider. Keys go into the vault and are
 // never returned: responses only say whether one is configured.
 

@@ -590,7 +590,6 @@ func (a *Auditor) logWrite(kind, verb string, p Pane, command, source string, wr
 	return a.gate(e)
 }
 
-// Merge adds the counts of two reports.
 func Merge(a, b redact.Report) redact.Report {
 	out := redact.Report{Counts: map[redact.Kind]int{}}
 	for k, v := range a.Counts {

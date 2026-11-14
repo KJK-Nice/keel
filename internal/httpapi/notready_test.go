@@ -39,8 +39,8 @@ func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeB
 	return srv, st, fb, release
 }
 
-// Issue #63: a keystroke typed while the session is still connecting used to
-// close the session socket ("session is not ready"). It must be dropped (not
+// A keystroke typed while the session is still connecting must not close the
+// session socket ("session is not ready"). It is dropped (not
 // buffered for the next prompt) and the socket must stay open. An approved
 // inject at the same moment must still fail and be reported.
 func TestKeystrokeWhileConnectingKeepsSocket(t *testing.T) {

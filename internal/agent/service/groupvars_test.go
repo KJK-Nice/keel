@@ -465,7 +465,6 @@ func TestGroupVarsInKeptText(t *testing.T) {
 	}
 }
 
-// liveCaptures counts the values runs hold for filling.
 func liveCaptures(s *Service) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

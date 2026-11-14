@@ -158,7 +158,6 @@ var keelBlocks = map[string]*regexp.Regexp{
 	NotebookDeleteFence: blockRe(NotebookDeleteFence),
 }
 
-// blockOf is the regex of a block kind in keelBlocks.
 func blockOf(fence string) *regexp.Regexp {
 	re, ok := keelBlocks[fence]
 	if !ok {

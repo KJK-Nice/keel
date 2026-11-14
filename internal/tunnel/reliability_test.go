@@ -97,8 +97,8 @@ func waitClosed(t *testing.T, d *fakeDialer) {
 	t.Fatal("dialer (SSH connection) was never closed")
 }
 
-// A failed listen used to park the run on ctx.Done() while holding the SSH
-// connection, and a restart replaced the entry without cancelling it.
+// A failed listen must not park the run on ctx.Done() while holding the SSH
+// connection, and a restart must cancel the entry it replaces.
 func TestFailedListenReleasesConnectionAndRestartWorks(t *testing.T) {
 	st, tn := tunnelFixture(t, "remote", "127.0.0.1")
 	first := newFakeDialer()

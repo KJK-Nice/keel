@@ -48,7 +48,6 @@ func (d sshDialer) Close() error {
 	return d.client.Close()
 }
 
-// Wait blocks until the SSH connection closes.
 func (d sshDialer) Wait() error {
 	return d.client.Wait()
 }
