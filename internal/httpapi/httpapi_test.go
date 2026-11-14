@@ -1296,31 +1296,6 @@ func TestNestedGroupsAPIAndVaultTree(t *testing.T) {
 	}
 }
 
-// TestManualServe binds the API on a fixed address for poking at it by hand (the native client attaches to it).
-func TestManualServe(t *testing.T) {
-	if os.Getenv("KEEL_SERVE") != "1" {
-		t.Skip("set KEEL_SERVE=1 to bind 127.0.0.1:47241")
-	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	dir := t.TempDir()
-	st, err := store.New(dir+"/keel.json", store.TestVault())
-	if err != nil {
-		t.Fatal(err)
-	}
-	rt := runtime.New(st, runtime.DefaultOpener(st))
-	logs := applog.New(dir + "/keel.log")
-	tn := tunnel.New(st, tunnel.DefaultFactory(st))
-	h := New(st, rt, nil).WithTunnels(tn).WithLogs(logs).openHandler()
-	addr := "127.0.0.1:47241"
-	if v := os.Getenv("KEEL_SERVE_ADDR"); v != "" {
-		addr = v
-	}
-	t.Log("keel api http://" + addr)
-	if err := http.ListenAndServe(addr, h); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // spawn starts a session on hostID the way the window does (the session
 // socket with hostId), detaches, and returns once the session has no client
 // again, so the test's first dial is the owner and driver.

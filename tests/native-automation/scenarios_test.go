@@ -207,12 +207,6 @@ func TestRealKeysIntoARealTerminal(t *testing.T) {
 	r.quit()
 }
 
-// 5. Paste with Sync input. The protocol has no way to put text on a clipboard (its text event is typing), so a
-// paste cannot be made without the user's real clipboard, which no test touches.
-func TestPasteWithSyncInput(t *testing.T) {
-	t.Skip("the automation protocol has no clipboard call; a paste would need the system clipboard, which is never touched")
-}
-
 // 6. Both themes, from Settings, captured from the workspace.
 func TestBothThemes(t *testing.T) {
 	r := newRig(t)
