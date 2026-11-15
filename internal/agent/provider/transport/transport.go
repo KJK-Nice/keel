@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"keel/internal/agent/provider"
+	"keel/internal/authtoken"
 )
 
 // DefaultAnswerTokens is the answer room of a request that sets none, for
@@ -73,7 +74,7 @@ func New(cfg Config, key string, opts ...Option) (*Client, error) {
 	if key == "" {
 		return nil, provider.ErrNoKey
 	}
-	c := &Client{cfg: cfg, key: key, http: &http.Client{Timeout: cfg.Timeout}}
+	c := &Client{cfg: cfg, key: key, http: &http.Client{Timeout: cfg.Timeout, CheckRedirect: authtoken.NoRedirect}}
 	for _, o := range opts {
 		o(c)
 	}
