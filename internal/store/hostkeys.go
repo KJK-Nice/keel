@@ -62,9 +62,10 @@ func (s *Store) ForgetHostKey(hostname string) (bool, error) {
 	if _, ok := s.data.KnownHosts[hostname]; !ok {
 		return false, nil
 	}
+	u := s.undoPointLocked()
 	delete(s.data.KnownHosts, hostname)
 	delete(s.data.KnownHostTypes, hostname)
-	return true, s.saveLocked()
+	return true, s.saveOrUndoLocked(u)
 }
 
 // Trust offers. A dialer's refusal of an unknown or changed key records
@@ -139,6 +140,7 @@ func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) 
 		return KnownHostKey{}, ErrNoOffer
 	}
 	delete(s.offers, token)
+	u := s.undoPointLocked()
 	if s.data.KnownHosts == nil {
 		s.data.KnownHosts = map[string]string{}
 	}
@@ -152,6 +154,7 @@ func (s *Store) TrustOffered(token, hostname, fingerprint string, replace bool) 
 		delete(s.data.KnownHostTypes, hostname)
 	}
 	if err := s.saveDurableLocked(); err != nil {
+		s.data, s.secrets = u.data, u.secrets
 		return KnownHostKey{}, err
 	}
 	return KnownHostKey{Hostname: hostname, Fingerprint: fingerprint, KeyType: o.keyType, Known: true}, nil

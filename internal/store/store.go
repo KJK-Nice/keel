@@ -1305,6 +1305,8 @@ func (s *Store) undoPointLocked() undoPoint {
 	d.Snippets = slices.Clone(d.Snippets)
 	d.Notebooks = slices.Clone(d.Notebooks)
 	d.Groups = slices.Clone(d.Groups)
+	d.KnownHosts = maps.Clone(d.KnownHosts)
+	d.KnownHostTypes = maps.Clone(d.KnownHostTypes)
 	return undoPoint{data: d, secrets: maps.Clone(s.secrets), gen: s.saveGen}
 }
 

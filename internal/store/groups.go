@@ -279,6 +279,7 @@ func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
 	if len(want) == 0 {
 		return nil
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	found := 0
 	for i, h := range s.data.Hosts {
@@ -296,7 +297,7 @@ func (s *Store) AssignHostsGroup(ids []string, groupID string) error {
 	if found == 0 {
 		return ErrNotFound
 	}
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func (s *Store) descendantDepthLocked(id string) int {

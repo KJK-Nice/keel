@@ -31,10 +31,11 @@ func (s *Store) SetSignalURL(u string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	undo := s.undoPointLocked()
 	if u == "" {
 		s.data.Share = nil
 	} else {
 		s.data.Share = &ShareSettings{SignalURL: u}
 	}
-	return s.saveLocked()
+	return s.saveOrUndoLocked(undo)
 }

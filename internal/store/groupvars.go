@@ -96,9 +96,10 @@ func (s *Store) SetGroupVar(groupID, name, value string) (Group, error) {
 	if len(vars) == 0 {
 		vars = nil
 	}
+	u := s.undoPointLocked()
 	g.Vars, g.UpdatedAt = vars, time.Now().UTC()
 	s.data.Groups[idx] = g
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveOrUndoLocked(u); err != nil {
 		return Group{}, err
 	}
 	return copyGroup(g, s.groupSubtreeLocked(groupID), s.data.Hosts), nil
