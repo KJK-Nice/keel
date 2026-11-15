@@ -51,8 +51,10 @@ type notebookPane struct {
 	titleSeen, mdSeen string // what the last frame saw, to find an edit
 	auto              *autosave
 	saving            bool
-	failed            bool // the last save failed: typing that is only here
-	gone              bool // the notebook was deleted or the pane closed: no save may bring it back
+	flight            *saveFlight // the running save, for a quit that must save after it
+	deleting          bool        // a delete is on its way: no save may bring the notebook back
+	failed            bool        // the last save failed: typing that is only here
+	gone              bool        // the notebook was deleted or the pane closed: no save may bring it back
 	waiters           []func(ok bool)
 	toldRev           int // the server revision the typing-over-an-edit toast was shown for
 
@@ -61,6 +63,13 @@ type notebookPane struct {
 	editH     ui.Handle
 	opts      *markdown.Options
 	clicked   map[int]time.Time // fence index -> when Copy was pressed (the label shows "Copied" for 2 s)
+}
+
+// saveFlight is a save on its way: done closes after res and err are set, on whichever goroutine made the request.
+type saveFlight struct {
+	done chan struct{}
+	res  keelclient.SavedNotebook
+	err  error
 }
 
 func newNotebookState() *notebookPane {
@@ -165,6 +174,7 @@ func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
 func (w *workspace) reloadNotebooks() {
 	call(w, w.be.Notebooks, func(nbs []keelclient.Notebook, err error) {
 		if err != nil {
+			w.stale()
 			w.fail("notebooks", err)
 			return
 		}
@@ -294,7 +304,7 @@ func (w *workspace) splitNotebook() { w.newNotebook() }
 // changed meanwhile (autosave.end).
 func (w *workspace) nbPump(p *pane) {
 	n := p.nb
-	if n.saving {
+	if n.saving || n.deleting {
 		return
 	}
 	if !n.auto.begin() {
@@ -304,14 +314,17 @@ func (w *workspace) nbPump(p *pane) {
 	n.saving = true
 	in, id := n.payload(), n.id
 	name := in.Name
+	fl := &saveFlight{done: make(chan struct{})}
+	n.flight = fl
 	call(w, func(c context.Context) (res keelclient.SavedNotebook, err error) {
+		defer func() { fl.res, fl.err = res, err; close(fl.done) }()
 		if id == "" {
 			res.Notebook, err = w.be.CreateNotebook(c, in)
 			return res, err
 		}
 		return w.be.SaveNotebook(c, id, in)
 	}, func(res keelclient.SavedNotebook, err error) {
-		n.saving = false
+		n.saving, n.flight = false, nil
 		again := n.auto.end()
 		if err != nil {
 			n.failed = true
@@ -399,26 +412,67 @@ func (w *workspace) nbClosed(p *pane) {
 	p.nb.gone = true
 }
 
-// flushNotebooksNow saves every open notebook before the window closes, and waits for the answers.
+// quitSaveWait is how long the quit waits, in all, for the notebook saves.
+var quitSaveWait = 3 * time.Second
+
+// flushNotebooksNow saves every open notebook with typing keel serve does not have before the window closes: all of them
+// at once, under one deadline. A pane whose save is running saves its newer text after that save ends, on the revision the
+// running one made.
 func (w *workspace) flushNotebooksNow() {
+	c, cancel := context.WithTimeout(context.Background(), quitSaveWait)
+	defer cancel()
+	type job struct {
+		n   *notebookPane
+		err chan error // buffered: a save that ends after the deadline is not waited for
+	}
+	var jobs []job
 	for _, p := range w.notebookPanes() {
 		n := p.nb
 		n.retryFailed()
-		if n.gone || !n.auto.pending() || n.saving {
+		if n.gone || n.deleting || !n.auto.dirty {
 			continue
 		}
-		n.auto.begin()
-		c, cancel := ctx()
+		n.auto.dirty = false
+		j := job{n, make(chan error, 1)}
+		jobs = append(jobs, j)
+		id, in, cellID, fl := n.id, n.payload(), n.cellID, n.flight
+		go func() {
+			if fl != nil {
+				select {
+				case <-fl.done:
+				case <-c.Done():
+					j.err <- c.Err()
+					return
+				}
+				if fl.err == nil {
+					id, in.Rev = fl.res.ID, fl.res.Rev
+					if len(fl.res.Cells) > 0 && cellID == "" {
+						in.Cells[0].ID = fl.res.Cells[0].ID
+					}
+				}
+			}
+			var err error
+			if id == "" {
+				_, err = w.be.CreateNotebook(c, in)
+			} else {
+				_, err = w.be.SaveNotebook(c, id, in)
+			}
+			j.err <- err
+		}()
+	}
+	for _, j := range jobs {
 		var err error
-		if n.id == "" {
-			_, err = w.be.CreateNotebook(c, n.payload())
-		} else {
-			_, err = w.be.SaveNotebook(c, n.id, n.payload())
+		select {
+		case err = <-j.err:
+		case <-c.Done():
+			select {
+			case err = <-j.err:
+			default:
+				err = c.Err()
+			}
 		}
-		cancel()
-		n.auto.end()
 		if err != nil {
-			n.failed = true
+			j.n.failed = true
 			w.warn(nbErr(err, "Could not save notebook"))
 		}
 	}
@@ -534,8 +588,17 @@ func (w *workspace) askDeleteNotebook(id string) {
 // back); when keel serve cannot keep it in Recently deleted it asks before deleting for good.
 func (w *workspace) deleteNotebook(id string, permanent bool) {
 	rec, _ := w.notebook(id)
+	deleting := func(on bool) {
+		for _, p := range w.notebookPanes() {
+			if p.nb.id == id {
+				p.nb.deleting = on
+			}
+		}
+	}
 	w.nbFlushID(id, func() {
+		deleting(true) // typing from now on is not saved: a save after the delete would put the notebook back
 		callErr(w, func(c context.Context) error { return w.be.DeleteNotebook(c, id, permanent) }, func(err error) {
+			deleting(false)
 			switch {
 			case err == nil:
 				w.removeNotebook(id)

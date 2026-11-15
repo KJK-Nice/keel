@@ -3,6 +3,7 @@ package native
 import (
 	"context"
 	"io"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +23,9 @@ const (
 	startCols   = 80 // the size a session starts at; the terminal view resizes it
 	startRows   = 24
 )
+
+// attachWorkers is how many saved sessions start attaches at once.
+var attachWorkers = 4
 
 // session is what a pane needs of a keel serve connection (*keelclient.Conn, or a fake in tests).
 type session interface {
@@ -250,6 +254,8 @@ type pane struct {
 	copyOnSelect bool
 	rightClick   string
 	setCopy      func(on bool)
+
+	note string // what the failure banner says instead of the session's message (a re-attach found the session gone)
 
 	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
 
@@ -561,23 +567,42 @@ func (w *workspace) start() {
 			conn session
 			sid  string
 		}
+		// Each session is attached on its own goroutine, attachWorkers at a time, so a daemon that answers slowly costs one
+		// wait and not one per session; the results keep the order the sessions came in.
+		results := make([]attached, len(sessions))
+		errs := make([]error, len(sessions))
+		var wg sync.WaitGroup
+		slots := make(chan struct{}, attachWorkers)
+		for i, s := range sessions {
+			slots <- struct{}{}
+			wg.Add(1)
+			go func() {
+				defer func() { <-slots; wg.Done() }()
+				cols, rows := s.Cols, s.Rows
+				if cols <= 0 || rows <= 0 {
+					cols, rows = startCols, startRows
+				}
+				conn, err := w.be.Attach(s.ID, cols, rows)
+				if err != nil {
+					errs[i] = err
+					return
+				}
+				h := keelclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
+				if k, ok := hostByID(hosts, s.HostID); ok {
+					h = k
+				}
+				results[i] = attached{h, conn, s.ID}
+			}()
+		}
+		wg.Wait()
 		var live []attached
 		var failed error
-		for _, s := range sessions {
-			cols, rows := s.Cols, s.Rows
-			if cols <= 0 || rows <= 0 {
-				cols, rows = startCols, startRows
+		for i, a := range results {
+			if errs[i] != nil {
+				failed = errs[i]
+			} else {
+				live = append(live, a)
 			}
-			conn, err := w.be.Attach(s.ID, cols, rows)
-			if err != nil {
-				failed = err
-				continue
-			}
-			h := keelclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
-			if k, ok := hostByID(hosts, s.HostID); ok {
-				h = k
-			}
-			live = append(live, attached{h, conn, s.ID})
 		}
 		doc := loadSaved(w.dataDir)
 		w.post(func() {
@@ -748,13 +773,57 @@ func (w *workspace) closePane(t *tab, id string) {
 	}
 }
 
-// reconnect asks keel serve to start p's session again; the socket reports the new status.
+// reconnect asks keel serve to start p's session again; the socket reports the new status. A pane whose own socket
+// was lost is attached again instead: its session may still run, and the old socket can report nothing.
 func (w *workspace) reconnect(p *pane) {
 	sid := p.sessionID()
 	if sid == "" {
 		return
 	}
+	if p.conn.Snapshot().SocketLost {
+		w.reattach(p, sid)
+		return
+	}
 	w.failed("reconnect", func(c context.Context) error { return w.be.Reconnect(c, sid) })
+}
+
+// reattach opens a new connection to p's session and gives it to the pane and to a new terminal view (mkBody makes it
+// like any pane's). A session keel serve no longer lists is said so in the pane.
+func (w *workspace) reattach(p *pane, sid string) {
+	cols, rows := startCols, startRows
+	if p.size != nil {
+		if c, r := p.size(); c > 0 && r > 0 {
+			cols, rows = c, r
+		}
+	}
+	call(w, func(c context.Context) (session, error) {
+		list, err := w.be.Sessions(c)
+		if err != nil {
+			return nil, err
+		}
+		if !slices.ContainsFunc(list, func(s keelclient.Session) bool { return s.ID == sid }) {
+			return nil, nil
+		}
+		return w.be.Attach(sid, cols, rows)
+	}, func(conn session, err error) {
+		switch {
+		case err != nil:
+			w.fail("reconnect", err)
+		case conn == nil:
+			p.note = "This session no longer exists on keel serve"
+		case !w.hasPane(p):
+			conn.Close()
+		default:
+			w.release(p)
+			p.conn, p.note = conn, ""
+			conn.OnChange(func() { w.post(func() {}) })
+			w.mkBody(p)
+		}
+	})
+}
+
+func (w *workspace) hasPane(p *pane) bool {
+	return slices.ContainsFunc(w.tabs, func(t *tab) bool { return t.panes[p.id] == p })
 }
 
 // failed runs a request whose only visible result is a toast when it fails.
@@ -846,9 +915,11 @@ func (w *workspace) release(p *pane) {
 
 // closeWindow detaches: every connection closes and no session is killed.
 func (w *workspace) closeWindow() {
-	w.saveNow()
+	if err := w.saveNow(); err != nil {
+		w.fail("save workspace", err)
+	}
 	if what, err := w.flushPrefs(); err != nil {
-		w.fail(what, err)
+		w.prefsFailed(what, err)
 	}
 	w.flushNotebooksNow() // what was typed in a notebook is saved before the window goes
 	w.closed = true

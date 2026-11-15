@@ -3,6 +3,7 @@ package native
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -216,13 +217,13 @@ func TestSavePrefsKeepsOtherFieldsAndWritesPrivately(t *testing.T) {
 	if m, _ := filepath.Glob(filepath.Join(dir, "*.tmp")); len(m) != 0 {
 		t.Errorf("temp files left: %v", m)
 	}
-	// A file that is not JSON is not overwritten.
+	// A file that is not JSON is kept as keel-native.json.bad and a new one is written (prefsrepair_test.go).
 	os.WriteFile(path, []byte("{"), 0o600)
-	if err := savePrefs(dir, map[string]any{"termSize": 11}); err == nil {
-		t.Error("saved over a file that is not JSON")
+	if err := savePrefs(dir, map[string]any{"termSize": 11}); !errors.Is(err, errPrefsRepaired) {
+		t.Errorf("a file that is not JSON: %v", err)
 	}
-	if b, _ := os.ReadFile(path); string(b) != "{" {
-		t.Errorf("the file became %q", b)
+	if b, _ := os.ReadFile(path + ".bad"); string(b) != "{" || loadPrefs(dir).TermSize != 11 {
+		t.Errorf("the bad file is %q, termSize %d", b, loadPrefs(dir).TermSize)
 	}
 	// Out of range values in the file give the default.
 	os.WriteFile(path, []byte(`{"termSize":99}`), 0o600)

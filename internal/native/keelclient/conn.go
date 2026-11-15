@@ -96,6 +96,7 @@ type State struct {
 	Blocked                  uint64    // keystrokes dropped because this client was not driving (the "Typing is off" notice)
 	HostKey                  HostKey   // zero when there is no host-key problem
 	WasReady                 bool      // the session was ready at some point (a later failure is a lost connection)
+	SocketLost               bool      // this client's socket failed while the session was up: it may still run on keel serve, so Reconnect attaches again
 	Log                      []LogLine // the connection log a failed or connecting pane shows and Copy logs copies (log.go)
 }
 
@@ -108,9 +109,14 @@ func (s State) Driving() bool { return s.Role == wire.RoleDriver }
 // CanType is the one rule for typing into a session for the user: it is ready and this client drives it.
 func (s State) CanType() bool { return s.Ready() && s.Driving() }
 
+// dialTimeout is how long a dial may take to reach the handshake's answer: keel serve is on this machine, so a longer
+// wait is a daemon that is not answering.
+var dialTimeout = 5 * time.Second
+
 func dialWS(u, token string) (*Conn, error) {
 	h := http.Header{authtoken.Header: {token}} // a native client sends no origin header
-	ws, _, err := websocket.DefaultDialer.Dial(u, h)
+	d := websocket.Dialer{Proxy: http.ProxyFromEnvironment, HandshakeTimeout: dialTimeout}
+	ws, _, err := d.Dial(u, h)
 	if err != nil {
 		// gorilla's error names the status, never the headers we sent.
 		return nil, err
@@ -151,6 +157,7 @@ func (c *Conn) lost() {
 	s.recordLog(s.Status, wire.StatusError, "The connection to keel serve was lost")
 	s.Status = wire.StatusError
 	s.Message = "The connection to keel serve was lost"
+	s.SocketLost = true
 	fn := c.onChange
 	c.mu.Unlock()
 	if fn != nil {
@@ -226,7 +233,7 @@ func (c *Conn) control(data []byte) {
 
 func sameState(a, b State) bool {
 	return a.Blocked == b.Blocked && a.Status == b.Status && a.Title == b.Title && a.Subtitle == b.Subtitle && a.Message == b.Message &&
-		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady &&
+		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady && a.SocketLost == b.SocketLost &&
 		slices.Equal(a.Attached, b.Attached) && slices.Equal(a.Log, b.Log)
 }
 

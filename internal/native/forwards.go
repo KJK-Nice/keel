@@ -202,6 +202,7 @@ func (w *workspace) readTunnels(busy *bool, quiet bool) {
 		case err == nil:
 			w.tunnels = ts
 		case !quiet:
+			w.stale()
 			w.fail("forwards", err)
 		}
 	})

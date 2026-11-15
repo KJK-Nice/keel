@@ -50,6 +50,7 @@ func (w *workspace) reloadHosts() {
 		return r, err
 	}, func(r read, err error) {
 		if err != nil {
+			w.stale()
 			w.fail("hosts", err)
 			return
 		}
@@ -60,10 +61,14 @@ func (w *workspace) reloadHosts() {
 	})
 }
 
+// stale forgets the rev the window has read: a refresh that failed is tried again by the next poll.
+func (w *workspace) stale() { w.rev = "" }
+
 // reloadSnippets reads the snippets again.
 func (w *workspace) reloadSnippets() {
 	call(w, w.be.Snippets, func(snippets []keelclient.Snippet, err error) {
 		if err != nil {
+			w.stale()
 			w.fail("snippets", err)
 			return
 		}
