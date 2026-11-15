@@ -126,6 +126,7 @@ func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 	if err := ValidateIdentityKind(in.Kind); err != nil {
 		return Identity{}, &fieldError{of: ErrIdentityField, msg: err.Error()}
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	at := -1
 	if in.ID != "" {
@@ -147,7 +148,7 @@ func (s *Store) UpsertIdentity(in Identity) (Identity, error) {
 	s.data.Identities[at] = persistIdentityFrom(in)
 	s.putSecretLocked(identitySecretID(in.ID), hostSecret{Password: in.Password, PrivateKey: in.PrivateKey, Passphrase: in.Passphrase}, prev)
 	out := s.identityOfLocked(s.data.Identities[at])
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveOrUndoLocked(u); err != nil {
 		return Identity{}, err
 	}
 	return out, nil
@@ -166,6 +167,7 @@ func (s *Store) DeleteIdentity(id string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	out := s.data.Identities[:0]
 	found := false
 	for _, p := range s.data.Identities {
@@ -185,7 +187,7 @@ func (s *Store) DeleteIdentity(id string) error {
 			s.data.Hosts[i].IdentityID = ""
 		}
 	}
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func ValidateIdentityKind(kind string) error {

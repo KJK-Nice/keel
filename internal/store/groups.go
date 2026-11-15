@@ -39,12 +39,13 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 	// SetGroupVar: a rename or move from a form keeps them, and a new
 	// group starts with none.
 	g.Roles, g.Vars = nil, nil
+	u := s.undoPointLocked()
 	if g.ID == "" {
 		g.ID = newID()
 		g.CreatedAt = now
 		g.UpdatedAt = now
 		s.data.Groups = append(s.data.Groups, g)
-		return g, s.saveLocked()
+		return g, s.saveOrUndoLocked(u)
 	}
 	for i, existing := range s.data.Groups {
 		if existing.ID == g.ID {
@@ -52,13 +53,13 @@ func (s *Store) UpsertGroup(g Group) (Group, error) {
 			g.Roles, g.Vars = existing.Roles, existing.Vars
 			g.UpdatedAt = now
 			s.data.Groups[i] = g
-			return g, s.saveLocked()
+			return g, s.saveOrUndoLocked(u)
 		}
 	}
 	g.CreatedAt = now
 	g.UpdatedAt = now
 	s.data.Groups = append(s.data.Groups, g)
-	return g, s.saveLocked()
+	return g, s.saveOrUndoLocked(u)
 }
 
 // DeleteGroup removes a group: its hosts and subgroups move up to its
@@ -80,6 +81,7 @@ func (s *Store) deleteGroup(id string) error {
 		return ErrLocked
 	}
 	id = strings.TrimSpace(id)
+	u := s.undoPointLocked()
 	var parent string
 	found := false
 	kept := s.data.Groups[:0]
@@ -111,7 +113,7 @@ func (s *Store) deleteGroup(id string) error {
 			}
 		}
 	}
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func (s *Store) hydrateGroupLocked(h Host, persistGroup string) Host {

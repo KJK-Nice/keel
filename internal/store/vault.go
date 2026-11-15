@@ -131,11 +131,23 @@ func scryptIdentity(pass string) (age.Identity, error) {
 	return age.NewScryptIdentity(pass)
 }
 
+// keychain is where the vault key item lives: the OS keychain (osKeychain)
+// outside tests, a fake in the tests of keychain failures.
+type keychain interface {
+	Get(service, user string) (string, error)
+	Set(service, user, secret string) error
+}
+
+type osKeychain struct{}
+
+func (osKeychain) Get(service, user string) (string, error) { return keyring.Get(service, user) }
+func (osKeychain) Set(service, user, secret string) error   { return keyring.Set(service, user, secret) }
+
 func (s *Store) keyringIdentity() (*age.X25519Identity, error) {
 	if s.keyringOff {
 		return nil, errKeyringOff
 	}
-	v, err := keyring.Get(keyringService, keyringAccount)
+	v, err := s.keychain.Get(keyringService, keyringAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -146,5 +158,5 @@ func (s *Store) saveKeyringIdentity(ident *age.X25519Identity) error {
 	if s.keyringOff {
 		return errKeyringOff
 	}
-	return keyring.Set(keyringService, keyringAccount, ident.String())
+	return s.keychain.Set(keyringService, keyringAccount, ident.String())
 }

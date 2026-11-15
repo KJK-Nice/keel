@@ -47,13 +47,14 @@ func (s *Store) UpsertTunnel(tn Tunnel) (Tunnel, error) {
 	if err := validateTunnel(tn); err != nil {
 		return Tunnel{}, err
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	if tn.ID == "" {
 		tn.ID = newID()
 		tn.CreatedAt = now
 		tn.UpdatedAt = now
 		s.data.Tunnels = append(s.data.Tunnels, tn)
-		return tn, s.saveLocked()
+		return tn, s.saveOrUndoLocked(u)
 	}
 	for i, existing := range s.data.Tunnels {
 		if existing.ID != tn.ID {
@@ -62,12 +63,12 @@ func (s *Store) UpsertTunnel(tn Tunnel) (Tunnel, error) {
 		tn.CreatedAt = existing.CreatedAt
 		tn.UpdatedAt = now
 		s.data.Tunnels[i] = tn
-		return tn, s.saveLocked()
+		return tn, s.saveOrUndoLocked(u)
 	}
 	tn.CreatedAt = now
 	tn.UpdatedAt = now
 	s.data.Tunnels = append(s.data.Tunnels, tn)
-	return tn, s.saveLocked()
+	return tn, s.saveOrUndoLocked(u)
 }
 
 func (s *Store) DeleteTunnel(id string) error {
@@ -76,6 +77,7 @@ func (s *Store) DeleteTunnel(id string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	out := s.data.Tunnels[:0]
 	found := false
 	for _, t := range s.data.Tunnels {
@@ -89,7 +91,7 @@ func (s *Store) DeleteTunnel(id string) error {
 		return ErrNotFound
 	}
 	s.data.Tunnels = out
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func validateTunnel(tn Tunnel) error {

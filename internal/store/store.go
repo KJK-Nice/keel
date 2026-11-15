@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+	"github.com/zalando/go-keyring"
 
 	"keel/internal/limits"
 	"keel/internal/paths"
@@ -391,6 +393,9 @@ type Store struct {
 	// unsavedMigration is set while what a load-time migration changed is
 	// only in memory: the vault was locked, so it is saved at the unlock.
 	unsavedMigration bool
+	// pending holds the secrets an old keel.json had in the clear while an
+	// existing keel.vault is locked; Unlock adds them to the vault.
+	pending map[string]hostSecret
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
 	fromEnv bool
@@ -399,6 +404,7 @@ type Store struct {
 	// set once, in New.
 	keyringOff bool
 	scryptWork int
+	keychain   keychain
 	// now is the clock of host key offers: time.Now, set in New (a test of
 	// their expiry replaces it).
 	now       func() time.Time
@@ -471,6 +477,7 @@ func New(path string, opts ...Option) (*Store, error) {
 		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
 		secrets:    map[string]hostSecret{},
 		keyringOff: os.Getenv(envKeyring) == "off",
+		keychain:   osKeychain{},
 		now:        time.Now,
 	}
 	for _, o := range opts {
@@ -499,15 +506,17 @@ func New(path string, opts ...Option) (*Store, error) {
 		s.data, pending = plain.data, plain.secrets
 	}
 	s.unsavedMigration = migrateGroups(&s.data)
-	if err := s.bootstrap(); err != nil {
+	if err := s.bootstrap(pending); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
-		if len(pending) > 0 {
-			s.secrets = pending
-			s.needSetup = true
+		// With no keel.vault, Setup saves them; an existing vault must be
+		// opened with its own key first, and they join it at the unlock.
+		if !s.needSetup && len(pending) > 0 {
+			s.secrets = map[string]hostSecret{}
+			s.pending = pending
 		}
 		return s, nil
 	}
@@ -627,9 +636,13 @@ func seed() persistData {
 	}
 }
 
-func (s *Store) bootstrap() error {
+// bootstrap opens or creates the vault. pending (an old keel.json's
+// secrets) is in s.secrets before any save it makes, so keel.json is never
+// written without them before keel.vault has them.
+func (s *Store) bootstrap(pending map[string]hostSecret) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	maps.Copy(s.secrets, pending)
 	if pass := envPass(); pass != "" {
 		if err := s.unlockScryptLocked(pass, true); err != nil {
 			return err
@@ -637,7 +650,8 @@ func (s *Store) bootstrap() error {
 		s.fromEnv = true
 		return nil
 	}
-	if ident, err := s.keyringIdentity(); err == nil {
+	ident, kerr := s.keyringIdentity()
+	if kerr == nil {
 		blob, rerr := os.ReadFile(s.vaultPath)
 		if rerr != nil && !os.IsNotExist(rerr) {
 			return rerr
@@ -665,16 +679,20 @@ func (s *Store) bootstrap() error {
 		return err
 	}
 	if os.IsNotExist(err) {
-		ident, gerr := age.GenerateX25519Identity()
-		if gerr != nil {
-			return gerr
-		}
-		if serr := s.saveKeyringIdentity(ident); serr == nil {
-			s.recipient = ident.Recipient()
-			s.data.Vault = vaultX25519
-			s.data.Version = 3
-			s.locked.Store(false)
-			return s.saveLocked()
+		// Only a keychain that has no item gets a new key: after any other
+		// error the item may exist, and every data dir shares it.
+		if errors.Is(kerr, keyring.ErrNotFound) {
+			ident, gerr := age.GenerateX25519Identity()
+			if gerr != nil {
+				return gerr
+			}
+			if serr := s.saveKeyringIdentity(ident); serr == nil {
+				s.recipient = ident.Recipient()
+				s.data.Vault = vaultX25519
+				s.data.Version = 3
+				s.locked.Store(false)
+				return s.saveLocked()
+			}
 		}
 		s.locked.Store(true)
 		s.needSetup = true
@@ -706,14 +724,26 @@ func (s *Store) Unlock(passphrase string) error {
 	if !s.locked.Load() {
 		return nil
 	}
-	if passphrase == "" {
+	// A keychain vault opens only with the keychain's key, whatever was
+	// typed: it is locked because that read failed at start, so ask again.
+	keychainVault := s.data.Vault == vaultX25519 && !s.needSetup
+	if passphrase == "" && !keychainVault {
 		return ErrPassphrase
 	}
 	if s.needSetup {
 		return s.setupLocked(passphrase)
 	}
-	if err := s.unlockScryptLocked(passphrase, false); err != nil {
+	unlock := func() error { return s.unlockScryptLocked(passphrase, false) }
+	if keychainVault {
+		unlock = s.unlockKeychainLocked
+	}
+	if err := unlock(); err != nil {
 		return err
+	}
+	if len(s.pending) > 0 {
+		maps.Copy(s.secrets, s.pending)
+		s.pending = nil
+		s.unsavedMigration = true
 	}
 	if s.unsavedMigration {
 		if err := s.saveLocked(); err != nil {
@@ -725,6 +755,25 @@ func (s *Store) Unlock(passphrase string) error {
 	// Unlocking saves nothing else, but every list goes from "Vault
 	// locked" to its contents.
 	s.changed()
+	return nil
+}
+
+func (s *Store) unlockKeychainLocked() error {
+	ident, err := s.keyringIdentity()
+	if err != nil {
+		return fmt.Errorf("the vault key could not be read from the OS keychain: %w", err)
+	}
+	blob, err := os.ReadFile(s.vaultPath)
+	if err != nil {
+		return err
+	}
+	secrets, err := decryptVault(blob, ident)
+	if err != nil {
+		return fmt.Errorf("the OS keychain's vault key does not open keel.vault: %w", err)
+	}
+	s.secrets = secrets
+	s.recipient = ident.Recipient()
+	s.locked.Store(false)
 	return nil
 }
 
@@ -865,7 +914,22 @@ func (s *Store) fullLocked(h persistHost) Host {
 	return out
 }
 
+// checkHostID refuses a caller's host id outside [0-9A-Za-z_-]: a host's
+// secrets are kept under its id, beside the vault's own (agentchats:key,
+// identity:<id>, ...), which all hold a colon.
+func checkHostID(id string) error {
+	for _, r := range id {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r == '_' || r == '-') {
+			return fieldErr("host id may hold only letters, digits, _ and -")
+		}
+	}
+	return nil
+}
+
 func (s *Store) UpsertHost(h Host) (Host, error) {
+	if err := checkHostID(h.ID); err != nil {
+		return Host{}, err
+	}
 	// A host created under an id the caller chose starts with no notes: a
 	// note left from an earlier host with that id (whose notes could not be
 	// removed when it was deleted) must not come back with it. Notes are
@@ -880,6 +944,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if s.locked.Load() {
 		return Host{}, ErrLocked
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	h.Tags = NormalizeTags(h.Tags)
 	if h.Port == 0 && !h.IsLocal() {
@@ -918,7 +983,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	s.data.Hosts[at] = persistFrom(h)
 	s.putSecretLocked(h.ID, hostSecret{Password: h.Password, PrivateKey: h.PrivateKey, Passphrase: h.Passphrase}, prev)
 	out := s.fullLocked(s.data.Hosts[at])
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveOrUndoLocked(u); err != nil {
 		return Host{}, err
 	}
 	return out, nil
@@ -1025,6 +1090,9 @@ func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 // it, and a host created later under the same id clears its notes first
 // (UpsertHost).
 func (s *Store) DeleteHost(id string) error {
+	if err := checkHostID(id); err != nil {
+		return err
+	}
 	if err := s.deleteHost(id); err != nil {
 		return err
 	}
@@ -1040,6 +1108,7 @@ func (s *Store) deleteHost(id string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	hosts := s.data.Hosts[:0]
 	found := false
 	for _, h := range s.data.Hosts {
@@ -1054,7 +1123,7 @@ func (s *Store) deleteHost(id string) error {
 	}
 	s.data.Hosts = hosts
 	delete(s.secrets, id)
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func (s *Store) ListSnippets() ([]Snippet, error) {
@@ -1074,23 +1143,24 @@ func (s *Store) UpsertSnippet(sn Snippet) (Snippet, error) {
 	if s.locked.Load() {
 		return Snippet{}, ErrLocked
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	if sn.ID == "" {
 		sn.ID = newID()
 		sn.CreatedAt = now
 		s.data.Snippets = append(s.data.Snippets, sn)
-		return sn, s.saveLocked()
+		return sn, s.saveOrUndoLocked(u)
 	}
 	for i, existing := range s.data.Snippets {
 		if existing.ID == sn.ID {
 			sn.CreatedAt = existing.CreatedAt
 			s.data.Snippets[i] = sn
-			return sn, s.saveLocked()
+			return sn, s.saveOrUndoLocked(u)
 		}
 	}
 	sn.CreatedAt = now
 	s.data.Snippets = append(s.data.Snippets, sn)
-	return sn, s.saveLocked()
+	return sn, s.saveOrUndoLocked(u)
 }
 
 func (s *Store) DeleteSnippet(id string) error {
@@ -1099,6 +1169,7 @@ func (s *Store) DeleteSnippet(id string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	out := s.data.Snippets[:0]
 	found := false
 	for _, sn := range s.data.Snippets {
@@ -1112,7 +1183,7 @@ func (s *Store) DeleteSnippet(id string) error {
 		return ErrNotFound
 	}
 	s.data.Snippets = out
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 // CheckHostKey checks a fingerprint against the known hosts. It records no
@@ -1213,6 +1284,40 @@ func (s *Store) saveLocked() error {
 		s.changed()
 	}
 	return werr
+}
+
+// undoPoint is s.data and the secrets before a change, so a save that
+// fails can put them back (saveOrUndoLocked).
+type undoPoint struct {
+	data    persistData
+	secrets map[string]hostSecret
+	gen     uint64
+}
+
+// undoPointLocked records the state a mutation starts from. Elements are
+// copied by value: a mutation replaces an element or a field of it, never
+// what a slice or map inside it points to.
+func (s *Store) undoPointLocked() undoPoint {
+	d := s.data
+	d.Hosts = slices.Clone(d.Hosts)
+	d.Identities = slices.Clone(d.Identities)
+	d.Tunnels = slices.Clone(d.Tunnels)
+	d.Snippets = slices.Clone(d.Snippets)
+	d.Notebooks = slices.Clone(d.Notebooks)
+	d.Groups = slices.Clone(d.Groups)
+	return undoPoint{data: d, secrets: maps.Clone(s.secrets), gen: s.saveGen}
+}
+
+// saveOrUndoLocked is saveLocked that, when the save fails, puts back the
+// state at u. It does so only when no other save snapshotted meanwhile
+// (saveLocked releases mu): that one carries this change, and its outcome
+// decides.
+func (s *Store) saveOrUndoLocked(u undoPoint) error {
+	err := s.saveLocked()
+	if err != nil && s.saveGen <= u.gen+1 {
+		s.data, s.secrets = u.data, u.secrets
+	}
+	return err
 }
 
 // saveDurableLocked is saveLocked without releasing mu: no reader sees the

@@ -372,7 +372,7 @@ func (s *Store) RestoreDeletedNotebook(vid string) (Notebook, error) {
 	if s.locked.Load() {
 		return Notebook{}, ErrLocked
 	}
-	v, idx, err := s.versionLocked("", vid)
+	v, _, err := s.versionLocked("", vid)
 	if err != nil {
 		return Notebook{}, err
 	}
@@ -389,15 +389,25 @@ func (s *Store) RestoreDeletedNotebook(vid string) (Notebook, error) {
 	if nb.CreatedAt.IsZero() {
 		nb.CreatedAt = now
 	}
-	h := s.historyLocked()
-	prev := h.versions
-	h.versions = append(append([]NotebookVersion(nil), h.versions[:idx]...), h.versions[idx+1:]...)
-	if err := s.writeHistoryLocked(h); err != nil {
-		h.versions = prev
-		return Notebook{}, fmt.Errorf("%w: %v", ErrHistoryUnavailable, err)
-	}
+	// The notebook is saved back first, then taken out of Recently deleted:
+	// a crash or failure between the two leaves a harmless copy there,
+	// never the notebook in neither place.
 	s.data.Notebooks = append(s.data.Notebooks, nb)
-	return nb, s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		if i := s.notebookIndexLocked(nb.ID); i >= 0 {
+			s.removeNotebookLocked(i)
+		}
+		return Notebook{}, err
+	}
+	if _, idx, err := s.versionLocked("", vid); err == nil {
+		h := s.historyLocked()
+		prev := h.versions
+		h.versions = append(append([]NotebookVersion(nil), h.versions[:idx]...), h.versions[idx+1:]...)
+		if err := s.writeHistoryLocked(h); err != nil {
+			h.versions = prev
+		}
+	}
+	return nb, nil
 }
 
 // DeletedNotebookByID is one entry of Recently deleted, with its text, for

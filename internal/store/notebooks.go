@@ -112,6 +112,7 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 	if s.locked.Load() {
 		return Notebook{}, false, ErrLocked
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	base := nb.Rev
 	nb = normalizeNotebook(nb, now)
@@ -141,7 +142,7 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 			nb.LastBy = ex.LastBy
 		}
 		s.data.Notebooks[i] = nb
-		return nb, replacedAgent, s.saveLocked()
+		return nb, replacedAgent, s.saveOrUndoLocked(u)
 	}
 	if nb.ID == "" {
 		nb.ID = newID()
@@ -150,7 +151,7 @@ func (s *Store) SaveUserNotebook(nb Notebook) (saved Notebook, replacedAgent boo
 	nb.UpdatedAt = now
 	nb.Rev = 1
 	s.data.Notebooks = append(s.data.Notebooks, nb)
-	return nb, false, s.saveLocked()
+	return nb, false, s.saveOrUndoLocked(u)
 }
 
 // UpdateNotebookMeta renames or pins a notebook without touching its
@@ -243,8 +244,9 @@ func (s *Store) DeleteNotebook(id string, permanent bool) error {
 	if _, err := s.keepVersionStrictLocked(s.data.Notebooks[i], "deleted", "", time.Now().UTC()); err != nil && !permanent {
 		return err
 	}
+	u := s.undoPointLocked()
 	s.removeNotebookLocked(i)
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func (s *Store) removeNotebookLocked(i int) {
@@ -315,8 +317,9 @@ func (s *Store) AgentCreateNotebook(nb Notebook) (Notebook, error) {
 	nb.AgentEditedAt, nb.AgentUnreviewed = &at, true
 	nb.Rev = 1
 	nb.CreatedAt, nb.UpdatedAt = now, now
+	u := s.undoPointLocked()
 	s.data.Notebooks = append(s.data.Notebooks, nb)
-	return nb, s.saveLocked()
+	return nb, s.saveOrUndoLocked(u)
 }
 
 // AgentEditNotebook applies the agent's edit to a notebook that is not
