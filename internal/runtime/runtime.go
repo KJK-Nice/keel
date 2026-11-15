@@ -899,6 +899,8 @@ func (s *Session) runLoop() {
 		}
 		cols, rows := s.cols, s.rows
 		hostID := s.host.ID
+		// A request made from here on survives a failed attempt.
+		s.forceReconnect = false
 		s.mu.Unlock()
 		if s.rt != nil && s.rt.store != nil {
 			// Every connect uses the host as saved now. If it cannot be
@@ -910,9 +912,6 @@ func (s *Session) runLoop() {
 				s.setConnectError(err)
 				s.noteLine("Cannot connect: " + err.Error())
 				s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusError, Message: err.Error(), Info: s.Info()})
-				s.mu.Lock()
-				s.forceReconnect = false
-				s.mu.Unlock()
 				return
 			}
 			s.mu.Lock()
@@ -948,9 +947,6 @@ func (s *Session) runLoop() {
 			}
 			s.setConnectError(err)
 			s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusError, Message: err.Error(), Info: s.Info()})
-			s.mu.Lock()
-			s.forceReconnect = false
-			s.mu.Unlock()
 			return
 		}
 

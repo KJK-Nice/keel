@@ -1,8 +1,10 @@
 package runtime
 
 import (
+	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,4 +61,46 @@ func TestReconnectFailsWhenHostCannotBeLoaded(t *testing.T) {
 	if len(bridges) != 1 {
 		t.Fatalf("dialed %d times; the stale host must not be dialed", len(bridges))
 	}
+}
+
+// A Reconnect asked while a reconnect is failing is not lost: the failed
+// attempt does not clear a request made after it began.
+func TestReconnectDuringFailingConnectIsNotLost(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	host.NoAutoReconnect = true
+	if _, err := st.UpsertHost(host); err != nil {
+		t.Fatal(err)
+	}
+	entered, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		if calls.Add(1) == 2 {
+			close(entered)
+			<-release
+			return nil, errors.New("connection refused")
+		}
+		return newFakeBridge(), nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	if _, err := rt.Reconnect(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	<-entered
+	if _, err := rt.Reconnect(info.ID); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	waitFor(t, func() bool { return calls.Load() >= 3 && sess.Info().Status == StatusReady }, func() string {
+		return string(sess.Info().Status)
+	})
 }
