@@ -2,7 +2,7 @@ package native
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -244,10 +244,19 @@ func (w *workspace) setPref(key string) {
 	if !queued {
 		w.work(func() {
 			if what, err := w.flushPrefs(); err != nil {
-				w.post(func() { w.fail(what, err) })
+				w.post(func() { w.prefsFailed(what, err) })
 			}
 		})
 	}
+}
+
+// prefsFailed tells the user a settings write did not work, or that a bad file was put aside.
+func (w *workspace) prefsFailed(what string, err error) {
+	if errors.Is(err, errPrefsRepaired) {
+		w.say(err.Error())
+		return
+	}
+	w.fail(what, err)
 }
 
 // flushPrefs writes the keys set since the last write, now. what names them for a failed write.
@@ -279,10 +288,14 @@ func savePrefs(dataDir string, set map[string]any) error {
 	defer prefsMu.Unlock()
 	fields := map[string]json.RawMessage{}
 	b, err := os.ReadFile(filepath.Join(dataDir, "keel-native.json"))
+	repaired := false
 	switch {
 	case err == nil:
-		if err := json.Unmarshal(b, &fields); err != nil {
-			return fmt.Errorf("keel-native.json is not JSON: %w", err)
+		if json.Unmarshal(b, &fields) != nil {
+			if err := os.Rename(filepath.Join(dataDir, "keel-native.json"), filepath.Join(dataDir, "keel-native.json.bad")); err != nil {
+				return err
+			}
+			fields, repaired = map[string]json.RawMessage{}, true
 		}
 	case !os.IsNotExist(err):
 		return err
@@ -299,8 +312,20 @@ func savePrefs(dataDir string, set map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(dataDir, "keel-native.json", out)
+	if err := writeFileAtomic(dataDir, "keel-native.json", out); err != nil {
+		return err
+	}
+	if repaired {
+		return errPrefsRepaired
+	}
+	return nil
 }
+
+// errPrefsRepaired is what savePrefs answers when the write worked but the old file was not JSON: it is kept as
+// keel-native.json.bad and a new one was written.
+//
+//lint:ignore ST1005 shown to the user in the app's words
+var errPrefsRepaired = errors.New("The settings file was not valid. It is kept as keel-native.json.bad and a new one was written")
 
 // writeFileAtomic writes dir/name through a temp file in dir and a rename, with mode 0600.
 func writeFileAtomic(dir, name string, data []byte) error {

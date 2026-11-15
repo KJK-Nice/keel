@@ -897,7 +897,7 @@ func (w *workspace) closeWindow() {
 		w.fail("save workspace", err)
 	}
 	if what, err := w.flushPrefs(); err != nil {
-		w.fail(what, err)
+		w.prefsFailed(what, err)
 	}
 	w.flushNotebooksNow() // what was typed in a notebook is saved before the window goes
 	w.closed = true

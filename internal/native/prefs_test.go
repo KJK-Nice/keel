@@ -30,7 +30,8 @@ func TestPrefsFileEndsWithTheLastValueSet(t *testing.T) {
 	}
 
 	// A failed write names the setting.
-	os.WriteFile(filepath.Join(dir, "keel-native.json"), []byte("{"), 0o600)
+	os.Remove(filepath.Join(dir, "keel-native.json"))
+	os.Mkdir(filepath.Join(dir, "keel-native.json"), 0o700) // a file that cannot be read
 	w.work = func(fn func()) { fn() }
 	w.setTermSize(termSizeMin)
 	if len(w.queued) != 1 || !strings.HasPrefix(w.queued[0].Title, "save the text size: ") {
