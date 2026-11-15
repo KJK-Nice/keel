@@ -165,9 +165,10 @@ func (s *Store) SetGroupRole(groupID, hostID, role string) (Group, error) {
 	if len(roles) == 0 {
 		roles = nil
 	}
+	u := s.undoPointLocked()
 	g.Roles, g.UpdatedAt = roles, time.Now().UTC()
 	s.data.Groups[idx] = g
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveOrUndoLocked(u); err != nil {
 		return Group{}, err
 	}
 	return copyGroup(g, tree, s.data.Hosts), nil

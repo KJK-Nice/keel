@@ -198,6 +198,7 @@ func (s *Store) SetAgentSettings(a AgentSettings) (AgentSettings, error) {
 	if s.locked.Load() {
 		return AgentSettings{}, ErrLocked
 	}
+	u := s.undoPointLocked()
 	s.data.Agent = &a
-	return a, s.saveLocked()
+	return a, s.saveOrUndoLocked(u)
 }

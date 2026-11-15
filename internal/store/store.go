@@ -1223,47 +1223,6 @@ func (s *Store) CheckHostKeyType(hostname, keyType, fingerprint string) error {
 	return &UnknownHostError{Host: hostname, Fingerprint: fingerprint, KeyType: keyType, Token: tok}
 }
 
-func (s *Store) TrustHostKey(hostname, fingerprint string, replace bool) error {
-	return s.TrustHostKeyType(hostname, fingerprint, "", replace)
-}
-
-// TrustHostKeyType is TrustHostKey that also records the key's type. An
-// empty keyType keeps a type already saved for the same fingerprint.
-func (s *Store) TrustHostKeyType(hostname, fingerprint, keyType string, replace bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.locked.Load() {
-		return ErrLocked
-	}
-	hostname = strings.TrimSpace(hostname)
-	fingerprint = strings.TrimSpace(fingerprint)
-	if hostname == "" || fingerprint == "" {
-		return errors.New("hostname and fingerprint are required")
-	}
-	if s.data.KnownHosts == nil {
-		s.data.KnownHosts = map[string]string{}
-	}
-	if prev, ok := s.data.KnownHosts[hostname]; ok && prev != fingerprint && !replace {
-		return &HostKeyMismatchError{Host: hostname, Expected: prev, Got: fingerprint}
-	}
-	prevType := s.data.KnownHostTypes[hostname]
-	same := s.data.KnownHosts[hostname] == fingerprint
-	s.data.KnownHosts[hostname] = fingerprint
-	keyType = strings.TrimSpace(keyType)
-	if keyType == "" && same {
-		keyType = prevType
-	}
-	if keyType != "" {
-		if s.data.KnownHostTypes == nil {
-			s.data.KnownHostTypes = map[string]string{}
-		}
-		s.data.KnownHostTypes[hostname] = keyType
-	} else {
-		delete(s.data.KnownHostTypes, hostname)
-	}
-	return s.saveDurableLocked()
-}
-
 // saveLocked persists s.data, and keel.vault when the secrets changed. Call
 // it with mu held, as the last step of a mutation. It snapshots under mu,
 // then releases mu for the encryption and the fsynced writes (tens of ms on
@@ -1305,6 +1264,8 @@ func (s *Store) undoPointLocked() undoPoint {
 	d.Snippets = slices.Clone(d.Snippets)
 	d.Notebooks = slices.Clone(d.Notebooks)
 	d.Groups = slices.Clone(d.Groups)
+	d.KnownHosts = maps.Clone(d.KnownHosts)
+	d.KnownHostTypes = maps.Clone(d.KnownHostTypes)
 	return undoPoint{data: d, secrets: maps.Clone(s.secrets), gen: s.saveGen}
 }
 

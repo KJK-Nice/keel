@@ -52,8 +52,9 @@ func (s *Store) SetAgentKey(provider, key string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	s.secrets[agentKeySecretID(provider)] = hostSecret{Token: key}
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 // ClearAgentKey removes provider's key from the vault. Clearing a key that
@@ -71,8 +72,9 @@ func (s *Store) ClearAgentKey(provider string) error {
 	if _, ok := s.secrets[agentKeySecretID(provider)]; !ok {
 		return nil
 	}
+	u := s.undoPointLocked()
 	delete(s.secrets, agentKeySecretID(provider))
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 // AgentKeyConfigured reports whether provider has a key, without reading it.

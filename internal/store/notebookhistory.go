@@ -337,8 +337,9 @@ func (s *Store) RestoreNotebookVersion(id, vid string, expectRev int) (Notebook,
 		nb.AgentEditedAt = &at
 	}
 	nb.UpdatedAt = now
+	u := s.undoPointLocked()
 	s.data.Notebooks[i] = nb
-	return nb, s.saveLocked()
+	return nb, s.saveOrUndoLocked(u)
 }
 
 // DeletedNotebooks lists Recently deleted, newest first, without text.

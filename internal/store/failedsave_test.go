@@ -165,3 +165,73 @@ func TestRestoreDeletedNotebookWithAFailedSave(t *testing.T) {
 		t.Fatalf("still in Recently deleted: %+v", left)
 	}
 }
+
+// The settings, notebook, group, key and host key changes that edit a
+// field or a map put it back too when their save fails.
+func TestFailedSaveChangesNothingMore(t *testing.T) {
+	st := testStore(t)
+	h, err := st.UpsertHost(Host{Name: "box", Address: "10.0.0.1", Username: "u", AuthType: AuthPassword, Password: "pw"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := st.UpsertGroup(Group{Name: "prod"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Group = g.ID
+	if h, err = st.UpsertHost(h); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SetGroupRole(g.ID, h.ID, "web"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SetGroupVar(g.ID, "region", "eu"); err != nil {
+		t.Fatal(err)
+	}
+	nb, err := st.UpsertNotebook(Notebook{Name: "notes", Cells: []NotebookCell{{Body: "one"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nb, vid, err := st.AgentEditNotebook(nb.ID, nb.Rev, "", appendEdit(" agent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetAgentKey("anthropic", "sk-old"); err != nil {
+		t.Fatal(err)
+	}
+	if err := trustKey(st, "10.0.0.1:22", "", "SHA256:abc", false); err != nil {
+		t.Fatal(err)
+	}
+	name, pinned := "renamed", true
+	errOf := func(_ any, err error) error { return err }
+
+	restore := failSaves(t, st)
+	defer restore()
+	for _, op := range []struct {
+		name string
+		do   func() error
+	}{
+		{"agent settings", func() error { return errOf(st.SetAgentSettings(AgentSettings{Suggestions: SuggestionsOff})) }},
+		{"signal url", func() error { return st.SetSignalURL("wss://signal.example") }},
+		{"notebook meta", func() error { return errOf(st.UpdateNotebookMeta(nb.ID, &name, &pinned)) }},
+		{"notebook private", func() error { return errOf(st.SetNotebookPrivate(nb.ID, true)) }},
+		{"notebook reviewed", func() error { return errOf(st.MarkNotebookReviewed(nb.ID)) }},
+		{"notebook restore", func() error { return errOf(st.RestoreNotebookVersion(nb.ID, vid, -1)) }},
+		{"assign hosts", func() error { return st.AssignHostsGroup([]string{h.ID}, "") }},
+		{"group role", func() error { return errOf(st.SetGroupRole(g.ID, h.ID, "db")) }},
+		{"group role clear", func() error { return errOf(st.SetGroupRole(g.ID, h.ID, "")) }},
+		{"group var", func() error { return errOf(st.SetGroupVar(g.ID, "region", "us")) }},
+		{"group var clear", func() error { return errOf(st.SetGroupVar(g.ID, "region", "")) }},
+		{"agent key set", func() error { return st.SetAgentKey("anthropic", "sk-new") }},
+		{"agent key clear", func() error { return st.ClearAgentKey("anthropic") }},
+		{"forget host key", func() error { return errOf(st.ForgetHostKey("10.0.0.1:22")) }},
+	} {
+		before := memoryOf(t, st)
+		if err := op.do(); err == nil {
+			t.Fatalf("%s: saved with keel.json unwritable", op.name)
+		}
+		if memoryOf(t, st) != before {
+			t.Errorf("%s: a failed save left its change in memory", op.name)
+		}
+	}
+}

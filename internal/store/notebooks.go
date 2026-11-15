@@ -188,8 +188,9 @@ func (s *Store) UpdateNotebookMeta(id string, name *string, pinned *bool) (Noteb
 	if pinned != nil {
 		nb.Pinned = *pinned
 	}
+	u := s.undoPointLocked()
 	s.data.Notebooks[i] = nb
-	return nb, s.saveLocked()
+	return nb, s.saveOrUndoLocked(u)
 }
 
 // SetNotebookPrivate turns a notebook's Private flag on or off. Only the
@@ -205,9 +206,10 @@ func (s *Store) SetNotebookPrivate(id string, private bool) (Notebook, error) {
 	if i < 0 {
 		return Notebook{}, ErrNotFound
 	}
+	u := s.undoPointLocked()
 	s.data.Notebooks[i].Private = private
 	nb := s.data.Notebooks[i]
-	return nb, s.saveLocked()
+	return nb, s.saveOrUndoLocked(u)
 }
 
 // MarkNotebookReviewed clears the "edited by the agent, not reviewed yet"
@@ -222,9 +224,10 @@ func (s *Store) MarkNotebookReviewed(id string) (Notebook, error) {
 	if i < 0 {
 		return Notebook{}, ErrNotFound
 	}
+	u := s.undoPointLocked()
 	s.data.Notebooks[i].AgentUnreviewed = false
 	nb := s.data.Notebooks[i]
-	return nb, s.saveLocked()
+	return nb, s.saveOrUndoLocked(u)
 }
 
 // DeleteNotebook deletes a notebook the user chose to delete. Its last

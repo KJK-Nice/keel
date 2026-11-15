@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -53,6 +54,17 @@ func doJSON(t *testing.T, method, url string, body any, out any) int {
 		_ = json.NewDecoder(res.Body).Decode(out)
 	}
 	return res.StatusCode
+}
+
+// trustKey trusts a new key the way the API does: the refused check offers
+// it and TrustOffered saves it.
+func trustKey(st *store.Store, hostname, keyType, fingerprint string) error {
+	var unk *store.UnknownHostError
+	if err := st.CheckHostKeyType(hostname, keyType, fingerprint); !errors.As(err, &unk) {
+		return err
+	}
+	_, err := st.TrustOffered(unk.Token, hostname, fingerprint, false)
+	return err
 }
 
 func draftFor(s *sshtest.Server) map[string]any {
@@ -119,7 +131,7 @@ func TestTestConnectionEndpoint(t *testing.T) {
 
 	// Through a saved jump host whose secret is only in the vault, with a
 	// saved target whose password is left blank in the dialog.
-	if err := st.TrustHostKey(jump.Addr, jump.Fingerprint(), false); err != nil {
+	if err := trustKey(st, jump.Addr, "", jump.Fingerprint()); err != nil {
 		t.Fatal(err)
 	}
 	bastion, err := st.UpsertHost(store.Host{Name: "bastion", Address: jump.Host, Port: jump.Port, Username: jump.User, AuthType: "password", Password: jump.Password})
@@ -215,7 +227,7 @@ func TestHostKeyReadAndForgetEndpoints(t *testing.T) {
 	if code := doJSON(t, "DELETE", srv.URL+"/api/hosts/"+h.ID+"/host-key", nil, nil); code != 404 {
 		t.Fatalf("forget unknown: %d", code)
 	}
-	if err := st.TrustHostKeyType("10.0.0.7:2222", "SHA256:q3Vt9fKe", "ssh-ed25519", false); err != nil {
+	if err := trustKey(st, "10.0.0.7:2222", "ssh-ed25519", "SHA256:q3Vt9fKe"); err != nil {
 		t.Fatal(err)
 	}
 	k = store.KnownHostKey{}

@@ -290,6 +290,39 @@ func TestAgentChatsByteCap(t *testing.T) {
 	}
 }
 
+// A write of keel.chats that fails leaves the list as it was: no
+// conversation is listed that is not on disk.
+func TestAgentChatsFailedWriteChangesNothing(t *testing.T) {
+	st := testStore(t)
+	at := time.Date(2026, 10, 14, 16, 2, 0, 0, time.UTC)
+	for _, id := range []string{"conv-a", "conv-b"} {
+		if err := st.PutAgentChat(sampleChat(id, at)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Remove(st.chatsPath()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(st.chatsPath(), "block"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, do := range map[string]func() error{
+		"put new":    func() error { return st.PutAgentChat(sampleChat("conv-c", at)) },
+		"put change": func() error { c := sampleChat("conv-a", at); c.Title = "other"; return st.PutAgentChat(c) },
+		"rename":     func() error { _, err := st.RenameAgentChat("conv-a", "other"); return err },
+		"delete":     func() error { return st.DeleteAgentChat("conv-a") },
+		"prune":      func() error { _, err := st.PruneAgentChats(at.Add(time.Hour)); return err },
+	} {
+		if err := do(); err == nil {
+			t.Fatalf("%s: saved with keel.chats unwritable", name)
+		}
+		list, err := st.ListAgentChats()
+		if err != nil || len(list) != 2 || list[0].Title != "Why is pg-2 lagging?" || list[1].Title != "Why is pg-2 lagging?" {
+			t.Fatalf("%s: list after a failed write = %+v %v", name, list, err)
+		}
+	}
+}
+
 func TestCleanAgentChatTitle(t *testing.T) {
 	long := strings.Repeat("é", 100)
 	got := CleanAgentChatTitle(long)

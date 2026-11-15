@@ -152,6 +152,40 @@ func TestStaleRunDoesNotClobberNewEntry(t *testing.T) {
 	_ = rt.Stop(tn.ID)
 }
 
+// Start, Stop, Start while the first connect is still slow ends running:
+// the second Start does not hand back the entry Stop marked stopped.
+func TestStartAfterStopDuringSlowConnect(t *testing.T) {
+	st, tn := tunnelFixture(t, "local", "127.0.0.1")
+	entered, release := make(chan struct{}), make(chan struct{})
+	var calls atomic.Int32
+	rt := New(st, func(store.Host) (Dialer, error) {
+		if calls.Add(1) == 1 {
+			close(entered)
+			<-release
+		}
+		return newFakeDialer(), nil
+	})
+	first := make(chan error, 1)
+	go func() { _, err := rt.Start(tn.ID); first <- err }()
+	<-entered
+	if err := rt.Stop(tn.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Start(tn.ID); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	waitStatus(t, rt, tn.ID, StatusReady)
+	time.Sleep(50 * time.Millisecond)
+	if info, _ := rt.Get(tn.ID); info.Status != StatusReady {
+		t.Fatalf("status %s (err %q), want ready", info.Status, info.Error)
+	}
+	_ = rt.Stop(tn.ID)
+}
+
 // For local and dynamic forwards the listener is local, so it kept
 // accepting after the SSH connection died and the tunnel showed "ready".
 func TestLostConnectionEndsTunnel(t *testing.T) {
