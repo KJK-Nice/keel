@@ -32,3 +32,24 @@ func TestWindowStateStore(t *testing.T) {
 		t.Fatalf("bad file: %v", m)
 	}
 }
+
+func TestWindowStateSaveReplacesTheFile(t *testing.T) {
+	s := newWindowStateStore(t.TempDir())
+	if err := s.SaveWindowStates(map[string]mygo.WindowState{"main": {Width: 900, Height: 700}}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(s.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveWindowStates(map[string]mygo.WindowState{"main": {Width: 800, Height: 600}}); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Stat(s.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(before, after) {
+		t.Fatal("the file was rewritten in place: a kill during the write truncates it")
+	}
+}
