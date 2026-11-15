@@ -883,10 +883,15 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	cols, rows := session.ParseSize(r.URL.Query().Get("cols"), r.URL.Query().Get("rows"))
 	name := r.URL.Query().Get("name")
 
+	spawned := false
 	if id == "" {
 		hostID := r.URL.Query().Get("hostId")
 		if hostID == "" {
 			writeError(w, http.StatusBadRequest, "id or hostId is required")
+			return
+		}
+		if !websocket.IsWebSocketUpgrade(r) {
+			writeError(w, http.StatusBadRequest, "hostId needs a WebSocket upgrade")
 			return
 		}
 		info, err := s.rt.Spawn(hostID, cols, rows)
@@ -895,6 +900,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		id = info.ID
+		spawned = true
 	}
 
 	sess, err := s.rt.Get(id)
@@ -905,6 +911,9 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("ws upgrade: %v", err)
+		if spawned {
+			_ = s.rt.Kill(id)
+		}
 		return
 	}
 	ws := &wsConn{conn: conn}
