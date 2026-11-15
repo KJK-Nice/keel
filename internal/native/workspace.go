@@ -553,8 +553,8 @@ func (w *workspace) start() {
 			return
 		}
 		snippets, snipErr := w.be.Snippets(c)
-		folders, _ := w.be.Groups(c)      // a failed list leaves the flat tree: the next change reads it again
-		tunnels, _ := w.be.Tunnels(c)     // a failed read leaves none: the 2 s read and the next change fill them in
+		folders, _ := w.be.Groups(c)              // a failed list leaves the flat tree: the next change reads it again
+		tunnels, _ := w.be.Tunnels(c)             // a failed read leaves none: the 2 s read and the next change fill them in
 		notebooks, nbReadErr := w.be.Notebooks(c) // a failed read leaves none: the next change reads them again
 		type attached struct {
 			host keelclient.Host

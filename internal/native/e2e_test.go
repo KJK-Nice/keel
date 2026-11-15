@@ -258,6 +258,18 @@ func (e *win) clickBody(id string) {
 	e.step()
 }
 
+// focusBody is clickBody that waits until the pane has the keyboard, so the keys typed next reach it.
+func (e *win) focusBody(id string) {
+	e.t.Helper()
+	e.pump(func() bool {
+		if e.w.wantFocus == "" && e.tt.Focused("Terminal") {
+			return true
+		}
+		e.clickBody(id) // the banner above the pane may have moved it since the last frame
+		return false
+	}, "pane "+id+" to have the keyboard")
+}
+
 func (e *win) key(mods ui.Modifiers, k ui.Key) { e.tt.Key(mods, k); e.step() }
 
 func (e *win) typeLine(s string) {
@@ -779,14 +791,14 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 		return b.snap().Role == "driver" && a.snap().Role == "owner" && a.hasLabel("banner following") && a.hasLabel("Take control")
 	}, "B driving, A following as the owner with Take control")
 	a.shot("TestE2EFollowerAndTakeControl-owner")
-	b.clickBody("1")
+	b.focusBody("1")
 	b.typeLine("echo b-drives")
 	a.waitScrollback(sid, "b-drives")
 
 	// A takes control back.
 	a.click("Take control")
 	pumpAll(t, both, func() bool { return a.snap().Role == "driver" && b.snap().Role == "follower" }, "A driving again")
-	a.clickBody("1")
+	a.focusBody("1")
 	a.typeLine("echo a-again")
 	a.waitScrollback(sid, "a-again")
 }

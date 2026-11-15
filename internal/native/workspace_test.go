@@ -151,14 +151,14 @@ type fakeBackend struct {
 	attachErr map[string]error // Attach fails for these session ids
 	hostsErr  error            // Hosts fails once, then answers
 	vault     keelclient.Vault
-	hosts    []keelclient.Host
-	sessions []keelclient.Session
-	calls    []string
-	spawned  []string // host ids
-	attached []string // session ids
-	killed   []string
-	conns    []*fakeConn
-	n        int
+	hosts     []keelclient.Host
+	sessions  []keelclient.Session
+	calls     []string
+	spawned   []string // host ids
+	attached  []string // session ids
+	killed    []string
+	conns     []*fakeConn
+	n         int
 
 	reconnected []string
 	trusted     []keelclient.HostKey
