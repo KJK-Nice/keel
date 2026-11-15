@@ -30,6 +30,9 @@ const (
 	// Room creation per client address: a burst, then one per interval.
 	roomBurst    = 6
 	roomInterval = 10 * time.Second
+	// maxRoomsPerClient bounds the live rooms one client key may hold; it
+	// applies when KEEL_SIGNAL_CLIENT_IP says who a client is.
+	maxRoomsPerClient = 8
 )
 
 const (
@@ -62,6 +65,7 @@ func (p *peer) send(v any) error {
 type room struct {
 	id      string
 	hostKey string
+	owner   string
 	created time.Time
 	mu      sync.Mutex
 	host    *peer
@@ -120,21 +124,38 @@ func joinNote(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
-	if s.clientKey != nil && !s.limiter.allow(s.clientKey(r), time.Now()) {
-		w.Header().Set("Retry-After", strconv.Itoa(int(roomInterval/time.Second)))
-		http.Error(w, "too many rooms from this address; try again shortly", http.StatusTooManyRequests)
-		return
+	var owner string
+	if s.clientKey != nil {
+		owner = s.clientKey(r)
+		if !s.limiter.allow(owner, time.Now()) {
+			w.Header().Set("Retry-After", strconv.Itoa(int(roomInterval/time.Second)))
+			http.Error(w, "too many rooms from this address; try again shortly", http.StatusTooManyRequests)
+			return
+		}
 	}
 	id := newID()
 	hostKey := newID()
 	s.mu.Lock()
 	s.sweepLocked(time.Now())
+	if owner != "" {
+		held := 0
+		for _, rm := range s.rooms {
+			if rm.owner == owner {
+				held++
+			}
+		}
+		if held >= maxRoomsPerClient {
+			s.mu.Unlock()
+			http.Error(w, "too many open rooms from this address", http.StatusTooManyRequests)
+			return
+		}
+	}
 	if s.maxRooms > 0 && len(s.rooms) >= s.maxRooms {
 		s.mu.Unlock()
 		http.Error(w, "too many rooms", http.StatusServiceUnavailable)
 		return
 	}
-	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}, hosted: make(chan struct{})}
+	s.rooms[id] = &room{id: id, hostKey: hostKey, owner: owner, created: time.Now(), joiners: map[string]*peer{}, hosted: make(chan struct{})}
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	// hostKey proves the caller created the room: anyone who learns the

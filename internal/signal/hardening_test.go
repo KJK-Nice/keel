@@ -309,3 +309,24 @@ func TestPingsKeepQuietConnectionsOpen(t *testing.T) {
 	}
 	j.Close()
 }
+
+func TestRoomsPerClientCapped(t *testing.T) {
+	sig := New()
+	sig.limiter = nil // the rate limit would trip before the room cap
+	if err := sig.SetClientIP("xff:1"); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(sig.Handler())
+	t.Cleanup(srv.Close)
+	for i := 0; i < maxRoomsPerClient; i++ {
+		if res, _ := postRoom(t, srv.URL, "203.0.113.7"); res.StatusCode != http.StatusOK {
+			t.Fatalf("room %d: %d", i, res.StatusCode)
+		}
+	}
+	if res, _ := postRoom(t, srv.URL, "203.0.113.7"); res.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("over the per-client cap: %d, want 429", res.StatusCode)
+	}
+	if res, _ := postRoom(t, srv.URL, "203.0.113.8"); res.StatusCode != http.StatusOK {
+		t.Fatalf("another client: %d, want 200", res.StatusCode)
+	}
+}
