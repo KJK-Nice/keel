@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"filippo.io/age"
+	"github.com/zalando/go-keyring"
 
 	"keel/internal/limits"
 	"keel/internal/paths"
@@ -403,6 +404,7 @@ type Store struct {
 	// set once, in New.
 	keyringOff bool
 	scryptWork int
+	keychain   keychain
 	// now is the clock of host key offers: time.Now, set in New (a test of
 	// their expiry replaces it).
 	now       func() time.Time
@@ -475,6 +477,7 @@ func New(path string, opts ...Option) (*Store, error) {
 		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
 		secrets:    map[string]hostSecret{},
 		keyringOff: os.Getenv(envKeyring) == "off",
+		keychain:   osKeychain{},
 		now:        time.Now,
 	}
 	for _, o := range opts {
@@ -647,7 +650,8 @@ func (s *Store) bootstrap(pending map[string]hostSecret) error {
 		s.fromEnv = true
 		return nil
 	}
-	if ident, err := s.keyringIdentity(); err == nil {
+	ident, kerr := s.keyringIdentity()
+	if kerr == nil {
 		blob, rerr := os.ReadFile(s.vaultPath)
 		if rerr != nil && !os.IsNotExist(rerr) {
 			return rerr
@@ -675,16 +679,20 @@ func (s *Store) bootstrap(pending map[string]hostSecret) error {
 		return err
 	}
 	if os.IsNotExist(err) {
-		ident, gerr := age.GenerateX25519Identity()
-		if gerr != nil {
-			return gerr
-		}
-		if serr := s.saveKeyringIdentity(ident); serr == nil {
-			s.recipient = ident.Recipient()
-			s.data.Vault = vaultX25519
-			s.data.Version = 3
-			s.locked.Store(false)
-			return s.saveLocked()
+		// Only a keychain that has no item gets a new key: after any other
+		// error the item may exist, and every data dir shares it.
+		if errors.Is(kerr, keyring.ErrNotFound) {
+			ident, gerr := age.GenerateX25519Identity()
+			if gerr != nil {
+				return gerr
+			}
+			if serr := s.saveKeyringIdentity(ident); serr == nil {
+				s.recipient = ident.Recipient()
+				s.data.Vault = vaultX25519
+				s.data.Version = 3
+				s.locked.Store(false)
+				return s.saveLocked()
+			}
 		}
 		s.locked.Store(true)
 		s.needSetup = true
@@ -716,13 +724,20 @@ func (s *Store) Unlock(passphrase string) error {
 	if !s.locked.Load() {
 		return nil
 	}
-	if passphrase == "" {
+	// A keychain vault opens only with the keychain's key, whatever was
+	// typed: it is locked because that read failed at start, so ask again.
+	keychainVault := s.data.Vault == vaultX25519 && !s.needSetup
+	if passphrase == "" && !keychainVault {
 		return ErrPassphrase
 	}
 	if s.needSetup {
 		return s.setupLocked(passphrase)
 	}
-	if err := s.unlockScryptLocked(passphrase, false); err != nil {
+	unlock := func() error { return s.unlockScryptLocked(passphrase, false) }
+	if keychainVault {
+		unlock = s.unlockKeychainLocked
+	}
+	if err := unlock(); err != nil {
 		return err
 	}
 	if len(s.pending) > 0 {
@@ -740,6 +755,25 @@ func (s *Store) Unlock(passphrase string) error {
 	// Unlocking saves nothing else, but every list goes from "Vault
 	// locked" to its contents.
 	s.changed()
+	return nil
+}
+
+func (s *Store) unlockKeychainLocked() error {
+	ident, err := s.keyringIdentity()
+	if err != nil {
+		return fmt.Errorf("the vault key could not be read from the OS keychain: %w", err)
+	}
+	blob, err := os.ReadFile(s.vaultPath)
+	if err != nil {
+		return err
+	}
+	secrets, err := decryptVault(blob, ident)
+	if err != nil {
+		return fmt.Errorf("the OS keychain's vault key does not open keel.vault: %w", err)
+	}
+	s.secrets = secrets
+	s.recipient = ident.Recipient()
+	s.locked.Store(false)
 	return nil
 }
 
