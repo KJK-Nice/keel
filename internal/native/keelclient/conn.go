@@ -109,9 +109,14 @@ func (s State) Driving() bool { return s.Role == wire.RoleDriver }
 // CanType is the one rule for typing into a session for the user: it is ready and this client drives it.
 func (s State) CanType() bool { return s.Ready() && s.Driving() }
 
+// dialTimeout is how long a dial may take to reach the handshake's answer: keel serve is on this machine, so a longer
+// wait is a daemon that is not answering.
+var dialTimeout = 5 * time.Second
+
 func dialWS(u, token string) (*Conn, error) {
 	h := http.Header{authtoken.Header: {token}} // a native client sends no origin header
-	ws, _, err := websocket.DefaultDialer.Dial(u, h)
+	d := websocket.Dialer{Proxy: http.ProxyFromEnvironment, HandshakeTimeout: dialTimeout}
+	ws, _, err := d.Dial(u, h)
 	if err != nil {
 		// gorilla's error names the status, never the headers we sent.
 		return nil, err
