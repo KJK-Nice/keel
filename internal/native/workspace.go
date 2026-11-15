@@ -24,6 +24,9 @@ const (
 	startRows   = 24
 )
 
+// attachWorkers is how many saved sessions start attaches at once.
+var attachWorkers = 4
+
 // session is what a pane needs of a keel serve connection (*keelclient.Conn, or a fake in tests).
 type session interface {
 	io.ReadWriteCloser
@@ -564,23 +567,42 @@ func (w *workspace) start() {
 			conn session
 			sid  string
 		}
+		// Each session is attached on its own goroutine, attachWorkers at a time, so a daemon that answers slowly costs one
+		// wait and not one per session; the results keep the order the sessions came in.
+		results := make([]attached, len(sessions))
+		errs := make([]error, len(sessions))
+		var wg sync.WaitGroup
+		slots := make(chan struct{}, attachWorkers)
+		for i, s := range sessions {
+			slots <- struct{}{}
+			wg.Add(1)
+			go func() {
+				defer func() { <-slots; wg.Done() }()
+				cols, rows := s.Cols, s.Rows
+				if cols <= 0 || rows <= 0 {
+					cols, rows = startCols, startRows
+				}
+				conn, err := w.be.Attach(s.ID, cols, rows)
+				if err != nil {
+					errs[i] = err
+					return
+				}
+				h := keelclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
+				if k, ok := hostByID(hosts, s.HostID); ok {
+					h = k
+				}
+				results[i] = attached{h, conn, s.ID}
+			}()
+		}
+		wg.Wait()
 		var live []attached
 		var failed error
-		for _, s := range sessions {
-			cols, rows := s.Cols, s.Rows
-			if cols <= 0 || rows <= 0 {
-				cols, rows = startCols, startRows
+		for i, a := range results {
+			if errs[i] != nil {
+				failed = errs[i]
+			} else {
+				live = append(live, a)
 			}
-			conn, err := w.be.Attach(s.ID, cols, rows)
-			if err != nil {
-				failed = err
-				continue
-			}
-			h := keelclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
-			if k, ok := hostByID(hosts, s.HostID); ok {
-				h = k
-			}
-			live = append(live, attached{h, conn, s.ID})
 		}
 		doc := loadSaved(w.dataDir)
 		w.post(func() {
