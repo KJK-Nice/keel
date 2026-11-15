@@ -35,6 +35,10 @@ const (
 	maxRoomsPerClient = 8
 )
 
+// defaultWriteTimeout bounds one write to a peer, so a socket that never
+// reads cannot hold a send forever.
+const defaultWriteTimeout = 10 * time.Second
+
 const (
 	// defaultIdleTimeout closes a connection that has neither sent a message
 	// nor answered a ping for this long.
@@ -53,12 +57,15 @@ type peer struct {
 	name string
 	role string
 	conn *websocket.Conn
-	mu   sync.Mutex
+	// writeTimeout is the Server's, copied at connect.
+	writeTimeout time.Duration
+	mu           sync.Mutex
 }
 
 func (p *peer) send(v any) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	_ = p.conn.SetWriteDeadline(time.Now().Add(p.writeTimeout))
 	return p.conn.WriteJSON(v)
 }
 
@@ -84,6 +91,7 @@ type Server struct {
 	// defaultPingInterval. Fields so tests can shorten them.
 	idleTimeout  time.Duration
 	pingInterval time.Duration
+	writeTimeout time.Duration
 	// clientKey says who a request comes from for per-address rate limiting.
 	// nil disables it (the default: see SetClientIP).
 	clientKey func(*http.Request) string
@@ -98,6 +106,7 @@ func New() *Server {
 
 		idleTimeout:  defaultIdleTimeout,
 		pingInterval: defaultPingInterval,
+		writeTimeout: defaultWriteTimeout,
 	}
 }
 
@@ -224,7 +233,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.SetReadLimit(maxMessage)
-	p := &peer{id: newID(), name: name, role: role, conn: conn}
+	p := &peer{id: newID(), name: name, role: role, conn: conn, writeTimeout: s.writeTimeout}
 	if role == wire.SignalRoleHost {
 		rm.mu.Lock()
 		if rm.host != nil {
@@ -270,13 +279,17 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		_ = conn.Close()
 		rm.mu.Lock()
 		if role == wire.SignalRoleHost {
+			joiners := make([]*peer, 0, len(rm.joiners))
 			for _, j := range rm.joiners {
-				_ = j.send(wire.Signal{Type: wire.SignalLeave})
-				_ = j.conn.Close()
+				joiners = append(joiners, j)
 			}
 			rm.host = nil
 			rm.mu.Unlock()
 			s.deleteRoom(roomID)
+			for _, j := range joiners {
+				_ = j.send(wire.Signal{Type: wire.SignalLeave})
+				_ = j.conn.Close()
+			}
 			return
 		}
 		delete(rm.joiners, p.id)

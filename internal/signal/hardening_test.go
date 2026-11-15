@@ -330,3 +330,61 @@ func TestRoomsPerClientCapped(t *testing.T) {
 		t.Fatalf("another client: %d, want 200", res.StatusCode)
 	}
 }
+
+func TestStalledJoinerDoesNotBlockHostLeave(t *testing.T) {
+	sig := New()
+	sig.writeTimeout = 2 * time.Second
+	srv := httptest.NewServer(sig.Handler())
+	t.Cleanup(srv.Close)
+	_, room := postRoom(t, srv.URL, "")
+	ws := "ws" + strings.TrimPrefix(srv.URL, "http") + "/ws?room=" + room.ID
+	host, _, err := websocket.DefaultDialer.Dial(ws+"&role=host&key="+room.HostKey, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joiner, _, err := websocket.DefaultDialer.Dial(ws+"&role=join", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { joiner.Close() })
+	if _, _, err := host.ReadMessage(); err != nil {
+		t.Fatal(err)
+	}
+
+	var stalled *peer
+	for deadline := time.Now().Add(2 * time.Second); stalled == nil && time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		sig.mu.Lock()
+		rm := sig.rooms[room.ID]
+		sig.mu.Unlock()
+		rm.mu.Lock()
+		for _, j := range rm.joiners {
+			stalled = j
+		}
+		rm.mu.Unlock()
+	}
+	if stalled == nil {
+		t.Fatal("joiner never registered")
+	}
+	go func() { // the joiner never reads: this fills its socket buffers, then blocks
+		big := strings.Repeat("x", 1<<20)
+		for stalled.send(wire.Signal{Type: wire.SignalMessage, SDP: big}) == nil {
+		}
+	}()
+	time.Sleep(500 * time.Millisecond)
+	host.Close()
+	time.Sleep(200 * time.Millisecond)
+
+	done := make(chan int, 1)
+	go func() {
+		res, _ := postRoom(t, srv.URL, "")
+		done <- res.StatusCode
+	}()
+	select {
+	case code := <-done:
+		if code != http.StatusOK {
+			t.Fatalf("create: %d", code)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("room create blocked behind a stalled joiner during host leave")
+	}
+}
