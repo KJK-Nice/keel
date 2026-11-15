@@ -174,7 +174,7 @@ func (s *Server) sweepLocked(now time.Time) {
 func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	roomID := r.URL.Query().Get("room")
 	role := r.URL.Query().Get("role")
-	name := r.URL.Query().Get("name")
+	name := sharelink.SanitizeName(r.URL.Query().Get("name"))
 	if roomID == "" || (role != wire.SignalRoleHost && role != wire.SignalRoleJoin) {
 		http.Error(w, "room and role=host|join required", http.StatusBadRequest)
 		return

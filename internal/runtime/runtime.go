@@ -10,13 +10,13 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"keel/internal/inject"
 	"keel/internal/paths"
 	"keel/internal/randid"
 	"keel/internal/scrollback"
 	"keel/internal/session"
+	"keel/internal/sharelink"
 	"keel/internal/shellmark"
 	"keel/internal/store"
 	"keel/internal/wire"
@@ -383,7 +383,7 @@ func (s *Session) subscribe(join Join, mark uint64, since bool) (Client, <-chan 
 	s.mu.Lock()
 	s.next++
 	id := s.next
-	name := sanitizeName(join.Name)
+	name := sharelink.SanitizeName(join.Name)
 	kind := join.Kind
 	if kind != wire.KindJoined {
 		kind = wire.KindWindow
@@ -1214,18 +1214,6 @@ func (s *Session) close() {
 	if br != nil {
 		_ = br.Close()
 	}
-}
-
-func sanitizeName(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return "guest"
-	}
-	if utf8.RuneCountInString(name) > 32 {
-		runes := []rune(name)
-		name = string(runes[:32])
-	}
-	return name
 }
 
 func subtitle(h store.Host) string {
