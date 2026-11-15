@@ -95,23 +95,48 @@ const (
 // Serve reads requests from in and writes responses to out until in ends
 // or ctx is done. Requests are answered one at a time, in order.
 func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
-	sc := bufio.NewScanner(in)
-	sc.Buffer(make([]byte, 64*1024), maxLine)
-	for sc.Scan() {
+	r := bufio.NewReaderSize(in, 64*1024)
+	for {
+		raw, tooLong, rerr := readLine(r)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		line := bytes.TrimSpace(sc.Bytes())
-		if len(line) == 0 {
-			continue
+		var resp any
+		if tooLong {
+			resp = rpcResponse{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{Code: codeParse, Message: "message too long"}}
+		} else if line := bytes.TrimSpace(raw); len(line) > 0 {
+			resp = s.handleLine(ctx, line)
 		}
-		if resp := s.handleLine(ctx, line); resp != nil {
+		if resp != nil {
 			if err := s.write(out, resp); err != nil {
 				return err
 			}
 		}
+		if rerr != nil {
+			if rerr == io.EOF {
+				return nil
+			}
+			return rerr
+		}
 	}
-	return sc.Err()
+}
+
+// readLine reads one line. A line over maxLine is read to its end and
+// dropped (tooLong), so one oversized message does not end the server.
+func readLine(r *bufio.Reader) (line []byte, tooLong bool, err error) {
+	for {
+		chunk, cerr := r.ReadSlice('\n')
+		if !tooLong {
+			if len(line)+len(chunk) > maxLine {
+				tooLong, line = true, nil
+			} else {
+				line = append(line, chunk...)
+			}
+		}
+		if cerr != bufio.ErrBufferFull {
+			return line, tooLong, cerr
+		}
+	}
 }
 
 func (s *Server) write(out io.Writer, v any) error {

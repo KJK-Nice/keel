@@ -119,6 +119,22 @@ func TestInitializeListAndNotifications(t *testing.T) {
 }
 
 // A client that asks for a version keel mcp does not list gets the latest.
+// A line over the limit gets an error answer and the lines after it are
+// still served.
+func TestOversizedLineIsAnsweredNotFatal(t *testing.T) {
+	big := `{"jsonrpc":"2.0","id":1,"method":"ping","params":{"x":"` + strings.Repeat("a", maxLine) + `"}}`
+	res := run(t, &fakeKeel{}, big, `{"jsonrpc":"2.0","id":2,"method":"ping"}`)
+	if len(res) != 2 {
+		t.Fatalf("answers = %v", res)
+	}
+	if e, _ := res[0]["error"].(map[string]any); e == nil || e["code"] != float64(codeParse) {
+		t.Fatalf("oversized line answer = %v", res[0])
+	}
+	if res[1]["id"] != float64(2) || res[1]["error"] != nil {
+		t.Fatalf("next line answer = %v", res[1])
+	}
+}
+
 func TestInitializeUnknownVersion(t *testing.T) {
 	res := run(t, &fakeKeel{}, `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"1999-01-01"}}`)
 	if res[0]["result"].(map[string]any)["protocolVersion"] != LatestProtocol {
