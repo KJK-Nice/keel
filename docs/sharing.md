@@ -41,6 +41,7 @@ Order: `KEEL_SIGNAL` for the run, then the server saved in Settings, then the on
 - **Spawn** a session from the Vault sidebar's Hosts
 - The first client to attach is the **owner** and **driver**. Later joiners (including WebRTC) **follow**
 - **Pass control** from the Share popover (titlebar **Share**, or the **N watching** badge); a request from a follower arrives as a toast with **Hand over**
+- When the last Keel window leaves a session, a joiner you passed control to follows again; the window that comes back drives
 - **Close tab** kills that PTY. **Close window** detaches; reopen Keel to attach
 - **Stop Keel runtime** kills leftover sessions and the daemon
 

@@ -11,6 +11,7 @@ import (
 	"keel/internal/inject"
 	"keel/internal/session"
 	"keel/internal/store"
+	"keel/internal/wire"
 )
 
 type fakeBridge struct {
@@ -450,6 +451,64 @@ func TestOwnerLeaveWebRTCStaysFollow(t *testing.T) {
 	}
 	if sess.Info().OwnerID != bob.ID {
 		t.Fatal("local reattach should become owner")
+	}
+}
+
+// #148: a viewer handed control stops driving when the last local client
+// leaves, and the window that comes back drives again.
+func TestOwnerLeaveAfterGrantRevokesWebRTC(t *testing.T) {
+	_, sess, _ := spawnReady(t)
+	alice, _, _ := sess.Subscribe(Join{Name: "alice", Kind: "web"})
+	guest, _, _ := sess.Subscribe(Join{Name: "guest", Kind: "webrtc"})
+	if err := sess.GrantControl(alice.ID, guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	sess.Unsubscribe(alice.ID)
+	if info := sess.Info(); info.OwnerID != 0 || info.DriverID != 0 {
+		t.Fatalf("after host detach owner/driver = %d/%d", info.OwnerID, info.DriverID)
+	}
+	if err := sess.Write(guest.ID, []byte("nope")); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("webrtc write after host leave = %v", err)
+	}
+	bob, _, _ := sess.Subscribe(Join{Name: "bob", Kind: "web"})
+	if bob.Role != RoleDriver || sess.Info().OwnerID != bob.ID {
+		t.Fatalf("local reattach role = %s, owner = %d", bob.Role, sess.Info().OwnerID)
+	}
+}
+
+// #156: a viewer's repeated request-control reaches the owner at most
+// requestControlBurst times per requestControlEvery, the first at once.
+func TestRequestControlPaced(t *testing.T) {
+	_, sess, _ := spawnReady(t)
+	_, events, _ := sess.Subscribe(Join{Name: "alice", Kind: "web"})
+	guest, _, _ := sess.Subscribe(Join{Name: "guest", Kind: "webrtc"})
+	requests := func() int {
+		n := 0
+		for {
+			select {
+			case ev := <-events:
+				if ev.Kind == wire.TypeControl && ev.FromID == guest.ID {
+					n++
+				}
+			case <-time.After(100 * time.Millisecond):
+				return n
+			}
+		}
+	}
+	for i := 0; i < 100; i++ {
+		if err := sess.RequestControl(guest.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := requests(); n != requestControlBurst {
+		t.Fatalf("100 requests at once reached the owner %d times, want %d", n, requestControlBurst)
+	}
+	time.Sleep(requestControlEvery)
+	if err := sess.RequestControl(guest.ID); err != nil {
+		t.Fatal(err)
+	}
+	if n := requests(); n != 1 {
+		t.Fatalf("a request after the pause reached the owner %d times, want 1", n)
 	}
 }
 

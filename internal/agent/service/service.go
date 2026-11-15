@@ -599,6 +599,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		out.Proposals = append(out.Proposals, *stepProp)
 		made = append(made, stepProp)
 	}
+	var fromModel []*Proposal
 	for _, raw := range raws {
 		spec := proposalSpec{Command: raw.Command, Why: raw.Why, Floor: modelRisk(raw.Risk), Report: r.Report()}
 		switch {
@@ -610,12 +611,15 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		spec.Production = byID[spec.Pane.HostID].Production
 		p := s.newProposal(spec, now)
 		out.Proposals = append(out.Proposals, *p)
-		conv.proposals = append(conv.proposals, p)
+		fromModel = append(fromModel, p)
 		made = append(made, p)
 	}
+	s.mu.Lock()
+	conv.proposals = append(conv.proposals, fromModel...)
 	if n := len(conv.proposals); n > maxProposalsKept {
 		conv.proposals = conv.proposals[n-maxProposalsKept:]
 	}
+	s.mu.Unlock()
 	notes := s.noteProposals(rawNotes, excerpts, byID, r, now)
 	for _, np := range notes {
 		out.Notes = append(out.Notes, *np)
@@ -642,16 +646,19 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 		// The model hears that its reply was cut, so "continue" works.
 		modelText += "\n\n[Keel: this reply was cut off before it ended (" + resp.Stop + "); the user saw only the text above.]"
 	}
-	conv.turns = append(conv.turns, turn{user: r.Text(hq.String()), model: r.Text(modelText)})
+	userSafeTurn, modelSafe := r.Text(hq.String()), r.Text(modelText)
+	s.mu.Lock()
+	conv.turns = append(conv.turns, turn{user: userSafeTurn, model: modelSafe})
 	conv.trimHistory()
 	conv.asks++
 	out.Turn = conv.asks
+	s.mu.Unlock()
 
 	// What is saved (sessions.go) goes through the same Redactor: the
 	// question as sent, the answer, the trace (no pane text) and the
 	// proposals. A command came from a model that saw redacted text only,
 	// and is redacted again before it is kept.
-	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Cut: resp.Stop, Model: conv.turns[len(conv.turns)-1].model.String()}
+	rec := store.AgentChatTurn{At: now, Question: r.Text(question).String(), Answer: r.Text(answer).String(), Cut: resp.Stop, Model: modelSafe.String()}
 	for _, st := range trace {
 		rec.Trace = append(rec.Trace, store.AgentChatStep{SessionID: st.SessionID, HostID: st.HostID, Host: st.Host, Status: st.Status, Reason: st.Reason, Lines: st.Lines, Redactions: st.Redactions, Command: st.Command, NoteKind: st.NoteKind, Notes: st.Notes, Runbook: st.Runbook, Notebook: st.Notebook, NotebookID: st.NotebookID, Bytes: st.Bytes, Truncated: st.Truncated, Asked: st.Asked, Count: st.Count})
 	}

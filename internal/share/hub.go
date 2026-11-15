@@ -483,7 +483,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 			}
 			switch msg.Type {
 			case wire.SignalPeer:
-				peerID := msg.PeerID
+				peerID, name := msg.PeerID, sharelink.SanitizeName(msg.Name)
 				if peerID == "" || pending[peerID] != nil || peers[peerID] != nil {
 					continue
 				}
@@ -493,7 +493,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 					continue
 				}
 				pending[peerID] = &pendingPeer{
-					name: msg.Name,
+					name: name,
 					timer: time.AfterFunc(h.admitWait, func() {
 						select {
 						case expired <- peerID:
@@ -502,7 +502,7 @@ func (h *Hub) hostLoop(ctx context.Context, live *liveShare, joinURL string) {
 					}),
 				}
 				signal(peerID, wire.Signal{Kind: wire.SignalPending})
-				sess.Announce(runtime.Event{Kind: wire.TypeJoinRequest, Peer: peerID, Message: msg.Name})
+				sess.Announce(runtime.Event{Kind: wire.TypeJoinRequest, Peer: peerID, Message: name})
 			case wire.SignalLeave:
 				resolve(msg.PeerID, "left")
 				if p := peers[msg.PeerID]; p != nil {
