@@ -754,6 +754,15 @@ func (s *Session) Resize(clientID uint64, cols, rows int) error {
 	return br.Resize(cols, rows)
 }
 
+// One client's requests for control reach the owner at most
+// requestControlBurst times per requestControlEvery: a viewer sending
+// request-control in a loop must not fill the owner's queue, and a person
+// who asks again after Keep driving is still heard.
+const (
+	requestControlEvery = time.Second
+	requestControlBurst = 3
+)
+
 func (s *Session) RequestControl(from uint64) error {
 	s.mu.Lock()
 	c, ok := s.clients[from]
@@ -765,6 +774,14 @@ func (s *Session) RequestControl(from uint64) error {
 		s.mu.Unlock()
 		return s.TakeControl(from)
 	}
+	if now := time.Now(); now.Sub(c.askedAt) >= requestControlEvery {
+		c.askedAt, c.asks = now, 0
+	}
+	if c.asks >= requestControlBurst {
+		s.mu.Unlock()
+		return nil
+	}
+	c.asks++
 	info := s.infoLocked()
 	name := s.clients[from].Client.Name
 	s.mu.Unlock()

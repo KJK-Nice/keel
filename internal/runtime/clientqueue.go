@@ -42,6 +42,10 @@ type queuedEvent struct {
 type clientConn struct {
 	Client Client
 	ch     chan Event
+	// askedAt starts the current window of this client's requests for
+	// control, asks counts them (under Session.mu).
+	askedAt time.Time
+	asks    int
 
 	qmu   sync.Mutex
 	queue []queuedEvent
