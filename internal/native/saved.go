@@ -62,10 +62,11 @@ type savedNode struct {
 }
 
 type saveState struct {
-	ready bool // start has restored the tabs; nothing is written before
-	last  []byte
+	ready  bool // start has restored the tabs; nothing is written before
+	warned bool // a failed write was reported and none has worked since (UI thread)
 
 	mu      sync.Mutex // guards the rest
+	last    []byte     // what the file holds, after a write that worked
 	pending []byte
 	timer   *time.Timer
 }
@@ -156,20 +157,26 @@ func (w *workspace) persist() {
 		return
 	}
 	b, err := json.Marshal(w.snapshot())
-	if err != nil || bytes.Equal(b, w.saved.last) {
-		return
-	}
-	w.saved.last = b
 	s := &w.saved
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err != nil || bytes.Equal(b, s.last) || bytes.Equal(b, s.pending) { // last is what a write reached the file with
+		return
+	}
 	s.pending = b
 	if s.timer == nil {
 		s.timer = time.AfterFunc(saveDelay, func() {
 			w.work(func() {
-				if err := w.flush(); err != nil {
-					w.post(func() { w.fail("save workspace", err) })
-				}
+				err := w.flush()
+				w.post(func() { // a write that keeps failing says so once, not at every change
+					switch {
+					case err == nil:
+						s.warned = false
+					case !s.warned:
+						s.warned = true
+						w.fail("save workspace", err)
+					}
+				})
 			})
 		})
 		return
@@ -186,16 +193,21 @@ func (w *workspace) flush() error {
 	if b == nil || w.dataDir == "" {
 		return nil
 	}
-	return writeFileAtomic(w.dataDir, savedFile, b)
+	err := writeFileAtomic(w.dataDir, savedFile, b)
+	if err == nil {
+		s.last = b
+	}
+	return err
 }
 
-func (w *workspace) saveNow() {
+// saveNow writes the workspace at once; a failed write is the error, and the next change writes it again.
+func (w *workspace) saveNow() error {
 	if w.dataDir == "" || !w.saved.ready {
-		return
+		return nil
 	}
 	b, err := json.Marshal(w.snapshot())
 	if err != nil {
-		return
+		return err
 	}
 	s := &w.saved
 	s.mu.Lock()
@@ -204,8 +216,11 @@ func (w *workspace) saveNow() {
 		s.timer.Stop()
 	}
 	s.pending = nil
+	if err := writeFileAtomic(w.dataDir, savedFile, b); err != nil {
+		return err
+	}
 	s.last = b
-	writeFileAtomic(w.dataDir, savedFile, b)
+	return nil
 }
 
 // loadSaved reads the file; nil for a missing, unreadable, oversized or other-version one.
