@@ -410,6 +410,7 @@ type workspace struct {
 
 	rev      string // GET /api/vault's rev at the last read: a change reads the hosts again
 	polling  bool
+	starting bool // a start is reading; the poll starts the window again only when none is
 	pollStop chan struct{}
 
 	seq       int
@@ -519,8 +520,13 @@ func (w *workspace) fail(what string, err error) { w.warn(errText(what, err)) }
 
 // start asks keel serve what exists. The vault answers first: a locked vault stops here.
 func (w *workspace) start() {
+	if w.starting {
+		return
+	}
+	w.starting = true
 	w.checkRuntimeBuild()
 	w.work(func() {
+		defer w.post(func() { w.starting = false })
 		c, cancel := ctx()
 		defer cancel()
 		v, err := w.be.Vault(c)
@@ -549,7 +555,7 @@ func (w *workspace) start() {
 		snippets, snipErr := w.be.Snippets(c)
 		folders, _ := w.be.Groups(c)      // a failed list leaves the flat tree: the next change reads it again
 		tunnels, _ := w.be.Tunnels(c)     // a failed read leaves none: the 2 s read and the next change fill them in
-		notebooks, _ := w.be.Notebooks(c) // a failed read leaves none: the next change reads them again
+		notebooks, nbReadErr := w.be.Notebooks(c) // a failed read leaves none: the next change reads them again
 		type attached struct {
 			host keelclient.Host
 			conn session
@@ -600,9 +606,12 @@ func (w *workspace) start() {
 				w.fail("attach", failed)
 			}
 			w.live = true
+			w.blocked = ""
 			w.refreshSuggestSettings()
 			w.settle() // an empty window shows a New tab
-			w.saved.ready = true
+			// A start that could not attach a session or read the notebooks restored less than the saved workspace
+			// holds: nothing is written over it until a later start restores it fully.
+			w.saved.ready = failed == nil && nbReadErr == nil
 		})
 	})
 }
