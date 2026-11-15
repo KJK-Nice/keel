@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -429,8 +430,8 @@ func (s *Store) chatsLocked() (map[string]AgentChat, error) {
 }
 
 // writeChatsLocked writes keel.chats, making the key first if there is
-// none. Call with chatMu held.
-func (s *Store) writeChatsLocked() error {
+// none, and makes chats the list once it is on disk. Call with chatMu held.
+func (s *Store) writeChatsLocked(chats map[string]AgentChat) error {
 	if s.chat.ident == nil {
 		ident, err := s.chatKey(true)
 		if err != nil {
@@ -438,8 +439,8 @@ func (s *Store) writeChatsLocked() error {
 		}
 		s.chat.ident = ident
 	}
-	list := make([]AgentChat, 0, len(s.chat.chats))
-	for _, c := range s.chat.chats {
+	list := make([]AgentChat, 0, len(chats))
+	for _, c := range chats {
 		list = append(list, c)
 	}
 	sort.Slice(list, func(i, j int) bool { return list[i].UpdatedAt.After(list[j].UpdatedAt) })
@@ -459,7 +460,18 @@ func (s *Store) writeChatsLocked() error {
 	if err := w.Close(); err != nil {
 		return err
 	}
-	return writePrivate(s.chatsPath(), buf.Bytes())
+	if err := writePrivate(s.chatsPath(), buf.Bytes()); err != nil {
+		return err
+	}
+	s.chat.chats = chats
+	return nil
+}
+
+// editableChatsLocked is chatsLocked with a copy of the list, for a change
+// that is made live only by writeChatsLocked. Call with chatMu held.
+func (s *Store) editableChatsLocked() (map[string]AgentChat, error) {
+	chats, err := s.chatsLocked()
+	return maps.Clone(chats), err
 }
 
 // ListAgentChats returns the saved conversations, most recently used
@@ -507,7 +519,7 @@ func (s *Store) PutAgentChat(c AgentChat) error {
 	c.Title = CleanAgentChatTitle(c.Title)
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()
-	chats, err := s.chatsLocked()
+	chats, err := s.editableChatsLocked()
 	if err != nil {
 		return err
 	}
@@ -535,7 +547,7 @@ func (s *Store) PutAgentChat(c AgentChat) error {
 		total -= sizes[oldest]
 		delete(chats, oldest)
 	}
-	return s.writeChatsLocked()
+	return s.writeChatsLocked(chats)
 }
 
 // RenameAgentChat sets a saved conversation's title. It does not change
@@ -547,7 +559,7 @@ func (s *Store) RenameAgentChat(id, title string) (AgentChatSummary, error) {
 	}
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()
-	chats, err := s.chatsLocked()
+	chats, err := s.editableChatsLocked()
 	if err != nil {
 		return AgentChatSummary{}, err
 	}
@@ -557,7 +569,7 @@ func (s *Store) RenameAgentChat(id, title string) (AgentChatSummary, error) {
 	}
 	c.Title = title
 	chats[id] = c
-	return c.Summary(), s.writeChatsLocked()
+	return c.Summary(), s.writeChatsLocked(chats)
 }
 
 // DeleteAgentChat removes one saved conversation. Deleting one that is not
@@ -565,7 +577,7 @@ func (s *Store) RenameAgentChat(id, title string) (AgentChatSummary, error) {
 func (s *Store) DeleteAgentChat(id string) error {
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()
-	chats, err := s.chatsLocked()
+	chats, err := s.editableChatsLocked()
 	if err != nil {
 		return err
 	}
@@ -573,7 +585,7 @@ func (s *Store) DeleteAgentChat(id string) error {
 		return nil
 	}
 	delete(chats, id)
-	return s.writeChatsLocked()
+	return s.writeChatsLocked(chats)
 }
 
 // DeleteAllAgentChats removes every saved conversation and returns how
@@ -619,7 +631,7 @@ func (s *Store) DeleteAllAgentChats() (int, error) {
 func (s *Store) PruneAgentChats(cutoff time.Time) ([]string, error) {
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()
-	chats, err := s.chatsLocked()
+	chats, err := s.editableChatsLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -636,7 +648,7 @@ func (s *Store) PruneAgentChats(cutoff time.Time) ([]string, error) {
 		delete(chats, id)
 	}
 	sort.Strings(gone)
-	return gone, s.writeChatsLocked()
+	return gone, s.writeChatsLocked(chats)
 }
 
 // CleanAgentChatTitle makes a title one line of at most MaxAgentChatTitle
