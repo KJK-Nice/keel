@@ -431,7 +431,9 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	if s.ownerID == id {
 		s.ownerID = firstLocalClientID(s.clients)
 	}
-	if s.driverID == id {
+	// With no local client left, nobody from Keel watches the shell: a
+	// viewer handed control loses it.
+	if s.driverID == id || s.ownerID == 0 {
 		s.driverID = s.ownerID
 	}
 	hostID := s.host.ID
