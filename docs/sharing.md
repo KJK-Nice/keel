@@ -57,9 +57,9 @@ Passing control hands them the keyboard of that shell — on a **Local Shell** t
 
 Update `keel-signal` before Keel itself: it has to pass the new `mac` field through, and Keel refuses joiners (and links) without it.
 
-Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. Only the client that created a room (it gets a host key) can host it.
+Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. A write to a peer that does not read is dropped after 10 seconds. Only the client that created a room (it gets a host key) can host it.
 
-Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `keel-signal` where the client address is, with `KEEL_SIGNAL_CLIENT_IP`:
+With `KEEL_SIGNAL_CLIENT_IP` set, one client may also hold at most 8 live rooms at a time (further creates get 429); without it neither per-client limit applies, so set it on a public server. Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `keel-signal` where the client address is, with `KEEL_SIGNAL_CLIENT_IP`:
 
 | Value | Use when |
 | --- | --- |

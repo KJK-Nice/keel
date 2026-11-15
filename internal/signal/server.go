@@ -30,7 +30,14 @@ const (
 	// Room creation per client address: a burst, then one per interval.
 	roomBurst    = 6
 	roomInterval = 10 * time.Second
+	// maxRoomsPerClient bounds the live rooms one client key may hold; it
+	// applies when KEEL_SIGNAL_CLIENT_IP says who a client is.
+	maxRoomsPerClient = 8
 )
+
+// defaultWriteTimeout bounds one write to a peer, so a socket that never
+// reads cannot hold a send forever.
+const defaultWriteTimeout = 10 * time.Second
 
 const (
 	// defaultIdleTimeout closes a connection that has neither sent a message
@@ -50,18 +57,22 @@ type peer struct {
 	name string
 	role string
 	conn *websocket.Conn
-	mu   sync.Mutex
+	// writeTimeout is the Server's, copied at connect.
+	writeTimeout time.Duration
+	mu           sync.Mutex
 }
 
 func (p *peer) send(v any) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	_ = p.conn.SetWriteDeadline(time.Now().Add(p.writeTimeout))
 	return p.conn.WriteJSON(v)
 }
 
 type room struct {
 	id      string
 	hostKey string
+	owner   string
 	created time.Time
 	mu      sync.Mutex
 	host    *peer
@@ -80,6 +91,7 @@ type Server struct {
 	// defaultPingInterval. Fields so tests can shorten them.
 	idleTimeout  time.Duration
 	pingInterval time.Duration
+	writeTimeout time.Duration
 	// clientKey says who a request comes from for per-address rate limiting.
 	// nil disables it (the default: see SetClientIP).
 	clientKey func(*http.Request) string
@@ -94,6 +106,7 @@ func New() *Server {
 
 		idleTimeout:  defaultIdleTimeout,
 		pingInterval: defaultPingInterval,
+		writeTimeout: defaultWriteTimeout,
 	}
 }
 
@@ -120,21 +133,38 @@ func joinNote(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) createRoom(w http.ResponseWriter, r *http.Request) {
-	if s.clientKey != nil && !s.limiter.allow(s.clientKey(r), time.Now()) {
-		w.Header().Set("Retry-After", strconv.Itoa(int(roomInterval/time.Second)))
-		http.Error(w, "too many rooms from this address; try again shortly", http.StatusTooManyRequests)
-		return
+	var owner string
+	if s.clientKey != nil {
+		owner = s.clientKey(r)
+		if !s.limiter.allow(owner, time.Now()) {
+			w.Header().Set("Retry-After", strconv.Itoa(int(roomInterval/time.Second)))
+			http.Error(w, "too many rooms from this address; try again shortly", http.StatusTooManyRequests)
+			return
+		}
 	}
 	id := newID()
 	hostKey := newID()
 	s.mu.Lock()
 	s.sweepLocked(time.Now())
+	if owner != "" {
+		held := 0
+		for _, rm := range s.rooms {
+			if rm.owner == owner {
+				held++
+			}
+		}
+		if held >= maxRoomsPerClient {
+			s.mu.Unlock()
+			http.Error(w, "too many open rooms from this address", http.StatusTooManyRequests)
+			return
+		}
+	}
 	if s.maxRooms > 0 && len(s.rooms) >= s.maxRooms {
 		s.mu.Unlock()
 		http.Error(w, "too many rooms", http.StatusServiceUnavailable)
 		return
 	}
-	s.rooms[id] = &room{id: id, hostKey: hostKey, created: time.Now(), joiners: map[string]*peer{}, hosted: make(chan struct{})}
+	s.rooms[id] = &room{id: id, hostKey: hostKey, owner: owner, created: time.Now(), joiners: map[string]*peer{}, hosted: make(chan struct{})}
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	// hostKey proves the caller created the room: anyone who learns the
@@ -203,7 +233,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn.SetReadLimit(maxMessage)
-	p := &peer{id: newID(), name: name, role: role, conn: conn}
+	p := &peer{id: newID(), name: name, role: role, conn: conn, writeTimeout: s.writeTimeout}
 	if role == wire.SignalRoleHost {
 		rm.mu.Lock()
 		if rm.host != nil {
@@ -249,13 +279,17 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		_ = conn.Close()
 		rm.mu.Lock()
 		if role == wire.SignalRoleHost {
+			joiners := make([]*peer, 0, len(rm.joiners))
 			for _, j := range rm.joiners {
-				_ = j.send(wire.Signal{Type: wire.SignalLeave})
-				_ = j.conn.Close()
+				joiners = append(joiners, j)
 			}
 			rm.host = nil
 			rm.mu.Unlock()
 			s.deleteRoom(roomID)
+			for _, j := range joiners {
+				_ = j.send(wire.Signal{Type: wire.SignalLeave})
+				_ = j.conn.Close()
+			}
 			return
 		}
 		delete(rm.joiners, p.id)
