@@ -165,6 +165,7 @@ func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
 func (w *workspace) reloadNotebooks() {
 	call(w, w.be.Notebooks, func(nbs []keelclient.Notebook, err error) {
 		if err != nil {
+			w.stale()
 			w.fail("notebooks", err)
 			return
 		}

@@ -149,9 +149,11 @@ func (w *workspace) suggestSettingsChanged() {
 // refreshSuggestSettings reads the agent settings again, for the machines (the window's start, an unlock, a changed rev).
 func (w *workspace) refreshSuggestSettings() {
 	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
-		if err == nil {
-			w.noteSuggestSettings(s)
+		if err != nil {
+			w.stale()
+			return
 		}
+		w.noteSuggestSettings(s)
 	})
 }
 
