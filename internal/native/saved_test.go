@@ -182,6 +182,19 @@ func TestAFailedAttachAtStartKeepsTheSavedWorkspace(t *testing.T) {
 	}
 }
 
+func TestAPollStartsAWindowWhoseFirstReadFailed(t *testing.T) {
+	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}}, hostsErr: errors.New("booting")}
+	r := newRigIn(t, fb, t.TempDir())
+	if r.w.live || r.w.tabCount() != 0 {
+		t.Fatal("the first start was meant to fail")
+	}
+	r.w.pollTick()
+	r.w.pollTick()
+	if !r.w.live || r.w.tabCount() != 1 || len(fb.attached) != 1 {
+		t.Fatalf("live %v, %d tabs, attached %v: the poll did not start the window once", r.w.live, r.w.tabCount(), fb.attached)
+	}
+}
+
 func TestBadOrOtherVersionFilesAreIgnored(t *testing.T) {
 	for name, body := range map[string]string{
 		"bad json":      "{",
