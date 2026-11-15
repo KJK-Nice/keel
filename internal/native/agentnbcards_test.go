@@ -235,6 +235,25 @@ func TestAnEditRefusedWhileTheUserIsTypingKeepsTheTypingAndSaysWhy(t *testing.T)
 	}
 }
 
+func TestClosingAfterAFailedSaveTriesAgain(t *testing.T) {
+	r := nbAgentRig(t)
+	p := r.openNB(t, "nb1")
+	p.nb.md += " typed"
+	r.frames(1)
+	r.fb.nb.saveErr = errAgentDown
+	r.w.nbFlush(p, nil)
+	r.frames(1)
+	if !p.nb.failed {
+		t.Fatal("the save did not fail")
+	}
+	r.fb.nb.saveErr = nil
+	r.w.nbClosed(p)
+	r.frames(1)
+	if got := r.fb.nb.list[0].Markdown(); !strings.HasSuffix(got, " typed") {
+		t.Fatalf("closing the pane did not retry the failed save: %q", got)
+	}
+}
+
 func TestADeleteTheAgentProposesDeletesNothingUntilTheUserConfirms(t *testing.T) {
 	r := nbAgentRig(t)
 	r.openNB(t, "nb1")
