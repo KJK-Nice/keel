@@ -893,7 +893,9 @@ func (w *workspace) release(p *pane) {
 
 // closeWindow detaches: every connection closes and no session is killed.
 func (w *workspace) closeWindow() {
-	w.saveNow()
+	if err := w.saveNow(); err != nil {
+		w.fail("save workspace", err)
+	}
 	if what, err := w.flushPrefs(); err != nil {
 		w.fail(what, err)
 	}
