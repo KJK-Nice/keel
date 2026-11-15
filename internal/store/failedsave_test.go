@@ -199,7 +199,7 @@ func TestFailedSaveChangesNothingMore(t *testing.T) {
 	if err := st.SetAgentKey("anthropic", "sk-old"); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.TrustHostKey("10.0.0.1:22", "SHA256:abc", false); err != nil {
+	if err := trustKey(st, "10.0.0.1:22", "", "SHA256:abc", false); err != nil {
 		t.Fatal(err)
 	}
 	name, pinned := "renamed", true

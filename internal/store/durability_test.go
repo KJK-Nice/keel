@@ -91,7 +91,7 @@ func TestSaveRewritesVaultOnlyWhenSecretsChange(t *testing.T) {
 	if _, err := st.UpsertSnippet(Snippet{Name: "uptime", Command: "uptime\n"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.TrustHostKey("10.0.0.1:22", "SHA256:abc", false); err != nil {
+	if err := trustKey(st, "10.0.0.1:22", "", "SHA256:abc", false); err != nil {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(st.vaultPath)

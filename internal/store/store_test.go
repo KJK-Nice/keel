@@ -11,6 +11,26 @@ import (
 	"time"
 )
 
+// trustKey trusts a key the way the API does: a refused check records an
+// offer and TrustOffered saves it. A key already saved is not an error.
+func trustKey(st *Store, hostname, keyType, fingerprint string, replace bool) error {
+	var tok string
+	var unk *UnknownHostError
+	var mm *HostKeyMismatchError
+	switch err := st.CheckHostKeyType(hostname, keyType, fingerprint); {
+	case err == nil:
+		return nil
+	case errors.As(err, &unk):
+		tok = unk.Token
+	case errors.As(err, &mm):
+		tok = mm.Token
+	default:
+		return err
+	}
+	_, err := st.TrustOffered(tok, hostname, fingerprint, replace)
+	return err
+}
+
 func testStore(t *testing.T) *Store {
 	t.Helper()
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
@@ -216,7 +236,7 @@ func TestKnownHostsRequireTrust(t *testing.T) {
 	if unk.Host != "example:22" || unk.Fingerprint != "SHA256:abc" {
 		t.Fatalf("unknown = %+v", unk)
 	}
-	if err := st.TrustHostKey("example:22", "SHA256:abc", false); err != nil {
+	if err := trustKey(st, "example:22", "", "SHA256:abc", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.CheckHostKey("example:22", "SHA256:abc"); err != nil {
@@ -227,10 +247,10 @@ func TestKnownHostsRequireTrust(t *testing.T) {
 	if !errors.As(err, &mm) {
 		t.Fatalf("expected mismatch, got %v", err)
 	}
-	if err := st.TrustHostKey("example:22", "SHA256:other", false); err == nil {
+	if err := trustKey(st, "example:22", "", "SHA256:other", false); err == nil {
 		t.Fatal("replace required to overwrite")
 	}
-	if err := st.TrustHostKey("example:22", "SHA256:other", true); err != nil {
+	if err := trustKey(st, "example:22", "", "SHA256:other", true); err != nil {
 		t.Fatal(err)
 	}
 	if err := st.CheckHostKey("example:22", "SHA256:other"); err != nil {

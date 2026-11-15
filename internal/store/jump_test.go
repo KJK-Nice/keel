@@ -307,15 +307,15 @@ func TestKnownHostReadAndForget(t *testing.T) {
 	if err != nil || k.Known {
 		t.Fatalf("known = %+v, %v", k, err)
 	}
-	if err := st.TrustHostKeyType(name, "SHA256:abc", "ssh-ed25519", false); err != nil {
+	if err := trustKey(st, name, "ssh-ed25519", "SHA256:abc", false); err != nil {
 		t.Fatal(err)
 	}
 	k, _ = st.KnownHost(name)
 	if !k.Known || k.Fingerprint != "SHA256:abc" || k.KeyType != "ssh-ed25519" {
 		t.Fatalf("known = %+v", k)
 	}
-	// Re-trusting the same key without a type keeps the type.
-	if err := st.TrustHostKey(name, "SHA256:abc", false); err != nil {
+	// Trusting the same key again without a type keeps the type.
+	if err := trustKey(st, name, "", "SHA256:abc", false); err != nil {
 		t.Fatal(err)
 	}
 	if k, _ = st.KnownHost(name); k.KeyType != "ssh-ed25519" {
