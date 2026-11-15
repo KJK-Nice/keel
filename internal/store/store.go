@@ -944,6 +944,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	if s.locked.Load() {
 		return Host{}, ErrLocked
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	h.Tags = NormalizeTags(h.Tags)
 	if h.Port == 0 && !h.IsLocal() {
@@ -982,7 +983,7 @@ func (s *Store) UpsertHost(h Host) (Host, error) {
 	s.data.Hosts[at] = persistFrom(h)
 	s.putSecretLocked(h.ID, hostSecret{Password: h.Password, PrivateKey: h.PrivateKey, Passphrase: h.Passphrase}, prev)
 	out := s.fullLocked(s.data.Hosts[at])
-	if err := s.saveLocked(); err != nil {
+	if err := s.saveOrUndoLocked(u); err != nil {
 		return Host{}, err
 	}
 	return out, nil
@@ -1107,6 +1108,7 @@ func (s *Store) deleteHost(id string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	hosts := s.data.Hosts[:0]
 	found := false
 	for _, h := range s.data.Hosts {
@@ -1121,7 +1123,7 @@ func (s *Store) deleteHost(id string) error {
 	}
 	s.data.Hosts = hosts
 	delete(s.secrets, id)
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 func (s *Store) ListSnippets() ([]Snippet, error) {
@@ -1141,23 +1143,24 @@ func (s *Store) UpsertSnippet(sn Snippet) (Snippet, error) {
 	if s.locked.Load() {
 		return Snippet{}, ErrLocked
 	}
+	u := s.undoPointLocked()
 	now := time.Now().UTC()
 	if sn.ID == "" {
 		sn.ID = newID()
 		sn.CreatedAt = now
 		s.data.Snippets = append(s.data.Snippets, sn)
-		return sn, s.saveLocked()
+		return sn, s.saveOrUndoLocked(u)
 	}
 	for i, existing := range s.data.Snippets {
 		if existing.ID == sn.ID {
 			sn.CreatedAt = existing.CreatedAt
 			s.data.Snippets[i] = sn
-			return sn, s.saveLocked()
+			return sn, s.saveOrUndoLocked(u)
 		}
 	}
 	sn.CreatedAt = now
 	s.data.Snippets = append(s.data.Snippets, sn)
-	return sn, s.saveLocked()
+	return sn, s.saveOrUndoLocked(u)
 }
 
 func (s *Store) DeleteSnippet(id string) error {
@@ -1166,6 +1169,7 @@ func (s *Store) DeleteSnippet(id string) error {
 	if s.locked.Load() {
 		return ErrLocked
 	}
+	u := s.undoPointLocked()
 	out := s.data.Snippets[:0]
 	found := false
 	for _, sn := range s.data.Snippets {
@@ -1179,7 +1183,7 @@ func (s *Store) DeleteSnippet(id string) error {
 		return ErrNotFound
 	}
 	s.data.Snippets = out
-	return s.saveLocked()
+	return s.saveOrUndoLocked(u)
 }
 
 // CheckHostKey checks a fingerprint against the known hosts. It records no
@@ -1280,6 +1284,40 @@ func (s *Store) saveLocked() error {
 		s.changed()
 	}
 	return werr
+}
+
+// undoPoint is s.data and the secrets before a change, so a save that
+// fails can put them back (saveOrUndoLocked).
+type undoPoint struct {
+	data    persistData
+	secrets map[string]hostSecret
+	gen     uint64
+}
+
+// undoPointLocked records the state a mutation starts from. Elements are
+// copied by value: a mutation replaces an element or a field of it, never
+// what a slice or map inside it points to.
+func (s *Store) undoPointLocked() undoPoint {
+	d := s.data
+	d.Hosts = slices.Clone(d.Hosts)
+	d.Identities = slices.Clone(d.Identities)
+	d.Tunnels = slices.Clone(d.Tunnels)
+	d.Snippets = slices.Clone(d.Snippets)
+	d.Notebooks = slices.Clone(d.Notebooks)
+	d.Groups = slices.Clone(d.Groups)
+	return undoPoint{data: d, secrets: maps.Clone(s.secrets), gen: s.saveGen}
+}
+
+// saveOrUndoLocked is saveLocked that, when the save fails, puts back the
+// state at u. It does so only when no other save snapshotted meanwhile
+// (saveLocked releases mu): that one carries this change, and its outcome
+// decides.
+func (s *Store) saveOrUndoLocked(u undoPoint) error {
+	err := s.saveLocked()
+	if err != nil && s.saveGen <= u.gen+1 {
+		s.data, s.secrets = u.data, u.secrets
+	}
+	return err
 }
 
 // saveDurableLocked is saveLocked without releasing mu: no reader sees the

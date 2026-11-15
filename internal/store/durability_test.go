@@ -285,53 +285,69 @@ func TestSnapshotDuringVaultWriteCarriesSecrets(t *testing.T) {
 	}
 }
 
-// A failed keel.vault write must be retried by the next save, even one
-// that changes no secret.
+// A save that fails is undone (#154): the next save, even one that changes
+// no secret, leaves keel.vault holding what the store holds, whichever of
+// the two files the failed save could not write.
 func TestFailedVaultWriteRetriedByNextSave(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("rename over a directory")
 	}
-	st := testStore(t)
-	h, err := st.UpsertHost(Host{
-		Name: "box", Address: "10.0.0.1", Port: 22, Username: "root",
-		AuthType: "password", Password: "first",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	orig, err := os.ReadFile(st.vaultPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// A non-empty directory where keel.vault was makes the rename fail.
-	if err := os.Remove(st.vaultPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(st.vaultPath, "block"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	h.Password = "second"
-	if _, err := st.UpsertHost(h); err == nil {
-		t.Fatal("save with an unwritable vault succeeded")
-	}
-	if err := os.RemoveAll(st.vaultPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(st.vaultPath, orig, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := st.UpsertSnippet(Snippet{Name: "uptime", Command: "uptime\n"}); err != nil {
-		t.Fatal(err)
-	}
-	reopened, err := New(st.path, TestVault())
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := reopened.GetHost(h.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Password != "second" {
-		t.Fatalf("password after reopen = %q, want second", got.Password)
+	for _, blocked := range []string{"keel.vault", "keel.json"} {
+		t.Run(blocked, func(t *testing.T) {
+			st := testStore(t)
+			h, err := st.UpsertHost(Host{
+				Name: "box", Address: "10.0.0.1", Port: 22, Username: "root",
+				AuthType: "password", Password: "first",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(filepath.Dir(st.path), blocked)
+			orig, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// A non-empty directory where the file was makes the rename fail.
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(filepath.Join(path, "block"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			h.Password = "second"
+			if _, err := st.UpsertHost(h); err == nil {
+				t.Fatalf("save with an unwritable %s succeeded", blocked)
+			}
+			if err := os.RemoveAll(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, orig, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := st.UpsertSnippet(Snippet{Name: "uptime", Command: "uptime\n"}); err != nil {
+				t.Fatal(err)
+			}
+			reopened, err := New(st.path, TestVault())
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := reopened.GetHost(h.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Password != "first" {
+				t.Fatalf("password after reopen = %q, want first (the failed save was refused)", got.Password)
+			}
+			if _, err := st.UpsertHost(h); err != nil {
+				t.Fatal(err)
+			}
+			again, err := New(st.path, TestVault())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, err := again.GetHost(h.ID); err != nil || got.Password != "second" {
+				t.Fatalf("password after the retried save = %q %v, want second", got.Password, err)
+			}
+		})
 	}
 }
