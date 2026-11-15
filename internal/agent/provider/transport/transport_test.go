@@ -91,3 +91,28 @@ func TestOutputLimitAndStop(t *testing.T) {
 		}
 	}
 }
+
+func TestPostRefusesRedirect(t *testing.T) {
+	var hits int
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits++ }))
+	defer target.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/steal", http.StatusTemporaryRedirect)
+	}))
+	defer srv.Close()
+	c, err := New(Config{
+		Name: "vendor", Timeout: 5 * time.Second, MaxBody: 1 << 20,
+		Auth: func(h http.Header, key string) { h.Set("X-Key", key) },
+	}, testKey, WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out reply
+	err = c.Post(context.Background(), "/v1/x", map[string]string{"a": "b"}, &out, nil)
+	if hits != 0 {
+		t.Errorf("redirect target got %d requests", hits)
+	}
+	if err == nil || !strings.Contains(err.Error(), "HTTP 307") {
+		t.Errorf("err = %v, want HTTP 307 error", err)
+	}
+}

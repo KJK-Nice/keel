@@ -427,6 +427,58 @@ func TestDenialEndsTheJoinWithTheAppsMessageAndNoOutput(t *testing.T) {
 	}
 }
 
+func isLost(s keelclient.State) bool { return s.Status == "error" && s.Message == msgLost }
+
+func TestABriefDisconnectDoesNotEndTheJoin(t *testing.T) {
+	disconnectGrace = 150 * time.Millisecond
+	t.Cleanup(func() { disconnectGrace = 10 * time.Second })
+	h := newFakeHost(t)
+	p := open(t, h, key)
+	p.onState(webrtc.PeerConnectionStateDisconnected)
+	time.Sleep(30 * time.Millisecond)
+	p.onState(webrtc.PeerConnectionStateConnected)
+	time.Sleep(300 * time.Millisecond)
+	if st := p.Snapshot(); st.Status == "error" {
+		t.Fatalf("a recovered blip ended the join: %+v", st)
+	}
+}
+
+func TestADisconnectThatLastsEndsTheJoin(t *testing.T) {
+	disconnectGrace = 50 * time.Millisecond
+	t.Cleanup(func() { disconnectGrace = 10 * time.Second })
+	h := newFakeHost(t)
+	p := open(t, h, key)
+	p.onState(webrtc.PeerConnectionStateDisconnected)
+	waitState(t, p, "lost after the grace", isLost)
+}
+
+func TestAFailedConnectionEndsTheJoinAtOnce(t *testing.T) {
+	h := newFakeHost(t)
+	p := open(t, h, key)
+	p.onState(webrtc.PeerConnectionStateFailed)
+	waitState(t, p, "lost", isLost)
+}
+
+func TestNoOfferInTimeEndsTheJoin(t *testing.T) {
+	offerWait = 100 * time.Millisecond
+	t.Cleanup(func() { offerWait = 30 * time.Second })
+	h := newFakeHost(t)
+	p := open(t, h, key)
+	waitState(t, p, "lost for want of an offer", isLost)
+}
+
+func TestWaitingForTheHostToAdmitHasNoOfferDeadline(t *testing.T) {
+	offerWait = 100 * time.Millisecond
+	t.Cleanup(func() { offerWait = 30 * time.Second })
+	h := newFakeHost(t)
+	p := open(t, h, key)
+	h.pending(h.waitPeer())
+	time.Sleep(400 * time.Millisecond)
+	if st := p.Snapshot(); st.Status == "error" {
+		t.Fatalf("a join waiting for the host's answer failed: %+v", st)
+	}
+}
+
 func TestWhenTheOwnerStopsSharingTheJoinerIsToldAndTheTerminalSaysHostDetached(t *testing.T) {
 	h := newFakeHost(t)
 	p := open(t, h, key)

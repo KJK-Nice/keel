@@ -665,6 +665,42 @@ func sshHost(t *testing.T, st *store.Store) store.Host {
 	return h
 }
 
+func TestRepeatedConnectFailureNotesOnce(t *testing.T) {
+	st := testStore(t)
+	host := sshHost(t, st)
+	const failures = 6
+	var mu sync.Mutex
+	n := 0
+	rt := New(st, func(store.Host, int, int) (session.Bridge, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		n++
+		if n <= failures {
+			return nil, errors.New("dial tcp: connection refused")
+		}
+		return newFakeBridge(), nil
+	})
+	rt.backoff = time.Millisecond
+	info, err := rt.Spawn(host.ID, 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := rt.Get(info.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitReady(t, sess)
+	mu.Lock()
+	tried := n
+	mu.Unlock()
+	if tried <= failures {
+		t.Fatalf("opener called %d times, want more than %d", tried, failures)
+	}
+	if got := strings.Count(string(sess.ReadScrollback()), "connection refused"); got != 1 {
+		t.Fatalf("%d notes for %d identical failures, want 1", got, failures)
+	}
+}
+
 func TestReconnectPreservesScrollback(t *testing.T) {
 	st := testStore(t)
 	host := sshHost(t, st)

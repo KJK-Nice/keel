@@ -289,6 +289,7 @@ type Session struct {
 	closed         bool
 	looping        bool
 	reconnectN     int
+	lastRetryNote  string
 	backoff        time.Duration
 	everReady      bool
 	forceReconnect bool
@@ -931,8 +932,14 @@ func (s *Session) runLoop() {
 				if s.everReady {
 					retryNote = "Reconnect failed: " + err.Error()
 				}
+				// One note per distinct failure: a host down overnight must not
+				// fill the ring with retry notes.
+				fresh := retryNote != s.lastRetryNote
+				s.lastRetryNote = retryNote
 				s.mu.Unlock()
-				s.noteLine(retryNote)
+				if fresh {
+					s.noteLine(retryNote)
+				}
 				s.broadcast(Event{Kind: wire.TypeStatus, Status: StatusConnecting, Message: err.Error(), Info: s.Info()})
 				if !s.backoffWait() {
 					return
@@ -964,6 +971,7 @@ func (s *Session) runLoop() {
 		// skipped, so the PTY would stay at its opening size: apply it below.
 		wantCols, wantRows := s.cols, s.rows
 		s.reconnectN = 0
+		s.lastRetryNote = ""
 		s.forceReconnect = false
 		retry := s.everReady
 		s.everReady = true
