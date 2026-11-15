@@ -52,6 +52,7 @@ type notebookPane struct {
 	auto              *autosave
 	saving            bool
 	flight            *saveFlight // the running save, for a quit that must save after it
+	deleting          bool        // a delete is on its way: no save may bring the notebook back
 	failed            bool        // the last save failed: typing that is only here
 	gone              bool        // the notebook was deleted or the pane closed: no save may bring it back
 	waiters           []func(ok bool)
@@ -303,7 +304,7 @@ func (w *workspace) splitNotebook() { w.newNotebook() }
 // changed meanwhile (autosave.end).
 func (w *workspace) nbPump(p *pane) {
 	n := p.nb
-	if n.saving {
+	if n.saving || n.deleting {
 		return
 	}
 	if !n.auto.begin() {
@@ -428,7 +429,7 @@ func (w *workspace) flushNotebooksNow() {
 	for _, p := range w.notebookPanes() {
 		n := p.nb
 		n.retryFailed()
-		if n.gone || !n.auto.dirty {
+		if n.gone || n.deleting || !n.auto.dirty {
 			continue
 		}
 		n.auto.dirty = false
@@ -587,8 +588,17 @@ func (w *workspace) askDeleteNotebook(id string) {
 // back); when keel serve cannot keep it in Recently deleted it asks before deleting for good.
 func (w *workspace) deleteNotebook(id string, permanent bool) {
 	rec, _ := w.notebook(id)
+	deleting := func(on bool) {
+		for _, p := range w.notebookPanes() {
+			if p.nb.id == id {
+				p.nb.deleting = on
+			}
+		}
+	}
 	w.nbFlushID(id, func() {
+		deleting(true) // typing from now on is not saved: a save after the delete would put the notebook back
 		callErr(w, func(c context.Context) error { return w.be.DeleteNotebook(c, id, permanent) }, func(err error) {
+			deleting(false)
 			switch {
 			case err == nil:
 				w.removeNotebook(id)
