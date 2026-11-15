@@ -150,7 +150,11 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 	}
 	switch {
 	case st.Status == wire.StatusError || st.Status == wire.StatusExited:
-		w.bannerRow(c, "banner failed", flareSoft, flare, failHeadline(st), failEndpoint(p.host, st), st.Message, func() {
+		msg := st.Message
+		if p.note != "" {
+			msg = p.note
+		}
+		w.bannerRow(c, "banner failed", flareSoft, flare, failHeadline(st), failEndpoint(p.host, st), msg, func() {
 			common()
 			if textBtn(c, "Reconnect", btnPrimary) {
 				w.act(func() { w.reconnect(p) })
