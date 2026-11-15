@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -391,6 +392,9 @@ type Store struct {
 	// unsavedMigration is set while what a load-time migration changed is
 	// only in memory: the vault was locked, so it is saved at the unlock.
 	unsavedMigration bool
+	// pending holds the secrets an old keel.json had in the clear while an
+	// existing keel.vault is locked; Unlock adds them to the vault.
+	pending map[string]hostSecret
 	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
 	fromEnv bool
@@ -499,15 +503,17 @@ func New(path string, opts ...Option) (*Store, error) {
 		s.data, pending = plain.data, plain.secrets
 	}
 	s.unsavedMigration = migrateGroups(&s.data)
-	if err := s.bootstrap(); err != nil {
+	if err := s.bootstrap(pending); err != nil {
 		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.locked.Load() {
-		if len(pending) > 0 {
-			s.secrets = pending
-			s.needSetup = true
+		// With no keel.vault, Setup saves them; an existing vault must be
+		// opened with its own key first, and they join it at the unlock.
+		if !s.needSetup && len(pending) > 0 {
+			s.secrets = map[string]hostSecret{}
+			s.pending = pending
 		}
 		return s, nil
 	}
@@ -627,9 +633,13 @@ func seed() persistData {
 	}
 }
 
-func (s *Store) bootstrap() error {
+// bootstrap opens or creates the vault. pending (an old keel.json's
+// secrets) is in s.secrets before any save it makes, so keel.json is never
+// written without them before keel.vault has them.
+func (s *Store) bootstrap(pending map[string]hostSecret) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	maps.Copy(s.secrets, pending)
 	if pass := envPass(); pass != "" {
 		if err := s.unlockScryptLocked(pass, true); err != nil {
 			return err
@@ -714,6 +724,11 @@ func (s *Store) Unlock(passphrase string) error {
 	}
 	if err := s.unlockScryptLocked(passphrase, false); err != nil {
 		return err
+	}
+	if len(s.pending) > 0 {
+		maps.Copy(s.secrets, s.pending)
+		s.pending = nil
+		s.unsavedMigration = true
 	}
 	if s.unsavedMigration {
 		if err := s.saveLocked(); err != nil {
