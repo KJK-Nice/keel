@@ -44,5 +44,5 @@ func (s windowStateStore) SaveWindowStates(m map[string]mygo.WindowState) error 
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, b, 0o600)
+	return writeFileAtomic(filepath.Dir(s.path), filepath.Base(s.path), b)
 }

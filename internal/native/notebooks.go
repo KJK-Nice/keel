@@ -84,6 +84,14 @@ func (n *notebookPane) load(rec keelclient.Notebook) {
 // dirty is typing that keel serve does not have: a save is pending or running, or the last one failed.
 func (n *notebookPane) dirty() bool { return n.auto.pending() || n.failed }
 
+// retryFailed makes the typing of a failed save pending again, so a flush (a close, a quit) saves it once more.
+// The autosave timer does not call it: a failed save is not retried on a loop.
+func (n *notebookPane) retryFailed() {
+	if n.failed && !n.saving {
+		n.auto.dirty = true
+	}
+}
+
 func (n *notebookPane) payload() keelclient.NotebookSave {
 	name := strings.TrimSpace(n.title)
 	if name == "" {
@@ -348,6 +356,7 @@ func (w *workspace) nbSettle(p *pane) {
 // nothing is pending; ok is false when the save failed.
 func (w *workspace) nbFlush(p *pane, done func(ok bool)) {
 	n := p.nb
+	n.retryFailed()
 	if n.gone || (!n.auto.pending() && !n.saving) {
 		if done != nil {
 			done(!n.failed)
@@ -394,6 +403,7 @@ func (w *workspace) nbClosed(p *pane) {
 func (w *workspace) flushNotebooksNow() {
 	for _, p := range w.notebookPanes() {
 		n := p.nb
+		n.retryFailed()
 		if n.gone || !n.auto.pending() || n.saving {
 			continue
 		}

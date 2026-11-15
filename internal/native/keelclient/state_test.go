@@ -103,6 +103,20 @@ func TestSnapshotRolePeersAndDriver(t *testing.T) {
 	}
 }
 
+func TestSocketClosedByServerIsALostConnection(t *testing.T) {
+	s := newScript(t)
+	c, err := s.c.Spawn("h1", 80, 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	go io.Copy(io.Discard, c)
+	s.out <- `{"type":"ready","id":"s1","title":"api","status":"ready","you":{"id":1,"name":"a","kind":"window","role":"driver"}}`
+	waitFor(t, func() bool { return c.Snapshot().Ready() })
+	close(s.out)
+	waitFor(t, func() bool { st := c.Snapshot(); return st.Status == "error" && st.WasReady })
+}
+
 func TestSnapshotHostKeySetThenCleared(t *testing.T) {
 	s := newScript(t)
 	c, err := s.c.Spawn("h1", 80, 24)
