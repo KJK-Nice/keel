@@ -96,6 +96,7 @@ type State struct {
 	Blocked                  uint64    // keystrokes dropped because this client was not driving (the "Typing is off" notice)
 	HostKey                  HostKey   // zero when there is no host-key problem
 	WasReady                 bool      // the session was ready at some point (a later failure is a lost connection)
+	SocketLost               bool      // this client's socket failed while the session was up: it may still run on keel serve, so Reconnect attaches again
 	Log                      []LogLine // the connection log a failed or connecting pane shows and Copy logs copies (log.go)
 }
 
@@ -151,6 +152,7 @@ func (c *Conn) lost() {
 	s.recordLog(s.Status, wire.StatusError, "The connection to keel serve was lost")
 	s.Status = wire.StatusError
 	s.Message = "The connection to keel serve was lost"
+	s.SocketLost = true
 	fn := c.onChange
 	c.mu.Unlock()
 	if fn != nil {
@@ -226,7 +228,7 @@ func (c *Conn) control(data []byte) {
 
 func sameState(a, b State) bool {
 	return a.Blocked == b.Blocked && a.Status == b.Status && a.Title == b.Title && a.Subtitle == b.Subtitle && a.Message == b.Message &&
-		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady &&
+		a.Role == b.Role && a.DriverID == b.DriverID && a.OwnerID == b.OwnerID && a.YouID == b.YouID && a.HostKey == b.HostKey && a.WasReady == b.WasReady && a.SocketLost == b.SocketLost &&
 		slices.Equal(a.Attached, b.Attached) && slices.Equal(a.Log, b.Log)
 }
 
