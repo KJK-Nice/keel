@@ -148,15 +148,17 @@ func (c *fakeConn) RestoreWords(words string) error {
 
 // fakeBackend records what the workspace asks of keel serve.
 type fakeBackend struct {
-	vault    keelclient.Vault
-	hosts    []keelclient.Host
-	sessions []keelclient.Session
-	calls    []string
-	spawned  []string // host ids
-	attached []string // session ids
-	killed   []string
-	conns    []*fakeConn
-	n        int
+	attachErr map[string]error // Attach fails for these session ids
+	hostsErr  error            // Hosts fails once, then answers
+	vault     keelclient.Vault
+	hosts     []keelclient.Host
+	sessions  []keelclient.Session
+	calls     []string
+	spawned   []string // host ids
+	attached  []string // session ids
+	killed    []string
+	conns     []*fakeConn
+	n         int
 
 	reconnected []string
 	trusted     []keelclient.HostKey
@@ -276,6 +278,10 @@ func (f *fakeBackend) Vault(context.Context) (keelclient.Vault, error) {
 func (f *fakeBackend) Hosts(context.Context) ([]keelclient.Host, error) {
 	f.rec("hosts")
 	f.hostsCalls++
+	if err := f.hostsErr; err != nil {
+		f.hostsErr = nil
+		return nil, err
+	}
 	return append([]keelclient.Host(nil), f.hosts...), nil
 }
 func (f *fakeBackend) Sessions(context.Context) ([]keelclient.Session, error) {
@@ -290,6 +296,9 @@ func (f *fakeBackend) Spawn(hostID string, _, _ int) (session, error) {
 	return c, nil
 }
 func (f *fakeBackend) Attach(id string, _, _ int) (session, error) {
+	if err := f.attachErr[id]; err != nil {
+		return nil, err
+	}
 	c := &fakeConn{id: id, status: "ready"}
 	f.attached = append(f.attached, id)
 	f.conns = append(f.conns, c)

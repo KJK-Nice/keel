@@ -2,6 +2,7 @@ package native
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -163,6 +164,34 @@ func TestRestorePrunesAndAppendsUnknownSessions(t *testing.T) {
 	}
 	if f := r.w.tabAt(0).panes[r.w.tabAt(0).focused].sessionID(); f != "s1" {
 		t.Errorf("a focus on a session that is gone must fall back to the first pane: %s", f)
+	}
+}
+
+func TestAFailedAttachAtStartKeepsTheSavedWorkspace(t *testing.T) {
+	dir := t.TempDir()
+	writeDoc(t, dir, savedDoc{V: 1, Tabs: []savedTab{{Layout: &savedNode{Dir: "row", Ratio: 0.5, A: leaf("s1"), B: leaf("s2")}}}})
+	before, _ := os.ReadFile(filepath.Join(dir, savedFile))
+	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}},
+		attachErr: map[string]error{"s2": errors.New("daemon restarting")}}
+	r := newRigIn(t, fb, dir)
+	r.tt.Frame()
+	r.w.flush()
+	r.w.closeWindow()
+	if after, _ := os.ReadFile(filepath.Join(dir, savedFile)); string(after) != string(before) {
+		t.Errorf("a start that could not attach every session rewrote the saved workspace: %s", after)
+	}
+}
+
+func TestAPollStartsAWindowWhoseFirstReadFailed(t *testing.T) {
+	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}}, hostsErr: errors.New("booting")}
+	r := newRigIn(t, fb, t.TempDir())
+	if r.w.live || r.w.tabCount() != 0 {
+		t.Fatal("the first start was meant to fail")
+	}
+	r.w.pollTick()
+	r.w.pollTick()
+	if !r.w.live || r.w.tabCount() != 1 || len(fb.attached) != 1 {
+		t.Fatalf("live %v, %d tabs, attached %v: the poll did not start the window once", r.w.live, r.w.tabCount(), fb.attached)
 	}
 }
 

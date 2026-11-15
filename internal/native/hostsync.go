@@ -96,7 +96,9 @@ func (w *workspace) pollOnce() {
 		case w.gate != nil: // unlocked elsewhere
 			w.unlocked(w.gate)
 			w.rev = v.Rev
-		case v.Rev != w.rev && w.live:
+		case !w.live: // the first reads failed (keel serve was still starting): read them again
+			w.start()
+		case v.Rev != w.rev:
 			w.rev = v.Rev
 			for _, refresh := range w.refreshers() {
 				refresh()

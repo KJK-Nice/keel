@@ -123,6 +123,7 @@ func (c *Conn) Read(p []byte) (int, error) {
 	for len(c.buf) == 0 {
 		typ, data, err := c.ws.ReadMessage()
 		if err != nil {
+			c.lost()
 			return 0, err
 		}
 		if typ == websocket.BinaryMessage {
@@ -136,6 +137,25 @@ func (c *Conn) Read(p []byte) (int, error) {
 	n := copy(p, c.buf)
 	c.buf = c.buf[n:]
 	return n, nil
+}
+
+// lost marks a session whose socket failed as down, so the pane shows its failure banner and Reconnect. A session
+// that already ended or failed keeps what keel serve said.
+func (c *Conn) lost() {
+	c.mu.Lock()
+	s := &c.state
+	if s.Status == wire.StatusError || s.Status == wire.StatusExited {
+		c.mu.Unlock()
+		return
+	}
+	s.recordLog(s.Status, wire.StatusError, "The connection to keel serve was lost")
+	s.Status = wire.StatusError
+	s.Message = "The connection to keel serve was lost"
+	fn := c.onChange
+	c.mu.Unlock()
+	if fn != nil {
+		fn()
+	}
 }
 
 // control applies a ready, status, presence, control or error frame, and queues the share hub's join frames as

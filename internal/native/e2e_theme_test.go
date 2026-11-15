@@ -192,15 +192,14 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.step()
 	e.pump(func() bool { return e.w.prefs.TermFont == fontPlex }, "the font choice")
 	e.key(ui.Cmd, ui.Key1)
-	e.settle(800 * time.Millisecond)
+	e.pump(func() bool {
+		f := e.w.focusedPane().fontFamily
+		return len(f) >= len(plexFamily) && f[:len(plexFamily)] == plexFamily
+	}, "the pane's family")
 	plex := e.crop(area)
+	e.pump(func() bool { plex = e.crop(area); return !bytes.Equal(jb.Pix, plex.Pix) },
+		"the terminal text drawn in IBM Plex Mono, not the same as in JetBrains Mono")
 	e.shot("TestE2EUISizeAndFont-plex")
-	if bytes.Equal(jb.Pix, plex.Pix) {
-		t.Error("the terminal text is drawn the same in IBM Plex Mono and in JetBrains Mono")
-	}
-	if got := e.w.focusedPane().fontFamily; got == "" || got[:len(plexFamily)] != plexFamily {
-		t.Errorf("the pane's family is %q", got)
-	}
 	b, err := os.ReadFile(filepath.Join(dir, "keel-native.json"))
 	if err != nil || !bytes.Contains(b, []byte(`"termFont": "ibmplex"`)) || !bytes.Contains(b, []byte(`"uiSize": 12`)) {
 		t.Errorf("keel-native.json (err %v): %s", err, b)
