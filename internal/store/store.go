@@ -880,7 +880,22 @@ func (s *Store) fullLocked(h persistHost) Host {
 	return out
 }
 
+// checkHostID refuses a caller's host id outside [0-9A-Za-z_-]: a host's
+// secrets are kept under its id, beside the vault's own (agentchats:key,
+// identity:<id>, ...), which all hold a colon.
+func checkHostID(id string) error {
+	for _, r := range id {
+		if !(r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r == '_' || r == '-') {
+			return fieldErr("host id may hold only letters, digits, _ and -")
+		}
+	}
+	return nil
+}
+
 func (s *Store) UpsertHost(h Host) (Host, error) {
+	if err := checkHostID(h.ID); err != nil {
+		return Host{}, err
+	}
 	// A host created under an id the caller chose starts with no notes: a
 	// note left from an earlier host with that id (whose notes could not be
 	// removed when it was deleted) must not come back with it. Notes are
@@ -1040,6 +1055,9 @@ func (s *Store) putSecretLocked(id string, next, prev hostSecret) {
 // it, and a host created later under the same id clears its notes first
 // (UpsertHost).
 func (s *Store) DeleteHost(id string) error {
+	if err := checkHostID(id); err != nil {
+		return err
+	}
 	if err := s.deleteHost(id); err != nil {
 		return err
 	}
