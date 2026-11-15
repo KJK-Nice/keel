@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"testing"
+	"time"
 )
 
 type denyWriter struct{}
@@ -77,5 +78,26 @@ func TestIssuerRejectsEmptyNonceAndReplay(t *testing.T) {
 	}
 	if _, err := iss.Consume(1, "ls\n", nonce); !errors.Is(err, ErrBadTicket) {
 		t.Fatalf("mismatch must spend the ticket, err = %v", err)
+	}
+}
+
+// An expired ticket of a client that never comes back is dropped by the
+// next Issue of any client.
+func TestIssueDropsExpiredTicketsOfOtherClients(t *testing.T) {
+	iss := NewIssuer()
+	nonce, err := iss.Issue(1, "ls\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	iss.mu.Lock()
+	tk := iss.pending[nonce]
+	tk.exp = time.Now().Add(-time.Second)
+	iss.pending[nonce] = tk
+	iss.mu.Unlock()
+	if _, err := iss.Issue(2, "pwd\n"); err != nil {
+		t.Fatal(err)
+	}
+	if len(iss.pending) != 1 || len(iss.latest) != 1 {
+		t.Fatalf("pending = %d, latest = %d, want 1 and 1", len(iss.pending), len(iss.latest))
 	}
 }

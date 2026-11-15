@@ -65,6 +65,14 @@ func (i *Issuer) Issue(clientID uint64, command string) (string, error) {
 	now := time.Now()
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	for n, t := range i.pending {
+		if now.After(t.exp) {
+			delete(i.pending, n)
+			if i.latest[t.client] == n {
+				delete(i.latest, t.client)
+			}
+		}
+	}
 	if old := i.latest[clientID]; old != "" {
 		delete(i.pending, old)
 	}
