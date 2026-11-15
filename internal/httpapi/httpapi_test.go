@@ -837,6 +837,21 @@ func TestReadScrollbackAPINotFound(t *testing.T) {
 	}
 }
 
+func TestSessionWSHostIDWithoutUpgradeSpawnsNothing(t *testing.T) {
+	srv, rt, st, _ := testServer(t)
+	res, err := http.Get(srv.URL + "/ws/session?hostId=" + firstHost(t, st).ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode < 400 {
+		t.Errorf("status = %d, want an error", res.StatusCode)
+	}
+	if n := len(rt.List()); n != 0 {
+		t.Fatalf("%d sessions after a request that was not an upgrade, want 0", n)
+	}
+}
+
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
 	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())

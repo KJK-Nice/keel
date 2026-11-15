@@ -67,6 +67,9 @@ type Peer struct {
 	open   bool // the data channel is open
 	failed bool
 	closed bool
+
+	offerTimer *time.Timer
+	disc       *time.Timer // set while ICE is Disconnected
 }
 
 // Open dials the signal server of link and starts the exchange. It returns once the socket is up: the host's answer,
@@ -94,6 +97,9 @@ func Open(link Link, name string, opts ...Option) (*Peer, error) {
 	}
 	p := &Peer{frames: keelclient.NewFrameConn(), ws: ws, pc: pc, ice: o.ice, sigURL: sig}
 	p.cond = sync.NewCond(&p.mu)
+	p.mu.Lock()
+	p.offerTimer = time.AfterFunc(offerWait, func() { p.fail(msgLost, false) })
+	p.mu.Unlock()
 	go p.run(link.Key)
 	return p, nil
 }
@@ -130,11 +136,7 @@ func (p *Peer) run(key string) {
 		}
 		p.send(m)
 	})
-	p.pc.OnConnectionStateChange(func(s webrtc.PeerConnectionState) {
-		if s == webrtc.PeerConnectionStateFailed || s == webrtc.PeerConnectionStateDisconnected {
-			p.fail(msgLost, false)
-		}
-	})
+	p.pc.OnConnectionStateChange(p.onState)
 	p.pc.OnDataChannel(p.attach)
 	for {
 		var m wire.Signal
@@ -157,15 +159,62 @@ func (p *Peer) run(key string) {
 	}
 }
 
+var (
+	// disconnectGrace is how long ICE may sit in Disconnected before the join ends: pion recovers from a short
+	// network blip on its own, and a Wi-Fi roam takes a few seconds.
+	disconnectGrace = 10 * time.Second
+	// offerWait is how long a joiner waits for the host's offer. A host that is up answers in a second or two; 30 s
+	// allows a slow signal server without leaving a dead host's joiner waiting for ever. A pending request (the host
+	// is being asked) has its own 2 minute expiry on the host, so it lifts this deadline.
+	offerWait = 30 * time.Second
+)
+
+func (p *Peer) onState(s webrtc.PeerConnectionState) {
+	p.mu.Lock()
+	if p.disc != nil {
+		p.disc.Stop()
+		p.disc = nil
+	}
+	switch s {
+	case webrtc.PeerConnectionStateDisconnected:
+		p.disc = time.AfterFunc(disconnectGrace, func() { p.fail(msgLost, false) })
+	case webrtc.PeerConnectionStateFailed:
+		p.mu.Unlock()
+		p.fail(msgLost, false)
+		return
+	}
+	p.mu.Unlock()
+}
+
+// stopOfferWait cancels the deadline for the host's offer.
+func (p *Peer) stopOfferWait() {
+	p.mu.Lock()
+	if p.offerTimer != nil {
+		p.offerTimer.Stop()
+	}
+	p.mu.Unlock()
+}
+
+func (p *Peer) stopTimersLocked() {
+	if p.offerTimer != nil {
+		p.offerTimer.Stop()
+	}
+	if p.disc != nil {
+		p.disc.Stop()
+	}
+}
+
 func (p *Peer) onSignal(m wire.Signal, key string, ice *iceQueue) {
 	switch m.Kind {
 	case wire.SignalPending: // the host was asked to let us in: the state stays as it is, and the window says "waiting"
+		p.stopOfferWait()
 	case wire.SignalDenied:
 		p.fail(msgDeclined, true)
 	case wire.SignalOffer:
 		if m.SDP == "" {
 			return
 		}
+		p.stopOfferWait()
 		a, err := answerOffer(p.pc, key, offer{m.SDP, m.Mac}, ice)
 		if err != nil {
 			p.fail(err.Error(), true)
@@ -248,6 +297,7 @@ func (p *Peer) fail(msg string, toast bool) {
 	}
 	p.failed = true
 	p.queue = nil
+	p.stopTimersLocked()
 	p.cond.Broadcast()
 	p.mu.Unlock()
 	p.frames.Mark(wire.StatusError, msg)
@@ -326,6 +376,7 @@ func (p *Peer) Close() error {
 	}
 	p.closed = true
 	p.queue = nil
+	p.stopTimersLocked()
 	p.cond.Broadcast()
 	p.mu.Unlock()
 	_ = p.pc.Close()

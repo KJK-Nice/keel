@@ -234,7 +234,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		e.openRecent()
 		e.click("Search conversations")
 		e.tt.Type("#01")
-		e.step()
+		e.pump(func() bool { return e.hasLabel("conversation " + first.Title) }, "the filtered list") // it loads from keel serve
 		e.click("conversation " + first.Title)
 		e.pump(func() bool { return e.w.agentState().conv == first.ID && e.hasLabel("Proposal expired") }, "the expired card")
 		if e.hasLabel("Type into pane…") || e.hasLabel("Edit command") {
