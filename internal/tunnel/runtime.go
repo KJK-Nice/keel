@@ -151,7 +151,7 @@ func (r *Runtime) Start(id string) (Info, error) {
 	}
 
 	r.mu.Lock()
-	if lv, ok := r.live[id]; ok && (lv.status == StatusReady || lv.status == StatusConnecting) {
+	if lv, ok := r.live[id]; ok && !lv.stopped && (lv.status == StatusReady || lv.status == StatusConnecting) {
 		r.mu.Unlock()
 		return r.infoLocked(tn), nil
 	}
