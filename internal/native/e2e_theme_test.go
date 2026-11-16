@@ -201,10 +201,10 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.pump(func() bool { plex = e.crop(area); return !bytes.Equal(jb.Pix, plex.Pix) },
 		"the terminal text drawn in IBM Plex Mono, not the same as in JetBrains Mono")
 	e.shot("TestE2EUISizeAndFont-plex")
-	b, err := os.ReadFile(filepath.Join(dir, "keel-native.json"))
-	if err != nil || !bytes.Contains(b, []byte(`"termFont": "ibmplex"`)) || !bytes.Contains(b, []byte(`"uiSize": 12`)) {
-		t.Errorf("keel-native.json (err %v): %s", err, b)
-	}
+	e.pump(func() bool {
+		b, err := os.ReadFile(filepath.Join(dir, "keel-native.json"))
+		return err == nil && bytes.Contains(b, []byte(`"termFont": "ibmplex"`)) && bytes.Contains(b, []byte(`"uiSize": 12`))
+	}, "keel-native.json to hold termFont ibmplex and uiSize 12")
 	e.w.closeWindow()
 }
 
