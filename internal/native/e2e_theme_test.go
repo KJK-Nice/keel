@@ -89,10 +89,11 @@ func TestE2EThemeSwitch(t *testing.T) {
 	e.openSettings()
 	e.click("Light")
 	e.pump(func() bool { return !e.w.dark }, "the light theme again")
-	b, err := os.ReadFile(filepath.Join(dir, "keel-native.json"))
-	if err != nil || !bytes.Contains(b, []byte(`"theme": "light"`)) {
-		t.Fatalf("keel-native.json (err %v) has no light theme", err)
-	}
+	// The preference is written in the background: wait for it, not for the frame.
+	e.pump(func() bool {
+		b, err := os.ReadFile(filepath.Join(dir, "keel-native.json"))
+		return err == nil && bytes.Contains(b, []byte(`"theme": "light"`))
+	}, "keel-native.json to hold the light theme")
 	e.w.closeWindow()
 	e2 := newWin(t, addr, dir, nil)
 	e2.useSavedWindowPrefs()
