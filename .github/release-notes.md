@@ -1,11 +1,13 @@
-## What's new in v0.2.2
+## What's new in v0.2.3
 
-- **`keel serve stop` keeps its token safe.** It sends the token only to a server that proves it holds it, and never follows a redirect with it.
-- **Settings keep the last value you set.** Moving a slider or the sidebar edge quickly could leave an older value in `keel-native.json`; the last one now always wins, and a change still waiting when the window closes is saved.
-- **A notebook that cannot be saved when the window closes now says so.**
-- **Logs has a Sharing filter** for share events, which showed only under All before.
-- **Terminal sizes are capped at 1000 columns and rows** instead of wrapping to a wrong size.
-- **Under the hood:** the daemon and the window now share one vocabulary package, and the code that decides when Keel may type for you, the approve dialog, the command table, preferences and pages each live in one place. The security tests were tightened so a moved name cannot quietly disable them. Nothing else should look different; tell us if something does.
+Fixes from a full audit of Keel (issues #144–#164).
+
+- **The vault is harder to lose.** Restoring an old `keel.json` next to an existing vault no longer lets Unlock replace the vault; a failed read of the OS keychain no longer makes a new key over the real one, and Unlock tries the keychain again; host ids can no longer collide with Keel's own vault entries; a save that fails leaves nothing half-changed; restoring a deleted notebook cannot lose it.
+- **Sharing.** A viewer you passed control to goes back to watching when your last Keel window closes; requests for control are paced; a joiner's name is cleaned before it is shown; a short network blip no longer ends a join, and a host that never answers ends it after 30 s.
+- **keel-signal** limits the rooms one client can hold (set `KEEL_SIGNAL_CLIENT_IP` on a public server, see docs/sharing.md) and a stalled connection can no longer hold up the server.
+- **Notebooks.** Text is saved when you close a pane or quit after a failed save, quitting saves every notebook at once within a few seconds, and typing during a delete is not saved over it.
+- **Panes.** A pane whose connection to keel serve drops shows Connection lost, and Reconnect opens it again; a window that opens before keel serve is ready starts by itself once it is; a flaky start no longer rewrites your saved tabs.
+- **Smaller fixes:** model provider requests never follow a redirect (the API key stays with the provider); a long outage no longer fills the scrollback with retry notes; Start after Stop on a forward that is still connecting keeps it running; a damaged `keel-native.json` is kept as `.bad` and replaced; `keel mcp` survives an oversized request.
 
 ## Install
 
