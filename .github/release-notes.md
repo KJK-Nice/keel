@@ -1,13 +1,10 @@
-## What's new in v0.2.3
+## What's new in v0.2.4
 
-Fixes from a full audit of Keel (issues #144–#164).
-
-- **The vault is harder to lose.** Restoring an old `keel.json` next to an existing vault no longer lets Unlock replace the vault; a failed read of the OS keychain no longer makes a new key over the real one, and Unlock tries the keychain again; host ids can no longer collide with Keel's own vault entries; a save that fails leaves nothing half-changed; restoring a deleted notebook cannot lose it.
-- **Sharing.** A viewer you passed control to goes back to watching when your last Keel window closes; requests for control are paced; a joiner's name is cleaned before it is shown; a short network blip no longer ends a join, and a host that never answers ends it after 30 s.
-- **keel-signal** limits the rooms one client can hold (set `KEEL_SIGNAL_CLIENT_IP` on a public server, see docs/sharing.md) and a stalled connection can no longer hold up the server.
-- **Notebooks.** Text is saved when you close a pane or quit after a failed save, quitting saves every notebook at once within a few seconds, and typing during a delete is not saved over it.
-- **Panes.** A pane whose connection to keel serve drops shows Connection lost, and Reconnect opens it again; a window that opens before keel serve is ready starts by itself once it is; a flaky start no longer rewrites your saved tabs.
-- **Smaller fixes:** model provider requests never follow a redirect (the API key stays with the provider); a long outage no longer fills the scrollback with retry notes; Start after Stop on a forward that is still connecting keeps it running; a damaged `keel-native.json` is kept as `.bad` and replaced; `keel mcp` survives an oversized request.
+- **In-app updates.** Keel checks for and installs new releases itself: **Check for Updates…** is in the menu bar item and the Keel app menu. This is the first release that has it, so install it by hand once; later releases come to you.
+- **The menu bar item** shows keel serve's status and sessions, Keel's and keel serve's versions (choose one to copy both), New Tab, Quick Connect, Check for Updates, Settings and Stop Keel Runtime…. **Settings → About** shows the release you run.
+- **A quieter title bar.** Its right holds only the Agent icon (⌘I): the pane already says whose session it is and who drives, and **Share** is in the pane's menu (or the palette).
+- **Who else is in a pane.** A pane people watch by link gets a ring and a notch with their names; a click opens the Share panel. In a pane someone else drives, the ring, the notch and the cursor take that person's colour, and the notch has **Ask for control** (or **Take control**). The ring and notch replace the "N watching" badge and the "Following" banner.
+- **Long tab names** are cut with an ellipsis and stay inside their tab, with the close button.
 
 ## Install
 
