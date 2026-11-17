@@ -165,52 +165,8 @@ func (w *workspace) titlebar(c *ui.Context) {
 				w.act(func() { w.dropPaneOnStrip(m, len(w.tabs)) })
 			}
 		}
-		if s := w.barStatus(); s != "" {
-			if s == "Connecting…" {
-				ui.Spinner(c).Label("Connecting").Shrink(0)
-			}
-			text(c, s, inkMuted, rem(barMetaPx), weightRegular)
-		}
-		w.shareControls(c)
 		w.agentButton(c)
 	})
-}
-
-// barStatus is what the window shows at the right of the title bar. A page shows
-// nothing; the New tab page says "New tab" (or "Connecting…" while it connects); a session says whose hands are on it.
-func (w *workspace) barStatus() string {
-	t := w.tab()
-	switch {
-	case t == nil || t.mode() == modePage:
-		return ""
-	case t.mode() == modeNew:
-		if t.start.connecting != "" {
-			return "Connecting…"
-		}
-		return "New tab"
-	}
-	p := t.panes[t.focused]
-	if p == nil {
-		return "No session"
-	}
-	if p.nb != nil {
-		return "Notebook"
-	}
-	if st := p.conn.Snapshot(); st.Driving() {
-		return paneSubtitle(p, st) + " · driving"
-	}
-	return paneSubtitle(p, p.conn.Snapshot()) + " · following"
-}
-
-// paneSubtitle is the mono line after the host's name in a pane's bar: the title the shell set, else user@address.
-func paneSubtitle(p *pane, st keelclient.State) string {
-	if st.Subtitle != "" {
-		return st.Subtitle
-	}
-	if p.host.Username != "" {
-		return p.host.Username + "@" + p.host.Address
-	}
-	return p.host.Address
 }
 
 func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
@@ -686,6 +642,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			case p.remote: // who drives, and "You follow" (§5.7)
 				joinChips(c, st)
 			case len(st.Attached) > 1:
+				w.watchersBadge(c, t, p, st)
 				roleChip(c, st.Role)
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
@@ -702,6 +659,9 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 				w.paneTools(c, t, p, focused)
 			})
 		})
+		if s := w.share; s != nil && s.open && s.p == p {
+			w.sharePopover(c, bar)
+		}
 		w.paneBanners(c, t, p, st)
 		if w.findPane == p {
 			w.findBar(c, p)
@@ -802,14 +762,13 @@ func (w *workspace) statusbar(c *ui.Context) {
 	})
 }
 
-// agentButton is the title bar's Agent button with its key cap. A joined tab has no
-// panel and no button (§5.7).
+// agentButton is the title bar's Agent icon, pressed while the panel is open; its cap shows while ⌘ is held. A joined
+// tab has no panel and no button (§5.7).
 func (w *workspace) agentButton(c *ui.Context) {
 	if w.joinedActive() {
 		return
 	}
-	b := barButton(c, "Agent", "ai-magic", agentKeys(), w.prefs.AgentPanel)
-	if b.Clicked() {
+	if w.capBtn(c, capLabel("agent.toggle"), "ai-magic", "Agent", sizeControlSm, w.prefs.AgentPanel, false) {
 		w.act(w.toggleAgent)
 	}
 }

@@ -206,11 +206,24 @@ func newShareE2E(t *testing.T, withSignal bool) *shareE2E {
 
 var linkRE = regexp.MustCompile(`^http://127\.0\.0\.1:\d+/join\?room=[^&#]+#k=[0-9a-f]{32}$`)
 
-// openShare clicks Share on A and waits until the popover has its link; it returns the link (kept in memory: the
+// shareFromMenu chooses Share in the menu of the focused pane's bar: the title bar has no Share button.
+func (e *win) shareFromMenu() {
+	e.t.Helper()
+	if err := e.tt.RightClick("pane bar " + e.w.focusedPane().id); err != nil {
+		e.t.Fatal(err)
+	}
+	e.step()
+	if err := e.tt.ChooseMenuItem("Share"); err != nil {
+		e.t.Fatal(err)
+	}
+	e.step()
+}
+
+// openShare chooses Share on A and waits until the popover has its link; it returns the link (kept in memory: the
 // key is never printed or written).
 func (r *shareE2E) openShare() string {
 	r.a.t.Helper()
-	r.a.click("Share")
+	r.a.shareFromMenu()
 	pumpAll(r.a.t, r.wins(), func() bool { return r.a.w.share != nil && r.a.w.share.status == "ready" && r.a.hasLabel("Copied") }, "the Share popover with its link")
 	return r.a.tt.Clipboard()
 }
@@ -330,7 +343,7 @@ func (r *shareE2E) settle(d time.Duration) {
 
 func TestE2ENoSignalServer(t *testing.T) {
 	r := newShareE2E(t, false)
-	r.a.click("Share")
+	r.a.shareFromMenu()
 	pumpAll(t, r.wins(), func() bool { return r.a.w.share != nil && r.a.w.share.status == "error" }, "the popover's error")
 	if !r.a.tt.HasText("set a signal server in Settings · Sharing to share") || !r.a.tt.HasText("Not shared") {
 		t.Errorf("popover: %q", r.a.tt.Texts())
@@ -425,9 +438,9 @@ func TestE2EShareAndJoin(t *testing.T) {
 		t.Errorf("B's banner: %q", r.b.tt.Texts())
 	}
 	before := r.b.bodyInk()
-	// The popover is still open on A and, at the theme's sizes, covers the pane's centre: click the pane's left side, outside it.
+	// The popover is still open on A, under the pane's bar: click the pane's bottom right corner, outside it.
 	pr, _ := r.a.tt.Find("pane 1")
-	r.a.tt.ClickAt(pr.X+pr.W/4, pr.Y+pr.H/2)
+	r.a.tt.ClickAt(pr.X+pr.W-space6, pr.Y+pr.H-space6)
 	r.a.step()
 	r.a.typeLine("echo hello-$((1+1))")
 	pump30(t, r.wins(), func() bool { return strings.Contains(r.b.tees[0].text(), "hello-2") }, "hello-2 in B's terminal")
@@ -467,7 +480,8 @@ func TestE2EJoinerCannotTypeUntilHandedOver(t *testing.T) {
 	link := r.openShare()
 	r.joinWith(link)
 	r.admitAndWait(t)
-	r.a.click("Share") // close the popover
+	r.a.tt.Key(0, ui.KeyEscape) // close the popover
+	r.a.step()
 	pid := r.b.w.focusedPane().id
 	r.b.clickBody(pid)
 	r.b.typeLine("echo from-b")
@@ -531,7 +545,7 @@ func TestE2EDenyAllowAndStop(t *testing.T) {
 
 	// Stop sharing: B's tab shows the ended state, and the old link does not admit.
 	if r.a.w.share == nil {
-		r.a.click("Share")
+		r.a.shareFromMenu()
 	}
 	r.a.click("Stop sharing")
 	pump30(t, r.wins(), func() bool {

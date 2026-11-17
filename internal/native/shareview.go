@@ -6,6 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/native/keelclient"
 	"keel/internal/wire"
 )
 
@@ -16,34 +17,25 @@ const (
 	avatarPx   = 26  // 2rem
 )
 
-// shareControls is the right of the title bar: the "N watching" badge and the Share button of a session tab.
-func (w *workspace) shareControls(c *ui.Context) {
-	p := w.shareTarget()
-	if p == nil {
+// watchersBadge is "N watching" in the bar of a live pane of this window that people watch: it opens the Share popover
+// on that pane, with the people list.
+func (w *workspace) watchersBadge(c *ui.Context, t *tab, p *pane, st keelclient.State) {
+	n := watchingCount(st.Attached)
+	if n == 0 || p.remote || p.sessionID() == "" {
 		return
 	}
-	st := p.conn.Snapshot()
-	if n := watchingCount(st.Attached); n > 0 { // opens the popover with the people list
-		b := ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).
-			Background(hazeSoft).Label(fmt.Sprintf("%d watching", n)).Cursor(ui.CursorPointer)
-		b.Children(func() {
-			iconSized(c, "eye", haze, iconSizeSm)
-			text(c, fmt.Sprintf("%d watching", n), haze, kbdSize, weightSemibold)
-		})
-		if b.Clicked() {
-			w.act(w.toggleShare)
-		}
-	}
-	b := barButton(c, "Share", "share-08", "", w.share != nil && w.share.open)
+	b := ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).
+		Background(hazeSoft).Label(fmt.Sprintf("%d watching", n)).Cursor(ui.CursorPointer)
+	b.Children(func() {
+		iconSized(c, "eye", haze, iconSizeSm)
+		text(c, fmt.Sprintf("%d watching", n), haze, kbdSize, weightSemibold)
+	})
 	if b.Clicked() {
-		w.act(w.toggleShare)
-	}
-	if w.share != nil && w.share.open {
-		w.sharePopover(c, b)
+		w.act(func() { w.pickPane(t, p.id); w.toggleShare() })
 	}
 }
 
-// sharePopover is the popover below the Share button. Escape and a click outside close it.
+// sharePopover is the popover below the bar of the shared pane. Escape and a click outside close it.
 func (w *workspace) sharePopover(c *ui.Context, anchor ui.Element) {
 	s := w.share
 	open := true

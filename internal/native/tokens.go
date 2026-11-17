@@ -150,7 +150,6 @@ const (
 	paletteWidthPx                    = 560        // 43rem
 	paletteSearchPx                   = 46         // search height, 3.538rem
 	tabMaxPx                          = 200        // tab max-width 15.4rem
-	barMetaPx                         = 11.9       // 0.917rem
 	tabCountPx, tabCountFontPx        = 16, 10     // height 1.231rem, font 0.769rem
 	radioPx, radioDotPx               = 15, 7      // 1.154rem, its dot 0.538rem
 	tileLgPx, tileLgIconPx, titleLgPx = 44, 22, 18 // large tile 3.385rem, its glyph 1.692rem, detail title 1.385rem
