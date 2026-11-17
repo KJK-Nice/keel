@@ -6,6 +6,10 @@
   "main": "./cmd/keel",
   "out": "build",
   "icon": "packaging/macos/icon.png",
+  "updates": {
+    "publicKey": "hHAEAQf2iG8b1mA+QOizLRDjrRPktRbev2XN/RuIVU8=",
+    "github": "KJK-Nice/keel"
+  },
   "resources": ["LICENSE", "THIRD_PARTY_NOTICES"],
   "macos": {
     "icon": "packaging/macos/Keel.icns",

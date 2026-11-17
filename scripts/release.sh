@@ -14,6 +14,9 @@
 # $shipped below; mygo.json ("resources") has to repeat it, since MyGo reads that file and not this script.
 # KEEL_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
 # keychain profile "notary"; without it the app is signed ad hoc and not notarized, and the log says so.
+# MYGO_UPDATER_PRIVATE_KEY (the secret of mygo keygen; mygo.json holds its public key) signs the in-app updates:
+# mygo build then writes update-<platform>.json, the app archive and deltas, which the release must carry for
+# "Check for Updates…" (docs/release.md). A tagged release fails without it; a pull request dry run goes on without.
 # No KEEL_SIGNAL is baked in: Share stays off until the user enters a keel-signal in Settings · Sharing
 # (docs/sharing.md).
 set -eu
@@ -30,6 +33,16 @@ shipped="LICENSE THIRD_PARTY_NOTICES"
 # archname GOARCH: the CPU name in the keel-signal archive names (x86_64, arm64).
 archname() {
 	case "$1" in amd64) echo x86_64 ;; *) echo "$1" ;; esac
+}
+
+# updates DIR: the in-app update files of one mygo build platform (manifest, app archive, deltas) into dist/, when
+# the build signed them. Without MYGO_UPDATER_PRIVATE_KEY there are none (package stops a tagged release first).
+updates() {
+	[ -n "${MYGO_UPDATER_PRIVATE_KEY:-}" ] || return 0
+	ls "$1"/update-*.json >/dev/null 2>&1 || fail "mygo build wrote no update manifest in $1"
+	for f in "$1"/update-*.json "$1"/*.tar.gz "$1"/*.delta; do
+		if [ -f "$f" ]; then cp "$f" dist/; fi
+	done
 }
 
 # docs FOLDER: the license files that ship beside a binary.
@@ -54,6 +67,12 @@ package() {
 	v0.0.0-pr*) ;; # a dry run of the workflow on a pull request
 	*) [ "$cv" = "$v" ] || fail "mygo.json says version $cv but the tag is $tag: set \"version\" in mygo.json to $v and tag that commit" ;;
 	esac
+	if [ -z "${MYGO_UPDATER_PRIVATE_KEY:-}" ]; then
+		case "$tag" in
+		v0.0.0-pr*) echo "release: no MYGO_UPDATER_PRIVATE_KEY: no update files (a dry run)" ;;
+		*) fail "no MYGO_UPDATER_PRIVATE_KEY: installed apps could not update to this release (docs/release.md)" ;;
+		esac
+	fi
 	[ -f THIRD_PARTY_NOTICES ] || sh scripts/notices.sh THIRD_PARTY_NOTICES
 	rm -rf build
 	platforms=$1
@@ -86,6 +105,7 @@ macos)
 	done
 	codesign --verify --deep --strict "$app"
 	cp build/darwin-universal/keel-"$cv".dmg dist/
+	updates build/darwin-universal
 	;;
 linux)
 	package linux/amd64,linux/arm64
@@ -105,6 +125,7 @@ linux)
 			dpkg-deb -c "$dir/keel_${cv}_$arch.deb" | grep -q 'opt/keel/libghostty-vt.so' || fail "libghostty-vt.so is not in the $arch .deb"
 		fi
 		cp "$dir/keel-$cv-linux-$arch.tar.gz" "$dir/keel_${cv}_$arch.deb" dist/
+		updates "$dir"
 	done
 	;;
 signal)

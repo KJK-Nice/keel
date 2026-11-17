@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/terminal"
+	updatewin "github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/authtoken"
@@ -153,6 +154,8 @@ func RunWith(o Options) error {
 		mygo.Theme.SetSource(mygo.ThemeSource(pr.Theme))
 	}
 
+	// The update window, drawn in native UI (no webview); dev builds never check and say why when asked.
+	mygo.Use(updatewin.Plugin)
 	mygo.App.SetWindowStateStore(newWindowStateStore(o.DataDir))
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
