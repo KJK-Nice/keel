@@ -29,6 +29,13 @@ func ownerState() *keelclient.State {
 	}
 }
 
+// shareFromMenu chooses Share in pane 1's menu, the way to the popover now that the title bar has no Share button.
+func shareFromMenu(t *testing.T, r *rig) {
+	t.Helper()
+	menuLabels(t, r, "pane bar 1")
+	choose(t, r, "Share")
+}
+
 func shareRig(t *testing.T, st *keelclient.State) *rig {
 	t.Helper()
 	r := openTabs(t, 1)
@@ -112,15 +119,15 @@ func TestTheShareLinkNeverPrintsItsKey(t *testing.T) {
 	}
 }
 
-func TestShareButtonOpensThePopoverAndCopiesTheLink(t *testing.T) {
+func TestShareOpensThePopoverAndCopiesTheLink(t *testing.T) {
 	r := shareRig(t, ownerState())
-	if !r.has("Share") || !r.has("1 watching") {
-		t.Fatal("a shared session tab shows the Share button and the watchers badge")
+	if !r.has("1 watching") {
+		t.Fatal("a shared pane's bar shows the watchers badge")
 	}
 	if len(r.fb.shared) != 0 {
 		t.Fatal("nothing is shared before the click")
 	}
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if !slices.Equal(r.fb.shared, []string{"s1"}) {
 		t.Fatalf("shared %v", r.fb.shared)
@@ -159,7 +166,7 @@ func textHas(r *rig, s string) bool {
 
 func TestCopyPutsTheLinkOnTheClipboardAndNowhereElse(t *testing.T) {
 	r := shareRig(t, ownerState())
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	r.w.shareLinks["s1"] = shareLink{shareTestURL}
 	// Clear what the automatic copy did, then press Copy.
@@ -181,7 +188,7 @@ func TestCopyPutsTheLinkOnTheClipboardAndNowhereElse(t *testing.T) {
 
 func TestEscapeAndClickOutsideClosePopoverAndReopenIsTheSameLinkWithoutAnotherShare(t *testing.T) {
 	r := shareRig(t, ownerState())
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if r.w.share == nil {
 		t.Fatal("popover not open")
@@ -191,7 +198,7 @@ func TestEscapeAndClickOutsideClosePopoverAndReopenIsTheSameLinkWithoutAnotherSh
 	if r.w.share != nil || r.tt.HasText("Share session") {
 		t.Fatal("Escape did not close the popover")
 	}
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if len(r.fb.shared) != 1 {
 		t.Errorf("shared %d times: a link this window has is shown again", len(r.fb.shared))
@@ -210,7 +217,7 @@ func TestWithoutASignalServerThePopoverShowsTheServersError(t *testing.T) {
 	r := shareRig(t, ownerState())
 	r.fb.shareURL = ""
 	r.fb.shareErr = &keelclient.StatusError{Method: "POST", Path: "/api/share", Status: "503", Code: 503, Msg: "set a signal server in Settings · Sharing to share"}
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if !r.tt.HasText("set a signal server in Settings · Sharing to share") || !r.tt.HasText("Not shared") {
 		t.Errorf("texts %q", r.tt.Texts())
@@ -225,7 +232,7 @@ func TestWithoutASignalServerThePopoverShowsTheServersError(t *testing.T) {
 
 func TestStopSharingCallsStopShareAndClosesThePopover(t *testing.T) {
 	r := shareRig(t, ownerState())
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	r.click(t, "Stop sharing")
 	r.tt.Frame()
@@ -238,7 +245,7 @@ func TestStopSharingCallsStopShareAndClosesThePopover(t *testing.T) {
 	if _, ok := r.w.shareLinks["s1"]; ok {
 		t.Error("the stopped link is still remembered: the next Share must ask for a new one")
 	}
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if len(r.fb.shared) != 2 {
 		t.Errorf("shared %d times, want 2 (a new share after stopping)", len(r.fb.shared))
@@ -250,7 +257,7 @@ func TestPopoverButtonsForYourSeat(t *testing.T) {
 	follower := &keelclient.State{Status: "ready", Role: "follower", YouID: 2, DriverID: 1, OwnerID: 1, Attached: []keelclient.Peer{
 		{ID: 1, Name: "Ann", Kind: keelclient.KindWindow}, {ID: 2, Name: "me", Kind: keelclient.KindWindow}}}
 	r := shareRig(t, follower)
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if !r.has("Ask for control") || r.has("Take control") {
 		t.Error("a follower who is not the owner asks for control")
@@ -263,7 +270,7 @@ func TestPopoverButtonsForYourSeat(t *testing.T) {
 	owner := &keelclient.State{Status: "ready", Role: "owner", YouID: 1, DriverID: 2, OwnerID: 1, Attached: []keelclient.Peer{
 		{ID: 1, Name: "me", Kind: keelclient.KindWindow}, {ID: 2, Name: "Ann", Kind: "webrtc"}, {ID: 3, Name: "Bo", Kind: "webrtc"}, {ID: 4, Name: "Cy", Kind: "webrtc"}}}
 	r = shareRig(t, owner)
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if !r.has("Take control") || !r.has("Pass control to Bo") || !r.has("Pass control to Cy") || r.has("Pass control to Ann") {
 		t.Errorf("owner not driving, two others: Take control at the foot, Pass control on each row but the driver's; texts %q", r.tt.Texts())
@@ -280,7 +287,7 @@ func TestPopoverButtonsForYourSeat(t *testing.T) {
 	driver := ownerState()
 	driver.Attached = append(driver.Attached, keelclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc", AttachedAt: "2026-01-02T03:06:00Z"})
 	r = shareRig(t, driver)
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	if r.has("Pass control to Ann") == false || r.has("Pass control to Bo") == false {
 		t.Error("several people: each row has Pass control")
@@ -315,7 +322,7 @@ func TestTheWatchersBadgeCountsPeopleWhoCameByLink(t *testing.T) {
 	if r.has("2 watching") || r.has("1 watching") {
 		t.Error("no watchers, no badge")
 	}
-	r.click(t, "Share") // the Share button stays
+	shareFromMenu(t, r) // the menu's Share stays
 	if r.w.share == nil {
 		t.Error("popover did not open")
 	}
@@ -356,7 +363,7 @@ func TestAJoinRequestShowsAnAllowDenyPromptAndNothingAdmitsWithoutAClick(t *test
 	}
 	// Time, frames, Escape, the popover: nothing answers it.
 	r.tt.Key(0, ui.KeyEscape)
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	r.tt.Key(0, ui.KeyEscape)
 	r.tt.Frame()
@@ -547,7 +554,7 @@ func TestPaneMenuAndPaletteShare(t *testing.T) {
 
 func TestAPromptOverThePopoverAnswersWithOneClickAndLeavesThePopoverOpen(t *testing.T) {
 	r := shareRig(t, ownerState())
-	r.click(t, "Share")
+	shareFromMenu(t, r)
 	r.tt.Frame()
 	joinRequest(r, "p1", "Ann")
 	a, _ := r.tt.Find("Allow")

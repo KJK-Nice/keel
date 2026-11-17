@@ -9,37 +9,27 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-func TestTitleBarShowsTheBarStatusAndTheStatusBarDoesNot(t *testing.T) {
+// The title bar's right holds only the Agent icon: the pane bar already says whose session it is and who drives, and
+// Share is in the pane menu.
+func TestTitleBarRightIsTheAgentIconOnly(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
 	r.click(t, "host api-1")
-	// A session: the pane bar's line and whose hands are on it at the right of the
-	// title bar.
 	pane := r.w.activeTab().panes["1"]
 	pane.conn.(*fakeConn).st = &keelclient.State{Status: "ready", Subtitle: "vm", Role: "driver"}
 	r.tt.Frame()
-	bar, ok := r.tt.Find("vm · driving")
-	// At the right of the title bar, before the Share and Agent buttons: how far right depends on the width of their key caps
-	// ("⌘I" on macOS, "Ctrl+⇧I" on Linux: 835 there, not 900), so the test asks for the right half and for the buttons' side.
-	share, _ := r.tt.Find("Share")
-	if !ok || bar.Y+bar.H > sizeTitlebar || bar.X < 640 || bar.X+bar.W > share.X {
-		t.Errorf("bar status 'vm · driving' at %v (%v): %v", bar, ok, r.tt.Texts())
+	for _, s := range []string{"vm · driving", "Share"} {
+		if r.has(s) {
+			t.Errorf("the title bar shows %q: %v", s, r.tt.Texts())
+		}
 	}
-	pane.conn.(*fakeConn).st = &keelclient.State{Status: "ready", Role: "follower"}
-	r.tt.Frame()
-	if !r.tt.HasText("deploy@10.0.0.1 · following") {
-		t.Errorf("a follower's bar status: %v", r.tt.Texts())
+	agent, ok := r.tt.Find("Agent")
+	if !ok || agent.W != sizeControlSm || agent.H != sizeControlSm || agent.Y+agent.H > sizeTitlebar || agent.X < 640 {
+		t.Errorf("Agent at %v (%v), want a %v px icon at the right of the title bar", agent, ok, sizeControlSm)
 	}
 	r.click(t, "New tab")
-	if got := r.w.barStatus(); got != "New tab" {
-		t.Errorf("bar status %q on the New tab page", got)
-	}
-	if tx := r.tt.Texts(); len(tx) == 0 || !strings.HasPrefix(tx[len(tx)-1], "keel serve") { // the status bar is last, and has no "New tab"
+	if tx := r.tt.Texts(); len(tx) == 0 || !strings.HasPrefix(tx[len(tx)-1], "keel serve") { // the status bar is last
 		t.Errorf("the status bar ends with %v", tx[len(tx)-3:])
-	}
-	r.w.showPage("settings")
-	if got := r.w.barStatus(); got != "" {
-		t.Errorf("a page has no bar status, got %q", got)
 	}
 }
 
