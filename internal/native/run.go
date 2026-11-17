@@ -102,7 +102,13 @@ func liveBodyT(p *pane, transparent bool) {
 			term.SetCopyOnSelect(terminal.CopyOnSelectNone)
 		}
 	}
-	p.setTheme = func() { t := terminalTheme(); term.SetTheme(t, t) }
+	p.setTheme = func() {
+		t := terminalTheme()
+		if p.cursorCol != (ui.Color{}) { // someone else drives: their colour (presence.go)
+			t.Cursor = p.cursorCol
+		}
+		term.SetTheme(t, t)
+	}
 	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: p.fontFamily, Size: size}) }
 	p.search = &termSearch{
 		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,

@@ -761,9 +761,9 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	both := []*win{a, b}
 	pumpAll(t, both, func() bool {
 		return b.w.tabCount() == 1 && b.snap().Role == "follower" && len(a.snap().Attached) == 2 && b.hasLabel("role Following") &&
-			b.hasLabel("banner following") && b.hasLabel("Ask for control") && a.hasLabel("role Driving")
+			b.hasLabel("presence following") && b.hasLabel("Ask for control") && a.hasLabel("role Driving")
 	}, "B following with Ask for control, A driving")
-	if a.hasLabel("banner following") || b.hasLabel("Take control") {
+	if a.hasLabel("presence following") || b.hasLabel("Take control") {
 		t.Error("the driver shows the follower banner, or a non-owner offers Take control")
 	}
 	if !b.hasLabel("role glyph eye") || !a.hasLabel("role glyph steering") {
@@ -788,7 +788,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 		t.Fatal(err)
 	}
 	pumpAll(t, both, func() bool {
-		return b.snap().Role == "driver" && a.snap().Role == "owner" && a.hasLabel("banner following") && a.hasLabel("Take control")
+		return b.snap().Role == "driver" && a.snap().Role == "owner" && a.hasLabel("presence following") && a.hasLabel("Take control")
 	}, "B driving, A following as the owner with Take control")
 	a.shot("TestE2EFollowerAndTakeControl-owner")
 	b.focusBody("1")

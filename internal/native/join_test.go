@@ -120,7 +120,7 @@ func TestJoiningOpensAFollowingTabWithTheAppsBannerAndNothingElse(t *testing.T) 
 		}
 	}
 	// A terminal and nothing else: no sidebar, no toggle, no Share, no badge, no Vault.
-	for _, s := range []string{"sidebar hosts", "Toggle sidebar", "Share", "1 watching", "Filter hosts", "banner following", "Reconnect"} {
+	for _, s := range []string{"sidebar hosts", "Toggle sidebar", "Share", "1 watching", "Filter hosts", "presence following", "Reconnect"} {
 		if jr.has(s) {
 			t.Errorf("a joined tab shows %q", s)
 		}

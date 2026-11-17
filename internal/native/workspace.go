@@ -248,6 +248,7 @@ type pane struct {
 	search     *termSearch
 	setFont    func(size float32)
 	setTheme   func()
+	cursorCol  ui.Color // the cursor's colour while someone else drives; zero is the theme's (presence.go)
 
 	// Set by newPane from the workspace's terminal preferences, and by mkBody: Copy on select (changes live) and
 	// Right-click in the terminal (read when the terminal is made).

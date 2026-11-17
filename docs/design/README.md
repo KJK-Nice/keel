@@ -3,7 +3,7 @@ Keel is a local SSH workspace: a native window of tabs and split panes over PTYs
 ## Principles
 
 1. **The terminal is the work; chrome steps back.** Chrome, rails and pane bars use the darkest neutrals and muted text. Nothing in chrome is brighter than the text in the terminal.
-2. **One warm light.** Brass is the only accent. At rest it marks only the terminal cursor. Anything else brass is something you can press right now (primary button, a toggle that is on) or a role that is yours (Driving). Where you are is shown by shape and brightness, not by color: see Depth, borders, motion.
+2. **One warm light.** Brass is the only accent. At rest it marks only the terminal cursor (yours: while someone else drives a pane you follow, the cursor takes their presence colour, see Presence below). Anything else brass is something you can press right now (primary button, a toggle that is on) or a role that is yours (Driving). Where you are is shown by shape and brightness, not by color: see Depth, borders, motion.
 3. **State is always spoken.** Live, reconnecting, exited, driving, following: each has a color *and* a word or icon. Never color alone.
 4. **Show the bytes.** Anything that writes into a session from outside the keyboard shows the exact bytes and target first (ApproveType).
 5. **Only code is mono.** `user@host:port`, IPs, paths, flags, commands, terminal output and key caps are set in mono. Everything a person reads as UI (tab and host names, labels, counts, status text) is the system font.
@@ -63,6 +63,7 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 - **Selected tab.** A `raised` pill with `ink` text: no border, no underline.
 - **Split tabs.** Only when a tab holds two or more panes, the panes become `radius-md` tiles on the `chrome` ground with a `space-1.5` (6px) gap and no outlines. The focused tile carries a soft ring (3px, `focus` at 30%, `shadow-tile-focus`) and the other terminals dim to 70%. A single-pane tab stays full-bleed with no ring.
 - Never use colored rules, side bars or left-border accents to mark the selected tab or the focused pane.
+- **Presence.** The one coloured ring is about people, not focus: a live pane someone else is in gets a ring around its terminal, as thick as the focus ring, with a notch on its top edge that says who (a word, never colour alone). Watchers are `haze`; someone else at the keys has a person colour from `ansi-1` … `ansi-6` (the normal ANSI colours: small text on them reads at 4.5:1 in both themes), chosen by their name, which their cursor takes too. A single-pane tab shows it as well.
 - Motion is functional: `duration-fast` 90ms for hover and focus, `duration-base` 160ms for menus, tooltips and the switch, `duration-slow` 240ms for dialogs and toasts. Ease-out in, ease-in out. The reconnecting dot pulses; under `prefers-reduced-motion` it is static and nothing slides.
 
 ## Iconography

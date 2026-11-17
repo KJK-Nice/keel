@@ -162,22 +162,6 @@ func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.St
 		})
 	case st.Status == wire.StatusConnecting && !p.host.IsLocal():
 		w.bannerRow(c, "banner connecting", signalSoft, signal, "Connecting…", failEndpoint(p.host, st), "", common)
-	case st.Role == wire.RoleFollower || st.Role == wire.RoleOwner:
-		who := "Nobody is driving"
-		for _, a := range st.Attached {
-			if st.DriverID != 0 && a.ID == st.DriverID && a.Name != "" {
-				who = a.Name + " is driving"
-			}
-		}
-		owner := st.OwnerID != 0 && st.OwnerID == st.YouID // only the owner may take control
-		w.bannerRow(c, "banner following", hazeSoft, haze, "Following · "+who+" · read-only", "", "", func() {
-			switch {
-			case owner && textBtn(c, "Take control", btnDefault):
-				w.act(func() { w.sendControl(p.conn.TakeControl, "take control") })
-			case !owner && textBtn(c, "Ask for control", btnDefault):
-				w.act(func() { w.sendControl(p.conn.RequestControl, "ask for control") })
-			}
-		})
 	}
 }
 
