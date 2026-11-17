@@ -269,7 +269,7 @@ func (w *workspace) tabPill(c *ui.Context, i int, t *tab) {
 				return true
 			})
 		} else {
-			bodyStrong(c, t.name(), col)
+			bodyStrong(c, t.name(), col).Shrink(1).MinWidth(0) // a long name gives way, so the pill keeps its max width
 		}
 		if k := tabKey(i, len(w.tabs)); k != "" {
 			w.keyCapLead(c, k)
