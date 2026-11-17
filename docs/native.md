@@ -27,11 +27,11 @@ The window's shell (`internal/native/shell.go`; the menu items run the window's 
 
 | Shell behaviour | Window |
 |---|---|
-| App menu (About, Hide, Quit ⌘Q), Window menu | MyGo `RoleAppMenu`, `RoleWindowMenu` |
+| App menu (About, Check for Updates…, Services, Hide, Quit ⌘Q), Window menu | macOS: a Keel menu of MyGo roles with `updater.MenuItem()` after About (elsewhere `RoleAppMenu`); `RoleWindowMenu`. The update window is MyGo's `plugins/updater/native` (docs/release.md, Auto-updates) |
 | File menu: New Tab ⌘T, Close Tab ⌘W, Reopen Tab ⌘⇧T, New Host ⌘N, Quick Connect ⌘⇧O, Join Session ⌘J, Split Right ⌘⇧D, Split Down ⌘⇧E, Split Notebook, Close Window ⌘⇧W, Stop Keel runtime | built; Find Host has no chord and is the sidebar filter and the palette |
 | View menu: Find in Terminal ⌘F, Toggle Vault Sidebar ⌘B, Toggle Agent Panel ⌘I (Ctrl+⇧I off macOS), Focus View ⌘⇧↵, Zoom In ⌘= / Zoom Out ⌘- / Actual Size ⌘0 | built; the chords are the window's own (the command table, `commands.go`), and a chord that is a menu item's goes to the menu, which runs the same function |
 | Edit menu | none on purpose: its ⌘C/⌘V roles would take the keys from the terminal's own copy and paste |
-| Menu bar item (tray) with serve status, Show/Hide, New Tab, Quick Connect…, Allow Claude Code, Quit Keel | macOS only (MyGo `NewTray`, a template icon) |
+| Menu bar item (tray): a Keel Server header (app icon, serve status as its subtitle, a submenu with Stop Keel Runtime…), the app and keel serve versions (choosing one copies both), Show/Hide, New Tab, Quick Connect…, Allow Claude Code, Check for Updates…, Settings…, Quit Keel | macOS only (MyGo `NewTray`, a template icon cropped to its glyph so the 18pt menu bar height draws it full size; the subtitle needs macOS 14, older shows `Label — Subtitle`) |
 | Keep in menu bar: closing the window hides it and the Dock icon, the menu bar item or opening Keel again brings it back, Quit quits | macOS only (`Window.OnClose` + `App.Dock.Hide/Show` + `App.OnActivate`) |
 | Window size and position remembered | `WindowOptions.StateKey` "main", `App.SetWindowStateStore`: `window-state.json` in `KEEL_DATA` beside `keel-native.json` holds the frame, MyGo ignores a frame that is off every connected display, an entry with no usable size is dropped and full screen is not restored (`windowstate.go`) |
 | Single instance | not used (MyGo has `RequestSingleInstanceLock`) |

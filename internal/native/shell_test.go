@@ -90,14 +90,22 @@ func TestTrayStatusLabelAndMenuBar(t *testing.T) {
 		n               int
 		want            string
 	}{
-		{false, false, 0, "keel serve is not running"},
-		{true, true, 3, "keel serve · vault locked"},
-		{true, false, 1, "keel serve · 1 session"},
-		{true, false, 0, "keel serve · 0 sessions"},
-		{true, false, 4, "keel serve · 4 sessions"},
+		{false, false, 0, "Not running"},
+		{true, true, 3, "Running · vault locked"},
+		{true, false, 1, "Running · 1 session"},
+		{true, false, 0, "Running · 0 sessions"},
+		{true, false, 4, "Running · 4 sessions"},
 	} {
 		if got := statusLabel(c.running, c.locked, c.n); got != c.want {
 			t.Errorf("%v: %q", c, got)
+		}
+	}
+	for _, c := range []struct{ release, app, serve, wantApp, wantServe string }{
+		{"0.2.3", "6d3796f1a2b3-0123abcd", "6d3796f1a2b3+dirty-0123abcd", "Keel 0.2.3 (6d3796f)", "keel serve 6d3796f+dirty"},
+		{"", "", "", "Keel dev", "keel serve —"},
+	} {
+		if a, s := versionLabels(c.release, c.app, c.serve); a != c.wantApp || s != c.wantServe {
+			t.Errorf("%v: %q %q", c, a, s)
 		}
 	}
 }

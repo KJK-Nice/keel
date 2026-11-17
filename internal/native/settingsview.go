@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"keel/internal/native/keelclient"
@@ -434,7 +435,10 @@ func (w *workspace) aboutSection(p *settingsPage) settingsSection {
 		return prefRow{title: title, extra: value, ctl: func(c *ui.Context) { statValue(c, value) }}
 	}
 	version, build := "unknown", "unknown"
-	if v := versionOf(rt.Build); v != "" {
+	// The release of the packaged app (its Info.plist); bin/keel has none and shows the commit instead.
+	if v := mygo.App.Version(); v != "" {
+		version = v
+	} else if v := versionOf(rt.Build); v != "" {
 		version = v
 	}
 	if rt.Build != "" {
