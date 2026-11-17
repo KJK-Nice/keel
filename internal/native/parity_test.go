@@ -122,6 +122,28 @@ func TestTabCountIsAMonoBadge(t *testing.T) {
 	}
 }
 
+// A long tab name gives way inside the pill: its text and the close button stay within the tab's max width.
+func TestLongTabNameStaysInsideThePill(t *testing.T) {
+	r := newRig(t, okBackend())
+	r.tt.Frame()
+	r.click(t, "host api-1")
+	long := "omarchy@omarchy.tail0bc563.ts.net-and-a-much-longer-name"
+	r.w.activeTab().title = long
+	r.tt.Frame()
+	tab, ok := r.tt.Find("tab " + long)
+	label, ok2 := r.tt.Find(long)
+	cls, ok3 := r.tt.Find("Close " + long)
+	if !ok || !ok2 || !ok3 {
+		t.Fatalf("tab %v, label %v, close %v: %v", ok, ok2, ok3, r.tt.Texts())
+	}
+	if tab.W > tabMaxWidth+0.5 {
+		t.Errorf("tab is %v wide, want at most %v", tab.W, tabMaxWidth)
+	}
+	if right := tab.X + tab.W; label.X+label.W > cls.X || cls.X+cls.W > right {
+		t.Errorf("label %v and close %v spill past the tab %v", label, cls, tab)
+	}
+}
+
 func TestNewHostStartActionHasThePlusIcon(t *testing.T) {
 	r := newRig(t, okBackend())
 	r.tt.Frame()
