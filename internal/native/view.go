@@ -642,7 +642,6 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 			case p.remote: // who drives, and "You follow" (§5.7)
 				joinChips(c, st)
 			case len(st.Attached) > 1:
-				w.watchersBadge(c, t, p, st)
 				roleChip(c, st.Role)
 			}
 			ui.Row(c).Gap(space0_5).Shrink(0).Children(func() {
@@ -666,38 +665,50 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 		if w.findPane == p {
 			w.findBar(c, p)
 		}
-		pane := ui.Box(c).Grow(1).FillWidth().Background(w.termGround())
-		// A press into the terminal of a split tab shows the Panes section. The press
-		// is only watched: the terminal keeps the keyboard. The bar's buttons do not count; the bar itself does.
-		pane.ObserveInput(func(ev ui.InputEvent) {
-			if ev.Kind == ui.InputPointerDown {
-				w.act(func() { w.revealPanes(t) })
-			}
-		})
-		pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
-		pane.Children(func() {
-			// While the session is not ready (connecting, failed, lost, reconnecting) the terminal view is not built (issue #139):
-			// its last picture is not readable through the overlay and no caret blinks; the pane shows its
-			// ground. The terminal object and its scrollback stay alive in p; only the view is out of the tree, so nothing typed
-			// reaches it. A joined pane keeps its view (it has its own banner). When the session is ready the view is back,
-			// and the pane takes the keyboard again if it had it.
-			if !st.Ready() && !p.remote {
-				if t.focused == p.id {
-					p.regain = true
+		var pr presence
+		if !p.remote { // a joined pane says who drives in its own banner (§5.7)
+			pr = presenceOf(st)
+		}
+		p.keepCursor(pr)
+		// The presence ring holds the notch's lip and the terminal: the terminal starts under the lip, so the notch covers
+		// none of its text and takes none of its clicks.
+		body := ui.Column(c).Grow(1).FillWidth().Background(w.termGround())
+		body.DrawOver(func(pt *ui.Painter, r ui.Rect) { presenceRing(pt, r, pr) })
+		body.Children(func() {
+			w.presenceNotch(c, t, p, pr)
+			pane := ui.Box(c).Grow(1).FillWidth()
+			// A press into the terminal of a split tab shows the Panes section. The press
+			// is only watched: the terminal keeps the keyboard. The bar's buttons do not count; the bar itself does.
+			pane.ObserveInput(func(ev ui.InputEvent) {
+				if ev.Kind == ui.InputPointerDown {
+					w.act(func() { w.revealPanes(t) })
 				}
+			})
+			pane.DrawOver(func(pt *ui.Painter, _ ui.Rect) { p.sg.scale = pt.Scale() }) // draws nothing: the notice and the card are placed by the display scale
+			pane.Children(func() {
+				// While the session is not ready (connecting, failed, lost, reconnecting) the terminal view is not built (issue #139):
+				// its last picture is not readable through the overlay and no caret blinks; the pane shows its
+				// ground. The terminal object and its scrollback stay alive in p; only the view is out of the tree, so nothing typed
+				// reaches it. A joined pane keeps its view (it has its own banner). When the session is ready the view is back,
+				// and the pane takes the keyboard again if it had it.
+				if !st.Ready() && !p.remote {
+					if t.focused == p.id {
+						p.regain = true
+					}
+					w.connectLogView(c, p, st)
+					return
+				}
+				if p.regain {
+					p.regain = false
+					w.wantFocus = p.id
+				}
+				tv := p.view(c).Bind(&p.handle)
+				if multi && !focused { // the terminal's text dims, the body keeps its ground
+					tv.Opacity(dimAlpha)
+				}
+				w.suggestOverlay(c, p)
 				w.connectLogView(c, p, st)
-				return
-			}
-			if p.regain {
-				p.regain = false
-				w.wantFocus = p.id
-			}
-			tv := p.view(c).Bind(&p.handle)
-			if multi && !focused { // the terminal's text dims, the body keeps its ground
-				tv.Opacity(dimAlpha)
-			}
-			w.suggestOverlay(c, p)
-			w.connectLogView(c, p, st)
+			})
 		})
 		w.paneDropZone(c, t, p, tl) // a pane of this tab moves here; another tab docks here, whatever this tab's size
 	})

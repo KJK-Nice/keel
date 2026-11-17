@@ -66,9 +66,6 @@ func TestSharePeopleOrderRolesAndHowTheyCame(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("rows %q\nwant %q", got, want)
 	}
-	if watchingCount(st.Attached) != 2 || watchingCount(nil) != 0 {
-		t.Error("watching counts the people who came by link")
-	}
 	if initials("ann lee kay") != "AL" || initials("  ") != "?" || initials("Ann") != "A" {
 		t.Error("initials")
 	}

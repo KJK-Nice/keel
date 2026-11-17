@@ -55,7 +55,7 @@ Non-goals (this round)
 Board names refer to the canvas.
 
 ### 5.1 Session workspace (`Main`)
-- Titlebar: traffic lights · sidebar toggle · tabs (state dot + host in the system font + pane count badge when >1; the selected tab is a `raised` pill) · + · right: the Agent icon (⌘I). The watchers badge sits in the shared pane's bar; Share is in the pane menu.
+- Titlebar: traffic lights · sidebar toggle · tabs (state dot + host in the system font + pane count badge when >1; the selected tab is a `raised` pill) · + · right: the Agent icon (⌘I). Watchers are the shared pane's presence ring and notch (docs/native.md, Presence); Share is in the pane menu.
 - Panes: a single pane is full-bleed (no radius, gap or ring). A split tab (two or more panes) lays its panes out as `radius-md` tiles on the `chrome` ground, `space-1.5` (6px) apart and inset by the same, with no outline or hairline between them; the gap is the drag handle. Pane bar 30px: state dot, host (system font), `user@address` (mono, truncates first), role chip when shared, "Agent reads" badge when the agent may read it, icon tools (sync, split →, split ↓, more).
 - Focused pane: bar on `surface`, host in `ink`. Single pane, unfocused: bar on `chrome`, muted text. In a split tab every pane bar sits on `surface`; the focused tile gets a soft ring (3px, `focus` at 30%) and the other terminals dim to 70%. Under window translucency the chrome ground shows only in the gaps, so the tiles never stack a second tint.
 - Banners between bar and terminal for exited/failed (`flare`, Reconnect) and reconnecting/host-key changed (`signal`).

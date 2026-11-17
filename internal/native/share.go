@@ -156,15 +156,6 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 	return rows
 }
 
-func watchingCount(attached []keelclient.Peer) (n int) {
-	for _, c := range attached {
-		if c.Kind == keelclient.KindJoined {
-			n++
-		}
-	}
-	return n
-}
-
 // clientName is a client's name, or "Someone".
 func clientName(attached []keelclient.Peer, id uint64) string {
 	for _, c := range attached {
