@@ -42,10 +42,11 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 - [x] MyGo sets these only when a terminal is made: the rows say "applies to panes opened from now on" until the
       setters of step 7 land.
 
-## 5. Copy animation — Keel only
+## 5. Copy animation — Keel only (#183)
 
-- [ ] Play animation on copy: `OnCopy` flashes the copied region over the terminal, `duration-slow`, none with
-      reduced motion.
+- [x] Play animation on copy: `OnCopy` flashes the copied cells over the terminal, `duration-slow`, none with
+      reduced motion. The plugin gives only the text: it is found in the screen's snapshot; a copy not on the screen
+      once (scrollback, a full-screen program, a repeated word) flashes the whole terminal faintly.
 
 ## 6. Cursor trails and shaders — Keel, drawn over the terminal
 

@@ -375,6 +375,13 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 				w.act(func() { w.setCopyOnSelect(on) })
 			}
 		}},
+		{title: "Play animation on copy", desc: "Copied text flashes in the selection's colour. Off with reduced motion.", ctl: func(c *ui.Context) {
+			on := w.prefs.CopyFlash
+			ui.Switch(c, &on).Label("Play animation on copy switch").Shrink(0)
+			if on != w.prefs.CopyFlash {
+				w.act(func() { w.setCopyFlash(on) })
+			}
+		}},
 		{title: "Right-click in the terminal",
 			desc: "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
 			ctl: func(c *ui.Context) {

@@ -31,6 +31,7 @@ const (
 	keyCursorStyle   = "cursorStyle"
 	keyCursorBlink   = "cursorBlink"
 	keyOptionKey     = "optionKey"
+	keyCopyFlash     = "copyFlash"
 	keyCopyOnSelect  = "copyOnSelect"
 	keyRightClick    = "rightClick"
 	keyDisplayName   = "name"
@@ -70,6 +71,7 @@ type prefsDoc struct {
 	OptionKey   string // special | alt (macOS): what Option is to programs
 
 	CopyOnSelect bool
+	CopyFlash    bool   // Settings · Terminal · Play animation on copy: on by default
 	RightClick   string // paste | menu | nothing
 	Name         string // Settings · Sharing · Display name; "" is the default
 
@@ -109,7 +111,7 @@ var intPrefs = []struct {
 }
 
 func defaultPrefs() prefsDoc {
-	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, Contrast: contrastOff, SelectionBg: colorTheme, SelectionText: colorTheme, CursorStyle: cursorBlock, CursorBlink: true, OptionKey: optionSpecial, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
+	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, Contrast: contrastOff, SelectionBg: colorTheme, SelectionText: colorTheme, CursorStyle: cursorBlock, CursorBlink: true, OptionKey: optionSpecial, CopyOnSelect: true, CopyFlash: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
 	for _, e := range intPrefs {
 		*e.field(&p) = e.def
 	}
@@ -163,6 +165,7 @@ func loadPrefs(dataDir string) prefsDoc {
 	get(keyOptionKey, &s)
 	p.OptionKey = validChoice(s, optionModes)
 	get(keyCopyOnSelect, &p.CopyOnSelect)
+	get(keyCopyFlash, &p.CopyFlash)
 	s = ""
 	get(keyRightClick, &s)
 	for _, m := range rightClickModes {
@@ -269,6 +272,7 @@ var prefKeys = map[string]struct {
 	keyCursorStyle:   {"the cursor style", func(p *prefsDoc) any { return p.CursorStyle }},
 	keyCursorBlink:   {"the cursor blink", func(p *prefsDoc) any { return p.CursorBlink }},
 	keyOptionKey:     {"the Option key", func(p *prefsDoc) any { return p.OptionKey }},
+	keyCopyFlash:     {"the copy animation", func(p *prefsDoc) any { return p.CopyFlash }},
 	keyCopyOnSelect:  {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
 	keyRightClick:    {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
 	keyDisplayName:   {"the display name", func(p *prefsDoc) any { return p.Name }},
