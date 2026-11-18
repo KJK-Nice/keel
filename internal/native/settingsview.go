@@ -2,6 +2,7 @@ package native
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/egoist/mygo"
@@ -217,6 +218,17 @@ func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int
 	}
 }
 
+// numberCtl is a number field of an integer pref, bound as a slider is (sliderSpecs applies what is typed or stepped);
+// over draws over it (a key cap while ⌘ is held).
+func numberCtl(c *ui.Context, name string, v *float64, lo, hi, step float64, over ...func()) {
+	ui.Row(c).Width(sizeNumber).Shrink(0).Children(func() {
+		ui.NumberInput(c, v, lo, hi, step).Label(name + " field").FillWidth()
+		for _, f := range over {
+			f()
+		}
+	})
+}
+
 func (w *workspace) copyBtn(c *ui.Context, name, value string) {
 	if value == "" {
 		return
@@ -260,24 +272,27 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 }
 
 func (w *workspace) terminalSection(p *settingsPage) settingsSection {
-	session := []prefGroup{{title: "Session", rows: []prefRow{
-		{title: "Font", desc: "Monospace face used in every pane.", ctl: func(c *ui.Context) {
-			entries := make([]pickEntry, len(termFonts))
-			for i, f := range termFonts {
-				entries[i] = pickEntry{value: f.value, label: f.label, desc: f.desc}
+	session := []prefGroup{{title: "Typography", rows: []prefRow{
+		{title: "Font", desc: "Monospace face used in every pane: Keel's own, or any installed on this machine.", ctl: func(c *ui.Context) {
+			cur := validTermFont(w.prefs.TermFont)
+			entries := fontEntries(installedFonts())
+			if !slices.ContainsFunc(entries, func(e pickEntry) bool { return e.value == cur }) { // a family since removed
+				entries = append(entries, pickEntry{value: cur, label: termFontLabel(cur), desc: "Not installed"})
 			}
 			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
-				picker(c, "Terminal font", validTermFont(w.prefs.TermFont), entries, func(v string) { w.act(func() { w.setTermFont(v) }) })
+				picker(c, "Terminal font", cur, entries, func(v string) { w.act(func() { w.setTermFont(v) }) })
 			})
 		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
-			w.prefSlider(c, p, keyTermSize, "Text size", func() { w.keyCap(c, "+ − 0") }) // the hint shows only while ⌘ is held
+			numberCtl(c, "Text size", &p.sliders[keyTermSize].v, termSizeMin, termSizeMax, 1, func() { w.keyCap(c, "+ − 0") }) // the hint shows only while ⌘ is held
 		}},
-		{preview: true, ctl: func(c *ui.Context) {
-			ui.Row(c).FillWidth().AspectRatio(16.0/5).Padding(0, space3).AlignItems(ui.Center).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
-				ui.Text(c, "guest@keel:~ $ ssh prod-api").TextColor(ink).FontSize(float32(w.prefs.TermSize)).Font(termStack(w.prefs.TermFont))
-			})
+		{title: "Weight", desc: "100–900. Bold text is 300 heavier. A font without the weight draws its nearest.", ctl: func(c *ui.Context) {
+			numberCtl(c, "Weight", &p.sliders[keyTermWeight].v, termWeightMin, termWeightMax, termWeightStep)
 		}},
+		{title: "Line height", desc: "100–200% of the font's own. Text is centred in its row.", ctl: func(c *ui.Context) {
+			w.prefSlider(c, p, keyLineHeight, "Line height")
+		}},
+		{preview: true, ctl: func(c *ui.Context) { w.termPreview(c) }},
 	}}}
 	input := prefGroup{title: "Input", rows: []prefRow{
 		{title: "Copy on select", desc: "Copy terminal selection to the clipboard.", ctl: func(c *ui.Context) {
@@ -471,4 +486,20 @@ func keelRuntime(p *settingsPage) keelclient.Runtime {
 		return keelclient.Runtime{}
 	}
 	return *p.rt
+}
+
+// termPreview is Typography's sample: a prompt, a warning and a bold line, in the terminal's font, weight, size and line
+// height, on the terminal's ground.
+func (w *workspace) termPreview(c *ui.Context) {
+	size, wt, stack := float32(w.prefs.TermSize), w.prefs.TermWeight, termStack(w.prefs.TermFont)
+	m := ui.Font{Family: stack, Size: size, Weight: wt}.Metrics()
+	row := (m.Ascent + m.Descent + m.LineGap) * lineHeightOf(w.prefs.LineHeight) // as the terminal sizes a row
+	ln := func(s string, col ui.Color, weight int) {
+		ui.Text(c, s).TextColor(col).FontSize(size).FontWeight(weight).Font(stack).Height(row).SingleLine()
+	}
+	ui.Column(c).FillWidth().Padding(space3).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
+		ln("guest@keel:~ $ make test && make lint", ink, wt)
+		ln("view.go:272: warning: label shrinks", ansi[3], wt)
+		ln("ok  keel/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it
+	})
 }

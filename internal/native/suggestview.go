@@ -43,7 +43,7 @@ func (w *workspace) suggestOverlay(c *ui.Context, p *pane) {
 	if cols <= 0 {
 		return
 	}
-	g := gridFor(p.fontFamily, p.fontSize, p.sg.scale)
+	g := gridFor(p.fontFamily, p.fontSize, p.fontWeight, p.lineHeight, p.sg.scale)
 	line := p.sg.line
 	b := p.handle.Bounds(c)
 	clip := func(start, n int) int { return max(min(n, cols-start), 0) }

@@ -203,15 +203,33 @@ func TestAnOldWindowShadowKeyIsIgnoredAndDropped(t *testing.T) {
 	}
 }
 
-func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
+func TestSettingsNumberFieldsStepWithTheKeyboard(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Terminal")
-	r.click(t, "Text size slider")
-	r.tt.Key(0, ui.KeyRight)
+	if r.has("Text size slider") || r.has("Weight slider") {
+		t.Fatal("Text size and Weight are number fields, not sliders")
+	}
+	field := func(name string) { // its text, left of the − and + buttons
+		f, ok := r.tt.Find(name)
+		if !ok {
+			t.Fatalf("no %q", name)
+		}
+		r.tt.ClickAt(f.X+space3, f.Y+f.H/2)
+		r.tt.Frame()
+	}
+	field("Text size field")
+	r.tt.Key(0, ui.KeyUp)
 	r.tt.Frame()
-	// The click set the middle of 10–22 (16) and → stepped to 17.
-	if r.w.prefs.TermSize != 17 || string(r.prefsFile(t)["termSize"]) != "17" {
-		t.Errorf("→ on the Text size slider left %d", r.w.prefs.TermSize)
+	r.tt.Frame()
+	if r.w.prefs.TermSize != 13 || string(r.prefsFile(t)["termSize"]) != "13" {
+		t.Errorf("↑ in the Text size field left %d", r.w.prefs.TermSize)
+	}
+	field("Weight field")
+	r.tt.Key(0, ui.KeyUp)
+	r.tt.Frame()
+	r.tt.Frame()
+	if r.w.prefs.TermWeight != 500 {
+		t.Errorf("↑ in the Weight field left %d", r.w.prefs.TermWeight)
 	}
 }
 
@@ -233,14 +251,14 @@ func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Terminal")
-	r.texts(t, "Session", "Text size", "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", "Input", "Copy on select", "Copy terminal selection to the clipboard.",
+	r.texts(t, "Typography", "Text size", "Weight", "Line height", "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", "Input", "Copy on select", "Copy terminal selection to the clipboard.",
 		"Right-click in the terminal", "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
-		"Paste", "Menu", "Nothing", "guest@keel:~ $ ssh prod-api")
+		"Paste", "Menu", "Nothing", "guest@keel:~ $ make test && make lint")
 	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
 		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
-	r.texts(t, "Font", "Monospace face used in every pane.", "JetBrains Mono") // the first of the five, chosen by default
-	r.w.openHost(testHosts[1])                                                 // a pane to change live
+	r.texts(t, "Font", "Monospace face used in every pane: Keel's own, or any installed on this machine.", "JetBrains Mono") // the first of the five, chosen by default
+	r.w.openHost(testHosts[1])                                                                                               // a pane to change live
 	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")

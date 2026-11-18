@@ -19,6 +19,8 @@ const (
 	keyUISize       = "uiSize"
 	keyTheme        = "theme"
 	keyTermFont     = "termFont"
+	keyTermWeight   = "termWeight"
+	keyLineHeight   = "termLineHeight"
 	keyCopyOnSelect = "copyOnSelect"
 	keyRightClick   = "rightClick"
 	keyDisplayName  = "name"
@@ -41,7 +43,9 @@ type prefsDoc struct {
 	Theme  string // system | light | dark: Settings · Appearance · Theme
 	UISize int    // 11–16: Settings · Appearance · UI size (the terminal is separate)
 
-	TermFont string // Settings · Terminal · Font: jetbrains | ibmplex | menlo | consolas | system
+	TermFont   string // Settings · Terminal · Font: jetbrains | ibmplex | menlo | consolas | system | family:<name>
+	TermWeight int    // 100–900 in steps of 100: Settings · Terminal · Weight
+	LineHeight int    // 100–200, the row height in % of the font's own: Settings · Terminal · Line height
 
 	CopyOnSelect bool
 	RightClick   string // paste | menu | nothing
@@ -77,6 +81,8 @@ var intPrefs = []struct {
 	{keyBlur, blurMin, blurMax, blurDefault, func(p *prefsDoc) *int { return &p.Blur }},
 	{keyTermSize, termSizeMin, termSizeMax, termSizeDefault, func(p *prefsDoc) *int { return &p.TermSize }},
 	{keyUISize, uiSizeMin, uiSizeMax, uiSizeDefault, func(p *prefsDoc) *int { return &p.UISize }},
+	{keyTermWeight, termWeightMin, termWeightMax, termWeightDefault, func(p *prefsDoc) *int { return &p.TermWeight }},
+	{keyLineHeight, lineHeightMin, lineHeightMax, lineHeightDefault, func(p *prefsDoc) *int { return &p.LineHeight }},
 }
 
 func defaultPrefs() prefsDoc {
@@ -207,6 +213,8 @@ var prefKeys = map[string]struct {
 	keyUISize:       {"the UI size", func(p *prefsDoc) any { return p.UISize }},
 	keyTheme:        {"the theme", func(p *prefsDoc) any { return p.Theme }},
 	keyTermFont:     {"the terminal font", func(p *prefsDoc) any { return p.TermFont }},
+	keyTermWeight:   {"the font weight", func(p *prefsDoc) any { return p.TermWeight }},
+	keyLineHeight:   {"the line height", func(p *prefsDoc) any { return p.LineHeight }},
 	keyCopyOnSelect: {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
 	keyRightClick:   {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
 	keyDisplayName:  {"the display name", func(p *prefsDoc) any { return p.Name }},

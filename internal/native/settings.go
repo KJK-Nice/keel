@@ -313,6 +313,8 @@ var sliderSpecs = []struct {
 	{keyBlur, (*workspace).setBlur},
 	{keyTermSize, (*workspace).setTermSize},
 	{keyUISize, (*workspace).setUIPref},
+	{keyTermWeight, (*workspace).setTermWeight},
+	{keyLineHeight, (*workspace).setLineHeight},
 }
 
 // sliderPos is where a slider is: it is bound to a float, and a move is told from the value last applied.

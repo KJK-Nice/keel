@@ -25,14 +25,20 @@ const asciiPrintable = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUV
 type cellGrid struct{ ox, oy, cw, ch float32 }
 
 // gridFor measures the grid of a terminal in family at size DIPs (weight 400, line height 1) at a display scale.
-func gridFor(family string, size, scale float32) cellGrid {
+func gridFor(family string, size float32, weight int, lineHeight, scale float32) cellGrid {
 	if scale <= 0 {
 		scale = 1
 	}
 	if family == "" {
 		family = "monospace"
 	}
-	f := ui.Font{Family: family, Size: size, Weight: 400}
+	if weight <= 0 {
+		weight = 400
+	}
+	if lineHeight <= 0 {
+		lineHeight = 1
+	}
+	f := ui.Font{Family: family, Size: size, Weight: weight}
 	if isMac() {
 		f.Features = "kern=0" // the plugin turns kerning off on macOS so that each character keeps its cell
 	}
@@ -46,7 +52,7 @@ func gridFor(family string, size, scale float32) cellGrid {
 		ox: float32(math.Round(float64(termPadX*scale))) / scale,
 		oy: float32(math.Round(float64(termPadY*scale))) / scale,
 		cw: px(adv) / scale,
-		ch: px(m.Ascent+m.Descent+m.LineGap) / scale,
+		ch: px((m.Ascent+m.Descent+m.LineGap)*lineHeight) / scale, // as the plugin's paint.go sizes a row
 	}
 }
 

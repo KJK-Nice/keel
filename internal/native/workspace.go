@@ -243,7 +243,9 @@ type pane struct {
 	// Set by workspace.newPane and mkBody: the terminal font size to start at, what a zoom of the terminal
 	// (the wheel) asks the workspace for, and the terminal's own search (nil for a placeholder).
 	fontSize   float32
-	fontFamily string // the terminal's family list (termfont.go)
+	fontFamily string  // the terminal's family list (termfont.go)
+	fontWeight int     // 100–900
+	lineHeight float32 // the row height as a multiple of the font's own
 	zoom       func(steps int, reset bool)
 	search     *termSearch
 	setFont    func(size float32)
@@ -644,7 +646,7 @@ func (w *workspace) start() {
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), fontFamily: termStack(w.prefs.TermFont), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), fontFamily: termStack(w.prefs.TermFont), fontWeight: w.prefs.TermWeight, lineHeight: lineHeightOf(w.prefs.LineHeight), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick}
 	p.zoom = func(steps int, reset bool) {
 		if reset {
 			w.setTermSize(termSizeDefault)
