@@ -62,9 +62,9 @@ func liveBodyT(p *pane, transparent bool) {
 	case rightNothing:
 		right = terminal.RightClickIgnore
 	}
-	th := terminalTheme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
+	th := p.theme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
 	term, err := terminal.New(terminal.Options{
-		Conn: newSyncConn(p), Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
+		Conn: newSyncConn(p), Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right, MinimumContrast: p.contrast,
 		// A noticed line or a card takes ⇥, ⇧⇥, esc, the option keys and ⌘Z first; every other key goes on at once (suggestKey).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool { return p.keyHook != nil && p.keyHook(mods, key) },
 		Font:  p.termFont(p.fontSize), Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
@@ -102,13 +102,8 @@ func liveBodyT(p *pane, transparent bool) {
 			term.SetCopyOnSelect(terminal.CopyOnSelectNone)
 		}
 	}
-	p.setTheme = func() {
-		t := terminalTheme()
-		if p.cursorCol != (ui.Color{}) { // someone else drives: their colour (presence.go)
-			t.Cursor = p.cursorCol
-		}
-		term.SetTheme(t, t)
-	}
+	p.setTheme = func() { t := p.theme(); term.SetTheme(t, t) }
+	p.setContrast = term.SetMinimumContrast
 	p.setFont = func(size float32) { term.SetFont(p.termFont(size)) }
 	p.search = &termSearch{
 		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,

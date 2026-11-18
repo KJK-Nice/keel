@@ -202,6 +202,13 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.tt.Scroll(800, 400, 0, 400) // to the Advanced font group
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2EUISizeAndFont-advanced")
+	e.w.setSelectionBg("blue")
+	e.w.setContrast(contrastSome)
+	e.tt.Scroll(800, 400, 0, 400) // to the Colors group
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EUISizeAndFont-colors")
+	e.w.setSelectionBg(colorTheme)
+	e.w.setContrast(contrastOff)
 	e.w.setFeatures("")
 	e.w.setCellWidth(cellWidthDefault)
 	e.w.setTermWeight(termWeightDefault)

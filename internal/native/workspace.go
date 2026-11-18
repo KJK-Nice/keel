@@ -243,13 +243,16 @@ type pane struct {
 
 	// Set by workspace.newPane and mkBody: the terminal font size to start at, what a zoom of the terminal
 	// (the wheel) asks the workspace for, and the terminal's own search (nil for a placeholder).
-	fontSize  float32
-	font      terminal.Font // the terminal's font from the preferences, its Size aside (fontSize; termfont.go)
-	zoom      func(steps int, reset bool)
-	search    *termSearch
-	setFont   func(size float32)
-	setTheme  func()
-	cursorCol ui.Color // the cursor's colour while someone else drives; zero is the theme's (presence.go)
+	fontSize    float32
+	font        terminal.Font // the terminal's font from the preferences, its Size aside (fontSize; termfont.go)
+	zoom        func(steps int, reset bool)
+	search      *termSearch
+	setFont     func(size float32)
+	setTheme    func()
+	colors      termColors // the selection's colours from the preferences (termcolors.go)
+	contrast    float32    // the least contrast of text, 1 for none
+	setContrast func(float32)
+	cursorCol   ui.Color // the cursor's colour while someone else drives; zero is the theme's (presence.go)
 
 	// Set by newPane from the workspace's terminal preferences, and by mkBody: Copy on select (changes live) and
 	// Right-click in the terminal (read when the terminal is made).
@@ -645,7 +648,7 @@ func (w *workspace) start() {
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), font: w.prefs.termFont(), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), font: w.prefs.termFont(), colors: termColors{w.prefs.SelectionBg, w.prefs.SelectionText}, contrast: contrastRatio(w.prefs.Contrast), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick}
 	p.zoom = func(steps int, reset bool) {
 		if reset {
 			w.setTermSize(termSizeDefault)
