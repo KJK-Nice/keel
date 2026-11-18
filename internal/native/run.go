@@ -66,6 +66,11 @@ func liveBodyT(p *pane, transparent bool) {
 	term, err := terminal.New(terminal.Options{
 		Conn: newSyncConn(p), Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right, MinimumContrast: p.contrast,
 		Cursor: p.cursor, NoBlink: p.noBlink, OptionAsAlt: p.optionAsAlt,
+		OnCopy: func(text string, _ terminal.CopySource) { // on the main thread, in the input or frame that copied
+			if p.onCopy != nil {
+				p.onCopy(text)
+			}
+		},
 		// A noticed line or a card takes ⇥, ⇧⇥, esc, the option keys and ⌘Z first; every other key goes on at once (suggestKey).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool { return p.keyHook != nil && p.keyHook(mods, key) },
 		Font:  p.termFont(p.fontSize), Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
@@ -96,6 +101,11 @@ func liveBodyT(p *pane, transparent bool) {
 		return screenOf(string(term.Snapshot()), rows)
 	}
 	p.release = func() { term.Close() }
+	p.snapshot = func() string { return string(term.Snapshot()) }
+	p.onCopy = func(text string) {
+		_, rows := term.Size()
+		p.copied(p.snapshot(), rows, text)
+	}
 	p.setCopy = func(on bool) {
 		if on {
 			term.SetCopyOnSelect(terminal.CopyOnSelectClipboard)

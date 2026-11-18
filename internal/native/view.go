@@ -707,6 +707,7 @@ func (w *workspace) tileBody(c *ui.Context, t *tab, p *pane, multi bool, fit fun
 					tv.Opacity(dimAlpha)
 				}
 				w.suggestOverlay(c, p)
+				w.copyFlashOverlay(c, p, pane)
 				w.connectLogView(c, p, st)
 			})
 		})
