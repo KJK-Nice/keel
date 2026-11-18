@@ -14,14 +14,14 @@ Status: `[ ]` to do, `[~]` in progress, `[x]` done (with the PR).
 
 Settings → Terminal has Font (five bundled or common faces), Text size, Copy on select and Right-click.
 
-## 1. Typography — Keel only
+## 1. Typography — Keel only (#179)
 
-- [~] Terminal font: any installed monospaced family (`ui.FontFamilies()`, `Monospaced`), after Keel's five, in
+- [x] Terminal font: any installed monospaced family (`ui.FontFamilies()`, `Monospaced`), after Keel's five, in
       the picker menu. A missing family falls back to the default stack. (A search box in the menu: later, if the
       list proves long.)
-- [~] Weight (`Font.Weight`, 100–900) and Line height (`Font.LineHeight`, 100–200%).
-- [~] A preview of three lines: plain, an ANSI colour and bold, in the chosen font, weight and line height.
-- [~] Kept in `keel-native.json` (`termFont`, `termWeight`, `termLineHeight`), applied to every open pane (`SetFont`).
+- [x] Weight (`Font.Weight`, 100–900) and Line height (`Font.LineHeight`, 100–200%).
+- [x] A preview of three lines: plain, an ANSI colour and bold, in the chosen font, weight and line height.
+- [x] Kept in `keel-native.json` (`termFont`, `termWeight`, `termLineHeight`), applied to every open pane (`SetFont`).
 
 ## 2. Advanced font settings — Keel only
 
