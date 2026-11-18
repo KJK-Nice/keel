@@ -32,17 +32,19 @@ func settingsRig(t *testing.T, fb *fakeBackend) *rig {
 	return r
 }
 
-// reveal scrolls the settings page until the element labelled name is inside the window.
+// reveal scrolls the settings page until the element labelled name is well inside the window.
 func (r *rig) reveal(t *testing.T, name string) {
 	t.Helper()
+	last := float32(-1)
 	for range 20 {
 		f, ok := r.tt.Find(name)
 		if !ok {
 			t.Fatalf("no %q", name)
 		}
-		if f.Y+f.H < 720 {
+		if f.Y+f.H < 720-sizeRow*2 || f.Y == last { // clear of the bottom edge, or the page's end
 			return
 		}
+		last = f.Y
 		r.tt.Scroll(f.X, 400, 0, 200)
 		r.tt.Frame()
 	}
