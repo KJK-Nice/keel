@@ -399,7 +399,7 @@ func TestTheNoticeMovesWithTheTerminalsCells(t *testing.T) {
 	if !ok {
 		t.Fatal("no notice")
 	}
-	g := gridFor(r.p.fontFamily, r.p.fontSize, r.p.fontWeight, r.p.lineHeight, 1)
+	g := gridFor(r.p.termFont(r.p.fontSize), 1)
 	if w := float32(len([]rune("# show the files here"))) * g.cw; m.W < w-0.5 || m.W > w+0.5 || m.H < g.ch-0.5 || m.H > g.ch+0.5 {
 		t.Errorf("the mark is %v wide and %v high, want %v by %v (the words' cells)", m.W, m.H, w, g.ch)
 	}

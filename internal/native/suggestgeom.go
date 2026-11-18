@@ -3,6 +3,7 @@ package native
 import (
 	"math"
 
+	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -25,20 +26,23 @@ const asciiPrintable = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUV
 type cellGrid struct{ ox, oy, cw, ch float32 }
 
 // gridFor measures the grid of a terminal in family at size DIPs (weight 400, line height 1) at a display scale.
-func gridFor(family string, size float32, weight int, lineHeight, scale float32) cellGrid {
+func gridFor(tf terminal.Font, scale float32) cellGrid {
 	if scale <= 0 {
 		scale = 1
 	}
-	if family == "" {
-		family = "monospace"
+	if tf.Family == "" {
+		tf.Family = "monospace"
 	}
-	if weight <= 0 {
-		weight = 400
+	if tf.Weight <= 0 {
+		tf.Weight = 400
 	}
-	if lineHeight <= 0 {
-		lineHeight = 1
+	if tf.LineHeight <= 0 {
+		tf.LineHeight = 1
 	}
-	f := ui.Font{Family: family, Size: size, Weight: weight}
+	if tf.CellWidth <= 0 {
+		tf.CellWidth = 1
+	}
+	f := ui.Font{Family: tf.Family, Size: tf.Size, Weight: tf.Weight}
 	if isMac() {
 		f.Features = "kern=0" // the plugin turns kerning off on macOS so that each character keeps its cell
 	}
@@ -48,11 +52,11 @@ func gridFor(family string, size float32, weight int, lineHeight, scale float32)
 	}
 	m := f.Metrics()
 	px := func(v float32) float32 { return float32(max(int(math.Ceil(float64(v*scale-0.05))), 1)) }
-	return cellGrid{
+	return cellGrid{ // as the plugin's paint.go sizes a cell
 		ox: float32(math.Round(float64(termPadX*scale))) / scale,
 		oy: float32(math.Round(float64(termPadY*scale))) / scale,
-		cw: px(adv) / scale,
-		ch: px((m.Ascent+m.Descent+m.LineGap)*lineHeight) / scale, // as the plugin's paint.go sizes a row
+		cw: px(adv*tf.CellWidth) / scale,
+		ch: px((m.Ascent+m.Descent+m.LineGap)*tf.LineHeight) / scale,
 	}
 }
 

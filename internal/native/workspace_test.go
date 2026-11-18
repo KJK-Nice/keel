@@ -1165,7 +1165,7 @@ func TestPrefsFileOfV021LoadsKeepsUnknownKeysAndRoundTrips(t *testing.T) {
 	}
 	want := prefsDoc{
 		Opacity: 80, Blur: 12, TermSize: 15, UISize: 13, Theme: themeLight, TermFont: fontPlex,
-		TermWeight: termWeightDefault, LineHeight: lineHeightDefault, // v0.2.1 had neither: the defaults
+		TermWeight: termWeightDefault, LineHeight: lineHeightDefault, Ligatures: true, CellWidth: cellWidthDefault, // v0.2.1 had none: the defaults
 		CopyOnSelect: false, RightClick: rightPaste, Name: "Ann",
 		SidebarWidth: 300, AgentWidth: 410, AgentPanel: true,
 		Collapsed: map[string]bool{"infra": true, "g-2": true}, RecentHosts: []string{"h2", "h1"},

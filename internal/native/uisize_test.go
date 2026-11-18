@@ -93,7 +93,7 @@ func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 	var fams []string
 	for _, tb := range r.w.allTabs() {
 		for _, p := range tb.panes {
-			p.setFont = func(s float32) { sizes = append(sizes, s); fams = append(fams, p.fontFamily) }
+			p.setFont = func(s float32) { sizes = append(sizes, s); fams = append(fams, p.font.Family) }
 		}
 	}
 	r.click(t, "Terminal font picker")
@@ -113,8 +113,8 @@ func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 		t.Errorf("file %v", r.prefsFile(t))
 	}
 	r.w.openHost(testHosts[1]) // a pane opened now starts in it
-	if got := r.w.focusedPane(); !strings.HasPrefix(got.fontFamily, plexFamily) {
-		t.Errorf("a new pane has %q", got.fontFamily)
+	if got := r.w.focusedPane(); !strings.HasPrefix(got.font.Family, plexFamily) {
+		t.Errorf("a new pane has %q", got.font.Family)
 	}
 	if validTermFont("comic") != fontJetBrains || loadPrefs(t.TempDir()).TermFont != fontJetBrains {
 		t.Error("JetBrains Mono is the default and the answer to anything else")

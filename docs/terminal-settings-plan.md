@@ -23,10 +23,11 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 - [x] A preview of three lines: plain, an ANSI colour and bold, in the chosen font, weight and line height.
 - [x] Kept in `keel-native.json` (`termFont`, `termWeight`, `termLineHeight`), applied to every open pane (`SetFont`).
 
-## 2. Advanced font settings — Keel only
+## 2. Advanced font settings — Keel only (#180)
 
-- [ ] A sub page: ligatures (`calt`), stylistic sets (`ss01` …), cell width (`Font.CellWidth`), Thicken
-      (`Font.Thicken`), as `Font.Features`.
+- [x] An "Advanced font" group (not a sub page: four rows): Ligatures (off is `-calt -liga -dlig`), Font features
+      (`ss01, cv02, -calt`, cleaned, at most 16), Cell width (`Font.CellWidth`, 80–150%), Thicken (`Font.Thicken`,
+      macOS). Text size and Weight became number fields.
 
 ## 3. Colors and Selection — Keel only
 

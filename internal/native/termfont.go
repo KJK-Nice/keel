@@ -25,6 +25,9 @@ const (
 const (
 	termWeightMin, termWeightMax, termWeightDefault, termWeightStep = 100, 900, 400, 100
 	lineHeightMin, lineHeightMax, lineHeightDefault                 = 100, 200, 100
+	cellWidthMin, cellWidthMax, cellWidthDefault, cellWidthStep     = 80, 150, 100, 5
+	featuresMax                                                     = 16  // the most features kept
+	featuresLen                                                     = 160 // the Font features input's longest text
 )
 
 // termFont is one option: its value, its label and description, and the family list the terminal is given.
@@ -110,16 +113,66 @@ func fontEntries(families []ui.FontFamily) []pickEntry {
 
 func lineHeightOf(pct int) float32 { return float32(pct) / 100 }
 
+// noLigatures are the features Ligatures off turns off, unless the features name them.
+var noLigatures = []string{"calt", "liga", "dlig"}
+
+// cleanFeatures keeps the OpenType features of s, as the Font features row takes them: separated by commas or spaces,
+// each a four-letter tag, + or - before it (on or off) or =n after it (a value), as Ghostty's font-feature. Anything
+// else is dropped, as is a second mention of a tag; at most featuresMax are kept.
+func cleanFeatures(s string) string {
+	var out []string
+	seen := map[string]bool{}
+	for _, f := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool { return r == ',' || r == ' ' || r == '\t' }) {
+		tag, val, hasVal := strings.Cut(strings.TrimLeft(f, "+-"), "=")
+		if len(f)-len(strings.TrimLeft(f, "+-")) > 1 || len(tag) != 4 || seen[tag] || len(out) == featuresMax {
+			continue
+		}
+		ok := !hasVal || (len(val) >= 1 && len(val) <= 3 && strings.Trim(val, "0123456789") == "")
+		for _, r := range tag {
+			ok = ok && (r >= 'a' && r <= 'z' || r >= '0' && r <= '9')
+		}
+		if ok && !(hasVal && f[0] == '-') {
+			seen[tag] = true
+			out = append(out, f)
+		}
+	}
+	return strings.Join(out, ", ")
+}
+
+// termFont is the terminal's font of the preferences, its Size aside.
+func (p prefsDoc) termFont() terminal.Font {
+	var features []string
+	named := map[string]bool{}
+	for _, f := range strings.Split(cleanFeatures(p.Features), ", ") {
+		if f != "" {
+			features = append(features, f)
+			tag, _, _ := strings.Cut(strings.TrimLeft(f, "+-"), "=")
+			named[tag] = true
+		}
+	}
+	if !p.Ligatures {
+		for _, tag := range noLigatures {
+			if !named[tag] {
+				features = append(features, "-"+tag)
+			}
+		}
+	}
+	return terminal.Font{Family: termStack(p.TermFont), Weight: p.TermWeight, LineHeight: lineHeightOf(p.LineHeight),
+		CellWidth: float32(p.CellWidth) / 100, Features: features, Thicken: p.Thicken && isMac()}
+}
+
 // termFont is the font p's terminal draws with at size.
 func (p *pane) termFont(size float32) terminal.Font {
-	return terminal.Font{Family: p.fontFamily, Size: size, Weight: p.fontWeight, LineHeight: p.lineHeight}
+	f := p.font
+	f.Size = size
+	return f
 }
 
 // applyTermFont gives every open pane the font of the preferences.
 func (w *workspace) applyTermFont() {
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
-			p.fontFamily, p.fontWeight, p.lineHeight = termStack(w.prefs.TermFont), w.prefs.TermWeight, lineHeightOf(w.prefs.LineHeight)
+			p.font = w.prefs.termFont()
 			if p.setFont != nil {
 				p.setFont(p.fontSize)
 			}
@@ -163,3 +216,45 @@ func (w *workspace) setLineHeight(n int) {
 // installedFonts is ui.FontFamilies, which asks the system once (tens of milliseconds) and then keeps the list; a
 // test replaces it.
 var installedFonts = ui.FontFamilies
+
+// setCellWidth is the Cell width row, in % of the font's advance, in steps of 5.
+func (w *workspace) setCellWidth(n int) {
+	n = min(max((n+cellWidthStep/2)/cellWidthStep*cellWidthStep, cellWidthMin), cellWidthMax)
+	if n == w.prefs.CellWidth {
+		return
+	}
+	w.prefs.CellWidth = n
+	w.setPref(keyCellWidth)
+	w.applyTermFont()
+}
+
+// setLigatures is the Ligatures row.
+func (w *workspace) setLigatures(on bool) {
+	if on == w.prefs.Ligatures {
+		return
+	}
+	w.prefs.Ligatures = on
+	w.setPref(keyLigatures)
+	w.applyTermFont()
+}
+
+// setThicken is the Thicken row (macOS).
+func (w *workspace) setThicken(on bool) {
+	if on == w.prefs.Thicken {
+		return
+	}
+	w.prefs.Thicken = on
+	w.setPref(keyThicken)
+	w.applyTermFont()
+}
+
+// setFeatures is the Font features row: what is typed, cleaned; the field then shows what was kept.
+func (w *workspace) setFeatures(s string) {
+	s = cleanFeatures(s)
+	if s == w.prefs.Features {
+		return
+	}
+	w.prefs.Features = s
+	w.setPref(keyFeatures)
+	w.applyTermFont()
+}

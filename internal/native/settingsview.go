@@ -294,6 +294,48 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 		}},
 		{preview: true, ctl: func(c *ui.Context) { w.termPreview(c) }},
 	}}}
+	advanced := prefGroup{title: "Advanced font", rows: []prefRow{
+		{title: "Ligatures", desc: "Join pairs such as -> and != into one sign, where the font draws them.", ctl: func(c *ui.Context) {
+			on := w.prefs.Ligatures
+			ui.Switch(c, &on).Label("Ligatures switch").Shrink(0)
+			if on != w.prefs.Ligatures {
+				w.act(func() { w.setLigatures(on) })
+			}
+		}},
+		{title: "Font features", desc: "OpenType features, as ss01, cv02 or -calt (off). What the font lacks does nothing.", ctl: func(c *ui.Context) {
+			if !p.featuresWas { // the field shows the saved features until the user is in it
+				p.features = w.prefs.Features
+			}
+			ui.Row(c).Width(prefInputWidth).Shrink(1).Children(func() {
+				inputBox(c, "Font features input", &p.features, "ss01, cv02", &p.featuresH, true, false, featuresLen, func(k ui.TextKey) bool {
+					if k.Key == ui.KeyEnter && k.Mods == 0 {
+						p.features = k.Text()
+						w.act(func() { w.setFeatures(p.features) })
+						return true
+					}
+					return false
+				})
+			})
+			if p.featuresH.FocusWithin(c) {
+				p.featuresWas = true
+			} else if p.featuresWas { // leaving the field applies it
+				p.featuresWas = false
+				w.act(func() { w.setFeatures(p.features) })
+			}
+		}},
+		{title: "Cell width", desc: "80–150% of the font's width. Glyphs keep their size, centred in wider columns.", ctl: func(c *ui.Context) {
+			numberCtl(c, "Cell width", &p.sliders[keyCellWidth].v, cellWidthMin, cellWidthMax, cellWidthStep)
+		}},
+	}}
+	if isMac() {
+		advanced.rows = append(advanced.rows, prefRow{title: "Thicken", desc: "Draw text with a heavier stroke, as on a low-density display.", ctl: func(c *ui.Context) {
+			on := w.prefs.Thicken
+			ui.Switch(c, &on).Label("Thicken switch").Shrink(0)
+			if on != w.prefs.Thicken {
+				w.act(func() { w.setThicken(on) })
+			}
+		}})
+	}
 	input := prefGroup{title: "Input", rows: []prefRow{
 		{title: "Copy on select", desc: "Copy terminal selection to the clipboard.", ctl: func(c *ui.Context) {
 			on := w.prefs.CopyOnSelect
@@ -310,7 +352,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 				})
 			}},
 	}}
-	return settingsSection{id: "terminal", title: "Terminal", groups: append(session, input)}
+	return settingsSection{id: "terminal", title: "Terminal", groups: append(session, advanced, input)}
 }
 
 func (w *workspace) keyboardSection() settingsSection {
@@ -491,15 +533,24 @@ func keelRuntime(p *settingsPage) keelclient.Runtime {
 // termPreview is Typography's sample: a prompt, a warning and a bold line, in the terminal's font, weight, size and line
 // height, on the terminal's ground.
 func (w *workspace) termPreview(c *ui.Context) {
-	size, wt, stack := float32(w.prefs.TermSize), w.prefs.TermWeight, termStack(w.prefs.TermFont)
-	m := ui.Font{Family: stack, Size: size, Weight: wt}.Metrics()
-	row := (m.Ascent + m.Descent + m.LineGap) * lineHeightOf(w.prefs.LineHeight) // as the terminal sizes a row
+	tf := w.prefs.termFont()
+	size, wt := float32(w.prefs.TermSize), tf.Weight
+	m := ui.Font{Family: tf.Family, Size: size, Weight: wt}.Metrics()
+	row := (m.Ascent + m.Descent + m.LineGap) * tf.LineHeight // as the terminal sizes a row
+	var features []string                                     // as the plugin gives them to the font: -tag is tag=0
+	for _, f := range tf.Features {
+		if tag, ok := strings.CutPrefix(f, "-"); ok {
+			f = tag + "=0"
+		}
+		features = append(features, strings.TrimPrefix(f, "+"))
+	}
 	ln := func(s string, col ui.Color, weight int) {
-		ui.Text(c, s).TextColor(col).FontSize(size).FontWeight(weight).Font(stack).Height(row).SingleLine()
+		ui.Text(c, s).TextColor(col).FontSize(size).FontWeight(weight).Font(tf.Family).FontFeatures(features...).Height(row).SingleLine()
 	}
 	ui.Column(c).FillWidth().Padding(space3).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
 		ln("guest@keel:~ $ make test && make lint", ink, wt)
 		ln("view.go:272: warning: label shrinks", ansi[3], wt)
+		ln("if err != nil && n >= 0 { return x => y } // ligatures", inkMuted, wt)
 		ln("ok  keel/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it
 	})
 }

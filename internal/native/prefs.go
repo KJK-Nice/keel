@@ -21,6 +21,10 @@ const (
 	keyTermFont     = "termFont"
 	keyTermWeight   = "termWeight"
 	keyLineHeight   = "termLineHeight"
+	keyLigatures    = "termLigatures"
+	keyFeatures     = "termFeatures"
+	keyCellWidth    = "termCellWidth"
+	keyThicken      = "termThicken"
 	keyCopyOnSelect = "copyOnSelect"
 	keyRightClick   = "rightClick"
 	keyDisplayName  = "name"
@@ -46,6 +50,10 @@ type prefsDoc struct {
 	TermFont   string // Settings · Terminal · Font: jetbrains | ibmplex | menlo | consolas | system | family:<name>
 	TermWeight int    // 100–900 in steps of 100: Settings · Terminal · Weight
 	LineHeight int    // 100–200, the row height in % of the font's own: Settings · Terminal · Line height
+	Ligatures  bool   // Settings · Terminal · Advanced: on by default
+	Features   string // OpenType features as cleanFeatures keeps them: "ss01, cv02, -calt"
+	CellWidth  int    // 80–150, the column width in % of the font's advance
+	Thicken    bool   // macOS only
 
 	CopyOnSelect bool
 	RightClick   string // paste | menu | nothing
@@ -83,10 +91,11 @@ var intPrefs = []struct {
 	{keyUISize, uiSizeMin, uiSizeMax, uiSizeDefault, func(p *prefsDoc) *int { return &p.UISize }},
 	{keyTermWeight, termWeightMin, termWeightMax, termWeightDefault, func(p *prefsDoc) *int { return &p.TermWeight }},
 	{keyLineHeight, lineHeightMin, lineHeightMax, lineHeightDefault, func(p *prefsDoc) *int { return &p.LineHeight }},
+	{keyCellWidth, cellWidthMin, cellWidthMax, cellWidthDefault, func(p *prefsDoc) *int { return &p.CellWidth }},
 }
 
 func defaultPrefs() prefsDoc {
-	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
+	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
 	for _, e := range intPrefs {
 		*e.field(&p) = e.def
 	}
@@ -118,6 +127,11 @@ func loadPrefs(dataDir string) prefsDoc {
 	s = ""
 	get(keyTermFont, &s)
 	p.TermFont = validTermFont(s)
+	get(keyLigatures, &p.Ligatures)
+	get(keyThicken, &p.Thicken)
+	s = ""
+	get(keyFeatures, &s)
+	p.Features = cleanFeatures(s)
 	get(keyCopyOnSelect, &p.CopyOnSelect)
 	s = ""
 	get(keyRightClick, &s)
@@ -215,6 +229,10 @@ var prefKeys = map[string]struct {
 	keyTermFont:     {"the terminal font", func(p *prefsDoc) any { return p.TermFont }},
 	keyTermWeight:   {"the font weight", func(p *prefsDoc) any { return p.TermWeight }},
 	keyLineHeight:   {"the line height", func(p *prefsDoc) any { return p.LineHeight }},
+	keyLigatures:    {"ligatures", func(p *prefsDoc) any { return p.Ligatures }},
+	keyFeatures:     {"the font features", func(p *prefsDoc) any { return p.Features }},
+	keyCellWidth:    {"the cell width", func(p *prefsDoc) any { return p.CellWidth }},
+	keyThicken:      {"thicken", func(p *prefsDoc) any { return p.Thicken }},
 	keyCopyOnSelect: {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
 	keyRightClick:   {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
 	keyDisplayName:  {"the display name", func(p *prefsDoc) any { return p.Name }},
