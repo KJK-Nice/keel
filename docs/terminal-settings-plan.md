@@ -48,7 +48,12 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
       reduced motion. The plugin gives only the text: it is found in the screen's snapshot; a copy not on the screen
       once (scrollback, a full-screen program, a repeated word) flashes the whole terminal faintly.
 
-## 6. Cursor trails and shaders — Keel, drawn over the terminal
+## 6. Cursor trails and shaders — Keel, drawn over the terminal (skipped for now)
+
+Blocked on MyGo: the plugin has no public cursor position (v0.9 and v0.10; `internal/vt` has `Cursor()`, not
+exported). `Snapshot()` holds it but costs about 7 ms and 600 KB with 10k rows of scrollback, too much for every
+keystroke, and keel serve sends the PTY's raw output, so Keel cannot read the cursor without its own emulator. Needs
+`Terminal.Cursor()` upstream (step 7) first.
 
 - [ ] Cursor trails: the cursor's cell from `term.Cursor()` and the grid geometry (`suggestgeom.go`), a trail
       drawn with `ui/shader` over the pane.
@@ -58,6 +63,7 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 
 The plugin imports MyGo's `internal/*` packages, so it cannot be forked on its own; these go upstream.
 
+- [ ] `Terminal.Cursor()`: the cursor's cell and whether it shows (for step 6).
 - [ ] Setters: cursor style, blink, Option as Alt on a live terminal.
 - [ ] Force cursor style (ignore programs' DECSCUSR) and blink speed.
 - [ ] Rounded selection corners.
