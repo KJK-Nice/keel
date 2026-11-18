@@ -29,10 +29,10 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
       (`ss01, cv02, -calt`, cleaned, at most 16), Cell width (`Font.CellWidth`, 80–150%), Thicken (`Font.Thicken`,
       macOS). Text size and Weight became number fields.
 
-## 3. Colors and Selection — Keel only
+## 3. Colors and Selection — Keel only (#181)
 
-- [~] Improve text contrast: Off, Some (3:1), High (4.5:1) as `MinimumContrast` (live, `SetMinimumContrast`).
-- [~] Selection background and text: Theme, or one of the six hues of the ANSI palette (`Theme.Selection`,
+- [x] Improve text contrast: Off, Some (3:1), High (4.5:1) as `MinimumContrast` (live, `SetMinimumContrast`).
+- [x] Selection background and text: Theme, or one of the six hues of the ANSI palette (`Theme.Selection`,
       `SelectionText`; live through `SetTheme`). No free colour: colours come from tokens.
 
 ## 4. Cursor and Keyboard — Keel only, new panes
