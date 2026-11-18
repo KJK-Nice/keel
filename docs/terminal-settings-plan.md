@@ -35,12 +35,12 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 - [x] Selection background and text: Theme, or one of the six hues of the ANSI palette (`Theme.Selection`,
       `SelectionText`; live through `SetTheme`). No free colour: colours come from tokens.
 
-## 4. Cursor and Keyboard — Keel only, new panes
+## 4. Cursor and Keyboard — Keel only, new panes (#182)
 
-- [ ] Cursor style (Block, Bar, Underline) with a preview, and Blink on or off (`Options.Cursor`, `NoBlink`).
-- [ ] Option key: Alt, or type special characters (`Options.OptionAsAlt`).
-- [ ] MyGo sets these only when a terminal is made: the rows say "applies to new panes" until the setters of
-      step 7 land.
+- [x] Cursor style (Block, Bar, Underline) with a preview, and Blink on or off (`Options.Cursor`, `NoBlink`).
+- [x] Option key (macOS): Characters, or Alt (Meta) (`Options.OptionAsAlt`).
+- [x] MyGo sets these only when a terminal is made: the rows say "applies to panes opened from now on" until the
+      setters of step 7 land.
 
 ## 5. Copy animation — Keel only
 
