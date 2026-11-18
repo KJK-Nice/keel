@@ -67,7 +67,7 @@ func liveBodyT(p *pane, transparent bool) {
 		Conn: newSyncConn(p), Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right,
 		// A noticed line or a card takes ⇥, ⇧⇥, esc, the option keys and ⌘Z first; every other key goes on at once (suggestKey).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool { return p.keyHook != nil && p.keyHook(mods, key) },
-		Font:  terminal.Font{Family: p.fontFamily, Size: p.fontSize}, Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
+		Font:  p.termFont(p.fontSize), Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
 			if p.zoom != nil {
@@ -109,7 +109,7 @@ func liveBodyT(p *pane, transparent bool) {
 		}
 		term.SetTheme(t, t)
 	}
-	p.setFont = func(size float32) { term.SetFont(terminal.Font{Family: p.fontFamily, Size: size}) }
+	p.setFont = func(size float32) { term.SetFont(p.termFont(size)) }
 	p.search = &termSearch{
 		start: term.Search, next: term.SearchNext, prev: term.SearchPrevious,
 		status: func() (int, int) { s := term.SearchStatus(); return s.Selected, s.Total },

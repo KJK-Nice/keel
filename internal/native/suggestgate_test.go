@@ -274,13 +274,13 @@ func TestGateCellRectsAreThePluginsOwn(t *testing.T) {
 					// Diagnostics: a line that exactly fills the columns leaves the cursor on the next row (pending wrap),
 					// where there is no text line to read. The cell width the plugin used decides the columns: log it, with the
 					// widths this process measures for the family (a cell of 13.8 px at size 13 is not JetBrains Mono's 7.8).
-					gg := gridFor(gateStack(), size, sc)
+					gg := gridFor(gateStack(), size, 400, 1, sc)
 					t.Fatalf("%s: the cursor is not placed in %q (scale %v, size %v, %d cols x %d rows, row %d ok %v, cell %.2f x %.2f, \"MMMMMMMMMM\" is %.2f wide in the stack, %.2f in monospace)",
 						what, snap, sc, size, cols, rows, row, ok, gg.cw, gg.ch,
 						probeWidth("MMMMMMMMMM", size, gateStack()), probeWidth("MMMMMMMMMM", size, "monospace"))
 				}
 				col, _ := strconv.Atoi(m[2])
-				g := gridFor(gateStack(), size, sc)
+				g := gridFor(gateStack(), size, 400, 1, sc)
 				want, got := g.at(row, col-1, 1), caretCell(t, tt)
 				if !near(want.X, got.X) || !near(want.Y, got.Y) || !near(want.W, got.W) || !near(want.H, got.H) {
 					t.Errorf("%s (scale %v, size %v, %d cols x %d rows, %q): measured %v, the plugin's caret %v", what, sc, size, cols, rows, text, want, got)

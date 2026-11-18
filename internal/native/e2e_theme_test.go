@@ -192,6 +192,12 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	}
 	e.step()
 	e.pump(func() bool { return e.w.prefs.TermFont == fontPlex }, "the font choice")
+	e.w.setTermWeight(600) // Typography's other rows, as the settings page shows them
+	e.w.setLineHeight(130)
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EUISizeAndFont-typography")
+	e.w.setTermWeight(termWeightDefault)
+	e.w.setLineHeight(lineHeightDefault)
 	e.key(ui.Cmd, ui.Key1)
 	e.pump(func() bool {
 		f := e.w.focusedPane().fontFamily
