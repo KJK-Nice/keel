@@ -1,10 +1,14 @@
-## What's new in v0.2.4
+## What's new in v0.2.5
 
-- **In-app updates.** Keel checks for and installs new releases itself: **Check for Updates…** is in the menu bar item and the Keel app menu. This is the first release that has it, so install it by hand once; later releases come to you.
-- **The menu bar item** shows keel serve's status and sessions, Keel's and keel serve's versions (choose one to copy both), New Tab, Quick Connect, Check for Updates, Settings and Stop Keel Runtime…. **Settings → About** shows the release you run.
-- **A quieter title bar.** Its right holds only the Agent icon (⌘I): the pane already says whose session it is and who drives, and **Share** is in the pane's menu (or the palette).
-- **Who else is in a pane.** A pane people watch by link gets a ring and a notch with their names; a click opens the Share panel. In a pane someone else drives, the ring, the notch and the cursor take that person's colour, and the notch has **Ask for control** (or **Take control**). The ring and notch replace the "N watching" badge and the "Following" banner.
-- **Long tab names** are cut with an ellipsis and stay inside their tab, with the close button.
+**Settings → Terminal** grows from four rows to five groups:
+
+- **Typography.** Pick any monospaced font installed on your machine, after Keel's own five. **Text size** and **Weight** are number fields; **Line height** goes from 100 to 200%. The preview draws in that font.
+- **Advanced font.** **Ligatures** on or off, **Font features** (OpenType tags such as `ss01, cv02, -calt`), **Cell width** (80–150%) and, on macOS, **Thicken**.
+- **Colors.** **Improve text contrast** (Off, Some, High) lightens or darkens text a program draws too faint. **Selection background** and **Selection text** take the system accent or a colour of the terminal palette.
+- **Cursor.** **Cursor style** (Block, Bar, Underline) and **Blink**. On macOS, **Option key** in Input sends Alt (Meta) to programs, or types special characters as before. These three apply to panes opened afterwards.
+- **Play animation on copy.** Copied text flashes in the selection's colour. Turn it off in Input; with reduced motion it never plays.
+
+Everything except the Cursor rows and the Option key applies to every open pane at once.
 
 ## Install
 
