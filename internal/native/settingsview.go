@@ -336,6 +336,23 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			}
 		}})
 	}
+	colors := prefGroup{title: "Colors", rows: []prefRow{
+		{title: "Improve text contrast", desc: "Lighten or darken text a program draws too faint for its background, keeping its hue. Some is 3:1, High 4.5:1.", ctl: func(c *ui.Context) {
+			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+				segControl(c, "Improve text contrast", w.prefs.Contrast, contrastModes, func(v string) { w.act(func() { w.setContrast(v) }) })
+			})
+		}},
+		{title: "Selection background", desc: "The system accent, or a colour of the terminal palette.", ctl: func(c *ui.Context) {
+			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+				picker(c, "Selection background", w.prefs.SelectionBg, selEntries("System accent"), func(v string) { w.act(func() { w.setSelectionBg(v) }) })
+			})
+		}},
+		{title: "Selection text", desc: "Selected text keeps its own colour, or takes one of the palette.", ctl: func(c *ui.Context) {
+			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+				picker(c, "Selection text", w.prefs.SelectionText, selEntries("Its own colour"), func(v string) { w.act(func() { w.setSelectionText(v) }) })
+			})
+		}},
+	}}
 	input := prefGroup{title: "Input", rows: []prefRow{
 		{title: "Copy on select", desc: "Copy terminal selection to the clipboard.", ctl: func(c *ui.Context) {
 			on := w.prefs.CopyOnSelect
@@ -352,7 +369,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 				})
 			}},
 	}}
-	return settingsSection{id: "terminal", title: "Terminal", groups: append(session, advanced, input)}
+	return settingsSection{id: "terminal", title: "Terminal", groups: append(session, advanced, colors, input)}
 }
 
 func (w *workspace) keyboardSection() settingsSection {

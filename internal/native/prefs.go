@@ -13,27 +13,30 @@ import (
 
 // The keys of keel-native.json. A key this version does not know is kept as it is on every save.
 const (
-	keyOpacity      = "opacity"
-	keyBlur         = "blur"
-	keyTermSize     = "termSize"
-	keyUISize       = "uiSize"
-	keyTheme        = "theme"
-	keyTermFont     = "termFont"
-	keyTermWeight   = "termWeight"
-	keyLineHeight   = "termLineHeight"
-	keyLigatures    = "termLigatures"
-	keyFeatures     = "termFeatures"
-	keyCellWidth    = "termCellWidth"
-	keyThicken      = "termThicken"
-	keyCopyOnSelect = "copyOnSelect"
-	keyRightClick   = "rightClick"
-	keyDisplayName  = "name"
-	keySidebarWidth = "sidebarWidth"
-	keyAgentWidth   = "agentWidth"
-	keyAgentPanel   = "agentPanel"
-	keyCollapsed    = "groupCollapsed"
-	keyRecentHosts  = "recentHosts"
-	keyClosedTabs   = "closedTabs"
+	keyOpacity       = "opacity"
+	keyBlur          = "blur"
+	keyTermSize      = "termSize"
+	keyUISize        = "uiSize"
+	keyTheme         = "theme"
+	keyTermFont      = "termFont"
+	keyTermWeight    = "termWeight"
+	keyLineHeight    = "termLineHeight"
+	keyLigatures     = "termLigatures"
+	keyFeatures      = "termFeatures"
+	keyCellWidth     = "termCellWidth"
+	keyThicken       = "termThicken"
+	keyContrast      = "termContrast"
+	keySelectionBg   = "selectionBg"
+	keySelectionText = "selectionText"
+	keyCopyOnSelect  = "copyOnSelect"
+	keyRightClick    = "rightClick"
+	keyDisplayName   = "name"
+	keySidebarWidth  = "sidebarWidth"
+	keyAgentWidth    = "agentWidth"
+	keyAgentPanel    = "agentPanel"
+	keyCollapsed     = "groupCollapsed"
+	keyRecentHosts   = "recentHosts"
+	keyClosedTabs    = "closedTabs"
 )
 
 // prefsDoc is the whole of keel-native.json, loaded once when the window starts. The workspace owns it as w.prefs and
@@ -54,6 +57,10 @@ type prefsDoc struct {
 	Features   string // OpenType features as cleanFeatures keeps them: "ss01, cv02, -calt"
 	CellWidth  int    // 80–150, the column width in % of the font's advance
 	Thicken    bool   // macOS only
+
+	Contrast      string // Settings · Terminal · Colors: off | some | high
+	SelectionBg   string // theme | red | green | yellow | blue | magenta | cyan
+	SelectionText string // the same
 
 	CopyOnSelect bool
 	RightClick   string // paste | menu | nothing
@@ -95,7 +102,7 @@ var intPrefs = []struct {
 }
 
 func defaultPrefs() prefsDoc {
-	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
+	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, Contrast: contrastOff, SelectionBg: colorTheme, SelectionText: colorTheme, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
 	for _, e := range intPrefs {
 		*e.field(&p) = e.def
 	}
@@ -132,6 +139,15 @@ func loadPrefs(dataDir string) prefsDoc {
 	s = ""
 	get(keyFeatures, &s)
 	p.Features = cleanFeatures(s)
+	s = ""
+	get(keyContrast, &s)
+	p.Contrast = validContrast(s)
+	s = ""
+	get(keySelectionBg, &s)
+	p.SelectionBg = validSelColor(s)
+	s = ""
+	get(keySelectionText, &s)
+	p.SelectionText = validSelColor(s)
 	get(keyCopyOnSelect, &p.CopyOnSelect)
 	s = ""
 	get(keyRightClick, &s)
@@ -221,27 +237,30 @@ var prefKeys = map[string]struct {
 	title string
 	value func(*prefsDoc) any
 }{
-	keyOpacity:      {"the window opacity", func(p *prefsDoc) any { return p.Opacity }},
-	keyBlur:         {"the blur", func(p *prefsDoc) any { return p.Blur }},
-	keyTermSize:     {"the text size", func(p *prefsDoc) any { return p.TermSize }},
-	keyUISize:       {"the UI size", func(p *prefsDoc) any { return p.UISize }},
-	keyTheme:        {"the theme", func(p *prefsDoc) any { return p.Theme }},
-	keyTermFont:     {"the terminal font", func(p *prefsDoc) any { return p.TermFont }},
-	keyTermWeight:   {"the font weight", func(p *prefsDoc) any { return p.TermWeight }},
-	keyLineHeight:   {"the line height", func(p *prefsDoc) any { return p.LineHeight }},
-	keyLigatures:    {"ligatures", func(p *prefsDoc) any { return p.Ligatures }},
-	keyFeatures:     {"the font features", func(p *prefsDoc) any { return p.Features }},
-	keyCellWidth:    {"the cell width", func(p *prefsDoc) any { return p.CellWidth }},
-	keyThicken:      {"thicken", func(p *prefsDoc) any { return p.Thicken }},
-	keyCopyOnSelect: {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
-	keyRightClick:   {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
-	keyDisplayName:  {"the display name", func(p *prefsDoc) any { return p.Name }},
-	keySidebarWidth: {"the sidebar width", func(p *prefsDoc) any { return p.SidebarWidth }},
-	keyAgentWidth:   {"the agent panel width", func(p *prefsDoc) any { return p.AgentWidth }},
-	keyAgentPanel:   {"the agent panel", func(p *prefsDoc) any { return p.AgentPanel }},
-	keyCollapsed:    {"the closed folders", func(p *prefsDoc) any { return p.collapsedList() }},
-	keyRecentHosts:  {"recent hosts", func(p *prefsDoc) any { return slices.Clone(p.RecentHosts) }},
-	keyClosedTabs:   {"recently closed", func(p *prefsDoc) any { return closedJSON(p.ClosedTabs) }},
+	keyOpacity:       {"the window opacity", func(p *prefsDoc) any { return p.Opacity }},
+	keyBlur:          {"the blur", func(p *prefsDoc) any { return p.Blur }},
+	keyTermSize:      {"the text size", func(p *prefsDoc) any { return p.TermSize }},
+	keyUISize:        {"the UI size", func(p *prefsDoc) any { return p.UISize }},
+	keyTheme:         {"the theme", func(p *prefsDoc) any { return p.Theme }},
+	keyTermFont:      {"the terminal font", func(p *prefsDoc) any { return p.TermFont }},
+	keyTermWeight:    {"the font weight", func(p *prefsDoc) any { return p.TermWeight }},
+	keyLineHeight:    {"the line height", func(p *prefsDoc) any { return p.LineHeight }},
+	keyLigatures:     {"ligatures", func(p *prefsDoc) any { return p.Ligatures }},
+	keyFeatures:      {"the font features", func(p *prefsDoc) any { return p.Features }},
+	keyCellWidth:     {"the cell width", func(p *prefsDoc) any { return p.CellWidth }},
+	keyThicken:       {"thicken", func(p *prefsDoc) any { return p.Thicken }},
+	keyContrast:      {"the text contrast", func(p *prefsDoc) any { return p.Contrast }},
+	keySelectionBg:   {"the selection background", func(p *prefsDoc) any { return p.SelectionBg }},
+	keySelectionText: {"the selection text", func(p *prefsDoc) any { return p.SelectionText }},
+	keyCopyOnSelect:  {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
+	keyRightClick:    {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
+	keyDisplayName:   {"the display name", func(p *prefsDoc) any { return p.Name }},
+	keySidebarWidth:  {"the sidebar width", func(p *prefsDoc) any { return p.SidebarWidth }},
+	keyAgentWidth:    {"the agent panel width", func(p *prefsDoc) any { return p.AgentWidth }},
+	keyAgentPanel:    {"the agent panel", func(p *prefsDoc) any { return p.AgentPanel }},
+	keyCollapsed:     {"the closed folders", func(p *prefsDoc) any { return p.collapsedList() }},
+	keyRecentHosts:   {"recent hosts", func(p *prefsDoc) any { return slices.Clone(p.RecentHosts) }},
+	keyClosedTabs:    {"recently closed", func(p *prefsDoc) any { return closedJSON(p.ClosedTabs) }},
 }
 
 // prefWrites holds the keys set since the last write. One write at a time takes all of them, so the file always ends

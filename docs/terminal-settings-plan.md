@@ -31,8 +31,8 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 
 ## 3. Colors and Selection — Keel only
 
-- [ ] Improve text contrast: `MinimumContrast` (live, `SetMinimumContrast`).
-- [ ] Selection foreground and background: Theme, or a colour of the ANSI palette (`Theme.Selection`,
+- [~] Improve text contrast: Off, Some (3:1), High (4.5:1) as `MinimumContrast` (live, `SetMinimumContrast`).
+- [~] Selection background and text: Theme, or one of the six hues of the ANSI palette (`Theme.Selection`,
       `SelectionText`; live through `SetTheme`). No free colour: colours come from tokens.
 
 ## 4. Cursor and Keyboard — Keel only, new panes
