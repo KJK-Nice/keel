@@ -353,6 +353,20 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			})
 		}},
 	}}
+	cursor := prefGroup{title: "Cursor", rows: []prefRow{
+		{title: "Cursor style", desc: "Applies to panes opened from now on. Programs such as vim may change it.", ctl: func(c *ui.Context) {
+			ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+				segControl(c, "Cursor style", w.prefs.CursorStyle, cursorStyles, func(v string) { w.act(func() { w.setCursorStyle(v) }) })
+			})
+		}},
+		{title: "Blink", desc: "Applies to panes opened from now on.", ctl: func(c *ui.Context) {
+			on := w.prefs.CursorBlink
+			ui.Switch(c, &on).Label("Blink switch").Shrink(0)
+			if on != w.prefs.CursorBlink {
+				w.act(func() { w.setCursorBlink(on) })
+			}
+		}},
+	}}
 	input := prefGroup{title: "Input", rows: []prefRow{
 		{title: "Copy on select", desc: "Copy terminal selection to the clipboard.", ctl: func(c *ui.Context) {
 			on := w.prefs.CopyOnSelect
@@ -369,7 +383,16 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 				})
 			}},
 	}}
-	return settingsSection{id: "terminal", title: "Terminal", groups: append(session, advanced, colors, input)}
+	if isMac() {
+		input.rows = append(input.rows, prefRow{title: "Option key",
+			desc: "Type special characters (⌥E é), or send Alt to programs, as Meta in Emacs and readline. Applies to panes opened from now on.",
+			ctl: func(c *ui.Context) {
+				ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
+					segControl(c, "Option key", w.prefs.OptionKey, optionModes, func(v string) { w.act(func() { w.setOptionKey(v) }) })
+				})
+			}})
+	}
+	return settingsSection{id: "terminal", title: "Terminal", groups: append(session, advanced, colors, cursor, input)}
 }
 
 func (w *workspace) keyboardSection() settingsSection {
@@ -566,6 +589,20 @@ func (w *workspace) termPreview(c *ui.Context) {
 	}
 	ui.Column(c).FillWidth().Padding(space3).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
 		ln("guest@keel:~ $ make test && make lint", ink, wt)
+		ui.Row(c).Height(row).AlignItems(ui.Center).Children(func() { // a prompt and the cursor of new panes
+			ui.Text(c, "guest@keel:~ $ ").TextColor(ink).FontSize(size).FontWeight(wt).Font(tf.Family).SingleLine()
+			tf.Size = size
+			cw := gridFor(tf, 1).cw // the terminal's cell
+			cur := ui.Box(c).Background(ink).Label("cursor preview " + w.prefs.CursorStyle)
+			switch w.prefs.CursorStyle {
+			case cursorBar:
+				cur.Width(space0_5).Height(row)
+			case cursorUnderline:
+				cur.Width(cw).Height(space0_5).AlignSelf(ui.End)
+			default:
+				cur.Width(cw).Height(row)
+			}
+		})
 		ln("view.go:272: warning: label shrinks", ansi[3], wt)
 		ln("if err != nil && n >= 0 { return x => y } // ligatures", inkMuted, wt)
 		ln("ok  keel/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it

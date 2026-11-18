@@ -258,6 +258,9 @@ type pane struct {
 	// Right-click in the terminal (read when the terminal is made).
 	copyOnSelect bool
 	rightClick   string
+	cursor       terminal.CursorStyle // these three the terminal takes when it is made (termcursor.go)
+	noBlink      bool
+	optionAsAlt  bool
 	setCopy      func(on bool)
 
 	note string // what the failure banner says instead of the session's message (a re-attach found the session gone)
@@ -648,7 +651,8 @@ func (w *workspace) start() {
 
 func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
 	w.seq++
-	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), font: w.prefs.termFont(), colors: termColors{w.prefs.SelectionBg, w.prefs.SelectionText}, contrast: contrastRatio(w.prefs.Contrast), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick}
+	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), font: w.prefs.termFont(), colors: termColors{w.prefs.SelectionBg, w.prefs.SelectionText}, contrast: contrastRatio(w.prefs.Contrast), copyOnSelect: w.prefs.CopyOnSelect, rightClick: w.prefs.RightClick,
+		cursor: cursorStyleOf(w.prefs.CursorStyle), noBlink: !w.prefs.CursorBlink, optionAsAlt: w.prefs.OptionKey == optionAlt}
 	p.zoom = func(steps int, reset bool) {
 		if reset {
 			w.setTermSize(termSizeDefault)

@@ -28,6 +28,9 @@ const (
 	keyContrast      = "termContrast"
 	keySelectionBg   = "selectionBg"
 	keySelectionText = "selectionText"
+	keyCursorStyle   = "cursorStyle"
+	keyCursorBlink   = "cursorBlink"
+	keyOptionKey     = "optionKey"
 	keyCopyOnSelect  = "copyOnSelect"
 	keyRightClick    = "rightClick"
 	keyDisplayName   = "name"
@@ -61,6 +64,10 @@ type prefsDoc struct {
 	Contrast      string // Settings · Terminal · Colors: off | some | high
 	SelectionBg   string // theme | red | green | yellow | blue | magenta | cyan
 	SelectionText string // the same
+
+	CursorStyle string // block | bar | underline: panes opened afterwards
+	CursorBlink bool   // on by default
+	OptionKey   string // special | alt (macOS): what Option is to programs
 
 	CopyOnSelect bool
 	RightClick   string // paste | menu | nothing
@@ -102,7 +109,7 @@ var intPrefs = []struct {
 }
 
 func defaultPrefs() prefsDoc {
-	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, Contrast: contrastOff, SelectionBg: colorTheme, SelectionText: colorTheme, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
+	p := prefsDoc{Theme: themeSystem, TermFont: fontJetBrains, Ligatures: true, Contrast: contrastOff, SelectionBg: colorTheme, SelectionText: colorTheme, CursorStyle: cursorBlock, CursorBlink: true, OptionKey: optionSpecial, CopyOnSelect: true, RightClick: rightMenu, Collapsed: map[string]bool{}}
 	for _, e := range intPrefs {
 		*e.field(&p) = e.def
 	}
@@ -148,6 +155,13 @@ func loadPrefs(dataDir string) prefsDoc {
 	s = ""
 	get(keySelectionText, &s)
 	p.SelectionText = validSelColor(s)
+	s = ""
+	get(keyCursorStyle, &s)
+	p.CursorStyle = validChoice(s, cursorStyles)
+	get(keyCursorBlink, &p.CursorBlink)
+	s = ""
+	get(keyOptionKey, &s)
+	p.OptionKey = validChoice(s, optionModes)
 	get(keyCopyOnSelect, &p.CopyOnSelect)
 	s = ""
 	get(keyRightClick, &s)
@@ -252,6 +266,9 @@ var prefKeys = map[string]struct {
 	keyContrast:      {"the text contrast", func(p *prefsDoc) any { return p.Contrast }},
 	keySelectionBg:   {"the selection background", func(p *prefsDoc) any { return p.SelectionBg }},
 	keySelectionText: {"the selection text", func(p *prefsDoc) any { return p.SelectionText }},
+	keyCursorStyle:   {"the cursor style", func(p *prefsDoc) any { return p.CursorStyle }},
+	keyCursorBlink:   {"the cursor blink", func(p *prefsDoc) any { return p.CursorBlink }},
+	keyOptionKey:     {"the Option key", func(p *prefsDoc) any { return p.OptionKey }},
 	keyCopyOnSelect:  {"copy on select", func(p *prefsDoc) any { return p.CopyOnSelect }},
 	keyRightClick:    {"the right-click setting", func(p *prefsDoc) any { return p.RightClick }},
 	keyDisplayName:   {"the display name", func(p *prefsDoc) any { return p.Name }},
