@@ -42,6 +42,10 @@ type settingsPage struct {
 	nameSeen, signalSeen bool // the field has been given its text
 	signalSaving         bool
 
+	features    string // the Font features input while it is edited
+	featuresH   ui.Handle
+	featuresWas bool
+
 	// Settings · Agent (agentsettings.go): a provider card's state, and the scrollback slider. The slider is bound to a float;
 	// a move is sent one request at a time and the value keel serve holds is shown again.
 	cards        map[string]*keyCard
@@ -315,6 +319,7 @@ var sliderSpecs = []struct {
 	{keyUISize, (*workspace).setUIPref},
 	{keyTermWeight, (*workspace).setTermWeight},
 	{keyLineHeight, (*workspace).setLineHeight},
+	{keyCellWidth, (*workspace).setCellWidth},
 }
 
 // sliderPos is where a slider is: it is bound to a float, and a move is told from the value last applied.

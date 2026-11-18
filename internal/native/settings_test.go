@@ -32,6 +32,23 @@ func settingsRig(t *testing.T, fb *fakeBackend) *rig {
 	return r
 }
 
+// reveal scrolls the settings page until the element labelled name is inside the window.
+func (r *rig) reveal(t *testing.T, name string) {
+	t.Helper()
+	for range 20 {
+		f, ok := r.tt.Find(name)
+		if !ok {
+			t.Fatalf("no %q", name)
+		}
+		if f.Y+f.H < 720 {
+			return
+		}
+		r.tt.Scroll(f.X, 400, 0, 200)
+		r.tt.Frame()
+	}
+	t.Fatalf("%q stays below the window", name)
+}
+
 func (r *rig) section(t *testing.T, name string) {
 	t.Helper()
 	r.click(t, "settings nav "+name)
@@ -268,6 +285,7 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 			p.setCopy = func(on bool) { offs = append(offs, on) }
 		}
 	}
+	r.reveal(t, "Nothing") // the Input group, at the page's end
 	r.click(t, "Copy on select switch")
 	if r.w.prefs.CopyOnSelect || !slices.Equal(offs, []bool{false}) || string(r.prefsFile(t)["copyOnSelect"]) != "false" {
 		t.Errorf("copy on select: %+v calls %v file %v", r.w.prefs, offs, r.prefsFile(t))

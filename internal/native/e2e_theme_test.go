@@ -196,11 +196,19 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.w.setLineHeight(130)
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2EUISizeAndFont-typography")
+	e.w.setFeatures("ss02")
+	e.w.setCellWidth(110)
+	e.settle(300 * time.Millisecond)
+	e.tt.Scroll(800, 400, 0, 400) // to the Advanced font group
+	e.settle(300 * time.Millisecond)
+	e.shot("TestE2EUISizeAndFont-advanced")
+	e.w.setFeatures("")
+	e.w.setCellWidth(cellWidthDefault)
 	e.w.setTermWeight(termWeightDefault)
 	e.w.setLineHeight(lineHeightDefault)
 	e.key(ui.Cmd, ui.Key1)
 	e.pump(func() bool {
-		f := e.w.focusedPane().fontFamily
+		f := e.w.focusedPane().font.Family
 		return len(f) >= len(plexFamily) && f[:len(plexFamily)] == plexFamily
 	}, "the pane's family")
 	plex := e.crop(area)

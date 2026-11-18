@@ -25,8 +25,9 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 
 ## 2. Advanced font settings — Keel only
 
-- [ ] A sub page: ligatures (`calt`), stylistic sets (`ss01` …), cell width (`Font.CellWidth`), Thicken
-      (`Font.Thicken`), as `Font.Features`.
+- [~] An "Advanced font" group (not a sub page: four rows): Ligatures (off is `-calt -liga -dlig`), Font features
+      (`ss01, cv02, -calt`, cleaned, at most 16), Cell width (`Font.CellWidth`, 80–150%), Thicken (`Font.Thicken`,
+      macOS). Text size and Weight became number fields.
 
 ## 3. Colors and Selection — Keel only
 
