@@ -203,15 +203,33 @@ func TestAnOldWindowShadowKeyIsIgnoredAndDropped(t *testing.T) {
 	}
 }
 
-func TestSettingsSliderMovesWithTheKeyboard(t *testing.T) {
+func TestSettingsNumberFieldsStepWithTheKeyboard(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Terminal")
-	r.click(t, "Text size slider")
-	r.tt.Key(0, ui.KeyRight)
+	if r.has("Text size slider") || r.has("Weight slider") {
+		t.Fatal("Text size and Weight are number fields, not sliders")
+	}
+	field := func(name string) { // its text, left of the − and + buttons
+		f, ok := r.tt.Find(name)
+		if !ok {
+			t.Fatalf("no %q", name)
+		}
+		r.tt.ClickAt(f.X+space3, f.Y+f.H/2)
+		r.tt.Frame()
+	}
+	field("Text size field")
+	r.tt.Key(0, ui.KeyUp)
 	r.tt.Frame()
-	// The click set the middle of 10–22 (16) and → stepped to 17.
-	if r.w.prefs.TermSize != 17 || string(r.prefsFile(t)["termSize"]) != "17" {
-		t.Errorf("→ on the Text size slider left %d", r.w.prefs.TermSize)
+	r.tt.Frame()
+	if r.w.prefs.TermSize != 13 || string(r.prefsFile(t)["termSize"]) != "13" {
+		t.Errorf("↑ in the Text size field left %d", r.w.prefs.TermSize)
+	}
+	field("Weight field")
+	r.tt.Key(0, ui.KeyUp)
+	r.tt.Frame()
+	r.tt.Frame()
+	if r.w.prefs.TermWeight != 500 {
+		t.Errorf("↑ in the Weight field left %d", r.w.prefs.TermWeight)
 	}
 }
 

@@ -83,6 +83,7 @@ const (
 	sizeRow       = 44
 	sizeSidebar   = 252
 	sizeRail      = 208 // size-rail: the Settings section rail
+	sizeNumber    = 128 // size-number: a number field in Settings
 	sizeAgent     = 380 // size-agent: the agent panel
 	sizeAgentStep = 24  // size-agent-step: the sash's key step
 	sizeReading   = 544 // size-reading: 68ch, the notebook's column

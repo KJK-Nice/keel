@@ -218,6 +218,17 @@ func sliderCtl(c *ui.Context, name string, v *float64, lo, hi float64, shown int
 	}
 }
 
+// numberCtl is a number field of an integer pref, bound as a slider is (sliderSpecs applies what is typed or stepped);
+// over draws over it (a key cap while ⌘ is held).
+func numberCtl(c *ui.Context, name string, v *float64, lo, hi, step float64, over ...func()) {
+	ui.Row(c).Width(sizeNumber).Shrink(0).Children(func() {
+		ui.NumberInput(c, v, lo, hi, step).Label(name + " field").FillWidth()
+		for _, f := range over {
+			f()
+		}
+	})
+}
+
 func (w *workspace) copyBtn(c *ui.Context, name, value string) {
 	if value == "" {
 		return
@@ -273,10 +284,10 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 			})
 		}},
 		{title: "Text size", desc: "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", ctl: func(c *ui.Context) {
-			w.prefSlider(c, p, keyTermSize, "Text size", func() { w.keyCap(c, "+ − 0") }) // the hint shows only while ⌘ is held
+			numberCtl(c, "Text size", &p.sliders[keyTermSize].v, termSizeMin, termSizeMax, 1, func() { w.keyCap(c, "+ − 0") }) // the hint shows only while ⌘ is held
 		}},
 		{title: "Weight", desc: "100–900. Bold text is 300 heavier. A font without the weight draws its nearest.", ctl: func(c *ui.Context) {
-			sliderCtlStep(c, "Weight", &p.sliders[keyTermWeight].v, termWeightMin, termWeightMax, termWeightStep, w.prefs.TermWeight)
+			numberCtl(c, "Weight", &p.sliders[keyTermWeight].v, termWeightMin, termWeightMax, termWeightStep)
 		}},
 		{title: "Line height", desc: "100–200% of the font's own. Text is centred in its row.", ctl: func(c *ui.Context) {
 			w.prefSlider(c, p, keyLineHeight, "Line height")
