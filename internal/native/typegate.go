@@ -1,9 +1,9 @@
 package native
 
-// The typing gate: whether Slime may type into a pane for the user. It only decides what the window offers; keel serve
+// The typing gate: whether Slime may type into a pane for the user. It only decides what the window offers; slime serve
 // checks again at the write.
 
-// canType reports a pane Slime may type into: a session of this machine's keel serve that is ready and that this client drives.
+// canType reports a pane Slime may type into: a session of this machine's slime serve that is ready and that this client drives.
 func (p *pane) canType() bool { return !p.remote && p.conn.Snapshot().CanType() }
 
 // drives reports an agent pane that is open in this window, local, and driven by this client.

@@ -521,16 +521,16 @@ func (w *workspace) runtimeSection(p *settingsPage) settingsSection {
 	}}
 	window := prefGroup{title: "Window", rows: []prefRow{{title: "Sessions keep running after the window closes",
 		desc: "Closing the window detaches; reopen Slime to attach. Closing a session tab ends that session.", ctl: alwaysOn}}}
-	canStop := p.rt == nil || rt.CanStop // enabled until keel serve says it cannot stop
+	canStop := p.rt == nil || rt.CanStop // enabled until slime serve says it cannot stop
 	stop := prefGroup{title: "Stop", rows: []prefRow{{title: "Stop the Slime runtime",
-		desc: "Ends every running session and port forward, then closes keel serve. Reopen Slime to start it again.",
+		desc: "Ends every running session and port forward, then closes slime serve. Reopen Slime to start it again.",
 		ctl: func(c *ui.Context) {
 			if textBtnOffAs(c, "Stop runtime…", "Stop runtime…", btnDanger, !canStop) {
 				w.act(w.askStopRuntime)
 			}
 		}}}}
 	return settingsSection{id: "runtime", title: "Runtime",
-		lead: "keel serve owns your sessions and serves this window. It keeps running when the window closes.", groups: []prefGroup{status, window, stop}}
+		lead: "slime serve owns your sessions and serves this window. It keeps running when the window closes.", groups: []prefGroup{status, window, stop}}
 }
 
 func (w *workspace) aboutSection(p *settingsPage) settingsSection {
@@ -539,7 +539,7 @@ func (w *workspace) aboutSection(p *settingsPage) settingsSection {
 		return prefRow{title: title, extra: value, ctl: func(c *ui.Context) { statValue(c, value) }}
 	}
 	version, build := "unknown", "unknown"
-	// The release of the packaged app (its Info.plist); bin/keel has none and shows the commit instead.
+	// The release of the packaged app (its Info.plist); bin/slime has none and shows the commit instead.
 	if v := mygo.App.Version(); v != "" {
 		version = v
 	} else if v := versionOf(rt.Build); v != "" {
@@ -552,7 +552,7 @@ func (w *workspace) aboutSection(p *settingsPage) settingsSection {
 		return prefRow{title: title, desc: url, ctl: func(c *ui.Context) { w.copyBtn(c, name, url) }}
 	}
 	return settingsSection{id: "about", title: "About Slime",
-		lead: "A local SSH workspace. Go owns SSH and the terminals; this window is a native client of keel serve.",
+		lead: "A local SSH workspace. Go owns SSH and the terminals; this window is a native client of slime serve.",
 		groups: []prefGroup{
 			{title: "Version", rows: []prefRow{stat("Version", version), stat("Build", build)}},
 			{title: "Links", rows: []prefRow{

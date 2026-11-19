@@ -52,7 +52,7 @@ func failEndpoint(h keelclient.Host, st keelclient.State) string {
 	return "SSH " + h.Address + ":" + strconv.Itoa(h.SSHPort())
 }
 
-// connectLog is the connecting lines followed by what keel serve reported (State.Log): the lines a failed or connecting
+// connectLog is the connecting lines followed by what slime serve reported (State.Log): the lines a failed or connecting
 // pane lists and Copy logs copies.
 func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 	var seed []keelclient.LogLine

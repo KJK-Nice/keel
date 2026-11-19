@@ -525,7 +525,7 @@ func TestHistoryRedactsBeforeEgress(t *testing.T) {
 	}
 }
 
-// The fake Jev keel serve uses in end-to-end tests maps words to a marker
+// The fake Jev slime serve uses in end-to-end tests maps words to a marker
 // command, so the e2e flow can see a history card.
 func TestScriptedJudgeHistoryPick(t *testing.T) {
 	historyReq := func(words string, cmds []string) provider.JudgeRequest {

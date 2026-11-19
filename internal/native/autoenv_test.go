@@ -51,7 +51,7 @@ func TestAutomationPluginIsLinkedOnlyWithItsTag(t *testing.T) {
 		t.Skip("runs go list")
 	}
 	for _, c := range []struct{ pkg, tags, cgo string }{
-		{"./cmd/keel", "", "0"},
+		{"./cmd/slime", "", "0"},
 		{"./cmd/keel-native", "", "0"},
 	} {
 		if hasPkg(goDeps(t, c.pkg, c.tags, c.cgo)) {
@@ -97,7 +97,7 @@ func TestAutomationIsImportedOnlyByTheTaggedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "cmd/keel/automation.go cmd/keel-native/automation.go"
+	want := "cmd/keel-native/automation.go cmd/slime/automation.go"
 	if got := strings.Join(found, " "); got != want {
 		t.Errorf("the plugin is imported by %q, want exactly %q", got, want)
 	}

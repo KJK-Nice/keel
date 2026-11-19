@@ -2,7 +2,7 @@ package keelclient
 
 import "keel/internal/wire"
 
-// A joined share has no socket to keel serve: its control frames arrive on a WebRTC data channel (joinpeer). It
+// A joined share has no socket to slime serve: its control frames arrive on a WebRTC data channel (joinpeer). It
 // keeps the state those frames describe in a Conn that has no socket, so that a joined pane and a local one read
 // the same Snapshot. The socket methods of such a Conn are never called: the peer has its own Read, Write and Close.
 

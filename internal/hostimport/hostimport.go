@@ -19,7 +19,7 @@ import (
 	"keel/internal/store"
 )
 
-// ErrNotSetUp is returned when keel serve has no ssh folder to read.
+// ErrNotSetUp is returned when slime serve has no ssh folder to read.
 var ErrNotSetUp = errors.New("ssh config import is not set up")
 
 // Host is one config host as the import screen lists it.
@@ -223,7 +223,7 @@ type Failure struct {
 }
 
 // Result is what Import added. Hosts and Identities are as the store
-// returned them: the caller redacts them before they leave keel serve.
+// returned them: the caller redacts them before they leave slime serve.
 type Result struct {
 	Path       string
 	Hosts      []store.Host

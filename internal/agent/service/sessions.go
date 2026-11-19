@@ -113,7 +113,7 @@ func retentionCutoff(now time.Time, days int) time.Time {
 }
 
 // Prune removes the saved conversations last used before the retention
-// (historyDays) and returns how many went. keel serve calls it at start,
+// (historyDays) and returns how many went. slime serve calls it at start,
 // hourly and when the settings change; the session list calls it too.
 // With history off ("only while open") it deletes everything saved, the
 // file and its key with it (store.DeleteAllAgentChats), which also
@@ -291,7 +291,7 @@ func (s *Service) expiredView(sp store.AgentChatProposal, prodCache map[string]b
 	return out
 }
 
-// hydrate loads a saved conversation into memory when keel serve does not
+// hydrate loads a saved conversation into memory when slime serve does not
 // hold it, so the next ask continues it. Its proposals stay saved only:
 // none becomes typeable.
 func (s *Service) hydrate(id string) error {
@@ -626,7 +626,7 @@ func recordOf(p *Proposal, command, why string, at time.Time) store.AgentChatPro
 	return out
 }
 
-// TypeDoneAt records that a proposal was typed (keel serve calls it after
+// TypeDoneAt records that a proposal was typed (slime serve calls it after
 // the bytes were written), so the transcript shows it as typed. mark is
 // the pane's stream offset taken right before the write: a runbook step's
 // result is the first command the pane's shell reports after it

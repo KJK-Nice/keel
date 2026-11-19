@@ -17,7 +17,7 @@ import (
 )
 
 // Every route Handler registers, read from its source so a new one is covered without a change here, refuses every
-// way in but its own credential: no header, a wrong token, the token in a cookie or a query parameter, keel mcp's token
+// way in but its own credential: no header, a wrong token, the token in a cookie or a query parameter, slime mcp's token
 // on a window route and the window's token on an mcp route, a foreign or null Origin with the right token, and a Host
 // that is not a loopback name with the right token. No refusal redirects or sets a cookie. Only GET /api/health is open.
 func TestEveryRouteTakesOnlyItsOwnCredential(t *testing.T) {

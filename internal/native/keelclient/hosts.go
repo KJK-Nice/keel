@@ -146,14 +146,14 @@ func (c *Client) ForgetHostKey(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/hosts/"+url.PathEscape(id)+"/host-key", nil, nil)
 }
 
-// GroupVar is one group variable (docs/ui-redesign.md §17 part 2): config, not a secret. keel serve refuses a value that
+// GroupVar is one group variable (docs/ui-redesign.md §17 part 2): config, not a secret. slime serve refuses a value that
 // looks like a secret or holds a vault value.
 type GroupVar struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// Group is a folder of the host tree. Roles (host id to role) and Vars are kept by keel serve; a folder's save never
+// Group is a folder of the host tree. Roles (host id to role) and Vars are kept by slime serve; a folder's save never
 // sends them.
 type Group struct {
 	ID       string            `json:"id"`

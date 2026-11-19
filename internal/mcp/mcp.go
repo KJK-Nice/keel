@@ -1,8 +1,8 @@
-// Package mcp is keel mcp: a Model Context Protocol server on stdio that
+// Package mcp is slime mcp: a Model Context Protocol server on stdio that
 // lets Claude Code (or another MCP client) work with Slime's panes the way
 // the agent panel does (docs/agent.md).
 //
-// It is a thin bridge. Every tool is one request to keel serve's /api/mcp/
+// It is a thin bridge. Every tool is one request to slime serve's /api/mcp/
 // routes, which hold the rules (internal/agent/service/external.go): only
 // panes on hosts with "Agent can read" on, redacted, every read logged as
 // agent.read, and commands only proposed. A proposal waits in Slime's agent
@@ -31,18 +31,18 @@ import (
 	"keel/internal/wire"
 )
 
-// LatestProtocol is the MCP version keel mcp answers with when the client
+// LatestProtocol is the MCP version slime mcp answers with when the client
 // asks for one it does not list.
 const LatestProtocol = "2025-06-18"
 
-// protocols are the MCP versions keel mcp speaks. It uses only tools, which
+// protocols are the MCP versions slime mcp speaks. It uses only tools, which
 // are the same in all of them.
 var protocols = map[string]bool{"2024-11-05": true, "2025-03-26": true, "2025-06-18": true, "2025-11-25": true}
 
 // maxLine caps one incoming message.
 const maxLine = 1 << 20
 
-// Keel is what the tools ask (the interface keeps the old name; the product is Slime): keel serve's /api/mcp/ routes (client.go),
+// Keel is what the tools ask (the interface keeps the old name; the product is Slime): slime serve's /api/mcp/ routes (client.go),
 // or a fake in tests. Do sends body (nil for none) as JSON and decodes the
 // answer into out.
 type Keel interface {
@@ -63,7 +63,7 @@ func New(k Keel, version string) *Server {
 	if version == "" {
 		version = "dev"
 	}
-	return &Server{keel: k, name: "keel", version: version}
+	return &Server{keel: k, name: "slime", version: version}
 }
 
 type rpcRequest struct {

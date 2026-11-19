@@ -11,7 +11,7 @@ import (
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
 // review). A read-only command of one line is typed with one click and
 // without Enter: it waits on the prompt line until the user presses Enter.
-// Everything else keeps approve-before-type. keel serve decides, never the
+// Everything else keeps approve-before-type. slime serve decides, never the
 // page: the checks below run again at the moment of the write, on the exact
 // bytes, and any doubt sends the user to the dialog.
 

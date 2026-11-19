@@ -511,7 +511,7 @@ func TestAgentSettingsRetiredDefaultModel(t *testing.T) {
 	}
 }
 
-// Claude Code (keel mcp) is off until the user turns it on, and settings
+// Claude Code (slime mcp) is off until the user turns it on, and settings
 // saved before the field existed read as off (§6 rule 14).
 func TestAgentSettingsClaudeCodeOffByDefault(t *testing.T) {
 	st, path := agentStore(t)

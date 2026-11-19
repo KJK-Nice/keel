@@ -14,7 +14,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Settings · Agent (docs/ui-redesign.md §5.9) on the fake backend: each control shows what keel serve holds and sends the
+// Settings · Agent (docs/ui-redesign.md §5.9) on the fake backend: each control shows what slime serve holds and sends the
 // app's request when it changes; a key is masked, sent once and never kept; Disconnect and Delete all history ask first;
 // Claude Code is off until it is turned on and sends claudeCode and nothing else.
 
@@ -77,7 +77,7 @@ func TestSettingsAgentIsTheAppsGroupsRowsAndWords(t *testing.T) {
 		"Suggest from this pane's scrollback", "How to notice plain language",
 		"Agent panel", "Default panes per conversation", "Which panes the agent may read when you start a conversation.",
 		"Scrollback lines per pane", "50–1000. How much of each pane the agent reads. Default 200.",
-		"Claude Code", "Allow Claude Code (keel mcp)", "Lets Claude Code list and read panes on hosts with Agent can read, each read logged, and propose commands that wait in the agent panel. It never types.",
+		"Claude Code", "Allow Claude Code (slime mcp)", "Lets Claude Code list and read panes on hosts with Agent can read, each read logged, and propose commands that wait in the agent panel. It never types.",
 		"Notes for the agent", "Your notes", "How you like to work, for every host. Sent with questions that read a pane on a host the agent may read, redacted like pane text. A host's own notes are in Edit host.",
 		"Notes about you", "The agent may propose a note; nothing is saved until you press Save. Stored encrypted in the vault.",
 		"Delete all notes", "Forget every host note and every note about you. Conversations stay.",
@@ -126,9 +126,9 @@ func TestSettingsAgentControlsShowKeelServesValueAndSendOnlyWhatChanged(t *testi
 			t.Errorf("%s sent %v %+v", c.name, fields(p), p)
 		}
 	}
-	// What keel serve answered is what the controls show.
+	// What slime serve answered is what the controls show.
 	if v := r.fb.agent.settings.Settings; v.Suggestions != "off" || v.HistorySuggestions != "off" || !v.Redact.IPs || !v.Redact.Hostnames || v.DefaultScope != "pick" {
-		t.Errorf("keel serve holds %+v", v)
+		t.Errorf("slime serve holds %+v", v)
 	}
 	// Suggestions off greys the detection radios: choosing one sends nothing.
 	n := len(r.fb.convs.saves)
@@ -178,7 +178,7 @@ func TestSettingsAgentScrollbackLinesRangeAndRequest(t *testing.T) {
 	r := agentSettingsRig(t)
 	p := r.w.settingsPage()
 	if p.linesV != 200 {
-		t.Fatalf("the slider starts at %v: it shows what keel serve holds", p.linesV)
+		t.Fatalf("the slider starts at %v: it shows what slime serve holds", p.linesV)
 	}
 	r.texts(t, "200")
 	p.linesV = 20 // below the range
@@ -189,7 +189,7 @@ func TestSettingsAgentScrollbackLinesRangeAndRequest(t *testing.T) {
 	p.linesV = 5000
 	r.settle()
 	if got := r.lastSave(t); *got.ScrollbackLines != 1000 || r.fb.agent.settings.Settings.ScrollbackLines != 1000 {
-		t.Errorf("above the range: %+v, keel serve holds %d", got, r.fb.agent.settings.Settings.ScrollbackLines)
+		t.Errorf("above the range: %+v, slime serve holds %d", got, r.fb.agent.settings.Settings.ScrollbackLines)
 	}
 	r.click(t, "Scrollback lines slider")
 	r.settle()
@@ -244,13 +244,13 @@ func TestSettingsAgentClaudeCodeIsOffByDefaultAndSendsOnlyClaudeCode(t *testing.
 	if r.w.agentVal().Settings.ClaudeCode {
 		t.Fatal("Claude Code starts on")
 	}
-	r.click(t, "Allow Claude Code (keel mcp) switch")
+	r.click(t, "Allow Claude Code (slime mcp) switch")
 	r.settle()
 	p := r.lastSave(t)
 	if !slices.Equal(fields(p), []string{"ClaudeCode"}) || !*p.ClaudeCode || !r.fb.agent.settings.Settings.ClaudeCode {
 		t.Fatalf("on: %v %+v", fields(p), p)
 	}
-	r.click(t, "Allow Claude Code (keel mcp) switch")
+	r.click(t, "Allow Claude Code (slime mcp) switch")
 	r.settle()
 	p = r.lastSave(t)
 	if !slices.Equal(fields(p), []string{"ClaudeCode"}) || *p.ClaudeCode || r.fb.agent.settings.Settings.ClaudeCode {
@@ -357,7 +357,7 @@ func TestSettingsSearchFindsAgentRowsAndAgentHasNoSecretRowText(t *testing.T) {
 	r.click(t, "Search settings")
 	r.tt.Type("claude code")
 	r.settle()
-	if !r.tt.HasText("Allow Claude Code (keel mcp)") || r.tt.HasText("Window opacity") {
+	if !r.tt.HasText("Allow Claude Code (slime mcp)") || r.tt.HasText("Window opacity") {
 		t.Errorf("the search did not find the Agent row: %v", r.tt.Texts())
 	}
 	r.tt.Key(ui.Cmd, ui.KeyA)

@@ -52,7 +52,7 @@ Settings → Terminal has Font (five bundled or common faces), Text size, Copy o
 
 Blocked on MyGo: the plugin has no public cursor position (v0.9 and v0.10; `internal/vt` has `Cursor()`, not
 exported). `Snapshot()` holds it but costs about 7 ms and 600 KB with 10k rows of scrollback, too much for every
-keystroke, and keel serve sends the PTY's raw output, so Slime cannot read the cursor without its own emulator. Needs
+keystroke, and slime serve sends the PTY's raw output, so Slime cannot read the cursor without its own emulator. Needs
 `Terminal.Cursor()` upstream (step 7) first.
 
 - [ ] Cursor trails: the cursor's cell from `term.Cursor()` and the grid geometry (`suggestgeom.go`), a trail
@@ -73,7 +73,7 @@ The plugin imports MyGo's `internal/*` packages, so it cannot be forked on its o
 
 ## Not planned
 
-- Smooth terminal resizing: the PTY's size is `keel serve`'s, so the window cannot reflow ahead of it without
+- Smooth terminal resizing: the PTY's size is `slime serve`'s, so the window cannot reflow ahead of it without
   a change to how sessions are sized.
 - Option key "Automatic (by keyboard layout)": MyGo does not report the layout.
 - Key sequence hints: Slime has no multi-key shortcuts.

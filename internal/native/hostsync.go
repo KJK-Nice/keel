@@ -8,7 +8,7 @@ import (
 )
 
 // Keeping the host list current. The native client has no event stream, so it reads the hosts
-// again after every write it makes, and polls GET /api/vault for its rev while the window is open. If keel serve later gets a JSON event stream, switch to it; do not grow
+// again after every write it makes, and polls GET /api/vault for its rev while the window is open. If slime serve later gets a JSON event stream, switch to it; do not grow
 // the poll (docs/native.md).
 
 const pollEvery = 3 * time.Second
@@ -87,7 +87,7 @@ func (w *workspace) pollTick() {
 // the Unlock screen over the window (sessions and tabs stay); an unlocked one (by another window) takes it away.
 func (w *workspace) pollOnce() {
 	callOnce(w, &w.polling, nil, w.be.Vault, func(v keelclient.Vault, err error) {
-		if err != nil { // keel serve not answering is not news: the sessions say so themselves
+		if err != nil { // slime serve not answering is not news: the sessions say so themselves
 			return
 		}
 		switch {
@@ -101,7 +101,7 @@ func (w *workspace) pollOnce() {
 		case w.gate != nil: // unlocked elsewhere
 			w.unlocked(w.gate)
 			w.rev = v.Rev
-		case !w.live: // the first reads failed (keel serve was still starting): read them again
+		case !w.live: // the first reads failed (slime serve was still starting): read them again
 			w.start()
 		case v.Rev != w.rev:
 			w.rev = v.Rev

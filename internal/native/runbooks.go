@@ -19,15 +19,15 @@ import (
 // the words and rules are in runbookslogic.go.
 //
 // What this file does and does not do:
-//   - Runbooks live in keel serve (keel.memory, in the vault). This client holds them in memory only and writes none to disk.
-//     keel serve redacts every text for secrets before it keeps it; the editor shows what it kept and how many values it
-//     replaced, and a command the redactor would change is refused by keel serve and the editor shows its reason.
+//   - Runbooks live in slime serve (keel.memory, in the vault). This client holds them in memory only and writes none to disk.
+//     slime serve redacts every text for secrets before it keeps it; the editor shows what it kept and how many values it
+//     replaced, and a command the redactor would change is refused by slime serve and the editor shows its reason.
 //   - The agent never writes a runbook. One it proposes is a card; the card's Save (saveBookProposal) is the only thing that
 //     keeps it, with Agent may pick off, and Dismiss keeps nothing.
-//   - A runbook step is an ordinary proposal. Propose step N is an ordinary ask: keel serve makes the proposal for the current
+//   - A runbook step is an ordinary proposal. Propose step N is an ordinary ask: slime serve makes the proposal for the current
 //     step only, rates it, and the card is typed by agent.go's Type path like any other (Approve before type). Nothing here
-//     types, builds a proposal or knows a step's bytes; Mark done, Skip and Retry only tell keel serve what the user decided.
-//   - A step that holds a redaction placeholder is never typed: its card has no Type button (typeOffer) and keel serve refuses
+//     types, builds a proposal or knows a step's bytes; Mark done, Skip and Retry only tell slime serve what the user decided.
+//   - A step that holds a redaction placeholder is never typed: its card has no Type button (typeOffer) and slime serve refuses
 //     it too.
 //   - "Agent may pick" is off unless the user turns it on.
 
@@ -237,7 +237,7 @@ func (w *workspace) scopeRbPanes() (out []rbPane) {
 	return out
 }
 
-// proposeRunStep is Propose step N (and the Retry after a step was reset): an ordinary ask. keel serve makes the proposal for
+// proposeRunStep is Propose step N (and the Retry after a step was reset): an ordinary ask. slime serve makes the proposal for
 // the current step, and only that one.
 func (w *workspace) proposeRunStep() {
 	a := w.agent
@@ -257,7 +257,7 @@ func (w *workspace) proposeRunStep() {
 	w.agentAsk(continueQuestion(act.step))
 }
 
-// runStepAction is Mark done, Confirm done, Skip and Retry on the current step: keel serve refuses any other step.
+// runStepAction is Mark done, Confirm done, Skip and Retry on the current step: slime serve refuses any other step.
 func (w *workspace) runStepAction(stepID, action string) {
 	a := w.agent
 	u := &a.runs
@@ -479,7 +479,7 @@ func editorFromRunbook(rb keelclient.Runbook) *rbEditor {
 	return e
 }
 
-// editorFromDraft is an unsaved draft keel serve made from a conversation: dirty from the start, with Agent may pick off.
+// editorFromDraft is an unsaved draft slime serve made from a conversation: dirty from the start, with Agent may pick off.
 func editorFromDraft(d keelclient.RunbookDraft) *rbEditor {
 	e := editorFromRunbook(keelclient.Runbook{Name: d.Name, When: d.When, Hosts: d.Hosts, Steps: d.Steps, Source: d.Source, SourceRef: d.SourceRef})
 	e.draftID, e.fromPrivate, e.forced = d.DraftID, d.FromPrivate, true
@@ -568,7 +568,7 @@ func (w *workspace) selectRunbook(id string) {
 	})
 }
 
-// saveRunbook is Save (⌘S): POST or PUT the editor; the editor then shows what keel serve kept.
+// saveRunbook is Save (⌘S): POST or PUT the editor; the editor then shows what slime serve kept.
 func (w *workspace) saveRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil || p.saving {
@@ -691,7 +691,7 @@ func (w *workspace) openNotebookMenu() {
 	p.menuNB = !p.menuNB
 }
 
-// draftRunbook makes an unsaved draft from a saved conversation: keel serve turns its proposals into steps. Nothing is kept
+// draftRunbook makes an unsaved draft from a saved conversation: slime serve turns its proposals into steps. Nothing is kept
 // until the user presses Save, and the draft starts with Agent may pick off.
 func (w *workspace) draftRunbook(conversationID string) {
 	p := w.runbooksPage()
@@ -707,7 +707,7 @@ func (w *workspace) draftRunbook(conversationID string) {
 }
 
 // draftRunbookOfNotebook makes the same draft from a notebook: its headings become steps and its shell blocks their
-// commands. One request with the notebook's id; keel serve reads the text it stores. Typing in the notebook is saved first,
+// commands. One request with the notebook's id; slime serve reads the text it stores. Typing in the notebook is saved first,
 // so the draft is of what the user sees. Nothing is kept until the user presses Save in the editor.
 func (w *workspace) draftRunbookOfNotebook(notebookID string) {
 	p := w.runbooksPage()

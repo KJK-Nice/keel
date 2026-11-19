@@ -22,7 +22,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// First run, Keychain and Logs against a scratch keel serve. Every daemon has SLIME_KEYRING=off, its own
+// First run, Keychain and Logs against a scratch slime serve. Every daemon has SLIME_KEYRING=off, its own
 // SLIME_DATA under .scratch-native/e2e and, for the import, SLIME_SSH_DIR at a copy of tests/fixtures/ssh-home/.ssh
 // with two keys made here: the real ~/.ssh and the OS keychain are never touched. The passphrases and the identity
 // password below are scratch values; no test prints them and the checks at the end of each scenario look for them
@@ -451,7 +451,7 @@ func TestE2ELogsPage(t *testing.T) {
 	addr, dir := startServe(t, true)
 	f := startSSH(t, addr, dir)
 	e := newWin(t, addr, dir, nil)
-	// Three things that happen: a session, a trusted host key, a deleted host. keel serve logs the first two and the
+	// Three things that happen: a session, a trusted host key, a deleted host. slime serve logs the first two and the
 	// host's creation, but not a host's deletion (httpapi writes no entry for it), so no row names the delete.
 	e.openLocal()
 	e.click("host e2e-ssh")

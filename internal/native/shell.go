@@ -52,7 +52,7 @@ const (
 	trayHide       = "Hide Slime"
 	trayNewTab     = "New Tab"
 	trayQuick      = "Quick Connect…"
-	trayClaudeCode = "Allow Claude Code (keel mcp)"
+	trayClaudeCode = "Allow Claude Code (slime mcp)"
 	traySettings   = "Settings…"
 	trayQuit       = "Quit Slime"
 	// The session count and the Claude Code switch can change from another client. The tray reads GET /api/vault and
@@ -61,7 +61,7 @@ const (
 	trayRefresh = 20 * time.Second
 )
 
-// statusLabel is the header's second line: the state of keel serve.
+// statusLabel is the header's second line: the state of slime serve.
 func statusLabel(running, locked bool, sessions int) string {
 	switch {
 	case !running:
@@ -75,7 +75,7 @@ func statusLabel(running, locked bool, sessions int) string {
 	}
 }
 
-// versionLabels are the two version rows: the app (its release, then its commit) and the keel serve it talks to
+// versionLabels are the two version rows: the app (its release, then its commit) and the slime serve it talks to
 // (its commit; "" when it is not running). Builds are build ids (internal/buildid), shown short as About shows them.
 func versionLabels(release, appBuild, serveBuild string) (app, serve string) {
 	if release == "" {
@@ -85,9 +85,9 @@ func versionLabels(release, appBuild, serveBuild string) (app, serve string) {
 	if v := versionOf(appBuild); v != "" {
 		app += " (" + v + ")"
 	}
-	serve = "keel serve —"
+	serve = "slime serve —"
 	if v := versionOf(serveBuild); v != "" {
-		serve = "keel serve " + v
+		serve = "slime serve " + v
 	}
 	return app, serve
 }
@@ -210,7 +210,7 @@ func (s *shell) startTray() {
 	}}
 	s.claude = &mygo.MenuItem{Label: trayClaudeCode, Type: mygo.MenuItemCheckbox, Disabled: true, Click: func(it *mygo.MenuItem, _ *mygo.Window) {
 		on := it.Checked // toggled before Click runs
-		// Not saved here: the refresh shows what keel serve holds.
+		// Not saved here: the refresh shows what slime serve holds.
 		s.w.work(func() {
 			c, cancel := ctx()
 			defer cancel()
@@ -261,7 +261,7 @@ func (s *shell) refreshTray() {
 	}
 }
 
-// syncTray re-reads keel serve and the window into the menu. It makes HTTP calls: not on the UI thread.
+// syncTray re-reads slime serve and the window into the menu. It makes HTTP calls: not on the UI thread.
 func (s *shell) syncTray() {
 	if s.tray == nil {
 		return

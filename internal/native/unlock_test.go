@@ -24,10 +24,10 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 	r.tt.Frame()
 	for _, s := range []string{
 		"Unlock your vault",
-		"Your hosts and keys are encrypted on this machine. 2 sessions are waiting in keel serve.",
+		"Your hosts and keys are encrypted on this machine. 2 sessions are waiting in slime serve.",
 		"Vault passphrase", "Unlock",
-		"Forgot it? Slime can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.",
-		"keel serve · 2 sessions waiting", "keel.vault · age encrypted",
+		"Forgot it? Slime can't recover the vault without the passphrase. Sessions already running in slime serve keep working while the vault is locked.",
+		"slime serve · 2 sessions waiting", "keel.vault · age encrypted",
 	} {
 		if !r.tt.HasText(s) {
 			t.Errorf("no %q", s)
@@ -52,7 +52,7 @@ func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
 		field      bool
 		keychainFn bool
 	}{
-		{keelclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run keel serve stop and open Slime again.", false, false},
+		{keelclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run slime serve stop and open Slime again.", false, false},
 		{keelclient.Vault{Locked: true, KeyringOff: true}, "Slime was started with SLIME_KEYRING=off, so it needs your passphrase.", true, false},
 		{keelclient.Vault{Locked: true}, kc + " doesn't hold this vault's key, so Slime needs your passphrase.", true, true},
 	} {
@@ -65,7 +65,7 @@ func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
 		if r.has("Vault passphrase") != c.field || r.has("Unlock") != c.field {
 			t.Errorf("%+v: field shown %v, want %v", c.v, r.has("Vault passphrase"), c.field)
 		}
-		if got := r.tt.HasText("Slime always asks " + kc + " first when keel serve starts."); got != c.keychainFn {
+		if got := r.tt.HasText("Slime always asks " + kc + " first when slime serve starts."); got != c.keychainFn {
 			t.Errorf("%+v: keychain note shown %v, want %v", c.v, got, c.keychainFn)
 		}
 	}

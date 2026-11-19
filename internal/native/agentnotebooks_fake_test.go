@@ -62,7 +62,7 @@ func (f *fakeBackend) DraftRunbookOfNotebook(_ context.Context, id string) (keel
 	return n.draft, n.draftErr
 }
 
-// ---- what keel serve does for the agent, as a fake does it ----
+// ---- what slime serve does for the agent, as a fake does it ----
 
 // agentCreates is a notebook the agent made (not private): Source "agent", unreviewed.
 func (f *fakeBackend) agentCreates(name, md string) keelclient.Notebook {
@@ -73,7 +73,7 @@ func (f *fakeBackend) agentCreates(name, md string) keelclient.Notebook {
 	return f.nbf().list[i]
 }
 
-// agentEdits is an edit of the agent's: keel serve keeps the version before it ("before-agent-edit") and bumps the revision.
+// agentEdits is an edit of the agent's: slime serve keeps the version before it ("before-agent-edit") and bumps the revision.
 func (f *fakeBackend) agentEdits(id, md string) keelclient.Notebook {
 	n := f.nbf()
 	i := f.nbIndex(id)
@@ -117,4 +117,4 @@ func (r *rig) answersNbs(cards ...keelclient.NotebookProposal) {
 	}
 }
 
-var errAgentDown = errors.New("keel serve is down")
+var errAgentDown = errors.New("slime serve is down")

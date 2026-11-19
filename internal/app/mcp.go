@@ -10,8 +10,8 @@ import (
 	"keel/internal/mcp"
 )
 
-// RunMCP runs keel mcp: an MCP server on stdin and stdout for Claude Code
-// (claude mcp add keel -- keel mcp). It talks to the keel serve on addr and
+// RunMCP runs slime mcp: an MCP server on stdin and stdout for Claude Code
+// (claude mcp add slime -- slime mcp). It talks to the slime serve on addr and
 // never starts one: the vault must be unlocked in the app first. It ends
 // when stdin closes.
 func RunMCP(addr, dataDir string) error {

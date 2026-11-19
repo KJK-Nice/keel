@@ -20,7 +20,7 @@ type NotebookCell struct {
 	Body string `json:"body"`
 }
 
-// Notebook is a notebook as keel serve keeps it (store.Notebook).
+// Notebook is a notebook as slime serve keeps it (store.Notebook).
 type Notebook struct {
 	ID              string         `json:"id"`
 	Name            string         `json:"name"`
@@ -94,10 +94,10 @@ type NotebookVersion struct {
 // Markdown is the version's text, as Notebook.Markdown.
 func (v NotebookVersion) Markdown() string { return Notebook{Cells: v.Cells}.Markdown() }
 
-// ReasonHistory is the reason of a 409 on a save or a delete: keel serve cannot keep the version it would replace.
+// ReasonHistory is the reason of a 409 on a save or a delete: slime serve cannot keep the version it would replace.
 const ReasonHistory = "history"
 
-// IsHistoryRefusal reports whether err is keel serve's 409 "history" refusal of a notebook save or delete.
+// IsHistoryRefusal reports whether err is slime serve's 409 "history" refusal of a notebook save or delete.
 func IsHistoryRefusal(err error) bool {
 	var se *StatusError
 	return errors.As(err, &se) && se.Code == http.StatusConflict && se.Reason == ReasonHistory

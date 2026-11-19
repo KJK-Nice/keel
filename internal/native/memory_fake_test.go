@@ -8,8 +8,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The notes and runbooks half of fakeBackend: what the window asks of keel serve, recorded, and answered as the test says.
-// Nothing here reads a pane or types. Text with fakeSecret in it is "redacted" the way keel serve would: replaced by
+// The notes and runbooks half of fakeBackend: what the window asks of slime serve, recorded, and answered as the test says.
+// Nothing here reads a pane or types. Text with fakeSecret in it is "redacted" the way slime serve would: replaced by
 // [secret:1], and counted.
 
 const fakeSecret = "fake-password-do-not-use"

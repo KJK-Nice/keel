@@ -11,7 +11,7 @@ import (
 // The groups half of fakeBackend: roles, variables, the export and the group run, recorded, and answered as the test says.
 // Nothing here reads a pane or types. Every value in these tests is made up.
 
-// fakeVarSecret is what the fake refuses as a secret-looking variable value, as keel serve's Redactor would.
+// fakeVarSecret is what the fake refuses as a secret-looking variable value, as slime serve's Redactor would.
 const fakeVarSecret = "fake-secret-looking-value"
 
 type fakeGroups struct {
@@ -24,14 +24,14 @@ type fakeGroups struct {
 	ansibleQs []keelclient.AnsibleQuery
 	ansibleEr error
 
-	// The run keel serve holds, and everything asked of it.
+	// The run slime serve holds, and everything asked of it.
 	run      *keelclient.GroupRun
 	runReqs  []string // "start rb group mode", "get", "stop", "mode m", "propose a,b", "fill p1,p2", "mark step host action"
 	runErr   error
 	proposed [][]string // the session ids of each propose
 	fills    map[string]keelclient.GroupFill
 	fillErr  error
-	// onPropose lets a test make the proposals keel serve would make for the panes named.
+	// onPropose lets a test make the proposals slime serve would make for the panes named.
 	onPropose func(run *keelclient.GroupRun, panes []string)
 	startRun  keelclient.GroupRun // what StartGroupRun answers
 	started   int

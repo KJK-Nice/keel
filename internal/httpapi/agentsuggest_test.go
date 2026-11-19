@@ -301,7 +301,7 @@ func TestSuggestCallsAreRateLimited(t *testing.T) {
 	}
 }
 
-// A provider that never answers still gets an answer: keel serve ends the call at its own bound and sends the card's
+// A provider that never answers still gets an answer: slime serve ends the call at its own bound and sends the card's
 // error, so the window is never left loading.
 func TestSuggestAlwaysAnswersWhenTheModelHangs(t *testing.T) {
 	askSuggestTimeout = 300 * time.Millisecond
@@ -319,7 +319,7 @@ func TestSuggestAlwaysAnswersWhenTheModelHangs(t *testing.T) {
 }
 
 // Speed: the card is sent as soon as the model answers; a stricter Jev
-// rating follows as agent-suggest-risk, and from then on keel serve
+// rating follows as agent-suggest-risk, and from then on slime serve
 // refuses plain ⇥ for it.
 func TestSuggestRiskUpdateFollowsTheCard(t *testing.T) {
 	f := newAskFixture(t, true)

@@ -10,14 +10,14 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The Unlock screen (docs/ui-redesign.md §5.14): the vault exists and keel serve could not open it, or the poll
+// The Unlock screen (docs/ui-redesign.md §5.14): the vault exists and slime serve could not open it, or the poll
 // found it locked again. It replaces the window while it shows; tabs and
 // sessions stay as they are underneath.
 //
 // The passphrase is typed into a masked field and sent in the one POST /api/vault/unlock. It is cleared from the
 // field when the request is sent, and is in no log, error or file.
 //
-// There is no "Try the keychain again next time" box: it would have no effect (keel serve always asks the keychain
+// There is no "Try the keychain again next time" box: it would have no effect (slime serve always asks the keychain
 // first at start); its note ("Slime always asks … first") is drawn.
 
 // unlockGate is the Unlock screen's state.
@@ -57,11 +57,11 @@ func keychainName() string {
 func unlockLead(n int) string {
 	switch {
 	case n == 1:
-		return "Your hosts and keys are encrypted on this machine. 1 session is waiting in keel serve."
+		return "Your hosts and keys are encrypted on this machine. 1 session is waiting in slime serve."
 	case n > 1:
-		return fmt.Sprintf("Your hosts and keys are encrypted on this machine. %d sessions are waiting in keel serve.", n)
+		return fmt.Sprintf("Your hosts and keys are encrypted on this machine. %d sessions are waiting in slime serve.", n)
 	}
-	return "Your hosts and keys are encrypted on this machine. keel serve is running."
+	return "Your hosts and keys are encrypted on this machine. slime serve is running."
 }
 
 // unlockBanner is the banner text and whether the vault's key is in the keychain (then a passphrase cannot open it).
@@ -69,7 +69,7 @@ func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
 	kc := keychainName()
 	switch {
 	case v.Mode == "keychain":
-		return kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run keel serve stop and open Slime again.", true
+		return kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run slime serve stop and open Slime again.", true
 	case v.KeyringOff:
 		return "Slime was started with SLIME_KEYRING=off, so it needs your passphrase.", false
 	}
@@ -80,11 +80,11 @@ func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
 func gateSessions(n int) string {
 	switch {
 	case n == 0:
-		return "keel serve · no sessions running"
+		return "slime serve · no sessions running"
 	case n == 1:
-		return "keel serve · 1 session waiting"
+		return "slime serve · 1 session waiting"
 	}
-	return fmt.Sprintf("keel serve · %d sessions waiting", n)
+	return fmt.Sprintf("slime serve · %d sessions waiting", n)
 }
 
 // showUnlock puts the Unlock screen over the window.
@@ -208,12 +208,12 @@ func (w *workspace) unlockCard(c *ui.Context, g *unlockGate) {
 		}
 	})
 	if !g.vault.KeyringOff {
-		caption(c, "Slime always asks "+keychainName()+" first when keel serve starts.", inkMuted)
+		caption(c, "Slime always asks "+keychainName()+" first when slime serve starts.", inkMuted)
 	}
 	if capButton(c, "Unlock", "↵", false).FillWidth().Clicked() {
 		w.act(w.submitUnlock)
 	}
-	ui.Text(c, "Forgot it? Slime can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.").
+	ui.Text(c, "Forgot it? Slime can't recover the vault without the passphrase. Sessions already running in slime serve keep working while the vault is locked.").
 		TextColor(inkMuted).FontSize(captionSize)
 }
 

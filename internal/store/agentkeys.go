@@ -10,7 +10,7 @@ import (
 // Agent provider keys (a Google Gemini API key, a TypeSafe Jev key) are
 // vault secrets: encrypted in keel.vault with the host passwords, never in
 // keel.json, and never returned by the HTTP API, which only says whether
-// one is configured. Only keel serve reads them back (AgentKey), to call
+// one is configured. Only slime serve reads them back (AgentKey), to call
 // the provider itself.
 
 const agentKeyPrefix = "agentkey:"
@@ -88,7 +88,7 @@ func (s *Store) AgentKeyConfigured(provider string) (bool, error) {
 	return ok && sec.Token != "", nil
 }
 
-// AgentKey returns provider's key for keel serve to call the provider with.
+// AgentKey returns provider's key for slime serve to call the provider with.
 // It must never reach an HTTP response, a log line or keel.json. In phase
 // 6a nothing calls it outside tests; 6b's provider factory will.
 func (s *Store) AgentKey(provider string) (string, error) {

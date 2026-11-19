@@ -1,4 +1,4 @@
-Slime is a local SSH workspace: a native window of tabs and split panes over PTYs that keep running in `keel serve`, an encrypted vault of hosts and keys, and sessions you can share over WebRTC. The interface is a tool you sit inside for hours. It should feel like a well-kept instrument panel: dark, quiet and exact, with one warm light kept for what you can act on.
+Slime is a local SSH workspace: a native window of tabs and split panes over PTYs that keep running in `slime serve`, an encrypted vault of hosts and keys, and sessions you can share over WebRTC. The interface is a tool you sit inside for hours. It should feel like a well-kept instrument panel: dark, quiet and exact, with one warm light kept for what you can act on.
 
 ## Principles
 
@@ -15,7 +15,7 @@ Slime is a local SSH workspace: a native window of tabs and split panes over PTY
 - **Verbs name the result:** "Connect", "Type 58 bytes", "Stop 4 sessions", "Delete host". Never "OK", "Yes", "Submit".
 - **Numbers, not hedges:** "4 sessions are still running", not "some sessions".
 - **Errors** say what happened, then the fix: "bastion rejected key deploy-ed25519." with an "Edit host" action.
-- **Product words:** Vault (the left sidebar), host, session, pane, split, sync, snippet, port forward, runtime (`keel serve`). Herd roles: owner, driver, follower; in UI: "Driving", "Following", "Pass control".
+- **Product words:** Vault (the left sidebar), host, session, pane, split, sync, snippet, port forward, runtime (`slime serve`). Herd roles: owner, driver, follower; in UI: "Driving", "Following", "Pass control".
 - **Shortcuts** use macOS glyphs on macOS (⌘ ⇧ ⌥ ↵) and words elsewhere (Ctrl, Shift, Enter).
 
 ## Color

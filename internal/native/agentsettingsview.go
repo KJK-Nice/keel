@@ -71,9 +71,9 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 	}}
 
 	claude := prefGroup{title: "Claude Code", rows: []prefRow{
-		{title: "Allow Claude Code (keel mcp)",
+		{title: "Allow Claude Code (slime mcp)",
 			desc: "Lets Claude Code list and read panes on hosts with Agent can read, each read logged, and propose commands that wait in the agent panel. It never types.",
-			ctl:  w.switchCtl("Allow Claude Code (keel mcp)", v.ClaudeCode, func(on bool) { save(keelclient.AgentSettingsPatch{ClaudeCode: &on}) })},
+			ctl:  w.switchCtl("Allow Claude Code (slime mcp)", v.ClaudeCode, func(on bool) { save(keelclient.AgentSettingsPatch{ClaudeCode: &on}) })},
 	}}
 
 	notes := prefGroup{title: "Notes for the agent", rows: []prefRow{

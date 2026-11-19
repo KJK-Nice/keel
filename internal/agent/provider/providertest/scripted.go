@@ -10,7 +10,7 @@ import (
 	"keel/internal/agent/provider"
 )
 
-// Scripted is the test provider `keel serve` uses when started with
+// Scripted is the test provider `slime serve` uses when started with
 // SLIME_AGENT_PROVIDER=fake (end-to-end tests only). It sends nothing
 // anywhere and has no way to: it builds a canned reply from the request it
 // is given, in this process, and keeps only the last few requests in
@@ -132,7 +132,7 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	if strings.Contains(question, "write this up") {
 		body := "## What we did\nPrinted the e2e marker in the pane.\n\n```sh\necho keel-notebook-draft\n```"
 		if strings.Contains(question, "image") {
-			// A remote image (§18): keel serve turns it into text, and the
+			// A remote image (§18): slime serve turns it into text, and the
 			// page's img-src policy would not fetch it anyway.
 			body += "\n\n![chart](" + LeakImageURL + ")"
 		}

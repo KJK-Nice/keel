@@ -11,7 +11,7 @@ import (
 
 // Group variables (docs/ui-redesign.md §17, groups part 2, board
 // GroupRoles): name = value pairs on a group, such as k8s_version = 1.31.2
-// or api_vip = 10.20.0.10. A runbook step uses one as {{name}}; keel serve
+// or api_vip = 10.20.0.10. A runbook step uses one as {{name}}; slime serve
 // fills it in only when the user presses Type in a group run, after the
 // approve dialog showed the filled bytes (service/groupvars.go). The
 // Ansible export writes them as the group's vars.

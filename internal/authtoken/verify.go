@@ -15,9 +15,9 @@ import (
 type Challenge struct{ Param, Field string }
 
 var (
-	// WindowChallenge proves the token of Header (the window, keel serve stop).
+	// WindowChallenge proves the token of Header (the window, slime serve stop).
 	WindowChallenge = Challenge{Param: "nonce", Field: "proof"}
-	// MCPChallenge proves the token of MCPHeader (keel mcp).
+	// MCPChallenge proves the token of MCPHeader (slime mcp).
 	MCPChallenge = Challenge{Param: "mcpNonce", Field: "mcpProof"}
 )
 

@@ -11,7 +11,7 @@ func TestFolderRequestsSendNameAndParentOnly(t *testing.T) {
 	r := newRec(t)
 	r.reply = `{"id":"g1","name":"Prod","parentId":"p"}`
 	ctx := context.Background()
-	// A save sends the name and the parent and nothing else: roles and variables are keel serve's.
+	// A save sends the name and the parent and nothing else: roles and variables are slime serve's.
 	g, err := r.c.SaveGroup(ctx, Group{Name: "Prod", ParentID: "p", Roles: map[string]string{"h": "worker"}, Vars: []GroupVar{{Name: "k", Value: "v"}}})
 	if err != nil || g.ID != "g1" {
 		t.Fatalf("SaveGroup: %v %+v", err, g)
@@ -58,7 +58,7 @@ func TestRolesVariablesNotesAndTheExportAreTheAppsRequests(t *testing.T) {
 	if got, body := r.last(); got != "PUT /api/groups/g1/vars" || body != `{"name":"ver","value":"1.2"}` {
 		t.Fatalf("var: %s %s", got, body)
 	}
-	// A refusal names the method, path and status, and keel serve's own reason: never the value.
+	// A refusal names the method, path and status, and slime serve's own reason: never the value.
 	r.status, r.reply = 400, `{"error":"Keep secrets in the vault"}`
 	_, err = r.c.SetGroupVar(ctx, "g1", "tok", "fake-secret-looking-value")
 	var se *StatusError

@@ -152,7 +152,7 @@ func TestSpawnAndAttachQuery(t *testing.T) {
 	f.mu.Lock()
 	q := f.query
 	f.mu.Unlock()
-	if q["hostId"][0] != "h1" || q["id"] != nil || q["cols"][0] != "80" || q["rows"][0] != "24" || q["name"][0] != "tester" || q["kind"] != nil { // no kind: keel serve says a WebSocket is the window
+	if q["hostId"][0] != "h1" || q["id"] != nil || q["cols"][0] != "80" || q["rows"][0] != "24" || q["name"][0] != "tester" || q["kind"] != nil { // no kind: slime serve says a WebSocket is the window
 
 		t.Fatalf("spawn query %v", q)
 	}
@@ -186,7 +186,7 @@ func TestReadOrderAcrossShortReads(t *testing.T) {
 	}
 }
 
-// Keystrokes go out as binary once keel serve has said this client drives; before that (no ready frame read yet) they
+// Keystrokes go out as binary once slime serve has said this client drives; before that (no ready frame read yet) they
 // are dropped, and not counted as a follower's.
 func TestWriteBinary(t *testing.T) {
 	f := newFake(t)
@@ -249,7 +249,7 @@ func TestCreateHostPostsTheHostAndReadsItBackWithItsID(t *testing.T) {
 		}
 		b, _ := io.ReadAll(r.Body)
 		body = string(b)
-		w.WriteHeader(http.StatusCreated) // as keel serve answers a new host
+		w.WriteHeader(http.StatusCreated) // as slime serve answers a new host
 		io.WriteString(w, `{"id":"h-new","name":"deploy@10.0.0.5","group":"Quick connect","address":"10.0.0.5","port":2222,"username":"deploy","authType":"password"}`)
 	})
 	srv := httptest.NewServer(mux)

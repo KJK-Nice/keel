@@ -12,18 +12,18 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Settings · Agent (docs/ui-redesign.md §5.9): the agent's settings are keel serve's, shown and saved here.
+// Settings · Agent (docs/ui-redesign.md §5.9): the agent's settings are slime serve's, shown and saved here.
 //
 // What this file does and does not do:
-//   - Every change is saved as it is made with PUT /api/agent/settings and only the fields that changed (keel serve merges
+//   - Every change is saved as it is made with PUT /api/agent/settings and only the fields that changed (slime serve merges
 //     them over the saved settings); the answer is the settings as saved and the screen shows that. A failed save says so and
 //     reads the settings again.
-//   - Redaction, scope and retention are keel serve's. This sends the value; it implements none of their effect.
+//   - Redaction, scope and retention are slime serve's. This sends the value; it implements none of their effect.
 //   - A provider key goes from a masked field to PUT /api/agent/keys/{provider} once; the field is emptied the moment it is
 //     sent and nothing keeps it. The key is in no error, no toast, no log. Disconnect and Delete all history ask first.
-//   - "Allow Claude Code (keel mcp)" is the setting claudeCode and nothing else: this client never calls keel mcp's routes.
+//   - "Allow Claude Code (slime mcp)" is the setting claudeCode and nothing else: this client never calls slime mcp's routes.
 //
-// Settings whose feature is not built in this window (Claude Code's mcp) are still settings of keel serve, which acts on
+// Settings whose feature is not built in this window (Claude Code's mcp) are still settings of slime serve, which acts on
 // them, so they are shown and saved, not hidden.
 
 // keyCard is a provider card's own state: whether its key field is open, its error and the masked field.
@@ -83,7 +83,7 @@ func (w *workspace) loadAgentSettings() {
 	})
 }
 
-// takeAgentSettings makes the settings keel serve answered with what every view shows: the panel's key state, its saved note.
+// takeAgentSettings makes the settings slime serve answered with what every view shows: the panel's key state, its saved note.
 func (w *workspace) takeAgentSettings(s keelclient.AgentSettings) {
 	a := w.agent
 	a.settings = &s
@@ -94,7 +94,7 @@ func (w *workspace) takeAgentSettings(s keelclient.AgentSettings) {
 	w.noteSuggestSettings(s)
 }
 
-// applyPatch is what a patch changes, shown at once while keel serve answers.
+// applyPatch is what a patch changes, shown at once while slime serve answers.
 func applyPatch(s *keelclient.AgentSettings, p keelclient.AgentSettingsPatch) {
 	v := &s.Settings
 	if p.Provider != nil {
@@ -141,7 +141,7 @@ func (w *workspace) putAgent(p keelclient.AgentSettingsPatch, done func()) {
 	}
 	cp := *a.settings
 	applyPatch(&cp, p)
-	a.settings = &cp // shown at once; keel serve's answer replaces it
+	a.settings = &cp // shown at once; slime serve's answer replaces it
 	w.noteSuggestSettings(cp)
 	call(w, func(c context.Context) (keelclient.AgentSettings, error) { return w.be.SaveAgentSettings(c, p) }, func(saved keelclient.AgentSettings, err error) {
 		if done != nil {
@@ -182,7 +182,7 @@ func (w *workspace) providerFor(id string) (keelclient.AgentProvider, bool) {
 // ---- the key ----
 
 // saveCardKey sends the key in a card's masked field, once. The field is emptied as it is sent: nothing keeps the key, and
-// when keel serve refuses it the user types it again.
+// when slime serve refuses it the user types it again.
 func (w *workspace) saveCardKey(p *settingsPage, id string) {
 	card := p.card(id)
 	if card.busy {

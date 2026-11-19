@@ -9,7 +9,7 @@
 #   sh scripts/release.sh vX.Y.Z signal keel-signal for every OS (plain go build, not a MyGo app)
 #
 # The version of the packages is "version" in mygo.json and must equal the tag (a v0.0.0-pr<N> dry run of the
-# workflow is the one exception). `keel version` prints the tag (MYGO_LDFLAGS -X main.version).
+# workflow is the one exception). `slime version` prints the tag (MYGO_LDFLAGS -X main.version).
 # LICENSE and THIRD_PARTY_NOTICES (scripts/notices.sh) go into every package and archive. The list is the variable
 # $shipped below; mygo.json ("resources") has to repeat it, since MyGo reads that file and not this script.
 # SLIME_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
@@ -58,7 +58,7 @@ fail() {
 	exit 1
 }
 
-# package PLATFORMS: mygo build, with the version of the tag in `keel version`. Sets cv, the version of mygo.json,
+# package PLATFORMS: mygo build, with the version of the tag in `slime version`. Sets cv, the version of mygo.json,
 # which names the files.
 package() {
 	cv=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' mygo.json)
@@ -98,7 +98,7 @@ macos)
 		case "$archs" in *arm64*x86_64* | *x86_64*arm64*) ;; *) fail "$f is $archs, want arm64 and x86_64" ;; esac
 	done
 	# The universal binary runs here (arm64 or Rosetta).
-	[ "$("$exe" version)" = "keel $tag" ] || fail "keel version is not 'keel $tag'"
+	[ "$("$exe" version)" = "keel $tag" ] || fail "slime version is not 'keel $tag'"
 	[ "$(plutil -extract CFBundleIdentifier raw "$app/Contents/Info.plist")" = app.keel.desktop ] || fail "the bundle identifier changed"
 	[ "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")" = "$cv" ] || fail "Info.plist version is not $cv"
 	for f in $shipped; do
@@ -120,7 +120,7 @@ linux)
 		file "$dir/keel" | grep -q "$want" || fail "$dir/keel is not $want"
 		# The binary of this machine's CPU runs here.
 		if [ "$(uname -s)" = Linux ] && [ "$(go env GOARCH)" = "$arch" ]; then
-			[ "$("$dir/keel" version)" = "keel $tag" ] || fail "keel version is not 'keel $tag'"
+			[ "$("$dir/keel" version)" = "keel $tag" ] || fail "slime version is not 'keel $tag'"
 		fi
 		if command -v dpkg-deb >/dev/null 2>&1; then
 			dpkg-deb -c "$dir/keel_${cv}_$arch.deb" | grep -q 'opt/keel/libghostty-vt.so' || fail "libghostty-vt.so is not in the $arch .deb"

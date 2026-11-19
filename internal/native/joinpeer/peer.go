@@ -383,7 +383,7 @@ func (p *Peer) Close() error {
 	return p.ws.Close()
 }
 
-// SessionID is "": a joined share is not a session of this machine's keel serve, so nothing that kills, reconnects or
+// SessionID is "": a joined share is not a session of this machine's slime serve, so nothing that kills, reconnects or
 // saves a session may be pointed at it by way of an id.
 func (p *Peer) SessionID() string { return "" }
 
@@ -412,7 +412,7 @@ func (p *Peer) ApprovedInject(context.Context, string, *keelclient.AgentRef, ...
 	return ErrNoApprovedInject
 }
 
-// DirectType types nothing into a joined pane either (keel serve refuses a pane a share peer drives). The window never
+// DirectType types nothing into a joined pane either (slime serve refuses a pane a share peer drives). The window never
 // asks; this is the refusal if it did, and no frame goes out.
 func (p *Peer) DirectType(context.Context, string, keelclient.DirectRef, *keelclient.AgentRef) (keelclient.DirectResult, error) {
 	return keelclient.DirectResult{}, ErrNoApprovedInject

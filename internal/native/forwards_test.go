@@ -330,7 +330,7 @@ func TestSidebarForwardsSectionAndStatusBar(t *testing.T) {
 	fb := forwardBackend()
 	r := newRig(t, fb)
 	r.tt.Frame()
-	r.texts(t, "keel serve · 0 sessions", "1 forward") // only db local is ready; a connecting one is not counted
+	r.texts(t, "slime serve · 0 sessions", "1 forward") // only db local is ready; a connecting one is not counted
 	r.click(t, "Forwards")
 	r.texts(t, "db local", "127.0.0.1:5433 → 127.0.0.1:5432", "web back", "socks", "Manage forwards", "New forward")
 	if !r.has("sidebar forward db local") || !r.has("Filter forwards") {

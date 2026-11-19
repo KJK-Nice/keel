@@ -33,7 +33,7 @@ jobs:
       - name: make test
         run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test
 
-  # The native window (keel app) under MyGo's ui.Tester against a scratch keel serve, as make native-e2e runs it.
+  # The native window (slime app) under MyGo's ui.Tester against a scratch slime serve, as make native-e2e runs it.
   # It runs on the macOS runner and a failure fails the workflow. The unit tests of internal/native run in make test
   # above.
   native-e2e:

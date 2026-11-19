@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// In-pane suggestions on the fake backend: what a pane asks of keel serve, what it shows, which keys it takes, and what
+// In-pane suggestions on the fake backend: what a pane asks of slime serve, what it shows, which keys it takes, and what
 // reaches the session. The fake records every question, every insert and every restore apart from the keystrokes.
 
 // sugRig is a window with one session this client drives, a placeholder body whose prompt line the test scripts, and the
@@ -208,7 +208,7 @@ func TestNothingIsAskedOrTakenWhereAGuardApplies(t *testing.T) {
 		r.key(0, ui.KeyX)
 		r.pause()
 		if len(r.c.detects) != 0 || len(r.c.asks) != 0 {
-			t.Errorf("%s: asked keel serve: %v %v", name, r.c.detects, r.c.asks)
+			t.Errorf("%s: asked slime serve: %v %v", name, r.c.detects, r.c.asks)
 		}
 		if r.key(0, ui.KeyTab) || r.key(agentMods(), ui.KeyZ) {
 			t.Errorf("%s: a key was taken", name)
@@ -268,7 +268,7 @@ func autoSettings() (s keelclient.AgentSettings) {
 }
 
 // Off means off at once: saving the switch in Settings · Agent drops the notice and the card, nothing is sent
-// from then on, and ⌘Y says why. The save does not wait for keel serve's answer.
+// from then on, and ⌘Y says why. The save does not wait for slime serve's answer.
 func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
 	r := newSugRig(t)
 	r.w.noteSuggestSettings(autoSettings())

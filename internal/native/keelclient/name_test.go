@@ -2,7 +2,7 @@ package keelclient
 
 import "testing"
 
-// The name keel app passes (Client.Name) is the one a session socket carries, whatever the environment says.
+// The name slime app passes (Client.Name) is the one a session socket carries, whatever the environment says.
 func TestPassedNameWinsOverTheEnvironment(t *testing.T) {
 	t.Setenv("SLIME_NAME", "from-env")
 	f := newFake(t)

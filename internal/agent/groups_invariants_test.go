@@ -19,7 +19,7 @@ import (
 func TestGroupRunsOnlyThroughTheirPaths(t *testing.T) {
 	allowed := map[string][]string{
 		// The one gate (authorize.go): reached only from the three entry
-		// points keel serve's session socket calls. §6 rule 13: a type
+		// points slime serve's session socket calls. §6 rule 13: a type
 		// without the dialog goes through the same checks and the same
 		// claim as the approved one.
 		"authorize":       {"Service.AuthorizeType", "Service.AuthorizeDirect", "Service.AuthorizeInsert"},

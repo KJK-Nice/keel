@@ -7,7 +7,7 @@ import (
 	"keel/internal/wire"
 )
 
-// instructions is what keel mcp tells the client about itself
+// instructions is what slime mcp tells the client about itself
 // (initialize). It states the rules the tools hold to.
 const instructions = "Slime is the user's SSH workspace. These tools read its open terminal panes and propose commands for them. " +
 	"Slime shows you only panes on hosts the user lets the agent read, with secrets redacted ([secret:1] and the like), and logs every read. " +

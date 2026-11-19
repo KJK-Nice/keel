@@ -310,7 +310,7 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	r.w.reloadNotebooks()
 	np := r.openNB(t, "nb1")
 	fs := fences(np.nb.md)
-	// A one-line fence: keel serve answers that a dialog is needed (reviewable text).
+	// A one-line fence: slime serve answers that a dialog is needed (reviewable text).
 	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "unreviewed"}
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
@@ -436,7 +436,7 @@ func TestAChangeOnTheServerWhileTypingKeepsTheTypingAndSaysSoWhenTheAgentMadeIt(
 	if !r.tt.HasText(msgAgentTyping) {
 		t.Errorf("no toast: %q", r.tt.Texts())
 	}
-	// The next save carries the revision the pane loaded; keel serve says it replaced an agent edit.
+	// The next save carries the revision the pane loaded; slime serve says it replaced an agent edit.
 	r.fb.nb.replaced = true
 	r.click(t, "Done")
 	r.frames(3)

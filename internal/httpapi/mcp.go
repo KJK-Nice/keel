@@ -8,9 +8,9 @@ import (
 	"keel/internal/wire"
 )
 
-// keel mcp's routes (docs/agent.md, Claude Code): the bridge that lets
+// slime mcp's routes (docs/agent.md, Claude Code): the bridge that lets
 // Claude Code list and read panes and propose commands. They are closed
-// (403) until the user turns on "Allow Claude Code (keel mcp)" in Settings ·
+// (403) until the user turns on "Allow Claude Code (slime mcp)" in Settings ·
 // Agent (store.AgentSettings.ClaudeCode, off by default); then only keel
 // mcp's own token opens them (auth.go), and they reach the agent service
 // only:
@@ -83,7 +83,7 @@ func (s *Server) mcpProposal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, st)
 }
 
-// mcpWords are the words keel mcp passes on to Claude Code for a pane it
+// mcpWords are the words slime mcp passes on to Claude Code for a pane it
 // may not read and for one that is gone.
 func mcpWords(err error) error {
 	err = worded(err, agent.ErrNotReadable, "the agent may not read this pane: turn on \"Agent can read\" for its host in Slime")

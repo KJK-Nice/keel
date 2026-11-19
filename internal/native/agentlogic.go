@@ -17,7 +17,7 @@ import (
 // agentconvlogic.go.
 //
 // Nothing here types. typeOffer and typeGate only decide whether the card shows Type into pane and whether a press may
-// open the Approve before type dialog; keel serve checks the same rules again before it writes (agent service
+// open the Approve before type dialog; slime serve checks the same rules again before it writes (agent service
 // AuthorizeType).
 
 // agentPane is a pane as the panel sees it: the session, how the picker and the card name it, and
@@ -111,7 +111,7 @@ func toggleScope(ids []string, p *agentPane) []string {
 	return append(out, p.sessionID)
 }
 
-// lineCount counts lines the way keel serve logs them: a trailing newline ends the last line, it does not start one.
+// lineCount counts lines the way slime serve logs them: a trailing newline ends the last line, it does not start one.
 func lineCount(bytes string) int {
 	s := strings.TrimRight(bytes, "\n")
 	if s == "" {
@@ -312,7 +312,7 @@ func atTrigger(s string) bool {
 	return r == ' ' || r == '\n' || r == '\t' || r == '\r'
 }
 
-// newConversationID makes an id for keel serve's in-memory history: it matches the server's ^[A-Za-z0-9_-]{8,64}$.
+// newConversationID makes an id for slime serve's in-memory history: it matches the server's ^[A-Za-z0-9_-]{8,64}$.
 func newConversationID() string { return "c" + randid.Hex(10) }
 
 // cutNotice is the line under an answer the provider cut before the model finished it: a cut answer is never shown as

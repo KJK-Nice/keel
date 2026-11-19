@@ -772,7 +772,7 @@ func TestEditedStepKeepsSavedCommand(t *testing.T) {
 	}
 }
 
-// L4: a save takes its source from keel serve's own draft record, not
+// L4: a save takes its source from slime serve's own draft record, not
 // from the client, and starts off.
 func TestDraftSourceIsServerSide(t *testing.T) {
 	f, books, _ := booksFixture(t, "```keel-proposal\n{\"pane\": 1, \"command\": \"df -h\", \"why\": \"Free space\", \"risk\": \"readonly\"}\n```")

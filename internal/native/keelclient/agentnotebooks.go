@@ -8,7 +8,7 @@ import (
 )
 
 // Notebooks and the agent (internal/httpapi/agentnotebooks.go; docs/ui-redesign.md §18, §6 rule 12). Every call here is a
-// request: keel serve changes the notebook, keeps the version before it and answers with the card as it now stands. This
+// request: slime serve changes the notebook, keeps the version before it and answers with the card as it now stands. This
 // client changes no notebook itself, sends notebook ids and never notebook text, and reads no pane.
 
 // NotebookProposal is one card in the conversation: what the agent did to a notebook, or a delete it proposed
@@ -28,7 +28,7 @@ type NotebookProposal struct {
 	// truncated, too-large, history or invalid.
 	Reason string `json:"reason"`
 	Rev    int    `json:"rev"`
-	// VersionID is the version keel serve kept: before an edit (Undo restores it) or the deleted notebook (Restore).
+	// VersionID is the version slime serve kept: before an edit (Undo restores it) or the deleted notebook (Restore).
 	VersionID    string     `json:"versionId"`
 	Bytes        int        `json:"bytes"`
 	Placeholders bool       `json:"placeholders"`
@@ -81,9 +81,9 @@ func (c *Client) RestoreNotebookChange(ctx context.Context, conversationID, id s
 	return c.notebookAction(ctx, http.MethodPost, notebookProposalPath(conversationID, id)+"/restore")
 }
 
-// DraftRunbookOfNotebook is POST /api/agent/runbooks/draft with {notebookId}: keel serve makes an unsaved runbook from
+// DraftRunbookOfNotebook is POST /api/agent/runbooks/draft with {notebookId}: slime serve makes an unsaved runbook from
 // the notebook (its headings become steps, shell fences their commands) and keeps nothing; a 422 means there was nothing
-// to make steps from. The notebook's text never leaves keel serve.
+// to make steps from. The notebook's text never leaves slime serve.
 func (c *Client) DraftRunbookOfNotebook(ctx context.Context, notebookID string) (out RunbookDraft, err error) {
 	err = c.do(ctx, http.MethodPost, "/api/agent/runbooks/draft", struct {
 		Notebook string `json:"notebookId"`

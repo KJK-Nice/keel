@@ -108,7 +108,7 @@ type RunbookStep struct {
 	OneHost bool   `json:"oneHost,omitempty"`
 	// Captures are values Slime takes from this step's output on each host
 	// of a group run (§17, part 2, board CaptureVars): a pattern applied by
-	// keel serve to the output the shell's OSC 133 marks delimit, kept in
+	// slime serve to the output the shell's OSC 133 marks delimit, kept in
 	// memory for that run, and filled in where a later step says {{name}}.
 	Captures []StepCapture `json:"captures,omitempty"`
 }

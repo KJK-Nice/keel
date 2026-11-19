@@ -1,10 +1,10 @@
 # Slime
 
-Local SSH workspace: Go owns SSH and PTYs in a daemon (`keel serve`, a loopback HTTP/WebSocket API behind a token) and the window is native (`internal/native`: MyGo, pure Go, libghostty terminals). The daemon serves no UI. See CONTRIBUTING.md for build and checks, README.md plus `docs/*.md` for features, configuration and shortcuts, and `docs/native.md` for what the window is and does.
+Local SSH workspace: Go owns SSH and PTYs in a daemon (`slime serve`, a loopback HTTP/WebSocket API behind a token) and the window is native (`internal/native`: MyGo, pure Go, libghostty terminals). The daemon serves no UI. See CONTRIBUTING.md for build and checks, README.md plus `docs/*.md` for features, configuration and shortcuts, and `docs/native.md` for what the window is and does.
 
 ## Checks
 
-Run before every PR: `make test`, `make lint` and `make native-e2e` (the window end to end under MyGo's tester against a scratch `keel serve`; PNGs in `.scratch-native/e2e/`). Run `make native-automation` too when a change touches the menu bar, the window's lifecycle or key handling. Set `SLIME_KEYRING=off` for every command you run from a script or an agent: it keeps the vault off the OS keychain. The build tags `keelfake` (the agent's fake provider, `SLIME_AGENT_PROVIDER=fake`) and `keelautomation` (MyGo's automation socket) are for the two test targets of the Makefile only; no release path passes them.
+Run before every PR: `make test`, `make lint` and `make native-e2e` (the window end to end under MyGo's tester against a scratch `slime serve`; PNGs in `.scratch-native/e2e/`). Run `make native-automation` too when a change touches the menu bar, the window's lifecycle or key handling. Set `SLIME_KEYRING=off` for every command you run from a script or an agent: it keeps the vault off the OS keychain. The build tags `keelfake` (the agent's fake provider, `SLIME_AGENT_PROVIDER=fake`) and `keelautomation` (MyGo's automation socket) are for the two test targets of the Makefile only; no release path passes them.
 
 ## UI work
 

@@ -235,7 +235,7 @@ func TestAnExpiredCardHasOnlyCopyAndProposeAgainAndNoRequestForTypeOrEdit(t *tes
 	r.click(t, "Copy")
 	r.tt.Frame()
 	if len(r.fb.convs.again) != 0 {
-		t.Fatal("Copy asked keel serve for a proposal")
+		t.Fatal("Copy asked slime serve for a proposal")
 	}
 	// Propose again adds a live card: a new proposal handled like any other.
 	r.click(t, "Propose again")

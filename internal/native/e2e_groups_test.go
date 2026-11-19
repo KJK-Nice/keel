@@ -18,8 +18,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Folders, the Group page and group runs against a real keel serve that answers from its in-process fake
-// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider or calls keel mcp's
+// Folders, the Group page and group runs against a real slime serve that answers from its in-process fake
+// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider or calls slime mcp's
 // routes. Hosts are Local Shells (authType local) made through the API, each in its own scratch /bin/sh; every command a run
 // types is a harmless echo and every value made up. A group run proposes nothing without a pane open, so each scenario opens
 // the hosts' sessions as a person does, by clicking them.
@@ -282,7 +282,7 @@ func (e *win) drag(from, to string) {
 
 // ---- the Group page ----
 
-const e2eVarSecret = "AKIAIOSFODNN7EXAMPLE" // AWS's documented example key: a secret-looking value keel serve refuses
+const e2eVarSecret = "AKIAIOSFODNN7EXAMPLE" // AWS's documented example key: a secret-looking value slime serve refuses
 
 func TestE2EGroupPageRolesNotesVars(t *testing.T) {
 	addr, dir := startServe(t, true)
@@ -329,7 +329,7 @@ func TestE2EGroupPageRolesNotesVars(t *testing.T) {
 		return false
 	}, "the group note on the server")
 
-	// Variables: one is kept, one a secret-looking value keel serve refuses.
+	// Variables: one is kept, one a secret-looking value slime serve refuses.
 	// The note's answer gives its field the keyboard on the next frame: wait for that before moving to the variables.
 	e.pump(func() bool { return len(e.w.groupPageState().notes.notes) == 1 && e.tt.Focused("Add a note") }, "the note listed and its field focused")
 	e.fillField("Variable name", "k8s_version")
@@ -339,7 +339,7 @@ func TestE2EGroupPageRolesNotesVars(t *testing.T) {
 	e.fillField("Variable name", "api_token")
 	e.fillField("Variable value", e2eVarSecret)
 	e.click("Add variable")
-	e.pump(func() bool { return strings.Contains(e.texts(), "Keep secrets in the vault") }, "keel serve's refusal")
+	e.pump(func() bool { return strings.Contains(e.texts(), "Keep secrets in the vault") }, "slime serve's refusal")
 	if got := e.groupVars(g.ID); got != "k8s_version=1.31.2" {
 		t.Fatalf("variables on the server: %q", got)
 	}
@@ -406,7 +406,7 @@ func (e *win) groupVars(groupID string) string {
 // ---- group runs ----
 
 // runSetup makes a folder of n Local Shell hosts wk-1…, a runbook of the given commands (every host), starts the run from the
-// Group page and opens a pane on each host. The window polls fast so keel serve's proposals arrive quickly.
+// Group page and opens a pane on each host. The window polls fast so slime serve's proposals arrive quickly.
 func runSetup(t *testing.T, n int, commands ...string) (*win, []string, string) {
 	t.Helper()
 	addr, dir := startServe(t, true)
@@ -686,7 +686,7 @@ func TestE2EGroupRunFollowerAndClosedPane(t *testing.T) {
 	if len(e.logTypes()) != 1 {
 		t.Errorf("%d agent.type rows, want 1", len(e.logTypes()))
 	}
-	// Their proposals still wait in keel serve, but the window offers neither the followed pane nor the closed one for typing.
+	// Their proposals still wait in slime serve, but the window offers neither the followed pane nor the closed one for typing.
 	e.pump(func() bool {
 		return e.cellState(0, "wk-2") == "proposed" && e.cellState(0, "wk-3") == "proposed" && e.hasLabel("Nothing to type now")
 	}, "wk-2 and wk-3 waiting and nothing offered")
@@ -745,7 +745,7 @@ func TestE2EAnsibleExport(t *testing.T) {
 		t.Errorf("the clipboard holds %q, not the inventory", got)
 	}
 	e.click("Close notification")
-	// Download saves the shown file where the save dialog (the test's) says, exactly as keel serve built it.
+	// Download saves the shown file where the save dialog (the test's) says, exactly as slime serve built it.
 	saved := filepath.Join(t.TempDir(), "downloaded.ini")
 	e.w.saveDialog = func(name string) (string, error) { return saved, nil }
 	e.click("Download")
@@ -756,7 +756,7 @@ func TestE2EAnsibleExport(t *testing.T) {
 		return err == nil && string(b) == inv.Content && e.hasLabel("Close notification")
 	}, "the downloaded file to hold the inventory, and its toast")
 	e.click("Close notification")
-	// YAML and a playbook from the runbook are asked of keel serve and shown as it built them.
+	// YAML and a playbook from the runbook are asked of slime serve and shown as it built them.
 	e.click("YAML")
 	e.pump(func() bool { return len(p.ex.files) == 1 && p.ex.files[0].Name == "inventory.yml" }, "the YAML inventory")
 	e.click("Playbook from a runbook picker")

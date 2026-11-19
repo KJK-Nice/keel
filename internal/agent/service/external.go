@@ -1,6 +1,6 @@
 package service
 
-// An outside agent (Claude Code, through keel mcp; docs/agent.md) reaches
+// An outside agent (Claude Code, through slime mcp; docs/agent.md) reaches
 // the agent service here, under the same rules as the agent panel
 // (docs/ui-redesign.md §6):
 //
@@ -36,17 +36,17 @@ const (
 	maxExternalPanes = 64
 )
 
-// ErrNoPaneList is returned when keel serve gives the service no way to
+// ErrNoPaneList is returned when slime serve gives the service no way to
 // list its sessions.
-var ErrNoPaneList = errors.New("agent: this keel serve cannot list its panes")
+var ErrNoPaneList = errors.New("agent: this slime serve cannot list its panes")
 
-// PaneLister lists the ids of the running sessions. keel serve's pane
+// PaneLister lists the ids of the running sessions. slime serve's pane
 // source satisfies it; ExternalPanes needs it.
 type PaneLister interface {
 	PaneIDs() []string
 }
 
-// The shapes keel mcp reads are internal/wire's.
+// The shapes slime mcp reads are internal/wire's.
 type (
 	// ExternalPane is one pane an outside agent may read.
 	ExternalPane = wire.ExternalPane

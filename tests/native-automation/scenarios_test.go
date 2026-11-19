@@ -157,7 +157,7 @@ func TestCloseWindowHidesAndKeepsRunning(t *testing.T) {
 }
 
 // 4. Real keys into a real terminal. The terminal's text is not in the tree (the "Terminal" element has no value),
-// so the proof is keel serve's scrollback, read with the scratch token (never printed).
+// so the proof is slime serve's scrollback, read with the scratch token (never printed).
 func TestRealKeysIntoARealTerminal(t *testing.T) {
 	r := newRig(t)
 	r.startServe()

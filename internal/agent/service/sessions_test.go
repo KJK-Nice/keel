@@ -175,7 +175,7 @@ func withChats(t *testing.T, f *fixture) (*fakeChats, *clock, func() *Service) {
 	chats.flush = func() { f.svc.FlushSaves() }
 	build := func() *Service {
 		if f.svc != nil {
-			f.svc.FlushSaves() // what the old keel serve queued reaches the store
+			f.svc.FlushSaves() // what the old slime serve queued reaches the store
 		}
 		svc, err := New(f.st, f.panes, f.log, Options{Chats: chats, Now: clk.now, Factory: func(string, string) (provider.Provider, error) { return f.fake, nil }})
 		if err != nil {
@@ -230,7 +230,7 @@ func TestResumedConversation(t *testing.T) {
 	first := askOneIn(t, f, "s-web")
 	clk.add(48 * time.Hour)
 
-	f.svc = build() // keel serve restarted
+	f.svc = build() // slime serve restarted
 	tr, err := f.svc.Transcript(conv)
 	if err != nil {
 		t.Fatal(err)

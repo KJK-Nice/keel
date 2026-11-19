@@ -52,7 +52,7 @@ func TestSnippetPreviewIsTheBytesTypedWithTheirEnters(t *testing.T) {
 	}
 }
 
-// The switch is saved with the snippet from the page's editor and by nothing else: the dialogs leave the flag to keel serve.
+// The switch is saved with the snippet from the page's editor and by nothing else: the dialogs leave the flag to slime serve.
 func TestTheEditorsAgentSwitchIsSavedWithThePageAndNotByTheDialog(t *testing.T) {
 	fb := snippetBackend()
 	r := snippetRig(t, fb)

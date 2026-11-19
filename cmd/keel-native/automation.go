@@ -11,7 +11,7 @@ import (
 	"keel/internal/native"
 )
 
-// Test builds only. See cmd/keel/automation.go.
+// Test builds only. See cmd/slime/automation.go.
 func init() {
 	if err := native.CheckAutomationEnv(); err != nil {
 		fmt.Fprintln(os.Stderr, "keel-native: automation refused:", err)

@@ -20,7 +20,7 @@ type CaptureView struct {
 	ExpiresAt *time.Time `json:"expiresAt"`
 }
 
-// GroupProposal is keel serve's proposal for one host's step: its own id, made from the saved step command with the
+// GroupProposal is slime serve's proposal for one host's step: its own id, made from the saved step command with the
 // variable names in. Bytes is exactly what Type sends for a step that names no variable (Ctrl-U, the command, a newline);
 // for one that does, the bytes Type sends are the fill's.
 type GroupProposal struct {
@@ -112,8 +112,8 @@ type FillUsed struct {
 	Quoted bool   `json:"quoted"`
 }
 
-// GroupFill is keel serve's answer to the fill for one proposal: the exact bytes Type will send for that host, with the
-// values put in (the only place a value leaves keel serve), where each came from, or why none could be made. The window
+// GroupFill is slime serve's answer to the fill for one proposal: the exact bytes Type will send for that host, with the
+// values put in (the only place a value leaves slime serve), where each came from, or why none could be made. The window
 // shows these bytes in the group approve dialog and sends exactly them; it never builds or edits them.
 // ProposalRef is the proposal's id.
 type GroupFill struct {

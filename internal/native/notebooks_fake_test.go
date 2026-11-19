@@ -10,7 +10,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The notebooks half of fakeBackend: what the window asks of keel serve, recorded, and answered as the test says. Nothing
+// The notebooks half of fakeBackend: what the window asks of slime serve, recorded, and answered as the test says. Nothing
 // here reads a pane or types.
 
 type fakeNotebooks struct {
@@ -35,7 +35,7 @@ func (f *fakeBackend) nbf() *fakeNotebooks {
 	return f.nb
 }
 
-// addNotebook puts a notebook into the fake, as keel serve would have it.
+// addNotebook puts a notebook into the fake, as slime serve would have it.
 func (f *fakeBackend) addNotebook(name, md string) keelclient.Notebook {
 	n := f.nbf()
 	n.seq++
@@ -86,7 +86,7 @@ func (f *fakeBackend) SaveNotebook(_ context.Context, id string, in keelclient.N
 		return keelclient.SavedNotebook{}, &keelclient.StatusError{Code: 404, Msg: "notebook not found"}
 	}
 	old := n.list[i]
-	// keel serve keeps a version when a new editing session starts, or the agent's when the user replaces it.
+	// slime serve keeps a version when a new editing session starts, or the agent's when the user replaces it.
 	if old.LastBy == byAgent || old.Markdown() != in.Cells[0].Body {
 		n.history[id] = append([]keelclient.NotebookVersion{{ID: fmt.Sprintf("v%d", len(n.history[id])+1), NotebookID: id, Name: old.Name, Cells: old.Cells, Rev: old.Rev, By: "user", Event: "session", At: old.UpdatedAt, Bytes: len(old.Markdown())}}, n.history[id]...)
 	}

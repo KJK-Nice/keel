@@ -178,7 +178,7 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	if r.tt.HasText("Why is pg-2 lagging") {
 		t.Error("the deleted conversation is still listed")
 	}
-	// Rename and Delete are off for a conversation keel serve does not know.
+	// Rename and Delete are off for a conversation slime serve does not know.
 	if !r.has("Rename this conversation") || !r.has("Delete this conversation") {
 		t.Error("the header buttons are gone")
 	}

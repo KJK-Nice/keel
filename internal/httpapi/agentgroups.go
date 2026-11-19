@@ -76,7 +76,7 @@ func (s *Server) agentGroupRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // agentProposeGroupStep makes the current step's due proposals for the
-// panes the window has open (session ids; keel serve resolves their hosts).
+// panes the window has open (session ids; slime serve resolves their hosts).
 func (s *Server) agentProposeGroupStep(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Panes []string `json:"panes"`

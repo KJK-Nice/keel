@@ -14,7 +14,7 @@ import (
 
 // The pure rules of notes for the agent (docs/ui-redesign.md §15): the words a note and a proposed note carry. They are
 // pinned by noteslogic_test.go. Nothing here talks to
-// keel serve, draws or types.
+// slime serve, draws or types.
 
 const maxNoteBytes = limits.MaxAgentNoteBytes
 
@@ -56,7 +56,7 @@ func noteSourceLabel(n keelclient.Note) string {
 	return joinNonEmpty(" · ", from, day, state)
 }
 
-// notesCountLabel is the notes list's head: "4 notes · 412 chars". A character is a UTF-16 unit, as keel serve counts it.
+// notesCountLabel is the notes list's head: "4 notes · 412 chars". A character is a UTF-16 unit, as slime serve counts it.
 func notesCountLabel(notes []keelclient.Note) string {
 	chars := 0
 	for _, n := range notes {
@@ -65,14 +65,14 @@ func notesCountLabel(notes []keelclient.Note) string {
 	return fmt.Sprintf("%s · %s", countWord(len(notes), "note", "notes"), countWord(chars, "char", "chars"))
 }
 
-// isInvisibleRune is a control character, a line or paragraph separator or a zero-width character: keel serve turns
+// isInvisibleRune is a control character, a line or paragraph separator or a zero-width character: slime serve turns
 // them into spaces, and so does cleanNote.
 func isInvisibleRune(c rune) bool {
 	return c <= 0x1f || (c >= 0x7f && c <= 0x9f) || c == 0x2028 || c == 0x2029 || (c >= 0x200b && c <= 0x200f) || c == 0x2060 || c == 0xfeff
 }
 
-// cleanNote makes typed text one line, as keel serve keeps it, and says whether it can be saved. This only decides
-// whether a request is worth sending; keel serve cleans and redacts what it receives.
+// cleanNote makes typed text one line, as slime serve keeps it, and says whether it can be saved. This only decides
+// whether a request is worth sending; slime serve cleans and redacts what it receives.
 func cleanNote(text string) (cleaned string, ok, tooLong bool) {
 	var b strings.Builder
 	for _, r := range text {

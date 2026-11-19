@@ -3,7 +3,7 @@
   "slug": "keel",
   "identifier": "app.keel.desktop",
   "version": "0.2.5",
-  "main": "./cmd/keel",
+  "main": "./cmd/slime",
   "out": "build",
   "icon": "packaging/macos/icon.png",
   "updates": {
@@ -22,6 +22,6 @@
     "comment": "Local SSH workspace",
     "categories": ["Network", "System"],
     "webview": false,
-    "command": "keel"
+    "command": "slime"
   }
 }

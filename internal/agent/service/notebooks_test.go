@@ -277,7 +277,7 @@ func TestPrivateNotebookNeverReachesTheAgent(t *testing.T) {
 }
 
 // The agent reads a notebook from the index on its own: the reply asks,
-// keel serve reads it (redacted, framed "read at your request", logged)
+// slime serve reads it (redacted, framed "read at your request", logged)
 // and asks the model again; the trace says it was the agent's request.
 func TestAgentReadsANotebookOnRequest(t *testing.T) {
 	f := newNbFixture(t, "")
@@ -717,7 +717,7 @@ func TestAgentDeleteNeedsTheUser(t *testing.T) {
 	if _, err := f.st.GetNotebook(f.ids["Second"]); err != nil {
 		t.Fatalf("private notebook deleted: %v", err)
 	}
-	// A card keel serve no longer holds.
+	// A card slime serve no longer holds.
 	f.svc.mu.Lock()
 	f.svc.convs[conv].nbProps = nil
 	f.svc.mu.Unlock()

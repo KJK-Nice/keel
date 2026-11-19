@@ -9,16 +9,16 @@ import (
 	"keel/internal/wire"
 )
 
-// Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12). keel serve decides everything:
-//   - The user attaches up to two notebooks to a question. An ask names them by id and never sends text; keel serve reads
+// Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12). slime serve decides everything:
+//   - The user attaches up to two notebooks to a question. An ask names them by id and never sends text; slime serve reads
 //     and redacts them, and refuses a private one. It also names the notebooks open here with typing not saved yet
 //     (Editing), so the agent's edit to one is refused and no keystroke is lost.
 //   - The agent creates and edits notebooks that are not private, and proposes deletes. Each is a card. A card's buttons
-//     are requests to keel serve (Undo, Delete after the user confirmed, Keep, Restore); the client changes no notebook
+//     are requests to slime serve (Undo, Delete after the user confirmed, Keep, Restore); the client changes no notebook
 //     itself and shows the notebook the answer returns.
 //   - Nothing here types, reads a pane, or marks a notebook reviewed.
 
-// agentNbProp is a notebook card on the thread: what keel serve holds, and what the card is doing.
+// agentNbProp is a notebook card on the thread: what slime serve holds, and what the card is doing.
 type agentNbProp struct {
 	p    keelclient.NotebookProposal
 	busy bool
@@ -31,7 +31,7 @@ func (a *agentPanel) registerNbProp(p keelclient.NotebookProposal) {
 	a.nbProps[p.ID] = &agentNbProp{p: p}
 }
 
-// notebookChanged shows a notebook as keel serve has it: the list takes it, an open pane with no typing loads it, and one
+// notebookChanged shows a notebook as slime serve has it: the list takes it, an open pane with no typing loads it, and one
 // with typing keeps it and says so once when the agent made the change.
 func (w *workspace) notebookChanged(rec keelclient.Notebook) {
 	w.rememberNotebook(rec)
@@ -112,7 +112,7 @@ func (w *workspace) askAboutNotebookPane(p *pane) {
 
 // ---- before an ask ----
 
-// editingNotebooks are the ids of the open notebooks with typing keel serve does not have (a save pending, running or
+// editingNotebooks are the ids of the open notebooks with typing slime serve does not have (a save pending, running or
 // failed): the agent's edits to them are refused.
 func (w *workspace) editingNotebooks() (ids []string) {
 	for _, p := range w.notebookPanes() {
@@ -148,7 +148,7 @@ func (w *workspace) nbFlushAll(done func()) {
 
 // ---- the card's buttons ----
 
-// nbCardMessage is what a card says when keel serve refuses its action.
+// nbCardMessage is what a card says when slime serve refuses its action.
 func nbCardMessage(err error) string {
 	var se *keelclient.StatusError
 	if errors.As(err, &se) && se.Code == 410 {
@@ -158,7 +158,7 @@ func nbCardMessage(err error) string {
 }
 
 // askNbPropAction is a card's button. Delete asks first; the others act at once. Each is a request
-// to keel serve and the card then shows what it answered.
+// to slime serve and the card then shows what it answered.
 func (w *workspace) askNbPropAction(id, action string) {
 	rec := w.agent.nbProps[id]
 	if rec == nil || rec.busy {
@@ -222,7 +222,7 @@ func (w *workspace) nbPropAction(id, action string) {
 // ---- the review banner's actions ----
 
 // undoAgentEdit is the banner's Undo: it restores the version kept before the newest agent edit. Typing since then is
-// kept in History too (keel serve keeps the version a restore replaces), but it asks first.
+// kept in History too (slime serve keeps the version a restore replaces), but it asks first.
 func (w *workspace) undoAgentEdit(id string) {
 	w.nbFlushID(id, func() {
 		rec, ok := w.notebook(id)

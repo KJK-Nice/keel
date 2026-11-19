@@ -50,7 +50,7 @@ type fakeConn struct {
 	directErr error
 	directGo  chan struct{} // when set, a DirectType waits for it to be closed
 
-	// In-pane suggestions, recorded: the questions (seq and line), the answers keel serve "pushed", the inserts asked for
+	// In-pane suggestions, recorded: the questions (seq and line), the answers slime serve "pushed", the inserts asked for
 	// and what they answer, and the words restored.
 	detects, asks []fakeAsk
 	sugEvents     []keelclient.SuggestEvent
@@ -146,7 +146,7 @@ func (c *fakeConn) RestoreWords(words string) error {
 	return nil
 }
 
-// fakeBackend records what the workspace asks of keel serve.
+// fakeBackend records what the workspace asks of slime serve.
 type fakeBackend struct {
 	attachErr map[string]error // Attach fails for these session ids
 	hostsErr  error            // Hosts fails once, then answers
@@ -621,7 +621,7 @@ type rig struct {
 	released int
 }
 
-// newRig starts a workspace on a fake keel serve; the fake runs work and posts at once.
+// newRig starts a workspace on a fake slime serve; the fake runs work and posts at once.
 func newRig(t *testing.T, fb *fakeBackend) *rig {
 	t.Helper()
 	r := &rig{fb: fb}
@@ -735,14 +735,14 @@ func TestClickingAHostSpawnsOnceAndAddsATab(t *testing.T) {
 	if !r.tt.HasText("deploy@10.0.0.1") {
 		t.Error("the pane bar does not show user@address")
 	}
-	if !r.tt.HasText("keel serve · 1 session") || r.tt.HasText("keel serve · 1 sessions") {
+	if !r.tt.HasText("slime serve · 1 session") || r.tt.HasText("slime serve · 1 sessions") {
 		t.Error("status bar session count must be singular for one")
 	}
 	if !r.tt.Focused("body 1") {
 		t.Error("the new pane does not have keyboard focus")
 	}
 	r.click(t, "Split right")
-	if !r.tt.HasText("keel serve · 2 sessions") {
+	if !r.tt.HasText("slime serve · 2 sessions") {
 		t.Error("status bar session count must be plural for two")
 	}
 }

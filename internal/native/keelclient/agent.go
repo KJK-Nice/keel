@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-// The agent panel's calls (internal/httpapi/agent.go, agentask.go). Nothing here reads a pane or types: keel serve reads
+// The agent panel's calls (internal/httpapi/agent.go, agentask.go). Nothing here reads a pane or types: slime serve reads
 // the panes named in an ask, redacts them and asks the model; a proposal reaches a pane only through ApprovedInject
-// (inject.go) after the user approves its bytes, or through DirectType (inject.go) when keel serve calls it plainly
+// (inject.go) after the user approves its bytes, or through DirectType (inject.go) when slime serve calls it plainly
 // read-only and one line. This client sends the question and session ids, never pane text.
 
 // AgentSettings is GET /api/agent/settings as the panel reads it: the provider, how a new conversation starts
 // (DefaultScope: focused, tab or pick) and how many lines of a pane the agent reads. Keys says only whether a key is
-// saved; keel serve never returns one.
+// saved; slime serve never returns one.
 type AgentSettings struct {
 	Settings struct {
 		Provider           string `json:"provider"`
@@ -31,7 +31,7 @@ type AgentSettings struct {
 			Hostnames bool `json:"hostnames"`
 		} `json:"redact"`
 		HistoryDays int  `json:"historyDays"`
-		ClaudeCode  bool `json:"claudeCode"` // lets keel mcp (Claude Code) in (§6 rule 14); off unless saved on
+		ClaudeCode  bool `json:"claudeCode"` // lets slime mcp (Claude Code) in (§6 rule 14); off unless saved on
 	} `json:"settings"`
 	Keys map[string]struct {
 		Configured bool `json:"configured"`
@@ -80,7 +80,7 @@ type AgentKeyInput struct {
 func (k AgentKeyInput) String() string   { return fmt.Sprintf("{%s key withheld}", k.Provider) }
 func (k AgentKeyInput) GoString() string { return k.String() }
 
-// SetAgentKey is PUT /api/agent/keys/{provider}. keel serve stores the key in the vault and does not check it with
+// SetAgentKey is PUT /api/agent/keys/{provider}. slime serve stores the key in the vault and does not check it with
 // the provider.
 func (c *Client) SetAgentKey(ctx context.Context, in AgentKeyInput) error {
 	return c.do(ctx, http.MethodPut, "/api/agent/keys/"+url.PathEscape(in.Provider), map[string]string{"key": in.Key}, nil)
@@ -91,10 +91,10 @@ type AskRequest struct {
 	ConversationID string   `json:"conversationId"`
 	Question       string   `json:"question"`
 	Panes          []string `json:"panes"`
-	// RunbookID starts that runbook in this conversation (the user picked it): keel serve proposes its current step
+	// RunbookID starts that runbook in this conversation (the user picked it): slime serve proposes its current step
 	// itself. Starting one is an ask, never a type.
 	RunbookID string `json:"runbookId,omitempty"`
-	// Notebooks are the ids (never the text) of the notebooks the user attached; keel serve reads and redacts them and
+	// Notebooks are the ids (never the text) of the notebooks the user attached; slime serve reads and redacts them and
 	// refuses a private one. Editing are the ids of notebooks open in this window with typing not saved yet, so the
 	// agent's edit to them is refused (internal/agent/service/service.go AskRequest).
 	Notebooks []string `json:"notebooks,omitempty"`
@@ -102,7 +102,7 @@ type AskRequest struct {
 }
 
 // TraceStep is one line of the trace: what the agent did with a pane. Status is "read" or "skipped" (Reason
-// not-readable, not-open or another), or "notes", "runbook", "notebook" or "notebook-index" for what keel serve sent
+// not-readable, not-open or another), or "notes", "runbook", "notebook" or "notebook-index" for what slime serve sent
 // along (Reason notebook-missing, notebook-private and notebook-limit on a skipped notebook).
 type TraceStep struct {
 	SessionID  string         `json:"sessionId"`
@@ -116,7 +116,7 @@ type TraceStep struct {
 	NoteKind   string         `json:"noteKind"`
 	Notes      int            `json:"notes"`
 	Runbook    string         `json:"runbook"`
-	// Notebook steps: the name (redacted) and id of a notebook sent or read, its size after redaction, whether keel serve
+	// Notebook steps: the name (redacted) and id of a notebook sent or read, its size after redaction, whether slime serve
 	// cut it, whether the agent asked for it, and how many titles a "notebook-index" step sent.
 	Notebook   string `json:"notebook"`
 	NotebookID string `json:"notebookId"`
@@ -127,7 +127,7 @@ type TraceStep struct {
 }
 
 // Proposal is a command the agent suggests, as the card shows it. Bytes is exactly what Type sends (Ctrl-U, the
-// command, a newline): keel serve builds it and checks it again before writing.
+// command, a newline): slime serve builds it and checks it again before writing.
 type Proposal struct {
 	ID           string     `json:"id"`
 	SessionID    string     `json:"sessionId"`
@@ -139,16 +139,16 @@ type Proposal struct {
 	Why          string     `json:"why"`
 	Risk         string     `json:"risk"` // readonly | changes | destructive
 	NeedsShift   bool       `json:"needsShift"`
-	Placeholders bool       `json:"placeholders"` // holds [secret:N]: keel serve will not type it
+	Placeholders bool       `json:"placeholders"` // holds [secret:N]: slime serve will not type it
 	Edited       bool       `json:"edited"`
 	ProposedAt   *time.Time `json:"proposedAt"`
 	TypedAt      *time.Time `json:"typedAt"`
 	Expired      bool       `json:"expired"`
-	// Runbook is set on a proposal keel serve made from a runbook step (the current one only): typed like any other.
+	// Runbook is set on a proposal slime serve made from a runbook step (the current one only): typed like any other.
 	Runbook *ProposalStep `json:"runbook"`
 }
 
-// AskResponse is the answer to one ask, in one piece (keel serve does not stream it).
+// AskResponse is the answer to one ask, in one piece (slime serve does not stream it).
 type AskResponse struct {
 	ConversationID string      `json:"conversationId"`
 	Title          string      `json:"title"`
@@ -177,7 +177,7 @@ func (c *Client) Ask(ctx context.Context, req AskRequest) (out AskResponse, err 
 	return out, err
 }
 
-// EditProposal is PUT /api/agent/conversations/{id}/proposals/{pid}: keel serve keeps the edited command and answers
+// EditProposal is PUT /api/agent/conversations/{id}/proposals/{pid}: slime serve keeps the edited command and answers
 // with the proposal as it now holds it (new bytes, risk and ⇧ rule). What is typed afterwards is that, never a local draft.
 func (c *Client) EditProposal(ctx context.Context, conversationID, proposalID, command string) (out Proposal, err error) {
 	err = c.do(ctx, http.MethodPut, "/api/agent/conversations/"+url.PathEscape(conversationID)+"/proposals/"+url.PathEscape(proposalID),

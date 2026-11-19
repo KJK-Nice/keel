@@ -122,9 +122,9 @@ func liveBodyT(p *pane, transparent bool) {
 	}
 }
 
-// Options say which keel serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
-// what keel app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
-// Name is the display name keel app was started with (--name, else SLIME_NAME, else the user name); "" leaves it to
+// Options say which slime serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
+// what slime app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
+// Name is the display name slime app was started with (--name, else SLIME_NAME, else the user name); "" leaves it to
 // the environment (keel-native parses no flags).
 type Options struct {
 	Addr, DataDir, AppBuild string
@@ -134,8 +134,8 @@ type Options struct {
 // launchName is Options.Name. RunWith sets it once, before any window; defaultName reads it.
 var launchName string
 
-// Run opens the window on a running keel serve (the address and data directory of internal/paths) and blocks
-// until the app quits. It does not start keel serve.
+// Run opens the window on a running slime serve (the address and data directory of internal/paths) and blocks
+// until the app quits. It does not start slime serve.
 func Run() error {
 	return RunWith(Options{Addr: paths.Addr(), DataDir: paths.DataDir()})
 }
@@ -144,7 +144,7 @@ func Run() error {
 func RunWith(o Options) error {
 	tok, err := authtoken.Read(o.DataDir)
 	if err != nil {
-		return fmt.Errorf("read the keel serve token (is keel serve running?): %w", err)
+		return fmt.Errorf("read the slime serve token (is slime serve running?): %w", err)
 	}
 	cl := keelclient.NewAt(o.Addr, tok)
 	cl.Name, launchName = o.Name, o.Name

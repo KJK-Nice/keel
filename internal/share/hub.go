@@ -121,7 +121,7 @@ func New(signalURL string, rt *runtime.Runtime) *Hub {
 	}
 }
 
-// ForServe makes keel serve's hub: on signalURL (SLIME_SIGNAL, read by the
+// ForServe makes slime serve's hub: on signalURL (SLIME_SIGNAL, read by the
 // caller) when it is set, falling back to the saved server (SetSaved) and
 // then DefaultSignal.
 func ForServe(signalURL string, rt *runtime.Runtime) *Hub {
@@ -700,7 +700,7 @@ func (t *dcTransport) SendBytes(p []byte) error {
 
 // attachDataChannel attaches a joined peer to sess once its data channel
 // opens. The peer is a sessionsock.Joined client: it watches from mark on,
-// drives when the owner hands it control and passes control on. keel serve
+// drives when the owner hands it control and passes control on. slime serve
 // never types for it and tells it nothing of the host.
 func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name string, mark uint64) {
 	dc.OnOpen(func() {

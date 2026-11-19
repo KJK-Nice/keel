@@ -80,7 +80,7 @@ func hostAddress(h keelclient.ConfigHost) string {
 	return addr
 }
 
-// copyable is false for a key keel serve cannot read (missing, too large, not a private key): its switch is
+// copyable is false for a key slime serve cannot read (missing, too large, not a private key): its switch is
 // disabled.
 func copyable(k keelclient.ConfigKey) bool { return k.Exists && k.Problem == "" }
 

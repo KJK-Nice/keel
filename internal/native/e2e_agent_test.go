@@ -12,10 +12,10 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The agent panel against a real keel serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake, set for
+// The agent panel against a real slime serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake, set for
 // every daemon by startServeAt): nothing here reaches a model provider, and the only key ever stored is made up. What
 // the scenarios prove is what reaches the PTY and when: nothing before the approved Type, then exactly the proposal's
-// bytes, and the log rows keel serve writes (agent.read, agent.suggest, and agent.type only after approval).
+// bytes, and the log rows slime serve writes (agent.read, agent.suggest, and agent.type only after approval).
 
 const fakeAgentKey = "fake-key-for-tests-only-0000"
 
@@ -203,7 +203,7 @@ func TestE2EAgentScope(t *testing.T) {
 	e.pump(func() bool { return e.tt.HasText("Reads 0 of 2 panes") }, "the chip after None")
 	e.agentAsk("no command, just hello")
 	e.pump(func() bool { return e.tt.HasText("I was given 0 pane excerpts and") }, "an answer that read nothing")
-	// One entry: the request itself, which keel serve logs for every ask (it names no pane).
+	// One entry: the request itself, which slime serve logs for every ask (it names no pane).
 	if reads() != before+1 {
 		t.Fatalf("an ask with no pane in scope wrote %d agent.read entries, want 1 for the request alone", reads()-before)
 	}
@@ -220,7 +220,7 @@ func TestE2EAgentScope(t *testing.T) {
 		e.pump(func() bool {
 			h, ok := e.hostNamed("Local Shell")
 			return ok && h.AgentReadable != nil && !*h.AgentReadable
-		}, "keel serve to hold reading as off")
+		}, "slime serve to hold reading as off")
 	}
 	e.pump(func() bool {
 		for _, h := range e.w.hosts {
@@ -249,7 +249,7 @@ func TestE2EAgentScope(t *testing.T) {
 	e.settle(300 * time.Millisecond)
 	// One entry, as above: the request itself, never the pane.
 	if reads() != before+1 {
-		t.Fatalf("keel serve read a pane whose host the agent cannot read (%d -> %d)", before, reads())
+		t.Fatalf("slime serve read a pane whose host the agent cannot read (%d -> %d)", before, reads())
 	}
 
 	// Back on: readable again.
@@ -393,7 +393,7 @@ func TestE2EAgentEditAndCopy(t *testing.T) {
 	e.click("Save command")
 	e.pump(func() bool {
 		return e.tt.HasText("1 line · 16 bytes") && !e.w.agentState().props[e.firstProposal()].editing
-	}, "the card to show what keel serve holds")
+	}, "the card to show what slime serve holds")
 	if e.tt.HasText("keel-agent-ok") {
 		t.Fatal("the card still shows the original command")
 	}
@@ -449,7 +449,7 @@ func TestE2EAgentFollowerHasNoType(t *testing.T) {
 	}
 }
 
-// The panel's sash: a drag widens the panel and the terminal pane gives way (keel serve sees the narrower terminal), the width
+// The panel's sash: a drag widens the panel and the terminal pane gives way (slime serve sees the narrower terminal), the width
 // is kept in keel-native.json and a window opened later on the same data starts at it.
 func TestE2EAgentPanelSashWidthIsKept(t *testing.T) {
 	addr, dir := startServe(t, true)
@@ -479,7 +479,7 @@ func TestE2EAgentPanelSashWidthIsKept(t *testing.T) {
 	e.step()
 	e.tt.Release(x-120, y)
 	e.pump(func() bool { return panel() > sizeAgent+100 && loadPrefs(dir).AgentWidth > sizeAgent+100 }, "the panel to be wider and its width kept")
-	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on keel serve")
+	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on slime serve")
 	e.shot("TestE2EAgentPanelSash")
 	kept := loadPrefs(dir).AgentWidth
 	e.w.closeWindow()

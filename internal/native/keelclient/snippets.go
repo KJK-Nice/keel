@@ -25,7 +25,7 @@ func (c *Client) Snippets(ctx context.Context) (out []Snippet, err error) {
 	return out, err
 }
 
-// SnippetInput is what a save sends. AgentUsable is a pointer: nil leaves the key out and keel serve keeps the saved
+// SnippetInput is what a save sends. AgentUsable is a pointer: nil leaves the key out and slime serve keeps the saved
 // flag (httpapi snippetPayload), so only the Snippets page's editor, which shows the switch, ever sets it.
 type SnippetInput struct {
 	ID          string `json:"-"` // "" creates, else updates

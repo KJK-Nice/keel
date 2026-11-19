@@ -11,9 +11,9 @@ import (
 // the user curates, drafts from a saved conversation, Save / Dismiss / Undo on a runbook the agent proposed, and the
 // runbook in use in a conversation (its state, a step marked done, skipped or retried, Don't use, Move the run).
 //
-// keel serve redacts every text for secrets before it keeps it and logs agent.runbook; this client sends what the user
-// typed, shows what keel serve kept and keeps nothing on disk. Nothing here writes to a session: a step reaches a pane
-// only as an ordinary proposal (Proposal.Runbook marks it) that keel serve makes for the current step, and that is typed
+// slime serve redacts every text for secrets before it keeps it and logs agent.runbook; this client sends what the user
+// typed, shows what slime serve kept and keeps nothing on disk. Nothing here writes to a session: a step reaches a pane
+// only as an ordinary proposal (Proposal.Runbook marks it) that slime serve makes for the current step, and that is typed
 // through the same Approve before type path as any proposal. Starting a runbook is an ask with its id (AskRequest.RunbookID).
 
 // StepCapture is a captured variable of a group run (§17): kept as loaded so a save does not drop it. Not built here.
@@ -60,7 +60,7 @@ type RunbookList struct {
 	Unreadable bool      `json:"unreadable"`
 }
 
-// RunbookStepInput is a step as the editor sends it: no risk, which keel serve rates itself.
+// RunbookStepInput is a step as the editor sends it: no risk, which slime serve rates itself.
 type RunbookStepInput struct {
 	ID          string        `json:"id"`
 	Title       string        `json:"title"`
@@ -72,8 +72,8 @@ type RunbookStepInput struct {
 	Captures    []StepCapture `json:"captures"`
 }
 
-// RunbookInput is what the editor sends to add or edit a runbook. DraftID names a draft keel serve made
-// (DraftRunbook): keel serve takes the source from its own record of it, never from the client.
+// RunbookInput is what the editor sends to add or edit a runbook. DraftID names a draft slime serve made
+// (DraftRunbook): slime serve takes the source from its own record of it, never from the client.
 type RunbookInput struct {
 	Name         string             `json:"name"`
 	When         string             `json:"when"`
@@ -83,7 +83,7 @@ type RunbookInput struct {
 	DraftID      string             `json:"draftId"`
 }
 
-// RunbookDraft is an unsaved runbook keel serve made from a conversation: the page shows it for the user to edit and
+// RunbookDraft is an unsaved runbook slime serve made from a conversation: the page shows it for the user to edit and
 // save. Nothing is kept until then.
 type RunbookDraft struct {
 	Name        string        `json:"name"`
@@ -96,7 +96,7 @@ type RunbookDraft struct {
 	FromPrivate bool          `json:"fromPrivate"`
 }
 
-// SavedRunbook is a runbook after a save: Redacted counts the values keel serve replaced before keeping it.
+// SavedRunbook is a runbook after a save: Redacted counts the values slime serve replaced before keeping it.
 type SavedRunbook struct {
 	Runbook  Runbook          `json:"runbook"`
 	Redacted int              `json:"redacted"`
@@ -119,7 +119,7 @@ type RunbookProposal struct {
 	Expired    bool          `json:"expired"`
 }
 
-// ProposalStep marks a command proposal keel serve made from a runbook step.
+// ProposalStep marks a command proposal slime serve made from a runbook step.
 type ProposalStep struct {
 	RunbookID string `json:"runbookId"`
 	Name      string `json:"name"`
@@ -182,7 +182,7 @@ func (c *Client) Runbooks(ctx context.Context) (out RunbookList, err error) {
 }
 
 // SaveRunbook is POST /api/agent/runbooks (ID empty) or PUT /api/agent/runbooks/{id}: the editor's whole state. The
-// answer is the runbook as keel serve kept it, redacted.
+// answer is the runbook as slime serve kept it, redacted.
 func (c *Client) SaveRunbook(ctx context.Context, id string, in RunbookInput) (out SavedRunbook, err error) {
 	if in.Steps == nil {
 		in.Steps = []RunbookStepInput{}
@@ -225,14 +225,14 @@ func runPath(conversationID string) string {
 	return "/api/agent/conversations/" + url.PathEscape(conversationID) + "/runbook"
 }
 
-// RunbookState is GET /api/agent/conversations/{id}/runbook: keel serve first looks for the results of typed steps in
+// RunbookState is GET /api/agent/conversations/{id}/runbook: slime serve first looks for the results of typed steps in
 // their panes' shell marks (reported, never proof).
 func (c *Client) RunbookState(ctx context.Context, conversationID string) (out RunState, err error) {
 	err = c.do(ctx, http.MethodGet, runPath(conversationID), nil, &out)
 	return out, err
 }
 
-// StepAction is POST …/runbook/steps/{sid}: done, skip or retry on the current step. Nothing skips ahead; keel serve
+// StepAction is POST …/runbook/steps/{sid}: done, skip or retry on the current step. Nothing skips ahead; slime serve
 // refuses any other step.
 func (c *Client) StepAction(ctx context.Context, conversationID, stepID, action string) (out RunState, err error) {
 	err = c.do(ctx, http.MethodPost, runPath(conversationID)+"/steps/"+url.PathEscape(stepID), map[string]string{"action": action}, &out)

@@ -44,7 +44,7 @@ Windows has no Slime build, so MyGo's Windows secrets (`MYGO_WINDOWS_CERTIFICATE
 
 ## Auto-updates
 
-Slime updates itself with MyGo's updater (`docs/updates.md` in the MyGo module): "Check for Updates…" is in the Slime menu and the menu bar item, and the app checks in the background once a day. The update window is MyGo's, drawn in native UI (`plugins/updater/native`). Builds that cannot update (`bin/keel`, the `.deb` in `/opt`) never check and say why when asked.
+Slime updates itself with MyGo's updater (`docs/updates.md` in the MyGo module): "Check for Updates…" is in the Slime menu and the menu bar item, and the app checks in the background once a day. The update window is MyGo's, drawn in native UI (`plugins/updater/native`). Builds that cannot update (`bin/slime`, the `.deb` in `/opt`) never check and say why when asked.
 
 - `updates` in `mygo.json` holds the public key of `mygo keygen` and `github: KJK-Nice/keel`: installed apps read `update-<platform>.json` from the **latest** release (`releases/latest/download/`), so a pre-release never reaches them.
 - The secret key is the repository secret `MYGO_UPDATER_PRIVATE_KEY` (the contents of `mygo-update.key`). Keep a copy in a password manager: installed apps accept only updates signed with it, so losing it strands them, and anyone with it can ship code to them. Changing it means a new public key in `mygo.json`, which only apps built after the change trust.

@@ -8,6 +8,7 @@ COPY internal/signal ./internal/signal
 COPY internal/wire ./internal/wire
 COPY internal/sharelink ./internal/sharelink
 COPY internal/randid ./internal/randid
+COPY internal/env ./internal/env
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /keel-signal ./cmd/keel-signal
 
 FROM alpine:3.21

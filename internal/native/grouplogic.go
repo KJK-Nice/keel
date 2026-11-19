@@ -12,11 +12,11 @@ import (
 )
 
 // The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17), pinned by
-// grouplogic_test.go. They mirror internal/runvars, which keel serve enforces; these only
-// shape what the window shows and decide whether a request is worth sending. Nothing here talks to keel serve, draws or
+// grouplogic_test.go. They mirror internal/runvars, which slime serve enforces; these only
+// shape what the window shows and decide whether a request is worth sending. Nothing here talks to slime serve, draws or
 // types, and nothing here ever holds a variable's value except the one the user is typing.
 
-// cleanRole is a typed role as keel serve keeps it: trimmed, lower case. ok is false for anything that is not one word of
+// cleanRole is a typed role as slime serve keeps it: trimmed, lower case. ok is false for anything that is not one word of
 // letters, digits, -, _ or . (empty is ok: no role).
 func cleanRole(text string) (role string, ok bool) {
 	role = strings.ToLower(strings.TrimSpace(text))
@@ -106,10 +106,10 @@ const (
 
 var varValueTooBig = fmt.Sprintf("A value is at most %d bytes.", maxVarValue)
 
-// validVarName is a variable name as keel serve accepts one.
+// validVarName is a variable name as slime serve accepts one.
 func validVarName(name string) bool { return runvars.ValidName(name) }
 
-// badValueChar: a control, C1, zero-width, bidi, separator or BOM character (keel serve refuses them; runvars.CheckValue).
+// badValueChar: a control, C1, zero-width, bidi, separator or BOM character (slime serve refuses them; runvars.CheckValue).
 func badValueChar(v string) bool {
 	for _, r := range v {
 		if r < 0x20 || (r >= 0x7f && r <= 0x9f) || (r >= 0x200b && r <= 0x200f) || (r >= 0x2028 && r <= 0x202e) || (r >= 0x2060 && r <= 0x2064) || r == 0xfeff {
@@ -119,7 +119,7 @@ func badValueChar(v string) bool {
 	return false
 }
 
-// cleanVar is a typed variable as keel serve keeps it: the name trimmed and lower case, the value trimmed. err is the
+// cleanVar is a typed variable as slime serve keeps it: the name trimmed and lower case, the value trimmed. err is the
 // words to show, "" when it can be sent.
 func cleanVar(name, value string) (n, v, err string) {
 	n = strings.ToLower(strings.TrimSpace(name))
@@ -229,7 +229,7 @@ func captureView(cv *keelclient.CaptureView) (mask, text, state string) {
 	return "", cv.State, cv.State
 }
 
-// expiryLine is "Kept in keel serve's memory for this run only. Deleted when the runbook ends, or at 11:14."
+// expiryLine is "Kept in slime serve's memory for this run only. Deleted when the runbook ends, or at 11:14."
 func expiryLine(step keelclient.GroupRunStep) string {
 	var first *keelclient.CaptureView
 	for _, c := range step.Cells {
@@ -247,7 +247,7 @@ func expiryLine(step keelclient.GroupRunStep) string {
 	if first != nil {
 		at = "at " + clockHM(*first.ExpiresAt)
 	}
-	return "Kept in keel serve's memory for this run only. Deleted when the runbook ends, or " + at + "."
+	return "Kept in slime serve's memory for this run only. Deleted when the runbook ends, or " + at + "."
 }
 
 // usedLine lists what went into one host's bytes: "{{join_token}} captured on cp-1 · step 1, {{ver}} group variable".
@@ -263,7 +263,7 @@ func usedLine(used []keelclient.FillUsed) string {
 	return strings.Join(parts, ", ")
 }
 
-// cleanCaptures is the editor's captures as keel serve takes them (empty rows dropped, names lower case).
+// cleanCaptures is the editor's captures as slime serve takes them (empty rows dropped, names lower case).
 func cleanCaptures(list []keelclient.StepCapture) []keelclient.StepCapture {
 	out := []keelclient.StepCapture{}
 	for _, c := range list {
@@ -289,7 +289,7 @@ func checkCaptures(steps []keelclient.RunbookStepInput) string {
 				return fmt.Sprintf("Step %d: a capture's name is lower-case letters, digits and _ (for example join_token).", i+1)
 			case c.Pattern == "":
 				return fmt.Sprintf("Step %d: %s needs a pattern with a group around the value, such as --token\\s+(\\S+).", i+1, c.Name)
-			case utf8.RuneCountInString(c.Pattern) > maxPattern: // keel serve checks bytes
+			case utf8.RuneCountInString(c.Pattern) > maxPattern: // slime serve checks bytes
 				return fmt.Sprintf("Step %d: a pattern is at most %d characters.", i+1, maxPattern)
 			case seen[c.Name]:
 				return fmt.Sprintf("Step %d: %s is captured by another step already.", i+1, c.Name)

@@ -77,7 +77,7 @@ func scratchDir(t *testing.T) string {
 	return dir
 }
 
-// startServe runs a scratch keel serve (bin/keel) and stops it when the test ends. A passphrase
+// startServe runs a scratch slime serve (bin/slime) and stops it when the test ends. A passphrase
 // opens a scratch vault; without one the vault is locked.
 func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 	t.Helper()
@@ -86,7 +86,7 @@ func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 	return addr, filepath.Join(dir, "data")
 }
 
-// startServeAt runs a keel serve on dir/data, with its log in dir/<name>.log, and returns its address and a
+// startServeAt runs a slime serve on dir/data, with its log in dir/<name>.log, and returns its address and a
 // function that stops it (the cleanup does too). With a passphrase the daemon opens, or creates, the scratch
 // vault; without one a vault that exists stays locked.
 func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...string) (addr string, stop func()) {
@@ -94,11 +94,11 @@ func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...s
 	root := repoRoot(t)
 	bin := filepath.Join(root, "bin", "keel")
 	if _, err := os.Stat(bin); err != nil {
-		t.Fatalf("%s is missing: run make native-e2e (it builds bin/keel first)", bin)
+		t.Fatalf("%s is missing: run make native-e2e (it builds bin/slime first)", bin)
 	}
 	dataDir := filepath.Join(dir, "data")
 	addr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
-	// SLIME_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from keel serve's in-process fake and
+	// SLIME_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from slime serve's in-process fake and
 	// nothing is sent to a model provider, whatever key a scenario stores (only ever a made-up one).
 	env := append(os.Environ(), "SLIME_ADDR="+addr, "SLIME_DATA="+dataDir, "SLIME_KEYRING=off", "SHELL=/bin/sh", "SLIME_AGENT_PROVIDER=fake")
 	if passphrase {
@@ -142,11 +142,11 @@ func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...s
 		}
 		select {
 		case <-done:
-			t.Fatalf("keel serve exited early; see %s", filepath.Join(dir, name+".log"))
+			t.Fatalf("slime serve exited early; see %s", filepath.Join(dir, name+".log"))
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	t.Fatalf("keel serve did not come up; see %s", filepath.Join(dir, name+".log"))
+	t.Fatalf("slime serve did not come up; see %s", filepath.Join(dir, name+".log"))
 	return
 }
 
@@ -771,7 +771,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	}
 	b.shot("TestE2EFollowerAndTakeControl-following")
 
-	// The follower's keystrokes are dropped by keel serve.
+	// The follower's keystrokes are dropped by slime serve.
 	b.clickBody("1")
 	b.typeLine("echo from-b")
 	for end := time.Now().Add(500 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
@@ -909,7 +909,7 @@ func TestE2ECopySSHCommand(t *testing.T) {
 
 // ---- tabs, panes and the workspace ----
 
-// sessionIDs is the ids keel serve lists.
+// sessionIDs is the ids slime serve lists.
 func (e *win) sessionIDs() (ids []string) {
 	for _, s := range e.sessions() {
 		ids = append(ids, s.ID)

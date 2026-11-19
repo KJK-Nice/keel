@@ -93,7 +93,7 @@ type sessionGroup struct {
 }
 
 // sessionGroups filters the saved conversations by the search text (title or host, any case) and groups them Today /
-// Yesterday / Older, keeping keel serve's order (most recent first). Empty groups are left out. host, when set, keeps only
+// Yesterday / Older, keeping slime serve's order (most recent first). Empty groups are left out. host, when set, keeps only
 // conversations that read or proposed for that host (the Agent page's host filter).
 func sessionGroups(sessions []keelclient.ConversationSummary, query string, now time.Time, host string) []sessionGroup {
 	q := strings.ToLower(strings.TrimSpace(query))

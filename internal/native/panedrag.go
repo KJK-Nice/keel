@@ -22,7 +22,7 @@ type dragged interface{ dragged() }
 func (*tab) dragged()  {}
 func (*pane) dragged() {}
 
-// canDock is a tab that may be dropped on a pane of dest: two different session tabs of this machine's keel serve (not the New
+// canDock is a tab that may be dropped on a pane of dest: two different session tabs of this machine's slime serve (not the New
 // tab page, a page or a joined tab).
 func canDock(src, dest *tab) bool {
 	return src != nil && dest != nil && src != dest && src.root != nil && dest.root != nil && src.mode().local() && dest.mode().local()

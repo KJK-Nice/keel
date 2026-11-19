@@ -9,7 +9,7 @@ import (
 
 // workingBlocks is the mark of the model at work: MyGo's loading.Blocks, sized to the line it sits in, in
 // the accent or, in muted text, that colour, and named for assistive technology. It means "the model is working" and nothing
-// else: a wait on keel serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
+// else: a wait on slime serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
 // asks for no frames where the desktop asks for less motion, and it takes no input, so Stop stays clickable.
 func workingBlocks(c *ui.Context, col ui.Color, name string) ui.Element {
 	return loading.Blocks(c, loading.Options{Size: iconSize, Color: col}).Label(name).Shrink(0)
@@ -89,7 +89,7 @@ func ctlIconButton(c *ui.Context, tip string, size float32) ui.Element {
 		Border(1, ui.Transparent).Background(ui.Transparent)
 }
 
-// waitHelp is a wait that does not end at the model (keel serve, the network, a load): MyGo's spinner, named by the words,
+// waitHelp is a wait that does not end at the model (slime serve, the network, a load): MyGo's spinner, named by the words,
 // beside the words in help text. Blocks stay for the model alone (workingBlocks).
 func waitHelp(c *ui.Context, msg string) {
 	ui.Row(c).Gap(space1_5).AlignItems(ui.Center).Children(func() {
@@ -98,7 +98,7 @@ func waitHelp(c *ui.Context, msg string) {
 	})
 }
 
-// busyMark is MyGo's spinner beside the button of an action that waits on keel serve (a save, a restore) while on is true.
+// busyMark is MyGo's spinner beside the button of an action that waits on slime serve (a save, a restore) while on is true.
 func busyMark(c *ui.Context, on bool, name string) {
 	if on {
 		ui.Spinner(c).Label(name).Shrink(0)

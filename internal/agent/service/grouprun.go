@@ -32,7 +32,7 @@ import (
 //   - Slime turns the current step into one ordinary command proposal per
 //     host (ProposeGroupStep), from the saved command, each aimed at a pane
 //     open on that host in the asking window (the client sends its panes;
-//     keel serve resolves their hosts itself). Every host × step is its own
+//     slime serve resolves their hosts itself). Every host × step is its own
 //     proposal with its own id, typed only through approve-before-type with
 //     a server nonce (AuthorizeType with GroupRunID), which checks again
 //     that the host is still in the group and readable, the bytes, the
@@ -42,7 +42,7 @@ import (
 //     (refreshGroupRun), labelled reported; on a production host a reported
 //     exit 0 waits for the user's Confirm. Without marks the user marks the
 //     host done, skips or retries it (GroupHostAction).
-//   - Runs live in keel serve's memory only (at most maxGroupRuns); a
+//   - Runs live in slime serve's memory only (at most maxGroupRuns); a
 //     restart ends them. Every start, proposal, result and action is logged
 //     as agent.runbook with ids and counts, never a name or a command.
 
@@ -56,7 +56,7 @@ const (
 	cellDone     = wire.StepDone
 	cellFailed   = wire.StepFailed
 	cellSkipped  = wire.StepSkipped
-	// cellTyping is a host whose proposal keel serve authorized and is
+	// cellTyping is a host whose proposal slime serve authorized and is
 	// writing now: between AuthorizeType and the write, nothing may reset
 	// it (a Retry there would let the command run twice).
 	cellTyping = wire.StepTyping
@@ -420,7 +420,7 @@ func (s *Service) GroupRunState(id string) (GroupRun, error) {
 // rolling, for the first host not done or skipped (none while it failed or
 // waits); parallel, for every host waiting. Each goes to a pane on that
 // host among panes (session ids open in the asking window, resolved to
-// their hosts by keel serve, never by the client): the pane used for the
+// their hosts by slime serve, never by the client): the pane used for the
 // host before, else the first. A host with no pane is listed in NeedPane.
 // It is safe to call again and again: it never makes a second proposal for
 // a host that has a live one.
@@ -434,7 +434,7 @@ func (s *Service) ProposeGroupStep(id string, panes []string) (GroupRun, error) 
 	}
 	groupID := run.GroupID
 	s.mu.Unlock()
-	// Where each host has a pane, from keel serve's own sessions.
+	// Where each host has a pane, from slime serve's own sessions.
 	onHost := map[string][]agent.Pane{}
 	for _, sid := range uniq(panes) {
 		if p, ok := s.panes.Pane(sid); ok && p.HostID != "" {

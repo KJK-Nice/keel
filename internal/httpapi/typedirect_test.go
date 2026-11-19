@@ -15,7 +15,7 @@ import (
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
-// review), over the real session socket: keel serve decides, on the exact
+// review), over the real session socket: slime serve decides, on the exact
 // bytes, at the moment of the write; it never adds a newline; anything it
 // cannot call a read-only line goes to the dialog.
 

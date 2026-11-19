@@ -60,7 +60,7 @@ var rules = []rule{
 	{err: store.ErrMemoryUnreadable, status: http.StatusConflict, tail: "; Delete all notes in Settings · Agent starts a fresh file"},
 	{err: service.ErrGroupVarSecret, status: http.StatusBadRequest, words: strings.TrimPrefix(service.ErrGroupVarSecret.Error(), "agent: ")},
 
-	// The agent's conversations and keel mcp.
+	// The agent's conversations and slime mcp.
 	{err: service.ErrNoKey, status: http.StatusPreconditionFailed, reason: "no-key"},
 	{err: service.ErrBadRequest, status: http.StatusBadRequest},
 	{err: service.ErrNotProvider, status: http.StatusBadRequest},

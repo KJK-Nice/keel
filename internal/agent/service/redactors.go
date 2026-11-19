@@ -99,7 +99,7 @@ func (s *Service) buildRedactor(p redactFor, opts store.AgentRedaction, hosts []
 }
 
 // namedValues lists the values replaced by their {{name}}: every value a
-// group run captured since keel serve started (the redact-only set, which
+// group run captured since slime serve started (the redact-only set, which
 // outlives the runs), and every group variable's value.
 func (s *Service) namedValues(shape redactShape) ([]redact.Named, error) {
 	var out []redact.Named

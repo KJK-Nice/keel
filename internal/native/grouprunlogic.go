@@ -10,7 +10,7 @@ import (
 
 // The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11), pinned by grouprunlogic_test.go and
 // grouprun_test.go. Nothing here
-// talks to keel serve, draws or types. A row of the approve dialog holds bytes keel serve gave (the proposal's, or the
+// talks to slime serve, draws or types. A row of the approve dialog holds bytes slime serve gave (the proposal's, or the
 // fill's); nothing here builds, edits or substitutes into them.
 
 const (
@@ -171,7 +171,7 @@ func typeable(run *keelclient.GroupRun, paneOpen func(sessionID string) bool) (o
 	return out
 }
 
-// groupRow is a row of the group approve dialog: a host, the pane it would be typed into, and the exact bytes keel serve
+// groupRow is a row of the group approve dialog: a host, the pane it would be typed into, and the exact bytes slime serve
 // gave for that host (the proposal's own bytes, or the fill's, with the values put in). checked is the user's tick and
 // nothing else sets it.
 type groupRow struct {
@@ -187,7 +187,7 @@ type groupRow struct {
 	paneLabel    string
 
 	attempted bool   // the Type reached this row: it is final, nothing is retried
-	outcome   string // "Typed." or keel serve's refusal in its words
+	outcome   string // "Typed." or slime serve's refusal in its words
 	typedOK   bool
 }
 
@@ -204,7 +204,7 @@ func approveRows(cells []keelclient.GroupRunCell) []*groupRow {
 	return out
 }
 
-// fillRows puts keel serve's fills on the dialog's rows: each row's exact bytes, what went in, and the ⇧ rule on the filled
+// fillRows puts slime serve's fills on the dialog's rows: each row's exact bytes, what went in, and the ⇧ rule on the filled
 // command. A row whose fill failed (a missing or unsafe value) keeps no bytes, cannot be ticked and says why; a row with no
 // fill at all cannot be ticked either.
 func fillRows(rows []*groupRow, fills []keelclient.GroupFill) {

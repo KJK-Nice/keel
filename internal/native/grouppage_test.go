@@ -13,7 +13,7 @@ import (
 )
 
 // The Group page on the fake backend: its hosts and roles, notes, variables, the list of runbooks and the Ansible drawer, and
-// what each action sends. Every value is made up; a secret-looking one is refused by the fake as keel serve refuses it.
+// what each action sends. Every value is made up; a secret-looking one is refused by the fake as slime serve refuses it.
 
 func groupRig(t *testing.T) *rig {
 	t.Helper()
@@ -125,7 +125,7 @@ func TestARoleOfTwoWordsIsRefusedBeforeARequestAndKeelServesRefusalIsShown(t *te
 	if len(r.fb.grp.roleReqs) != 0 || p.err != groupRoleBad || !r.tt.HasText(groupRoleBad) {
 		t.Fatalf("requests %v, error %q", r.fb.grp.roleReqs, p.err)
 	}
-	// An empty field leaves it. keel serve's own refusal is shown as it said it.
+	// An empty field leaves it. slime serve's own refusal is shown as it said it.
 	p.roleFor = "h1"
 	p.roleText = ""
 	r.w.endNewRole(p, true)
@@ -203,7 +203,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	if p.varsErr != varNameHelp || len(r.fb.grp.varReqs) != n {
 		t.Errorf("a bad name: error %q, requests %v", p.varsErr, r.fb.grp.varReqs)
 	}
-	// A secret-looking value is keel serve's refusal: the words are shown, the value is not kept, listed or exported.
+	// A secret-looking value is slime serve's refusal: the words are shown, the value is not kept, listed or exported.
 	r.fill(t, "Variable name", "api_token")
 	r.fill(t, "Variable value", fakeVarSecret)
 	r.click(t, "Add variable")
@@ -270,7 +270,7 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	p := r.openGroup(t, "Infra")
 	r.click(t, "Export to Ansible")
 	if !p.ex.open || len(r.fb.grp.ansibleQs) == 0 {
-		t.Fatal("the drawer did not ask keel serve for the export")
+		t.Fatal("the drawer did not ask slime serve for the export")
 	}
 	if q := r.fb.grp.ansibleQs[len(r.fb.grp.ansibleQs)-1]; q.Format != "ini" || q.RunbookID != "" || !q.User || q.Jump {
 		t.Errorf("first query %+v", q)

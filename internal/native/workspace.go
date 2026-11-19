@@ -28,7 +28,7 @@ const (
 // attachWorkers is how many saved sessions start attaches at once.
 var attachWorkers = 4
 
-// session is what a pane needs of a keel serve connection (*keelclient.Conn, or a fake in tests).
+// session is what a pane needs of a slime serve connection (*keelclient.Conn, or a fake in tests).
 type session interface {
 	io.ReadWriteCloser
 	Resize(cols, rows int) error
@@ -40,14 +40,14 @@ type session interface {
 	Events() []keelclient.Event       // what the share hub and the runtime announced since the last call
 	OnChange(fn func())
 	// ApprovedInject types bytes the user approved (keelclient/inject.go): a snippet's, or with a non-nil agent
-	// an agent proposal's, which keel serve checks again and answers. Only the Approve before type dialog's Type
+	// an agent proposal's, which slime serve checks again and answers. Only the Approve before type dialog's Type
 	// action calls it.
 	ApprovedInject(ctx context.Context, command string, agent *keelclient.AgentRef, opts ...keelclient.InjectOption) error
-	// DirectType asks keel serve to type a plainly read-only one-line command without the dialog and without Enter
+	// DirectType asks slime serve to type a plainly read-only one-line command without the dialog and without Enter
 	// (keelclient/inject.go). Only typeNow (typenow.go) calls it.
 	DirectType(ctx context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error)
 	// In-pane suggestions (keelclient/inject.go, suggestpane.go). SuggestDetect and SuggestAsk are questions and write
-	// nothing; SuggestEvents hands over keel serve's answers. SuggestInsert (only insertSuggestion calls it) and
+	// nothing; SuggestEvents hands over slime serve's answers. SuggestInsert (only insertSuggestion calls it) and
 	// RestoreWords (only restoreWords) are the two that put bytes on the prompt line.
 	SuggestDetect(seq int, line string) error
 	SuggestAsk(seq int, line string) error
@@ -78,18 +78,18 @@ type backend interface {
 	Identities(ctx context.Context) ([]keelclient.Identity, error)
 	Groups(ctx context.Context) ([]keelclient.Group, error)
 
-	// Folders (folders.go): keel serve keeps them; the window reads them again after every write.
+	// Folders (folders.go): slime serve keeps them; the window reads them again after every write.
 	SaveGroup(ctx context.Context, g keelclient.Group) (keelclient.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
 	MoveHosts(ctx context.Context, ids []string, groupID string) error
 	GroupMembers(ctx context.Context, id string) (keelclient.GroupInfo, error)
 
-	// The Group page (grouppage.go): roles, variables and the Ansible export. keel serve keeps and builds all of it.
+	// The Group page (grouppage.go): roles, variables and the Ansible export. slime serve keeps and builds all of it.
 	SetGroupRole(ctx context.Context, id, hostID, role string) (keelclient.Group, error)
 	SetGroupVar(ctx context.Context, id, name, value string) (keelclient.Group, error)
 	GroupAnsible(ctx context.Context, id string, q keelclient.AnsibleQuery) ([]keelclient.ExportFile, error)
 
-	// Group runs (grouprun.go): keel serve holds the run and makes every proposal; none of these writes to a session. A
+	// Group runs (grouprun.go): slime serve holds the run and makes every proposal; none of these writes to a session. A
 	// proposal is typed only by the group approve dialog's Type action, through the one ApprovedInject call.
 	StartGroupRun(ctx context.Context, runbookID, groupID, mode string) (keelclient.GroupRun, error)
 	GroupRun(ctx context.Context, id string) (keelclient.GroupRun, error)
@@ -113,7 +113,7 @@ type backend interface {
 	SaveSnippet(ctx context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error)
 	DeleteSnippet(ctx context.Context, id string) error
 
-	// Notebooks (notebooks.go): keel serve keeps them; the window holds the list and the open documents in memory only.
+	// Notebooks (notebooks.go): slime serve keeps them; the window holds the list and the open documents in memory only.
 	// A fence is typed only through the snippet paths (notebooktype.go); none of these writes to a session.
 	Notebooks(ctx context.Context) ([]keelclient.Notebook, error)
 	CreateNotebook(ctx context.Context, in keelclient.NotebookSave) (keelclient.Notebook, error)
@@ -143,7 +143,7 @@ type backend interface {
 	SetSignal(ctx context.Context, url string) (keelclient.Runtime, error)
 	StopRuntime(ctx context.Context) error
 
-	// The agent panel (agent.go): keel serve reads the panes named in an ask and answers; nothing here types.
+	// The agent panel (agent.go): slime serve reads the panes named in an ask and answers; nothing here types.
 	AgentSettings(ctx context.Context) (keelclient.AgentSettings, error)
 	AgentProviders(ctx context.Context) ([]keelclient.AgentProvider, error)
 	SetAgentKey(ctx context.Context, in keelclient.AgentKeyInput) error
@@ -160,7 +160,7 @@ type backend interface {
 	SaveAgentSettings(ctx context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error)
 	DeleteAgentKey(ctx context.Context, provider string) error
 
-	// Notes for the agent and runbooks (notes.go, runbooks.go): keel serve keeps and redacts them; the client holds them in
+	// Notes for the agent and runbooks (notes.go, runbooks.go): slime serve keeps and redacts them; the client holds them in
 	// memory only. A proposal is kept only by SaveProposedNote and SaveProposedRunbook, which the cards' Save buttons call.
 	Notes(ctx context.Context) (keelclient.NoteList, error)
 	SaveNote(ctx context.Context, in keelclient.NoteInput) (keelclient.SavedNote, error)
@@ -183,7 +183,7 @@ type backend interface {
 	DismissProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
 	DraftRunbookOfNotebook(ctx context.Context, notebookID string) (keelclient.RunbookDraft, error)
 
-	// What the agent did to notebooks (agentnotebooks.go): each is a request keel serve acts on and answers; this client
+	// What the agent did to notebooks (agentnotebooks.go): each is a request slime serve acts on and answers; this client
 	// changes no notebook itself.
 	UndoNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
 	PostNotebookDeleteConfirm(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
@@ -237,7 +237,7 @@ type pane struct {
 	sg      paneSuggest // in-pane suggestions (suggestpane.go)
 	keyHook func(mods ui.Modifiers, key ui.Key) bool
 
-	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a keel serve session
+	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a slime serve session
 	joinKey     string // which join it is (the origin and the room, never the key)
 	blockedSeen uint64 // State.Blocked as the window last showed the notice for
 
@@ -278,7 +278,7 @@ type pane struct {
 }
 
 func (p *pane) sessionID() string {
-	if p.remote { // a joined share is not a session of this machine's keel serve: nothing may kill, reconnect or save it by id
+	if p.remote { // a joined share is not a session of this machine's slime serve: nothing may kill, reconnect or save it by id
 		return ""
 	}
 	if id := p.conn.SessionID(); id != "" {
@@ -418,7 +418,7 @@ type workspace struct {
 	sideSash       sashState
 	sideListH      ui.Handle  // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
 	queued         []ui.Toast // toasts asked for, handed to MyGo by the next frame (toast.go)
-	blocked        string     // a message that replaces the workspace (locked vault, no keel serve)
+	blocked        string     // a message that replaces the workspace (locked vault, no slime serve)
 	gate           *unlockGate
 	first          *firstRun // the First run screens (or the palette's host import), over the whole window
 	closed         bool
@@ -537,7 +537,7 @@ func (w *workspace) paneCount() (n int) {
 
 func (w *workspace) fail(what string, err error) { w.warn(errText(what, err)) }
 
-// start asks keel serve what exists. The vault answers first: a locked vault stops here.
+// start asks slime serve what exists. The vault answers first: a locked vault stops here.
 func (w *workspace) start() {
 	if w.starting {
 		return
@@ -550,7 +550,7 @@ func (w *workspace) start() {
 		defer cancel()
 		v, err := w.be.Vault(c)
 		if err != nil {
-			w.post(func() { w.blocked = "Cannot reach keel serve: " + err.Error() })
+			w.post(func() { w.blocked = "Cannot reach slime serve: " + err.Error() })
 			return
 		}
 		if v.Locked && !v.NeedsSetup {
@@ -787,7 +787,7 @@ func (w *workspace) closePane(t *tab, id string) {
 	}
 }
 
-// reconnect asks keel serve to start p's session again; the socket reports the new status. A pane whose own socket
+// reconnect asks slime serve to start p's session again; the socket reports the new status. A pane whose own socket
 // was lost is attached again instead: its session may still run, and the old socket can report nothing.
 func (w *workspace) reconnect(p *pane) {
 	sid := p.sessionID()
@@ -802,7 +802,7 @@ func (w *workspace) reconnect(p *pane) {
 }
 
 // reattach opens a new connection to p's session and gives it to the pane and to a new terminal view (mkBody makes it
-// like any pane's). A session keel serve no longer lists is said so in the pane.
+// like any pane's). A session slime serve no longer lists is said so in the pane.
 func (w *workspace) reattach(p *pane, sid string) {
 	cols, rows := startCols, startRows
 	if p.size != nil {
@@ -824,7 +824,7 @@ func (w *workspace) reattach(p *pane, sid string) {
 		case err != nil:
 			w.fail("reconnect", err)
 		case conn == nil:
-			p.note = "This session no longer exists on keel serve"
+			p.note = "This session no longer exists on slime serve"
 		case !w.hasPane(p):
 			conn.Close()
 		default:

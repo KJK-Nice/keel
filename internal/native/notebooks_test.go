@@ -259,7 +259,7 @@ func TestANotebookOpensBesideTheTerminalOfASessionTab(t *testing.T) {
 		t.Fatalf("a second pane: %d", len(tb.panes))
 	}
 	// A notebook is not a session: the status bar counts the terminal only.
-	if !r.tt.HasText("keel serve · 1 session") {
+	if !r.tt.HasText("slime serve · 1 session") {
 		t.Error("the status bar counts the notebook as a session")
 	}
 	if r.fb.nb.reqsWith("put") != 0 || r.fb.nb.reqsWith("post") != 0 {

@@ -14,9 +14,9 @@ import (
 // and rules are in noteslogic.go.
 //
 // What this file does and does not do:
-//   - Notes live in keel serve (keel.memory, in the vault). This client holds them in memory only and writes none of them to
+//   - Notes live in slime serve (keel.memory, in the vault). This client holds them in memory only and writes none of them to
 //     disk (TestNotesAndRunbooksAreNeverWrittenToDisk).
-//   - Every change the user makes in a list is saved at once with POST / PUT / DELETE /api/agent/notes: keel serve cleans and
+//   - Every change the user makes in a list is saved at once with POST / PUT / DELETE /api/agent/notes: slime serve cleans and
 //     redacts the text and the list shows what it kept, with a toast when it replaced values.
 //   - The agent never writes a note. A note it proposes is a card; the card's Save (saveNoteProposal) is the only thing that
 //     keeps it, Dismiss keeps nothing, and nothing saves, retries or pre-ticks anything on its own.
@@ -128,7 +128,7 @@ func (w *workspace) addNote(e *notesEditor) {
 			e.err = hostError(err)
 			return
 		}
-		e.notes = append(e.notes, res.Note) // what keel serve kept
+		e.notes = append(e.notes, res.Note) // what slime serve kept
 		e.input = ""
 		if t := noteSavedToast("added", res.Redacted); t != "" {
 			w.say(t)
@@ -246,14 +246,14 @@ func (w *workspace) deleteAllNotes() {
 
 // ---- the notes the agent proposes ----
 
-// agentNote is a note proposal on the thread: what keel serve holds, and what the card is doing.
+// agentNote is a note proposal on the thread: what slime serve holds, and what the card is doing.
 type agentNote struct {
 	n    keelclient.NoteProposal
 	busy bool
 	err  string
 
 	editing   bool
-	edit      string    // the field; sent to keel serve only by Save
+	edit      string    // the field; sent to slime serve only by Save
 	editH     ui.Handle // the field in the panel
 	editHP    ui.Handle // the same field on the Agent page
 	focusEdit bool
@@ -311,7 +311,7 @@ func (w *workspace) saveNoteProposal(id string) {
 // dismissNoteProposal is Dismiss: the proposal is closed and nothing is kept.
 func (w *workspace) dismissNoteProposal(id string) { w.noteProposalAction(id, false) }
 
-// undoNoteProposal is Undo on a saved note: keel serve deletes the note and reopens the proposal.
+// undoNoteProposal is Undo on a saved note: slime serve deletes the note and reopens the proposal.
 func (w *workspace) undoNoteProposal(id string) { w.noteProposalAction(id, true) }
 
 func (w *workspace) noteProposalAction(id string, undo bool) {

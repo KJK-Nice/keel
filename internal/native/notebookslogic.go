@@ -14,7 +14,7 @@ import (
 )
 
 // The pure rules of notebooks (docs/ui-redesign.md §18): the words and states the screens show, pinned by
-// notebookslogic_test.go. Nothing here talks to keel serve, draws or types.
+// notebookslogic_test.go. Nothing here talks to slime serve, draws or types.
 
 const (
 	placeholderRefused = "Not typed: this block holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Edit it to the real value or an environment variable first."
@@ -76,7 +76,7 @@ func notebookName(nb keelclient.Notebook) string {
 
 // ---- fences ----
 
-// fence is a fenced block of a notebook's Markdown as keel serve will see it: parsed with MyGo's Markdown parser, never
+// fence is a fenced block of a notebook's Markdown as slime serve will see it: parsed with MyGo's Markdown parser, never
 // from a rich text model, so two fences next to each other are two fences.
 type fence struct {
 	Index int    // the block's index in the parsed document, which markdown.View reports as CodeBlockView.Index
@@ -124,7 +124,7 @@ func fenceAt(fs []fence, index int) (fence, bool) {
 }
 
 // directable reports whether a fence may be typed with no dialog: a shell fence of exactly one line that holds no
-// placeholder (keel serve decides again).
+// placeholder (slime serve decides again).
 func directable(f fence) bool {
 	line := strings.TrimSpace(f.Code)
 	return f.Shell && line != "" && !strings.Contains(line, "\n") && !cmdrule.HasPlaceholder(line)

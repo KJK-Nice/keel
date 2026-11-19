@@ -11,7 +11,7 @@ import (
 )
 
 // The cards of what the agent did to notebooks : every kind and status draws its head, status and
-// buttons; each button is one request to keel serve and the card shows what it answers; Delete asks first; an agent edit of
+// buttons; each button is one request to slime serve and the card shows what it answers; Delete asks first; an agent edit of
 // an open notebook shows in its pane, or is refused while the user is typing. Cards are also in saved conversations.
 
 func nbCard(kind, status string) keelclient.NotebookProposal {

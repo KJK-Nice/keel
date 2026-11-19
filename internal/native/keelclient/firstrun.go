@@ -11,14 +11,14 @@ import (
 )
 
 // First run: the vault, the ssh config import and the agent step's text. The server reads the ssh config
-// (SLIME_SSH_DIR in keel serve); this client never reads ~/.ssh. Passphrases leave in the one request that needs
+// (SLIME_SSH_DIR in slime serve); this client never reads ~/.ssh. Passphrases leave in the one request that needs
 // them, are not kept, and never appear in an error or in %v, %+v or %#v.
 
 // ErrVaultExists is a vault that already exists (409 from POST /api/vault/setup).
 var ErrVaultExists = errors.New("the vault already exists")
 
 // SetupVault is POST /api/vault/setup: it creates the vault with a passphrase. A keychain vault is not
-// a request: keel serve makes it itself when it starts. A vault that exists is ErrVaultExists.
+// a request: slime serve makes it itself when it starts. A vault that exists is ErrVaultExists.
 func (c *Client) SetupVault(ctx context.Context, passphrase string) error {
 	err := c.do(ctx, http.MethodPost, "/api/vault/setup", map[string]string{"passphrase": passphrase}, nil)
 	var se *StatusError

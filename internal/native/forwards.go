@@ -14,7 +14,7 @@ import (
 	"keel/internal/wire"
 )
 
-// Port forwarding (docs/ui-redesign.md §5.10). Each forward opens its own SSH connection from keel serve and keeps
+// Port forwarding (docs/ui-redesign.md §5.10). Each forward opens its own SSH connection from slime serve and keeps
 // running when the window closes.
 //
 // Not here: traffic counters, a per-row Edit shortcut on a failed forward (a failed row has
@@ -23,7 +23,7 @@ import (
 // rev changes, and every 2 s while the page or the sidebar's Forwards section shows (forwardsEvery).
 //
 // A forward's bind address defaults to 127.0.0.1 and the dialog says "Bind 0.0.0.0 exposes the port on every
-// interface." A wildcard bind carries the "Every interface" badge. Nothing here binds anything: keel serve does.
+// interface." A wildcard bind carries the "Every interface" badge. Nothing here binds anything: slime serve does.
 
 const (
 	forwardsEvery = 2 * time.Second // how often the page and the sidebar section read GET /api/tunnels while shown

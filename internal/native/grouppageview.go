@@ -407,7 +407,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 				})
 			}
 			// Download: the shown file's text, saved where the system's save dialog says. Nothing is written by
-			// keel serve and nothing runs.
+			// slime serve and nothing runs.
 			if textBtnOff(c, "Download", btnPrimary, ex.file >= len(ex.files)) {
 				w.act(func() {
 					if ex.file < len(ex.files) {

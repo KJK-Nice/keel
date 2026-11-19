@@ -16,7 +16,7 @@ import (
 )
 
 // The agent panel on the fake backend: what an ask sends, what the thread shows, and that a proposal reaches a session
-// only through Approve before type, with the proposal's bytes, and keel serve's refusal final.
+// only through Approve before type, with the proposal's bytes, and slime serve's refusal final.
 
 // agentRig is a window with one session this client drives, a saved key, and the panel open.
 func agentRig(t *testing.T) *rig {
@@ -530,7 +530,7 @@ func TestEditSavesThroughTheServerAndWhatIsTypedIsWhatTheServerHolds(t *testing.
 	r := agentRig(t)
 	r.answers(okProposal())
 	r.fb.agent.editReply = func(command string) (keelclient.Proposal, error) {
-		// keel serve holds its own version of the edit: it is what the card shows and what is typed.
+		// slime serve holds its own version of the edit: it is what the card shows and what is typed.
 		p := okProposal()
 		p.Command, p.Bytes, p.Edited = command, "\x15"+command+"\n", true
 		return p, nil
@@ -544,7 +544,7 @@ func TestEditSavesThroughTheServerAndWhatIsTypedIsWhatTheServerHolds(t *testing.
 	r.tt.Type("echo edited-ok")
 	r.tt.Frame()
 	if len(r.fb.agent.edits) != 0 {
-		t.Fatal("typing in the field called keel serve")
+		t.Fatal("typing in the field called slime serve")
 	}
 	r.click(t, "Save command")
 	if len(r.fb.agent.edits) != 1 || !strings.HasSuffix(r.fb.agent.edits[0], ": echo edited-ok") {
@@ -581,7 +581,7 @@ func TestAnEditThatKeelServeRefusesLeavesTheCardAndTheBytesAlone(t *testing.T) {
 	r.click(t, "Type into pane…")
 	r.click(t, "Type")
 	if got := r.typed(); !slices.Equal(got, []string{"\x15echo keel-agent-ok\n"}) {
-		t.Fatalf("typed %q: not the bytes keel serve holds", got)
+		t.Fatalf("typed %q: not the bytes slime serve holds", got)
 	}
 }
 
@@ -702,7 +702,7 @@ func TestNoKeyShowsTheConnectCardAndTheKeyIsSentOnceAndTheFieldCleared(t *testin
 			t.Errorf("the connect card lacks %q in %v", s, r.tt.Texts())
 		}
 	}
-	// An ask with no key does not call keel serve: the card is what answers.
+	// An ask with no key does not call slime serve: the card is what answers.
 	r.ask(t, "hello")
 	if len(r.fb.agent.asks) != 0 {
 		t.Fatal("an ask went out with no key")

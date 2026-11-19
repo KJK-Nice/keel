@@ -107,7 +107,7 @@ func (r *Runtime) changed() {
 }
 
 // New makes the forwards' runtime. factory opens the SSH connection of a
-// forward: keel serve passes DefaultFactory, a test a fake.
+// forward: slime serve passes DefaultFactory, a test a fake.
 func New(st *store.Store, factory Factory) *Runtime {
 	return &Runtime{store: st, factory: factory, live: map[string]*live{}}
 }

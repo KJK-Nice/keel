@@ -19,7 +19,7 @@ import (
 const rawBytes = "\x15echo grp-1\n" // what a proposal types: Ctrl-U, the command, a newline
 
 // runRig is a window with n sessions this client drives, one per host wk-1…, and a group run of one step across them. The
-// run is held by the fake keel serve; cells are what it has proposed.
+// run is held by the fake slime serve; cells are what it has proposed.
 func runRig(t *testing.T, n int) *rig {
 	t.Helper()
 	fb := okBackend()
@@ -161,7 +161,7 @@ func TestGroupDialogNoRowIsTickedInAdvanceWithTwoOrMoreHostsAndNothingIsTypedBef
 	if !r.tt.Focused("Cancel") {
 		t.Error("the keyboard does not start on Cancel")
 	}
-	// Opening it, polling and pressing Type with nothing ticked type nothing, and ask keel serve for no fill (no variables).
+	// Opening it, polling and pressing Type with nothing ticked type nothing, and ask slime serve for no fill (no variables).
 	r.click(t, "Type")
 	r.w.approveType(false) // even called directly, with nothing ticked
 	r.w.approveType(true)
@@ -258,7 +258,7 @@ func TestGroupDialogAHostThatNeedsShiftIsTypedOnlyWithShift(t *testing.T) {
 	if !r.groupDlg(t).shiftHint || !r.tt.HasText(groupShiftRefused) {
 		t.Error("the refusal is not said")
 	}
-	// ⇧ held with Type types both, and keel serve is told ⇧ was held.
+	// ⇧ held with Type types both, and slime serve is told ⇧ was held.
 	if err := r.tt.ClickWith(ui.Shift, "Type"); err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostC
 	run.Mode = "rolling"
 	r.startRun(run)
 	r.fb.grp.onPropose = func(run *keelclient.GroupRun, panes []string) {
-		// keel serve proposes the next host only once the previous one is done.
+		// slime serve proposes the next host only once the previous one is done.
 		cells := run.Steps[0].Cells
 		for i := range cells {
 			if cells[i].State == "done" && i+1 < len(cells) && cells[i+1].State == "waiting" {
@@ -542,7 +542,7 @@ func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostC
 	if got := r.injected(); len(got[0]) != 1 || len(got[1]) != 0 || len(got[2]) != 0 {
 		t.Fatalf("typed %q", got)
 	}
-	// keel serve marks wk-1 typed; wk-2 is offered only after wk-1 is done.
+	// slime serve marks wk-1 typed; wk-2 is offered only after wk-1 is done.
 	r.fb.grp.run.Steps[0].Cells[0].State = "typed"
 	r.w.groupRunTick()
 	r.tt.Frame()
@@ -644,7 +644,7 @@ func TestHostAndStepActionsSendTheAppsRequestsAndRefusalsAreShown(t *testing.T) 
 			t.Errorf("%s sent %v, want %q", c.button, r.fb.grp.runReqs, c.want)
 		}
 	}
-	// keel serve's 409 is shown in its words.
+	// slime serve's 409 is shown in its words.
 	r.fb.grp.runErr = &keelclient.StatusError{Code: 409, Msg: "wk-2 is still reporting"}
 	r.click(t, "Mark done wk-2")
 	if !r.tt.HasText("wk-2 is still reporting") {
@@ -733,7 +733,7 @@ func TestTheRunPageComesBackWithTheWorkspaceAndSaysWhenKeelServeLostTheRun(t *te
 	if p := w2.w.groupRunPageState(); p == nil || p.run == nil || p.id != "gr1" || !w2.tt.HasText("Step 1 · Print a marker") {
 		t.Fatalf("the run page did not come back: %+v", p)
 	}
-	b3 := okBackend() // a keel serve restart: the run is gone
+	b3 := okBackend() // a slime serve restart: the run is gone
 	w3 := newRig(t, b3)
 	w3.w.restore(&d, nil)
 	w3.tt.Frame()

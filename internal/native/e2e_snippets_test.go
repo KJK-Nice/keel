@@ -13,9 +13,9 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Snippets and Approve before type against a real keel serve and a real shell (Local Shell). The point of these
+// Snippets and Approve before type against a real slime serve and a real shell (Local Shell). The point of these
 // scenarios is what reaches the PTY and when: nothing before Type, and after Type exactly Ctrl-U and the text the
-// dialog showed (keel serve adds nothing, so the trailing newline the client adds is what runs the command).
+// dialog showed (slime serve adds nothing, so the trailing newline the client adds is what runs the command).
 
 func (e *win) snippetsOnServer() []keelclient.Snippet {
 	e.t.Helper()

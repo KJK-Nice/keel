@@ -98,7 +98,7 @@ func stopMessage(sessions int) string {
 	case sessions > 1:
 		what = fmt.Sprintf("all %d running sessions", sessions)
 	}
-	return "This ends " + what + " and every port forward, then closes keel serve. Reopen Slime to start it again."
+	return "This ends " + what + " and every port forward, then closes slime serve. Reopen Slime to start it again."
 }
 
 // shortcut is a row of the Keyboard page: made from the command table, with the key cap text of this platform.

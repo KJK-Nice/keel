@@ -126,12 +126,12 @@ func TestDirectTypeAnswers(t *testing.T) {
 }
 
 func TestDirectTypeNoAnswerIsNotADialogAndNotRetried(t *testing.T) {
-	c, s := dialDirect(t, nil) // keel serve never answers the inject
+	c, s := dialDirect(t, nil) // slime serve never answers the inject
 	res, err := c.DirectType(context.Background(), "df -h", snippetRef, nil)
 	if !errors.Is(err, ErrNoDirectAnswer) || res != (DirectResult{}) {
 		t.Fatalf("got %+v, %v", res, err)
 	}
-	if err.Error() != "keel serve did not answer. Check the pane before you press Type again." {
+	if err.Error() != "slime serve did not answer. Check the pane before you press Type again." {
 		t.Fatalf("not the page's words: %q", err)
 	}
 	time.Sleep(60 * time.Millisecond)
@@ -150,7 +150,7 @@ func TestDirectTypeAnswerForAnotherRefIsIgnored(t *testing.T) {
 }
 
 func TestDirectTypeWithNoNonceIsADialogAndNoInjectFrame(t *testing.T) {
-	c, s := dialInject(t, "ready", "driver", nil) // keel serve says nothing to the challenge
+	c, s := dialInject(t, "ready", "driver", nil) // slime serve says nothing to the challenge
 	c.wait = 80 * time.Millisecond
 	res, err := c.DirectType(context.Background(), "df -h", snippetRef, nil)
 	if err != nil || !res.Dialog || res.Typed {
@@ -243,7 +243,7 @@ func TestDirectTypeOneAtATimeNeverQueues(t *testing.T) {
 	time.Sleep(60 * time.Millisecond)
 	for _, m := range s.all() {
 		if m["command"] == "two" || m["command"] == "three\n" {
-			t.Fatalf("a queued call reached keel serve: %v", m)
+			t.Fatalf("a queued call reached slime serve: %v", m)
 		}
 	}
 	if res, err := c.DirectType(context.Background(), "four", snippetRef, nil); err != nil || !res.Typed {

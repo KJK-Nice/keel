@@ -20,10 +20,10 @@ import (
 // from the terminal view go through Conn.Write; everything else that reaches a PTY goes through an inject frame, and this
 // file is the only one that builds one: it alone names wire.TypeInjectChallenge and wire.TypeInject and the parts of an
 // inject (wire.AgentType, wire.DirectType, wire.AgentInsert, Notebook), and every inject goes out through one function,
-// inject, which first gets keel serve's one-time nonce for the same bytes. internal/native/guard_test.go keeps all of it
+// inject, which first gets slime serve's one-time nonce for the same bytes. internal/native/guard_test.go keeps all of it
 // true.
 //
-// keel serve writes exactly the bytes it is given and adds nothing, and only for a one-time nonce it issued for those
+// slime serve writes exactly the bytes it is given and adds nothing, and only for a one-time nonce it issued for those
 // same bytes to this client, which must be the driver (internal/inject, runtime.Session.InjectTicket).
 //
 // Three callers, one each:
@@ -31,22 +31,22 @@ import (
 // ApprovedInject is the Approve before type dialog's Type action (internal/native/approve.go). A group run's step
 // (docs/ui-redesign.md §6 rule 10) is typed through it too: the group approve dialog's Type action calls it once per ticked
 // host, each on that host's own connection with {groupRunId, proposalId, shift} in the agent part of the frame, so each
-// host is its own proposal with its own server nonce. For a step that names variables the bytes are the ones keel serve's
+// host is its own proposal with its own server nonce. For a step that names variables the bytes are the ones slime serve's
 // fill returned for that proposal (rule 11); this client never puts a value into them. An agent proposal is typed through
-// the same call, with {conversationId, proposalId, shift}: keel serve checks the proposal (the exact bytes it holds, the
+// the same call, with {conversationId, proposalId, shift}: slime serve checks the proposal (the exact bytes it holds, the
 // pane, the role, the ⇧ rule) and logs agent.type before it writes, and answers with an agent-type frame, which
 // ApprovedInject waits for. A refusal there is final: nothing was typed and nothing is retried. The bytes are the
-// proposal's own (Proposal.Bytes: Ctrl-U, the command, a newline), built by keel serve; this client adds nothing to them.
+// proposal's own (Proposal.Bytes: Ctrl-U, the command, a newline), built by slime serve; this client adds nothing to them.
 //
-// DirectType is for a command keel serve calls plainly read-only and one line (docs/ui-redesign.md §6 rule 13): it types
+// DirectType is for a command slime serve calls plainly read-only and one line (docs/ui-redesign.md §6 rule 13): it types
 // the command alone, with no Ctrl-U and no newline, so it waits on the prompt line for the user's Enter. It is called
-// only by the window's typeNow (internal/native/typenow.go), and keel serve decides every time: it checks the command,
+// only by the window's typeNow (internal/native/typenow.go), and slime serve decides every time: it checks the command,
 // the pane's state and the driver again, at the moment of the write, and answers typed, dialog (nothing written; the
 // window opens Approve before type) or a refusal.
 //
-// SuggestInsert is the user's ⇥ / ⇧⇥ on an in-pane suggestion (docs/ui-redesign.md §5.5): it sends the bytes keel serve
+// SuggestInsert is the user's ⇥ / ⇧⇥ on an in-pane suggestion (docs/ui-redesign.md §5.5): it sends the bytes slime serve
 // itself gave for that option (Ctrl-U and the command, no newline) and nothing else; the caller names the suggestion, the
-// option and ⇧, never the bytes. It is called only by (*workspace).insertSuggestion. keel serve decides, again, at the
+// option and ⇧, never the bytes. It is called only by (*workspace).insertSuggestion. slime serve decides, again, at the
 // moment of the write. Restoring the user's own words after an insert (⌘Z) is RestoreWords, called only by
 // (*workspace).restoreWords.
 
@@ -54,14 +54,14 @@ import (
 var (
 	ErrNotDriver  = errors.New("You are following — take or request control to type") // this client is following
 	ErrNotReady   = errors.New("Session is not connected")                            // the session is not ready
-	ErrNoTicket   = errors.New("Session is not connected")                            // keel serve gave no nonce in time, or refused
-	ErrInjectBusy = errors.New("Another type is waiting for keel serve")              // one at a time: never queued
+	ErrNoTicket   = errors.New("Session is not connected")                            // slime serve gave no nonce in time, or refused
+	ErrInjectBusy = errors.New("Another type is waiting for slime serve")             // one at a time: never queued
 
-	ErrDirectBusy     = errors.New("Still typing the last command into this pane.")                          // one direct type at a time per pane
-	ErrNoDirectAnswer = errors.New("keel serve did not answer. Check the pane before you press Type again.") // it may have been typed: never open a dialog that could type it again
+	ErrDirectBusy     = errors.New("Still typing the last command into this pane.")                           // one direct type at a time per pane
+	ErrNoDirectAnswer = errors.New("slime serve did not answer. Check the pane before you press Type again.") // it may have been typed: never open a dialog that could type it again
 )
 
-// AgentRef names the proposal a Type is for. It goes into the inject frame and nowhere else; keel serve decides. A group
+// AgentRef names the proposal a Type is for. It goes into the inject frame and nowhere else; slime serve decides. A group
 // run's proposal (docs/ui-redesign.md §17, §6 rule 10) names its run, GroupRunID, instead of a conversation: the group
 // approve dialog types each ticked host with this same call, once per host, on that host's own connection, each with its
 // own proposal and its own one-time nonce.
@@ -75,21 +75,21 @@ type AgentRef struct {
 // InjectOption marks where the bytes of an ApprovedInject come from.
 type InjectOption int
 
-// FromNotebook marks the bytes as a notebook fence's: the inject frame says so, and keel serve refuses a redaction
+// FromNotebook marks the bytes as a notebook fence's: the inject frame says so, and slime serve refuses a redaction
 // placeholder in them.
 const FromNotebook InjectOption = iota + 1
 
-// agentWait is how long keel serve has to answer a proposal's Type.
+// agentWait is how long slime serve has to answer a proposal's Type.
 const agentWait = 4 * time.Second
 
-// ErrNoAgentAnswer is the message when keel serve does not answer a proposal's Type.
-var ErrNoAgentAnswer = errors.New("keel serve did not answer.")
+// ErrNoAgentAnswer is the message when slime serve does not answer a proposal's Type.
+var ErrNoAgentAnswer = errors.New("slime serve did not answer.")
 
-// ticketWait is how long keel serve has to answer an approval request. keel serve keeps a nonce it issued for 60 s
+// ticketWait is how long slime serve has to answer an approval request. slime serve keeps a nonce it issued for 60 s
 // (internal/inject): the wait here is only this client's patience.
 const ticketWait = 2500 * time.Millisecond
 
-// waitFor is how long to wait for keel serve: d, or the connection's own wait when a test set one.
+// waitFor is how long to wait for slime serve: d, or the connection's own wait when a test set one.
 func (c *Conn) waitFor(d time.Duration) time.Duration {
 	if c.wait > 0 {
 		return c.wait
@@ -119,7 +119,7 @@ func (c *Conn) release() {
 	c.mu.Unlock()
 }
 
-// inject is the one way this client asks keel serve to type: it asks for a one-time nonce for exactly command, waits for
+// inject is the one way this client asks slime serve to type: it asks for a one-time nonce for exactly command, waits for
 // it on nonce (the slot the caller claimed), and sends those same bytes with it, once. parts says where the bytes come
 // from (Agent, Direct, Suggestion, Notebook); its type, command and nonce are set here and nowhere else. With no nonce in
 // time it sends no inject and returns ErrNoTicket. It never retries.
@@ -143,10 +143,10 @@ func (c *Conn) inject(ctx context.Context, nonce chan string, command string, pa
 	return c.send(parts)
 }
 
-// ApprovedInject asks keel serve for a one-time nonce for exactly these bytes and, if it gets one, sends them. It
+// ApprovedInject asks slime serve for a one-time nonce for exactly these bytes and, if it gets one, sends them. It
 // is called only by the Approve before type dialog's Type action. It sends nothing unless this client drives a ready
 // session, never retries, and never sends without a nonce. A non-nil agent marks the bytes as an agent proposal: the
-// call then returns keel serve's refusal (the message of its agent-type answer) as an error, and nil only when keel
+// call then returns slime serve's refusal (the message of its agent-type answer) as an error, and nil only when keel
 // serve says it typed.
 func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentRef, opts ...InjectOption) error {
 	if err := c.typingReady(); err != nil {
@@ -171,7 +171,7 @@ func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentR
 	}
 	parts := wire.Control{Agent: agentPart(agent)}
 	for _, o := range opts {
-		if o == FromNotebook { // keel serve refuses a placeholder in it
+		if o == FromNotebook { // slime serve refuses a placeholder in it
 			parts.Notebook = true
 		}
 	}
@@ -181,13 +181,13 @@ func (c *Conn) ApprovedInject(ctx context.Context, command string, agent *AgentR
 	return waitAnswer(ctx, answer, agentWait, "Not typed.")
 }
 
-// agentAnswer is keel serve's agent-type or agent-insert frame: ok when it wrote the bytes, else why not (its own words).
+// agentAnswer is slime serve's agent-type or agent-insert frame: ok when it wrote the bytes, else why not (its own words).
 type agentAnswer struct {
 	ok      bool
 	message string
 }
 
-// waitAnswer waits for keel serve's answer to an inject: nil when it wrote the bytes, its refusal (or refused, when it
+// waitAnswer waits for slime serve's answer to an inject: nil when it wrote the bytes, its refusal (or refused, when it
 // gave no words) as an error, ErrNoAgentAnswer when it did not answer in time.
 func waitAnswer(ctx context.Context, answer chan agentAnswer, wait time.Duration, refused string) error {
 	timer := time.NewTimer(wait)
@@ -208,7 +208,7 @@ func waitAnswer(ctx context.Context, answer chan agentAnswer, wait time.Duration
 	}
 }
 
-// injectFrame hands keel serve's answer to an approval request, an inject or a suggestion question to the call that
+// injectFrame hands slime serve's answer to an approval request, an inject or a suggestion question to the call that
 // waits for it. It reports whether the frame was one; the nonce is never kept, logged or shown.
 func (c *Conn) injectFrame(data []byte) bool {
 	var head struct {
@@ -242,7 +242,7 @@ func (c *Conn) injectFrame(data []byte) bool {
 	return true
 }
 
-// typeResult hands keel serve's answer to an inject to the call it is for: an answer about another request (by its ref,
+// typeResult hands slime serve's answer to an inject to the call it is for: an answer about another request (by its ref,
 // its proposal or its suggestion) is not ours.
 func (c *Conn) typeResult(m wire.TypeResult) {
 	c.mu.Lock()
@@ -285,19 +285,19 @@ func agentPart(a *AgentRef) *wire.AgentType {
 }
 
 // DirectRef is the "direct" part of a direct inject (wire.DirectType): where the command comes from, and what the pane's
-// terminal shows, which keel serve ORs with its own view (it can only add a dialog). The ref that matches an answer is
+// terminal shows, which slime serve ORs with its own view (it can only add a dialog). The ref that matches an answer is
 // made here.
 type DirectRef struct {
 	Kind       string // "snippet", "agent" or "notebook" (a group run is not built here)
-	SnippetID  string // the snippet, for Kind "snippet": keel serve compares its stored command with the bytes
-	NotebookID string // the notebook, for Kind "notebook": keel serve finds the command as the one line of a shell fence of its stored text
+	SnippetID  string // the snippet, for Kind "snippet": slime serve compares its stored command with the bytes
+	NotebookID string // the notebook, for Kind "notebook": slime serve finds the command as the one line of a shell fence of its stored text
 	AltScreen  bool   // the terminal shows a full-screen program's screen; a caller that cannot tell says true
-	PromptLine string // the line the cursor is on, which keel serve reads for an input prompt
+	PromptLine string // the line the cursor is on, which slime serve reads for an input prompt
 }
 
-// DirectResult is what keel serve answered to a direct type. Exactly one of the three: Typed (the command is on the
+// DirectResult is what slime serve answered to a direct type. Exactly one of the three: Typed (the command is on the
 // prompt line and nothing ran), Dialog (nothing was written: Approve before type decides; Reason says why, in its words),
-// or Message (keel serve refused, in its words).
+// or Message (slime serve refused, in its words).
 type DirectResult struct {
 	Typed   bool
 	Dialog  bool
@@ -305,13 +305,13 @@ type DirectResult struct {
 	Message string
 }
 
-// directAnswer is keel serve's type-direct frame.
+// directAnswer is slime serve's type-direct frame.
 type directAnswer struct {
 	ok, dialog      bool
 	reason, message string
 }
 
-// directWait is how long keel serve has to answer a direct type (8 s).
+// directWait is how long slime serve has to answer a direct type (8 s).
 const directWait = 8 * time.Second
 
 // directReady: nothing goes out for a kind this client does not build, or for a session this client cannot type into (a
@@ -343,7 +343,7 @@ func (c *Conn) dropDirectWaiter(ref string) {
 	c.mu.Unlock()
 }
 
-// waitDirect waits for the answer to ref; ok is false when keel serve did not answer in time.
+// waitDirect waits for the answer to ref; ok is false when slime serve did not answer in time.
 func (c *Conn) waitDirect(ctx context.Context, w chan directAnswer) (a directAnswer, ok bool, err error) {
 	timer := time.NewTimer(c.waitFor(directWait))
 	defer timer.Stop()
@@ -357,10 +357,10 @@ func (c *Conn) waitDirect(ctx context.Context, w chan directAnswer) (a directAns
 	}
 }
 
-// DirectType asks keel serve to type command into this session without Enter, and without the Approve before type
+// DirectType asks slime serve to type command into this session without Enter, and without the Approve before type
 // dialog. It is called only by the window's typeNow. Nothing goes out unless this client drives a ready session and the
 // command is one plain line with no control or invisible character; a command that is not goes back as Dialog with no
-// frame. The command is sent as it is: no Ctrl-U, no newline. keel serve gets a fresh nonce for exactly these bytes
+// frame. The command is sent as it is: no Ctrl-U, no newline. slime serve gets a fresh nonce for exactly these bytes
 // first (no nonce: Dialog, and no inject frame), then the inject with the direct part (and agent, for a proposal), and
 // its answer decides: Typed, Dialog or a refusal in Message. One at a time (ErrDirectBusy), never queued, never retried.
 // No answer in time is ErrNoDirectAnswer: it may have been typed, so the caller must not open a dialog.
@@ -406,7 +406,7 @@ func (c *Conn) DirectType(ctx context.Context, command string, ref DirectRef, ag
 
 // ---- in-pane suggestions (internal/httpapi/agentsuggest.go) ----
 
-// SuggestOption is one command keel serve offered. It holds no bytes: the bytes an insert sends stay in this package.
+// SuggestOption is one command slime serve offered. It holds no bytes: the bytes an insert sends stay in this package.
 // Risk is RiskReadOnly, RiskChanges or RiskDestructive.
 type SuggestOption struct {
 	Command, Why, Risk, Source       string
@@ -420,7 +420,7 @@ const (
 	RiskDestructive = string(wire.RiskDestructive)
 )
 
-// Why keel serve sent no suggestion, when the window acts on it (SuggestEvent.Reason; the rest are wire.Reason…).
+// Why slime serve sent no suggestion, when the window acts on it (SuggestEvent.Reason; the rest are wire.Reason…).
 const (
 	ReasonOff         = wire.ReasonOff
 	ReasonNoKey       = wire.ReasonNoKey
@@ -428,7 +428,7 @@ const (
 	ReasonFollowing   = wire.ReasonFollowing
 )
 
-// Suggestion is the card keel serve sent for the words on a prompt line.
+// Suggestion is the card slime serve sent for the words on a prompt line.
 type Suggestion struct {
 	ID      string
 	Options []SuggestOption
@@ -436,12 +436,12 @@ type Suggestion struct {
 
 // Kinds of SuggestEvent.
 const (
-	SuggestDetected = "detect"  // keel serve's answer to SuggestDetect: Seq, Plain, Source
+	SuggestDetected = "detect"  // slime serve's answer to SuggestDetect: Seq, Plain, Source
 	SuggestAnswered = "suggest" // its answer to SuggestAsk: Seq, OK, Suggestion or Message and Reason
 	SuggestRated    = "risk"    // Jev rated the shown suggestion stricter: ID and Options (Risk, NeedsShift, Judged)
 )
 
-// SuggestEvent is one answer keel serve pushed for a suggestion; the window reads it on its next frame.
+// SuggestEvent is one answer slime serve pushed for a suggestion; the window reads it on its next frame.
 type SuggestEvent struct {
 	Kind            string
 	Seq             int
@@ -461,21 +461,21 @@ type SuggestionRef struct {
 	Shift  bool // exactly as the key was pressed: this package never sets it
 }
 
-// keptSuggestion is what keel serve gave as the bytes of each option of a suggestion.
+// keptSuggestion is what slime serve gave as the bytes of each option of a suggestion.
 type keptSuggestion struct {
 	id    string
 	bytes []string
 }
 
-const keptSuggestions = 8 // keel serve expires them itself; a few are enough for the one card on screen
+const keptSuggestions = 8 // slime serve expires them itself; a few are enough for the one card on screen
 
-// ErrSuggestionGone is keel serve's own word for an insert that is too late.
+// ErrSuggestionGone is slime serve's own word for an insert that is too late.
 var ErrSuggestionGone = errors.New(wire.MsgInsertExpired)
 
 // ErrMultiLine refuses a command that spans lines.
 var ErrMultiLine = errors.New("This command spans lines; copy it instead.")
 
-// insertWait is how long keel serve has to answer an insert.
+// insertWait is how long slime serve has to answer an insert.
 const insertWait = 4 * time.Second
 
 func (c *Conn) sendSuggest(kind string, seq int, line string) error {
@@ -485,19 +485,19 @@ func (c *Conn) sendSuggest(kind string, seq int, line string) error {
 	return c.send(wire.Control{Type: kind, Seq: seq, Line: line})
 }
 
-// SuggestDetect asks keel serve whether the words on the prompt line are plain language (agent-detect). It writes
-// nothing to the session; keel serve's answer comes back as a SuggestDetected event with the same seq.
+// SuggestDetect asks slime serve whether the words on the prompt line are plain language (agent-detect). It writes
+// nothing to the session; slime serve's answer comes back as a SuggestDetected event with the same seq.
 func (c *Conn) SuggestDetect(seq int, line string) error {
 	return c.sendSuggest(wire.TypeAgentDetect, seq, line)
 }
 
-// SuggestAsk asks keel serve for a command for the words (agent-suggest). It writes nothing to the session; the
+// SuggestAsk asks slime serve for a command for the words (agent-suggest). It writes nothing to the session; the
 // answer is a SuggestAnswered event, then perhaps a SuggestRated one.
 func (c *Conn) SuggestAsk(seq int, line string) error {
 	return c.sendSuggest(wire.TypeAgentSuggest, seq, line)
 }
 
-// suggestFrame handles keel serve's detect, suggest and risk frames (the insert's answer is typeResult's).
+// suggestFrame handles slime serve's detect, suggest and risk frames (the insert's answer is typeResult's).
 func (c *Conn) suggestFrame(typ string, data []byte) {
 	switch typ {
 	case wire.TypeAgentDetect:
@@ -553,7 +553,7 @@ func (c *Conn) pushSuggest(e SuggestEvent) {
 	}
 }
 
-// SuggestEvents hands over what keel serve answered since the last call, oldest first.
+// SuggestEvents hands over what slime serve answered since the last call, oldest first.
 func (c *Conn) SuggestEvents() []SuggestEvent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -562,7 +562,7 @@ func (c *Conn) SuggestEvents() []SuggestEvent {
 	return out
 }
 
-// suggestBytes is what keel serve gave as the bytes of option i of suggestion id.
+// suggestBytes is what slime serve gave as the bytes of option i of suggestion id.
 func (c *Conn) suggestBytes(id string, i int) (string, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -574,12 +574,12 @@ func (c *Conn) suggestBytes(id string, i int) (string, bool) {
 	return "", false
 }
 
-// SuggestInsert is the user's ⇥ / ⇧⇥ on a suggestion card: it asks keel serve for a one-time nonce for the bytes keel
+// SuggestInsert is the user's ⇥ / ⇧⇥ on a suggestion card: it asks slime serve for a one-time nonce for the bytes keel
 // serve gave for that option, sends them with the suggestion reference (id, option and ⇧ as pressed), and returns keel
-// serve's refusal (its own words) or nil when it says it wrote them. keel serve checks the suggestion, the bytes, the ⇧
+// serve's refusal (its own words) or nil when it says it wrote them. slime serve checks the suggestion, the bytes, the ⇧
 // rule and that this client drives, logs agent.insert, then writes; the bytes end without a newline, so nothing runs.
 // It is called only by (*workspace).insertSuggestion. One at a time, never queued, never retried. Nothing goes out
-// unless this client drives a ready session, the suggestion is one keel serve sent, and its bytes are one line.
+// unless this client drives a ready session, the suggestion is one slime serve sent, and its bytes are one line.
 func (c *Conn) SuggestInsert(ctx context.Context, ref SuggestionRef) error {
 	if err := c.typingReady(); err != nil {
 		return err
@@ -623,7 +623,7 @@ func restoreBytes(words string) string {
 	}, words)
 }
 
-// RestoreWords is ⌘Z after an insert: the user's own words back, as their keystrokes, to this session only (keel serve
+// RestoreWords is ⌘Z after an insert: the user's own words back, as their keystrokes, to this session only (slime serve
 // takes them as ordinary typing from the driver). Nothing goes out unless this client drives a ready session. It is
 // called only by (*workspace).restoreWords.
 func (c *Conn) RestoreWords(words string) error {

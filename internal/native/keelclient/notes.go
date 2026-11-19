@@ -9,8 +9,8 @@ import (
 
 // Notes for the agent (docs/ui-redesign.md §15; internal/httpapi/agentnotes.go, internal/agent/service/notes.go): the
 // user's own CRUD on host notes and on notes about themselves, and Save / Dismiss / Undo on a note the agent proposed.
-// keel serve redacts every note for secrets before it keeps it and logs agent.note; this client sends the text the user
-// typed, shows what keel serve kept (and how many values it replaced) and keeps nothing: no note is written to disk
+// slime serve redacts every note for secrets before it keeps it and logs agent.note; this client sends the text the user
+// typed, shows what slime serve kept (and how many values it replaced) and keeps nothing: no note is written to disk
 // here. A proposed note is kept only by SaveProposedNote, which the card's Save button calls; nothing calls it on its own.
 
 // Note is a saved note. A note has a HostID (a host note), a GroupID (a group note, §17: about every host in the folder) or
@@ -53,10 +53,10 @@ type NoteProposal struct {
 	Status     string     `json:"status"` // open | saved | dismissed
 	NoteID     string     `json:"noteId"`
 	ProposedAt *time.Time `json:"proposedAt"`
-	Expired    bool       `json:"expired"` // a proposal keel serve no longer holds: it can be read, not saved
+	Expired    bool       `json:"expired"` // a proposal slime serve no longer holds: it can be read, not saved
 }
 
-// SavedNote is a note after a save: Redacted counts the values keel serve replaced before keeping it. Proposal is the
+// SavedNote is a note after a save: Redacted counts the values slime serve replaced before keeping it. Proposal is the
 // proposal's new state when the note came from one.
 type SavedNote struct {
 	Note     Note          `json:"note"`
@@ -80,7 +80,7 @@ func (c *Client) Notes(ctx context.Context) (out NoteList, err error) {
 }
 
 // SaveNote is POST /api/agent/notes (a new note) or PUT /api/agent/notes/{id} (the text of one). The text is the
-// user's; keel serve cleans and redacts it and the answer is what it kept.
+// user's; slime serve cleans and redacts it and the answer is what it kept.
 func (c *Client) SaveNote(ctx context.Context, in NoteInput) (out SavedNote, err error) {
 	if in.ID != "" {
 		err = c.do(ctx, http.MethodPut, "/api/agent/notes/"+url.PathEscape(in.ID), map[string]string{"text": in.Text}, &out)

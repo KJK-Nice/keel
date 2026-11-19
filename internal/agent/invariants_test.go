@@ -491,7 +491,7 @@ func TestOnlyTheAuditorWritesTheLog(t *testing.T) {
 }
 
 // §6.1, §6.6: in-pane suggestions start only from the user's own session
-// socket (where keel serve knows the client's role), and the model
+// socket (where slime serve knows the client's role), and the model
 // suggester is built only inside Service.Suggest (the user's ⇥). Outside
 // tests, Detect, Suggest and AuthorizeInsert are called only from
 // internal/httpapi/agentsuggest.go.

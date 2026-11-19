@@ -142,7 +142,7 @@ func DefaultOpener(st *store.Store) Opener {
 }
 
 // New makes the sessions' runtime. opener opens a session's connection:
-// keel serve passes DefaultOpener, a test a fake.
+// slime serve passes DefaultOpener, a test a fake.
 func New(st *store.Store, opener Opener) *Runtime {
 	return &Runtime{
 		store:  st,
@@ -619,12 +619,12 @@ func (s *Session) AltScreen() bool {
 	return s.alt.on
 }
 
-// PromptState is what keel serve knows of the pane's prompt before a
+// PromptState is what slime serve knows of the pane's prompt before a
 // direct type (§6 rule 13): whether its shell sends OSC 133 marks, whether
 // those say it is at its prompt with no command open, and the last line of
 // its output (escape sequences taken out), to look for an input prompt
 // such as a password prompt. The line is read raw, not redacted (a mask
-// can swallow "password:"): it is only matched in keel serve, never sent
+// can swallow "password:"): it is only matched in slime serve, never sent
 // or logged. All of it is untrusted output.
 func (s *Session) PromptState() (marks, atPrompt bool, lastLine string) {
 	s.mu.Lock()
@@ -689,7 +689,7 @@ const maxCaptureOutput = 256 * 1024
 
 // CommandOutput returns a finished command's output as written to the
 // pane, raw (escape sequences included, no mask), between its C and D
-// marks. It is read only by keel serve's own capture code for a group
+// marks. It is read only by slime serve's own capture code for a group
 // run's step (agent/service/groupvars.go), which takes one value from it
 // with the step's pattern and never sends or logs the text. ok is false
 // for a command still running, or one whose output left the ring or is

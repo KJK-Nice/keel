@@ -228,7 +228,7 @@ func TestPostRuntimeStopSendsTokenOnlyToItsServe(t *testing.T) {
 
 func TestVerifyServeRejectsImpostor(t *testing.T) {
 	cases := map[string]http.HandlerFunc{
-		"no proof (older keel serve or another program)": func(w http.ResponseWriter, r *http.Request) {
+		"no proof (older slime serve or another program)": func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		},
 		"proof for a different token": func(w http.ResponseWriter, r *http.Request) {

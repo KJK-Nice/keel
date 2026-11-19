@@ -11,7 +11,7 @@ import (
 )
 
 // A group run's Type: each ticked host is its own ApprovedInject on its own connection, with the run and its own proposal in
-// the agent part of the inject frame (no conversation), its own one-time nonce for exactly its own bytes, and keel serve's
+// the agent part of the inject frame (no conversation), its own one-time nonce for exactly its own bytes, and slime serve's
 // answer for that proposal alone.
 
 func TestAGroupRunsInjectNamesTheRunAndTheProposalAndNoConversation(t *testing.T) {
@@ -19,7 +19,7 @@ func TestAGroupRunsInjectNamesTheRunAndTheProposalAndNoConversation(t *testing.T
 		a := m["agent"].(map[string]any)
 		ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"agent-type","ok":true,"proposalId":%q}`, a["proposalId"])))
 	}
-	bytes := "\x15echo port-8080\n" // the fill's bytes: what keel serve holds for this host, values in
+	bytes := "\x15echo port-8080\n" // the fill's bytes: what slime serve holds for this host, values in
 	c, s := dialInject(t, "ready", "driver", nonceAnswer)
 	s.onInject = onInject
 	if err := c.ApprovedInject(context.Background(), bytes, &AgentRef{GroupRunID: "gr1", ProposalID: "p7", Shift: true}); err != nil {
@@ -44,7 +44,7 @@ func TestAGroupRunsInjectNamesTheRunAndTheProposalAndNoConversation(t *testing.T
 	if frames[1]["nonce"] != "n-1" {
 		t.Fatalf("nonce %v", frames[1]["nonce"])
 	}
-	// The challenge carries the bytes alone: no agent part, so keel serve's nonce is for exactly these bytes.
+	// The challenge carries the bytes alone: no agent part, so slime serve's nonce is for exactly these bytes.
 	if _, ok := frames[0]["agent"]; ok {
 		t.Fatalf("the challenge names a proposal: %v", frames[0])
 	}
@@ -63,7 +63,7 @@ func TestEachHostOfAGroupGetsItsOwnNonceOnItsOwnConnectionAndOneRefusalDoesNotSt
 		})
 		s.onInject = func(ws *websocket.Conn, m map[string]any) {
 			a := m["agent"].(map[string]any)
-			if i == 2 { // keel serve refuses this host's proposal
+			if i == 2 { // slime serve refuses this host's proposal
 				ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf(`{"type":"agent-type","ok":false,"proposalId":%q,"message":"wk-2 left the group"}`, a["proposalId"])))
 				return
 			}

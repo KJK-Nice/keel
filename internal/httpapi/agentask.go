@@ -24,7 +24,7 @@ import (
 // file makes no write, inject or spawn call.
 
 // WithAgentProvider sets how the agent builds its provider, and whether it
-// is a test fake (the trace then says so). keel serve passes the real
+// is a test fake (the trace then says so). slime serve passes the real
 // clients, or the fake in a build with the tag keelfake
 // (internal/app/agent_fake.go); tests pass a fake.
 func (s *Server) WithAgentProvider(f service.Factory, test bool) *Server {
@@ -49,7 +49,7 @@ func (a agentPanes) Pane(id string) (agent.Pane, bool) {
 func (a agentPanes) ReadScrollback(id string) ([]byte, error) { return a.rt.ReadScrollback(id) }
 
 // PaneIDs lists the running sessions, oldest first (service.PaneLister),
-// for keel mcp's pane list. Ids only: the service resolves each through
+// for slime mcp's pane list. Ids only: the service resolves each through
 // Pane and keeps the ones the agent may read.
 func (a agentPanes) PaneIDs() []string {
 	list := a.rt.List()
@@ -71,7 +71,7 @@ func (a agentPanes) CommandsAfter(id string, from uint64) []shellmark.Command {
 }
 
 // CommandOutput passes on a finished command's raw output
-// (service.CaptureSource), read only by keel serve's capture code for a
+// (service.CaptureSource), read only by slime serve's capture code for a
 // group run's step: never sent to a provider or logged.
 func (a agentPanes) CommandOutput(id string, c shellmark.Command) ([]byte, bool) {
 	return a.rt.CommandOutput(id, c)

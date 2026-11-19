@@ -214,13 +214,13 @@ func TestAnAgentTypeRefusalReturnsItsMessageAndNothingIsRetried(t *testing.T) {
 
 func TestAnAgentTypeThatKeelServeNeverAnswersIsNotTyped(t *testing.T) {
 	c, s := dialInject(t, "ready", "driver", nonceAnswer)
-	s.onInject = func(*websocket.Conn, map[string]any) {} // keel serve says nothing
+	s.onInject = func(*websocket.Conn, map[string]any) {} // slime serve says nothing
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	if err := c.ApprovedInject(ctx, "\x15ls\n", ref); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("got %v", err)
 	}
-	if ErrNoAgentAnswer.Error() != "keel serve did not answer." {
+	if ErrNoAgentAnswer.Error() != "slime serve did not answer." {
 		t.Fatal("the error words changed")
 	}
 }

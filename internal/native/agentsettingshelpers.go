@@ -13,7 +13,7 @@ import (
 
 // The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions
 // (agentsettingshelpers_test.go pins them).
-// A key never comes back from keel serve, so nothing here can show one: a provider is only ever configured or not.
+// A key never comes back from slime serve, so nothing here can show one: a provider is only ever configured or not.
 
 // providerPurpose is what each provider is for, in one line: Slime's own wording (the descriptor carries the name,
 // models, warning and links).
@@ -79,7 +79,7 @@ const (
 	linesStep                        = 10
 )
 
-// clampLines is the scrollback lines per pane the control shows, as keel serve keeps them.
+// clampLines is the scrollback lines per pane the control shows, as slime serve keeps them.
 func clampLines(n int) int { return limits.ClampScrollbackLines(n) }
 
 // modelItem is one choice of the Model select: picking it sets the model, and the provider when it is another one's.

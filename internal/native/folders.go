@@ -14,7 +14,7 @@ import (
 // folders (pinned by folders_test.go), the tree the sidebar draws and the refusals the folder menus make. Every walk up a parent chain stops at a cycle, so bad data cannot
 // hang the window. Nothing here talks to a session.
 
-// maxGroupDepth is how many folders may nest, and the two refusals of a folder that would nest wrongly: keel serve's
+// maxGroupDepth is how many folders may nest, and the two refusals of a folder that would nest wrongly: slime serve's
 // own (internal/limits).
 const (
 	maxGroupDepth = limits.MaxGroupDepth

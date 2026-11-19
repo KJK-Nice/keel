@@ -16,7 +16,7 @@ const suggestionJSON = `{"type":"agent-suggest","seq":2,"ok":true,"suggestion":{
 	`{"command":"echo a","bytes":"\u0015echo a","risk":"readonly","needsShift":false,"source":"generated","why":"w"},` +
 	`{"command":"rm -rf /tmp/x","bytes":"\u0015rm -rf /tmp/x","risk":"destructive","needsShift":true}]}}`
 
-// suggestServer answers like keel serve: the suggestion above to an agent-suggest, agent-insert to an inject.
+// suggestServer answers like slime serve: the suggestion above to an agent-suggest, agent-insert to an inject.
 func suggestServer(t *testing.T, role string, insert func(ws *websocket.Conn, m map[string]any)) (*Conn, *injectServer) {
 	c, s := dialInject(t, "ready", role, nonceAnswer)
 	s.onInject = insert
@@ -112,7 +112,7 @@ func TestSuggestInsertSendsChallengeThenInjectWithTheServersBytesAndTheSuggestio
 	}
 	for _, m := range f[1:] {
 		if m["command"] != "\x15rm -rf /tmp/x" {
-			t.Fatalf("%v carries %q, not the bytes keel serve gave for option 1", m["type"], m["command"])
+			t.Fatalf("%v carries %q, not the bytes slime serve gave for option 1", m["type"], m["command"])
 		}
 		if strings.ContainsAny(m["command"].(string), "\r\n") {
 			t.Fatal("an Enter in an insert")
@@ -137,7 +137,7 @@ func TestSuggestInsertSendsShiftExactlyAsPressed(t *testing.T) {
 	waitEvents(t, c, 2)
 	err := c.SuggestInsert(context.Background(), SuggestionRef{ID: "s_1", Option: 1}) // plain ⇥ on the destructive option
 	if err == nil || err.Error() != "Plain ⇥ never inserts a destructive command" {
-		t.Fatalf("a refusal comes back in keel serve's words: %v", err)
+		t.Fatalf("a refusal comes back in slime serve's words: %v", err)
 	}
 	if len(got) != 1 || got[0] != false {
 		t.Fatalf("the client upgraded shift: %v", got)
@@ -168,7 +168,7 @@ func TestSuggestInsertNeedsASuggestionKeelServeSentAndOneLine(t *testing.T) {
 }
 
 func TestSuggestInsertNoAnswerIsAnErrorAndOneAtATime(t *testing.T) {
-	c, _ := suggestServer(t, "driver", func(*websocket.Conn, map[string]any) {}) // keel serve never answers
+	c, _ := suggestServer(t, "driver", func(*websocket.Conn, map[string]any) {}) // slime serve never answers
 	c.wait = 200 * time.Millisecond
 	c.SuggestAsk(2, "x y")
 	waitEvents(t, c, 2)

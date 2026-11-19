@@ -7,10 +7,10 @@ import (
 	"keel/internal/wire"
 )
 
-// What a Host says about itself, decided once. keel serve stores the defaults (a port of 0 on a saved SSH host is 22, an
+// What a Host says about itself, decided once. slime serve stores the defaults (a port of 0 on a saved SSH host is 22, an
 // unset agentReadable is on), but a host that came from an older file or a quick connect may still carry the zero value.
 
-// IsLocal reports the local shell. keel serve sends authType "local" for it and never "" for a saved host, so "" is not
+// IsLocal reports the local shell. slime serve sends authType "local" for it and never "" for a saved host, so "" is not
 // local.
 func (h Host) IsLocal() bool { return h.AuthType == AuthLocal }
 

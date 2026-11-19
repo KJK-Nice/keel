@@ -48,7 +48,7 @@ type settingsPage struct {
 	featuresWas bool
 
 	// Settings · Agent (agentsettings.go): a provider card's state, and the scrollback slider. The slider is bound to a float;
-	// a move is sent one request at a time and the value keel serve holds is shown again.
+	// a move is sent one request at a time and the value slime serve holds is shown again.
 	cards        map[string]*keyCard
 	notes        notesEditor // Notes for the agent: the user's own (notes.go)
 	linesV       float64
@@ -110,7 +110,7 @@ func (w *workspace) loadSettings() {
 		}
 		p.loaded = true
 		if r.rerr != nil || r.verr != nil {
-			p.loadFail = "Could not read keel serve"
+			p.loadFail = "Could not read slime serve"
 		} else {
 			p.loadFail = ""
 		}
@@ -213,8 +213,8 @@ func (w *workspace) setDisplayName(v string) {
 	w.setPref(keyDisplayName)
 }
 
-// defaultName is the name used when no custom one is set: the one keel app was started with (Options.Name), else
-// SLIME_NAME, else the user name (cmd/keel parseName).
+// defaultName is the name used when no custom one is set: the one slime app was started with (Options.Name), else
+// SLIME_NAME, else the user name (cmd/slime parseName).
 func defaultName() string {
 	if launchName != "" {
 		return launchName
@@ -239,7 +239,7 @@ func (p *settingsPage) signalSavedValue() string {
 }
 
 // commitSignal does PUT /api/share/signal when the field differs from the saved server.
-// keel serve validates the address; its words show in a toast.
+// slime serve validates the address; its words show in a toast.
 func (w *workspace) commitSignal(p *settingsPage) {
 	url := strings.TrimSpace(p.signal)
 	if p.signalSaving || p.rt == nil || url == p.signalSavedValue() {
@@ -273,7 +273,7 @@ func (w *workspace) askStopRuntime() {
 	w.askConfirm(&confirmDialog{title: "Stop the Slime runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
-// staleRuntimeNotice is the warning shown when keel serve is from another build.
+// staleRuntimeNotice is the warning shown when slime serve is from another build.
 const staleRuntimeNotice = "The Slime runtime that's running is from a different build than this app, so you're seeing its version of Slime. " +
 	"Stop the runtime and reopen Slime to update. Open sessions will end."
 
@@ -282,7 +282,7 @@ func runtimeIsStale(appBuild, runtimeBuild string) bool {
 	return appBuild != "" && appBuild != runtimeBuild
 }
 
-// checkRuntimeBuild warns once, when the window opens, if keel serve is from another build than the window. It
+// checkRuntimeBuild warns once, when the window opens, if slime serve is from another build than the window. It
 // is a toast whose button asks the Stop runtime question.
 func (w *workspace) checkRuntimeBuild() {
 	if w.appBuild == "" {
@@ -295,7 +295,7 @@ func (w *workspace) checkRuntimeBuild() {
 	})
 }
 
-// stopRuntime is the confirm's action: POST /api/runtime/stop. keel serve ends every session and exits.
+// stopRuntime is the confirm's action: POST /api/runtime/stop. slime serve ends every session and exits.
 func (w *workspace) stopRuntime() {
 	callErr(w, w.be.StopRuntime, func(err error) {
 		if err != nil {

@@ -355,7 +355,7 @@ func (w *workspace) sidebarView(c *ui.Context) {
 			body("sidebar forwards", func() { w.sidebarForwards(c) })
 		default:
 			body("sidebar hosts", func() {
-				if w.hasFolders() { // keel serve has folders: the nested tree (foldersview.go)
+				if w.hasFolders() { // slime serve has folders: the nested tree (foldersview.go)
 					w.folderTreeView(c)
 					return
 				}
@@ -751,7 +751,7 @@ func (w *workspace) statusbar(c *ui.Context) {
 			if w.paneCount() == 1 {
 				noun = "session"
 			}
-			caption(c, fmt.Sprintf("keel serve · %d %s", w.paneCount(), noun), inkMuted)
+			caption(c, fmt.Sprintf("slime serve · %d %s", w.paneCount(), noun), inkMuted)
 		})
 		if n := w.runningForwards(); n > 0 {
 			ui.Row(c).Gap(space1_5).Label("status forwards").Children(func() {

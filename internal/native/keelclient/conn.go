@@ -26,8 +26,8 @@ type Conn struct {
 	state    State
 	onChange func()
 
-	ticket chan string // the approval request waiting for keel serve's nonce (inject.go), or nil
-	// The agent proposal's Type waiting for keel serve's agent-type answer, and the proposal it is for (inject.go).
+	ticket chan string // the approval request waiting for slime serve's nonce (inject.go), or nil
+	// The agent proposal's Type waiting for slime serve's agent-type answer, and the proposal it is for (inject.go).
 	agentWaiter chan agentAnswer
 	agentFor    string
 	wait        time.Duration // how long it waits; 0 is the default (tests shorten it)
@@ -39,8 +39,8 @@ type Conn struct {
 
 	events []Event // what the share hub announced, until Events hands it over
 
-	// In-pane suggestions (inject.go): what keel serve answered, until SuggestEvents hands it over; the bytes of the
-	// suggestions it sent (only this file's insert may send them); and the insert waiting for keel serve's answer.
+	// In-pane suggestions (inject.go): what slime serve answered, until SuggestEvents hands it over; the bytes of the
+	// suggestions it sent (only this file's insert may send them); and the insert waiting for slime serve's answer.
 	sugEvents    []SuggestEvent
 	sugKept      []keptSuggestion
 	insertWaiter chan agentAnswer
@@ -96,20 +96,20 @@ type State struct {
 	Blocked                  uint64    // keystrokes dropped because this client was not driving (the "Typing is off" notice)
 	HostKey                  HostKey   // zero when there is no host-key problem
 	WasReady                 bool      // the session was ready at some point (a later failure is a lost connection)
-	SocketLost               bool      // this client's socket failed while the session was up: it may still run on keel serve, so Reconnect attaches again
+	SocketLost               bool      // this client's socket failed while the session was up: it may still run on slime serve, so Reconnect attaches again
 	Log                      []LogLine // the connection log a failed or connecting pane shows and Copy logs copies (log.go)
 }
 
 // Ready reports a connected session.
 func (s State) Ready() bool { return s.Status == wire.StatusReady }
 
-// Driving reports that this client is the driver: the one whose keys keel serve writes.
+// Driving reports that this client is the driver: the one whose keys slime serve writes.
 func (s State) Driving() bool { return s.Role == wire.RoleDriver }
 
 // CanType is the one rule for typing into a session for the user: it is ready and this client drives it.
 func (s State) CanType() bool { return s.Ready() && s.Driving() }
 
-// dialTimeout is how long a dial may take to reach the handshake's answer: keel serve is on this machine, so a longer
+// dialTimeout is how long a dial may take to reach the handshake's answer: slime serve is on this machine, so a longer
 // wait is a daemon that is not answering.
 var dialTimeout = 5 * time.Second
 
@@ -147,7 +147,7 @@ func (c *Conn) Read(p []byte) (int, error) {
 }
 
 // lost marks a session whose socket failed as down, so the pane shows its failure banner and Reconnect. A session
-// that already ended or failed keeps what keel serve said.
+// that already ended or failed keeps what slime serve said.
 func (c *Conn) lost() {
 	c.mu.Lock()
 	s := &c.state
@@ -155,9 +155,9 @@ func (c *Conn) lost() {
 		c.mu.Unlock()
 		return
 	}
-	s.recordLog(s.Status, wire.StatusError, "The connection to keel serve was lost")
+	s.recordLog(s.Status, wire.StatusError, "The connection to slime serve was lost")
 	s.Status = wire.StatusError
-	s.Message = "The connection to keel serve was lost"
+	s.Message = "The connection to slime serve was lost"
 	s.SocketLost = true
 	fn := c.onChange
 	c.mu.Unlock()
@@ -254,7 +254,7 @@ func (c *Conn) send(ctl wire.Control) error {
 	return c.write(websocket.TextMessage, b)
 }
 
-// Write sends keystrokes to the PTY. keel serve writes only the driver's keys, so a client that it has not said drives
+// Write sends keystrokes to the PTY. slime serve writes only the driver's keys, so a client that it has not said drives
 // sends nothing; once it has said this client follows, the dropped keystrokes are counted in State.Blocked, which the
 // window turns into "Typing is off while you follow".
 func (c *Conn) Write(p []byte) (int, error) {
@@ -268,7 +268,7 @@ func (c *Conn) Write(p []byte) (int, error) {
 }
 
 // KeysGo is the one rule for keystrokes, for a local pane and a joined one (joinpeer): they are sent only while keel
-// serve says this client is the driver, as keel serve itself writes only the driver's. When it does not, the keystroke is
+// serve says this client is the driver, as slime serve itself writes only the driver's. When it does not, the keystroke is
 // dropped, and counted as blocked if the client was told it follows (before the ready frame nothing is counted).
 func (c *Conn) KeysGo() bool {
 	c.mu.Lock()
@@ -283,7 +283,7 @@ func (c *Conn) KeysGo() bool {
 	return false
 }
 
-// typingReady is the one check before this client asks keel serve to type for it or asks a suggestion question: a ready
+// typingReady is the one check before this client asks slime serve to type for it or asks a suggestion question: a ready
 // session that it drives.
 func (c *Conn) typingReady() error {
 	st := c.Snapshot()

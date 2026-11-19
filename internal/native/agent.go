@@ -16,12 +16,12 @@ import (
 // proposal only through Approve before type (words and rules in agentlogic.go).
 //
 // What this file does and does not do:
-//   - keel serve reads the panes. An ask sends the question and the session ids of the panes in scope, and nothing else
+//   - slime serve reads the panes. An ask sends the question and the session ids of the panes in scope, and nothing else
 //     (keelclient.AskRequest has no field for pane text). This client reads no scrollback for the agent.
 //   - Nothing here writes to a session. A card's Type into pane goes to typeNow (typenow.go). A read-only one-line proposal
-//     keel serve agrees to is typed with no dialog and no Enter, the command alone with the reference to the proposal; any
-//     other opens the Approve before type dialog (approve.go) with the proposal's bytes, as keel serve holds them, whose
-//     Type action is the one caller of ApprovedInject. keel serve checks the proposal, the bytes, the role and the ⇧ rule
+//     slime serve agrees to is typed with no dialog and no Enter, the command alone with the reference to the proposal; any
+//     other opens the Approve before type dialog (approve.go) with the proposal's bytes, as slime serve holds them, whose
+//     Type action is the one caller of ApprovedInject. slime serve checks the proposal, the bytes, the role and the ⇧ rule
 //     again before it writes either, and answers. A refusal is shown and nothing is tried again.
 //   - The provider key goes from a masked field to PUT /api/agent/keys/{provider} once; the field is emptied when the key
 //     is sent and nothing keeps it.
@@ -30,7 +30,7 @@ import (
 // the window's one conversation. Notes and runbooks are notes.go and runbooks.go, notebooks agentnotebooks.go. Claude Code's
 // mcp is not here (docs/native.md).
 
-const askTimeout = 160 * time.Second // keel serve's own limit is 150 s
+const askTimeout = 160 * time.Second // slime serve's own limit is 150 s
 
 type agentStatus struct {
 	ok   bool
@@ -41,7 +41,7 @@ type agentProp struct {
 	p       keelclient.Proposal
 	status  *agentStatus
 	editing bool
-	edit    string // the edit field; never typed anywhere, only sent to keel serve by Save command
+	edit    string // the edit field; never typed anywhere, only sent to slime serve by Save command
 	editH   ui.Handle
 	editHP  ui.Handle
 	saving  bool
@@ -73,7 +73,7 @@ type agentTurn struct {
 
 type agentPanel struct {
 	conv string
-	// title is the conversation's name from keel serve; "" is "New conversation".
+	// title is the conversation's name from slime serve; "" is "New conversation".
 	title string
 
 	scope     []string
@@ -104,7 +104,7 @@ type agentPanel struct {
 	nbRowH   map[string]*ui.Handle // the picker's rows, to walk between with ↑ ↓
 	nbWalk   string                // the row that takes the keyboard in the next frame
 
-	// The saved conversations (agentconv.go). Everything here is read from keel serve into memory; none of it is
+	// The saved conversations (agentconv.go). Everything here is read from slime serve into memory; none of it is
 	// written anywhere by this client, and none of it is in keel-native.json.
 	list        convListState
 	createdAt   time.Time
@@ -309,7 +309,7 @@ func (w *workspace) loadAgent() {
 // agentAsk sends a question about the panes in scope. It returns false when nothing was sent.
 func (w *workspace) agentAsk(question string) bool { return w.agentAskRunbook(question, "") }
 
-// agentAskRunbook is agentAsk that starts the runbook runbookID in this conversation (the user picked it): keel serve then
+// agentAskRunbook is agentAsk that starts the runbook runbookID in this conversation (the user picked it): slime serve then
 // proposes its current step itself. Starting a runbook is an ask, never a type.
 func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	a := w.agent
@@ -443,7 +443,7 @@ func (w *workspace) newAgentConversation() {
 // ---- the provider key ----
 
 // saveAgentKey sends the key in the masked field, once. The field is emptied as it is sent: nothing keeps the key, and
-// when keel serve refuses it the user types it again.
+// when slime serve refuses it the user types it again.
 func (w *workspace) saveAgentKey() {
 	a := w.agent
 	if a.keyBusy {
@@ -486,12 +486,12 @@ func (w *workspace) saveAgentKey() {
 
 // ---- cards ----
 
-// editAgentProposal is a card's Save command: keel serve keeps the edit and answers with the proposal as it now holds it
+// editAgentProposal is a card's Save command: slime serve keeps the edit and answers with the proposal as it now holds it
 // (the bytes, the kind and the ⇧ rule recomputed). What is typed afterwards is that, never the text of the field.
 func (w *workspace) editAgentProposal(id string) {
 	a := w.agent
 	rec := a.props[id]
-	if rec == nil || rec.saving || rec.p.Expired { // an expired proposal is never edited: keel serve no longer holds it
+	if rec == nil || rec.saving || rec.p.Expired { // an expired proposal is never edited: slime serve no longer holds it
 		return
 	}
 	command, conv := rec.edit, a.conv
@@ -534,7 +534,7 @@ func (w *workspace) typeAgentProposal(id string, shift bool) {
 		return
 	}
 	host := orElse(rec.p.Host, pane.p.title())
-	// A read-only one-liner keel serve agrees to is typed with no dialog and no Enter (rule 13); the card's refusals above
+	// A read-only one-liner slime serve agrees to is typed with no dialog and no Enter (rule 13); the card's refusals above
 	// stand, and a destructive or state-changing proposal never reaches here without ⇧ and never goes direct.
 	line := ""
 	if proposalDirect(rec.p) {
@@ -551,7 +551,7 @@ func (w *workspace) typeAgentProposal(id string, shift bool) {
 					if r == nil {
 						return "", false
 					}
-					return r.p.Bytes, true // what keel serve holds for the proposal: the edit's answer, not a draft
+					return r.p.Bytes, true // what slime serve holds for the proposal: the edit's answer, not a draft
 				},
 				done: func(err error) {
 					rec.status = &agentStatus{ok: err == nil, text: "Typed into " + host + "."}

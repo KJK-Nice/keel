@@ -14,7 +14,7 @@ import (
 
 // The workspace comes back: the tabs, how each is split, the custom titles, the focused and zoomed pane
 // of each and the active tab are kept in <dataDir>/keel-native-workspace.json. It names sessions by their
-// keel serve id and holds nothing else: no host, address, user or secret, and no terminal content. It is
+// slime serve id and holds nothing else: no host, address, user or secret, and no terminal content. It is
 // read and written only in the data dir.
 
 const (
@@ -34,7 +34,7 @@ type savedDoc struct {
 	// content is kept: a page reads the server when it opens.
 	Pages      []string `json:"pages,omitempty"`
 	ActivePage string   `json:"activePage,omitempty"`
-	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids): the pages open on them again while keel serve holds them.
+	// GroupID and RunID are the folder the Group page showed and the run the group run page showed (random ids): the pages open on them again while slime serve holds them.
 	GroupID string `json:"groupId,omitempty"`
 	RunID   string `json:"runId,omitempty"`
 }
@@ -53,7 +53,7 @@ type savedTab struct {
 // savedNode is a leaf (Session) or a split (Dir "row" or "col", Ratio, A and B).
 type savedNode struct {
 	Session string `json:"sessionId,omitempty"`
-	// Notebook is a notebook pane: its id, and nothing of its text (the text is read from keel serve when it comes back).
+	// Notebook is a notebook pane: its id, and nothing of its text (the text is read from slime serve when it comes back).
 	Notebook string     `json:"notebookId,omitempty"`
 	Dir      string     `json:"dir,omitempty"`
 	Ratio    float32    `json:"ratio,omitempty"`
@@ -345,7 +345,7 @@ func (w *workspace) buildNode(n *savedNode, bySID map[string]*pane, used map[str
 	if n == nil || depth > savedDepth {
 		return nil
 	}
-	if n.A == nil && n.B == nil && n.Notebook != "" { // a notebook pane comes back from keel serve's copy; one that is gone is dropped
+	if n.A == nil && n.B == nil && n.Notebook != "" { // a notebook pane comes back from slime serve's copy; one that is gone is dropped
 		rec, ok := w.notebook(n.Notebook)
 		if !ok || used["notebook:"+n.Notebook] {
 			return nil

@@ -13,7 +13,7 @@ type LogLine struct{ Kind, Text string }
 const logMax = 40
 
 var (
-	// logNoise is keel serve's words that are no news (wire.Msg…), in lower case.
+	// logNoise is slime serve's words that are no news (wire.Msg…), in lower case.
 	logNoise = func() map[string]bool {
 		m := map[string]bool{"": true}
 		for _, s := range []string{wire.MsgAttached, wire.MsgAttaching, wire.MsgJoined, wire.MsgLeft, wire.MsgConnected, wire.MsgControlPassed, wire.MsgTookControl} {

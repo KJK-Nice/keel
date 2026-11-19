@@ -20,7 +20,7 @@ type injectServer struct {
 	mu     sync.Mutex
 	frames []map[string]any // every text frame received, in order
 	answer func(ws *websocket.Conn, m map[string]any)
-	// onInject, when set, answers an inject frame (keel serve's agent-type for a proposal).
+	// onInject, when set, answers an inject frame (slime serve's agent-type for a proposal).
 	onInject func(ws *websocket.Conn, m map[string]any)
 	// onOther, when set, sees every text frame (the suggestion frames answer from it).
 	onOther func(ws *websocket.Conn, m map[string]any)
@@ -123,7 +123,7 @@ func TestApprovedInjectSendsTheChallengeThenTheSameBytesWithTheNonce(t *testing.
 }
 
 func TestApprovedInjectWithNoNonceSendsNoInjectAndDoesNotRetry(t *testing.T) {
-	c, s := dialInject(t, "ready", "driver", nil) // keel serve says nothing
+	c, s := dialInject(t, "ready", "driver", nil) // slime serve says nothing
 	c.wait = 80 * time.Millisecond
 	err := c.ApprovedInject(context.Background(), "ls\n", nil)
 	if !errors.Is(err, ErrNoTicket) || err.Error() != "Session is not connected" {
@@ -136,7 +136,7 @@ func TestApprovedInjectWithNoNonceSendsNoInjectAndDoesNotRetry(t *testing.T) {
 }
 
 func TestApprovedInjectRefusedChallengeTypesNothing(t *testing.T) {
-	// keel serve answers a refused challenge with an empty nonce, or an error frame: both mean nothing is typed.
+	// slime serve answers a refused challenge with an empty nonce, or an error frame: both mean nothing is typed.
 	for name, answer := range map[string]func(*websocket.Conn, map[string]any){
 		"empty nonce": func(ws *websocket.Conn, _ map[string]any) {
 			ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"inject-challenge","nonce":""}`))
@@ -200,7 +200,7 @@ func TestApprovedInjectOneAtATimeNeverQueues(t *testing.T) {
 	time.Sleep(60 * time.Millisecond)
 	for _, m := range s.all() {
 		if m["command"] == "two\n" {
-			t.Fatal("the second call reached keel serve")
+			t.Fatal("the second call reached slime serve")
 		}
 	}
 	// And the next one after the first is done works again.

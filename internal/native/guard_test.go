@@ -266,13 +266,13 @@ func TestTypeNowIsCalledOnlyByTheEntryPoints(t *testing.T) {
 	}
 }
 
-// keel serve decides a direct type at the write and answers no question about typing, so no file may ask one (a
+// slime serve decides a direct type at the write and answers no question about typing, so no file may ask one (a
 // DirectCheck call, a type-check frame), keelclient/inject.go included.
 func TestNoFileAsksATypeCheck(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"DirectCheck", "type-check"} {
 			if strings.Contains(src, bad) {
-				t.Errorf("%s names %s: there is no type-check; a direct type is decided by keel serve at the write", name, bad)
+				t.Errorf("%s names %s: there is no type-check; a direct type is decided by slime serve at the write", name, bad)
 			}
 		}
 	}
@@ -422,7 +422,7 @@ func TestAgentAndDirectReferencesAreBuiltOnlyWhereTheWritersAreCalled(t *testing
 // A direct type is the command alone: the code that hands it over holds no Ctrl-U, newline or carriage return of its
 // own (the dialog's clearLine is approve.go's, and the Approve path's).
 func TestNoControlCharacterIsAddedToADirectType(t *testing.T) {
-	line, err := os.ReadFile("../cmdrule/line.go") // the one-line rule, shared with keel serve
+	line, err := os.ReadFile("../cmdrule/line.go") // the one-line rule, shared with slime serve
 	if err != nil {
 		t.Fatalf("internal/cmdrule/line.go is gone; update the guard: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestNoControlCharacterIsAddedToADirectType(t *testing.T) {
 	}
 }
 
-// The panel asks and shows; it never reads a pane for the agent. keel serve reads and redacts, so no file of the
+// The panel asks and shows; it never reads a pane for the agent. slime serve reads and redacts, so no file of the
 // window or the client may call the scrollback or the mcp read routes, and only keelclient/inject.go names a suggestion
 // frame (TestOnlyInjectGoUsesTheTypingNamesOfTheWire checks the wire's constants for them).
 func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
@@ -573,13 +573,13 @@ func TestAProposalIsKeptOnlyByItsCardsSaveButton(t *testing.T) {
 	}
 }
 
-// Runbook steps are proposals made by keel serve: this client holds no step's bytes and builds no proposal.
+// Runbook steps are proposals made by slime serve: this client holds no step's bytes and builds no proposal.
 func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
 	for _, name := range featureFiles(t, memoryFiles, "notes", "runbooks") {
 		src := sourceFiles(t)[name]
 		for _, bad := range []string{"keelclient.Proposal{", "Bytes:", "\\x15"} {
 			if strings.Contains(src, bad) {
-				t.Errorf("%s holds %s: a step's proposal is made by keel serve, for the current step only", name, bad)
+				t.Errorf("%s holds %s: a step's proposal is made by slime serve, for the current step only", name, bad)
 			}
 		}
 	}
@@ -592,7 +592,7 @@ func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
 // the group approval is that same call made once per ticked row, inside a loop in that function and nowhere else. The group's
 // reference to its run is built only in the dialog's file and in keelclient/inject.go, no file of the Group page, the group
 // run page or the folders holds a writer or a way to open a dialog that types, and no file puts a value into a command: the
-// bytes of a row are set from keel serve's answers alone.
+// bytes of a row are set from slime serve's answers alone.
 
 // groupFiles are the files of the Group page, the group run page, the folders and the group approve dialog's view.
 var groupFiles = []string{"grouplogic.go", "grouppage.go", "grouppageview.go", "grouprun.go", "grouprunview.go", "grouprunlogic.go",
@@ -766,7 +766,7 @@ func TestGroupCodeHasNoWriterAndNoWayToTypeExceptOpeningTheDialog(t *testing.T) 
 	if got := allCallSites(t, "openApproveGroup"); len(got) != 1 || got[0].file != "grouprun.go" || got[0].in != "typeGroupRun" {
 		t.Errorf("openApproveGroup is called from %v; it must be called once, from typeGroupRun", got)
 	}
-	// The fill and the propose are keel serve's questions, asked from the run page alone, never from the dialog.
+	// The fill and the propose are slime serve's questions, asked from the run page alone, never from the dialog.
 	for name, want := range map[string]string{"FillGroupStep": "typeGroupRun", "ProposeGroupStep": "groupRunTick"} {
 		if got := allCallSites(t, name); len(got) != 1 || got[0].file != "grouprun.go" || got[0].in != want {
 			t.Errorf("%s is called from %v; it must be called once, from %s in grouprun.go", name, got, want)
@@ -798,14 +798,14 @@ func TestTheRunPageFillsBeforeTheDialogOpensAndCopyNeverWritesAValue(t *testing.
 	}
 }
 
-// §6 rule 11: the client never puts a value into a command. A row's bytes are set from keel serve's answers only (the proposal's
+// §6 rule 11: the client never puts a value into a command. A row's bytes are set from slime serve's answers only (the proposal's
 // own bytes, or the fill's), and no group file or the dialog replaces, expands or formats text around a {{name}}.
 func TestTheClientNeverSubstitutesAValue(t *testing.T) {
 	for _, name := range append(featureFiles(t, groupFiles, "group", "folders"), "approve.go") {
 		src := sourceFiles(t)[name]
 		for _, bad := range []string{"strings.Replace", "strings.NewReplacer", "ReplaceAll", "ReplaceAllString", ".Expand", "ReplaceAllStringFunc", "text/template"} {
 			if strings.Contains(src, bad) {
-				t.Errorf("%s uses %s: the client puts no value into a command; keel serve fills it in at Type", name, bad)
+				t.Errorf("%s uses %s: the client puts no value into a command; slime serve fills it in at Type", name, bad)
 			}
 		}
 	}
@@ -827,14 +827,14 @@ func TestTheClientNeverSubstitutesAValue(t *testing.T) {
 				case *ast.AssignStmt:
 					for _, l := range x.Lhs {
 						if sel, ok := l.(*ast.SelectorExpr); ok && sel.Sel.Name == "bytes" && fn.Name.Name != "fillRows" {
-							t.Errorf("%s: %s assigns a row's bytes: only fillRows does (from keel serve's fill)", name, fn.Name.Name)
+							t.Errorf("%s: %s assigns a row's bytes: only fillRows does (from slime serve's fill)", name, fn.Name.Name)
 						}
 					}
 				case *ast.CompositeLit:
 					for _, e := range x.Elts {
 						if kv, ok := e.(*ast.KeyValueExpr); ok {
 							if id, ok := kv.Key.(*ast.Ident); ok && id.Name == "bytes" && fn.Name.Name != "approveRows" && name != "grouplogic_test.go" {
-								t.Errorf("%s: %s builds a row with bytes: only approveRows does (from the proposal keel serve made)", name, fn.Name.Name)
+								t.Errorf("%s: %s builds a row with bytes: only approveRows does (from the proposal slime serve made)", name, fn.Name.Name)
 							}
 						}
 					}
@@ -927,7 +927,7 @@ var agentNotebookFiles = []string{"agentnotebooks.go", "agentnotebookslogic.go",
 
 // The agent's notebook code (the attach picker, the chips, the cards, the banner's Undo) adds no writer and no call site:
 // it calls none of the four writers or the typing paths, builds no reference to a proposal, reads no pane and no
-// scrollback, and never reaches keel mcp's routes. It also holds no notebook text to send: an ask names ids.
+// scrollback, and never reaches slime mcp's routes. It also holds no notebook text to send: an ask names ids.
 func TestAgentNotebookCodeHasNoWriterNoPaneReadAndSendsNoText(t *testing.T) {
 	src := sourceFiles(t)
 	for _, name := range featureFiles(t, agentNotebookFiles, "agentnotebooks") {

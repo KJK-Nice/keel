@@ -213,7 +213,7 @@ func TestAgentKeysNeverLeave(t *testing.T) {
 	if !bytes.Contains(logFile, []byte("agent key saved for Google Gemini")) {
 		t.Fatalf("key change not logged: %s", logFile)
 	}
-	// The key is there for keel serve to use.
+	// The key is there for slime serve to use.
 	if k, err := f.st.AgentKey("gemini"); err != nil || k != gem {
 		t.Fatal("key not stored")
 	}

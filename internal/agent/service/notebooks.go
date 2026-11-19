@@ -29,7 +29,7 @@ import (
 //     private (titles, revisions and sizes, redacted, at most
 //     maxNotebookIndex). The user may attach notebooks (sent in full), and
 //     the model may ask to read others with a ```keel-notebook-read block:
-//     keel serve reads them and asks again (at most maxNotebookReadRounds
+//     slime serve reads them and asks again (at most maxNotebookReadRounds
 //     more rounds, maxNotebookReadsPerAsk notebooks and
 //     maxNotebookReadBytesPerAsk bytes). Every read goes through the
 //     Auditor (ReadNotebook): redacted with the request's Redactor, capped,
@@ -484,7 +484,7 @@ var inlineImageRe = regexp.MustCompile(`^!\[([^\]\n]*)\]\(\s*<?([^\s()<>]*)>?(?:
 // steered by pane text could put what it read into that URL. An inline
 // image becomes its alt text and its URL as inline code; any other "![" (a
 // reference image) is escaped so it reads as text. Fenced code and code
-// spans are left as they are (they render as text already). keel serve
+// spans are left as they are (they render as text already). slime serve
 // also sends img-src 'self' data: blob: on every page (httpapi), so a
 // remote image that slips through is not fetched either.
 func defuseImages(md string) string {

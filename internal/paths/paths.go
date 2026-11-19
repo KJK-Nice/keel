@@ -33,12 +33,12 @@ func PidFile(dataDir string) string {
 	return filepath.Join(dataDir, "keel-serve.pid")
 }
 
-// TokenFile holds the secret that authenticates clients of keel serve.
+// TokenFile holds the secret that authenticates clients of slime serve.
 func TokenFile(dataDir string) string {
 	return filepath.Join(dataDir, "keel-serve.token")
 }
 
-// MCPTokenFile holds the secret keel mcp (the Claude Code bridge) sends.
+// MCPTokenFile holds the secret slime mcp (the Claude Code bridge) sends.
 // It opens only /api/mcp/, never the rest of the API.
 func MCPTokenFile(dataDir string) string {
 	return filepath.Join(dataDir, "keel-mcp.token")

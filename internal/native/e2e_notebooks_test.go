@@ -16,7 +16,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notebooks against a real keel serve and a real shell (Local Shell): the document is shown rendered and edited as plain
+// Notebooks against a real slime serve and a real shell (Local Shell): the document is shown rendered and edited as plain
 // Markdown, kept byte for byte, and a fence reaches the shell only through the snippet paths. Every command is a harmless
 // echo, df or uptime; the daemon is the test's own (SLIME_KEYRING=off, the fake agent provider).
 
@@ -303,7 +303,7 @@ func TestE2ENotebookHistoryRestore(t *testing.T) {
 	e.putAgentKey()
 	first := "# Hist\n\nkeel-edit-me\n"
 	id := e.apiNotebook("Hist", first)
-	// The agent (the test's fake provider) edits it: keel serve keeps the version before the edit in History.
+	// The agent (the test's fake provider) edits it: slime serve keeps the version before the edit in History.
 	code, body := e.raw("POST", "/api/agent/ask", map[string]any{"conversationId": "conv-history-1", "question": "edit the notebook hist", "panes": []string{}})
 	if code != 200 {
 		t.Fatalf("ask: %d %s", code, body)

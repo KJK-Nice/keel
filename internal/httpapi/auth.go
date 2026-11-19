@@ -46,7 +46,7 @@ func needsAuth(r *http.Request) bool {
 	return apiPath(r.URL.Path) && r.URL.Path != "/api/health"
 }
 
-// WithMCPAuth sets keel mcp's token (authtoken.LoadOrCreateMCP). /api/mcp/
+// WithMCPAuth sets slime mcp's token (authtoken.LoadOrCreateMCP). /api/mcp/
 // answers only requests that carry it in authtoken.MCPHeader, and with no
 // token set /api/mcp/ answers nothing.
 func (s *Server) WithMCPAuth(token string) *Server {
@@ -54,15 +54,15 @@ func (s *Server) WithMCPAuth(token string) *Server {
 	return s
 }
 
-// isMCPPath reports whether p is one of keel mcp's routes (mcp.go).
+// isMCPPath reports whether p is one of slime mcp's routes (mcp.go).
 func isMCPPath(p string) bool {
 	return strings.HasPrefix(p, "/api/mcp/")
 }
 
-// mcpAuthorized checks a request to /api/mcp/: keel mcp's token in its own
-// header, and no Origin (keel mcp is a native client; a page always sends
+// mcpAuthorized checks a request to /api/mcp/: slime mcp's token in its own
+// header, and no Origin (slime mcp is a native client; a page always sends
 // one on a POST). The UI's token and cookie do not open these routes, and
-// keel mcp's token opens no other route, so neither can stand in for the
+// slime mcp's token opens no other route, so neither can stand in for the
 // other.
 func (s *Server) mcpAuthorized(r *http.Request) bool {
 	return r.Header.Get("Origin") == "" && authtoken.Equal(authtoken.MCPToken(r.Header), s.mcpToken)
@@ -101,11 +101,11 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 	})
 }
 
-// errClaudeCodeOff is what keel mcp passes on to Claude Code while the
+// errClaudeCodeOff is what slime mcp passes on to Claude Code while the
 // user has not turned Claude Code on in Settings · Agent.
-const errClaudeCodeOff = `Claude Code is off in Slime: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`
+const errClaudeCodeOff = `Claude Code is off in Slime: turn on "Allow Claude Code (slime mcp)" in Settings · Agent`
 
-// mcpAllowed checks the user's "Allow Claude Code (keel mcp)" switch
+// mcpAllowed checks the user's "Allow Claude Code (slime mcp)" switch
 // (store.AgentSettings.ClaudeCode, off by default) and answers the request
 // itself when /api/mcp/ is closed: 403 while off, 423 while the vault is
 // locked (the setting cannot be read, so it counts as off).
@@ -123,9 +123,9 @@ func (s *Server) mcpAllowed(w http.ResponseWriter) bool {
 }
 
 // mcpHealthProof answers ?mcpNonce= on /api/health with HMAC(mcp token,
-// nonce), so keel mcp can check the server holds its token before sending
+// nonce), so slime mcp can check the server holds its token before sending
 // it. It answers while Claude Code is off too: the proof shows nothing but
-// that this server holds the token, and keel mcp then gets the clear
+// that this server holds the token, and slime mcp then gets the clear
 // "Claude Code is off" refusal from /api/mcp/ instead of "the server did
 // not prove it".
 func (s *Server) mcpHealthProof(r *http.Request) (string, bool) {

@@ -41,14 +41,14 @@ type Server struct {
 	tunnels *tunnel.Runtime
 	logs    *applog.Book
 	onStop  func()
-	// started, addr and dataDir describe this keel serve for GET /api/runtime.
+	// started, addr and dataDir describe this slime serve for GET /api/runtime.
 	started time.Time
 	addr    string
 	dataDir string
 	// authToken is required on privileged routes (auth.go).
 	authToken string
 	build     string
-	// mcpToken is keel mcp's token: it alone opens /api/mcp/ (auth.go).
+	// mcpToken is slime mcp's token: it alone opens /api/mcp/ (auth.go).
 	mcpToken string
 	// sshDir is ~/.ssh (SLIME_SSH_DIR), read by the first-run host import.
 	sshDir string
@@ -344,7 +344,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// runtimeInfo describes this keel serve for Settings · Runtime. Behind the
+// runtimeInfo describes this slime serve for Settings · Runtime. Behind the
 // auth token like the rest of /api/ (unlike /api/health). It holds no
 // secret: paths, counts and times only.
 func (s *Server) runtimeInfo(w http.ResponseWriter, _ *http.Request) {
@@ -924,7 +924,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	// stops with the socket.
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	// A WebSocket is the window on this machine: the one client keel serve
+	// A WebSocket is the window on this machine: the one client slime serve
 	// types for. The kind is the transport's, never the client's word.
 	c := sessionsock.Attach(sess, ws, sessionsock.Options{
 		Name: name, Kind: wire.KindWindow, Caps: sessionsock.Local, Cols: cols, Rows: rows,
@@ -963,7 +963,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 // the session was still connecting or reconnecting: nothing was typed.
 const notReadyTypeMessage = "the session is not connected; nothing was typed"
 
-// socketTypist is how keel serve types for one window's socket and answers
+// socketTypist is how slime serve types for one window's socket and answers
 // its suggestion questions (sessionsock.Typist).
 type socketTypist struct {
 	srv *Server
@@ -994,7 +994,7 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 		return nil
 	}
 	if ctl.Direct != nil {
-		// One click, no dialog, no Enter (§6 rule 13): keel serve checks
+		// One click, no dialog, no Enter (§6 rule 13): slime serve checks
 		// again, off the read loop (a snippet or a notebook block may be
 		// rated by Jev), then writes.
 		s.goSocket(func() { s.typeDirect(t.ctx, c, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })

@@ -13,7 +13,7 @@ type ShareSettings struct {
 
 // SignalURL returns the saved signal server, or "". keel.json is read
 // before the vault is unlocked and the URL is no secret, so this works
-// while the vault is locked: keel serve reads it at start.
+// while the vault is locked: slime serve reads it at start.
 func (s *Store) SignalURL() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()

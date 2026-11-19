@@ -11,7 +11,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Type without the dialog on the fake backend (typeNow): what is asked of keel serve, with which bytes, and what the
+// Type without the dialog on the fake backend (typeNow): what is asked of slime serve, with which bytes, and what the
 // window does with each answer. The fake session records every DirectType and every ApprovedInject apart.
 
 // screen gives the focused pane the terminal state a real one would read (a placeholder body has none).
@@ -137,7 +137,7 @@ func TestNoAnswerShowsThePagesMessageOpensNoDialogAndIsNotRetried(t *testing.T) 
 	r.fb.conns[0].directErr = keelclient.ErrNoDirectAnswer
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
-	if !r.tt.HasText("keel serve did not answer. Check the pane before you press Type again.") {
+	if !r.tt.HasText("slime serve did not answer. Check the pane before you press Type again.") {
 		t.Errorf("%v", r.tt.Texts())
 	}
 	if r.w.approveOpen() || len(r.typed()) != 0 || len(r.directs()) != 1 {
@@ -169,7 +169,7 @@ func TestAFullScreenProgramOrAnUnknownScreenGoesToTheDialogWithoutAskingKeelServ
 func TestThePromptLineTravelsWithTheRequest(t *testing.T) {
 	r := directRig(t)
 	r.screen(false, "[sudo] password for me:")
-	r.w.typeSnippet("sn-1") // keel serve decides what to do with it; the client only reports what the pane shows
+	r.w.typeSnippet("sn-1") // slime serve decides what to do with it; the client only reports what the pane shows
 	if got := r.directs(); len(got) != 1 || got[0].ref.PromptLine != "[sudo] password for me:" || got[0].ref.AltScreen {
 		t.Fatalf("directs %+v", got)
 	}

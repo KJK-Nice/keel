@@ -11,13 +11,13 @@ Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling 
 # or: SLIME_SIGNAL_ADDR=:8080 ./bin/keel-signal
 ```
 
-2. On the host desktop, open **Settings → Sharing** and enter the server's URL under **Signal server** (for example `https://your-signal.example`), then press Enter. keel serve saves it in `keel.json` and uses it for the next share; shares already running keep their link. Clear the field to turn Share off.
+2. On the host desktop, open **Settings → Sharing** and enter the server's URL under **Signal server** (for example `https://your-signal.example`), then press Enter. slime serve saves it in `keel.json` and uses it for the next share; shares already running keep their link. Clear the field to turn Share off.
 
 Two other ways set the server, for scripts and builds:
 
 ```bash
 # for one run, from a shell (wins over the saved server):
-SLIME_SIGNAL=https://your-signal.example ./bin/keel
+SLIME_SIGNAL=https://your-signal.example ./bin/slime
 # built into the app (used when nothing is saved and SLIME_SIGNAL is unset):
 make build SLIME_SIGNAL=https://your-signal.example
 ```
@@ -76,7 +76,7 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 Two Slime windows on one Mac: the second instance needs its own port and data dir:
 
 ```bash
-SLIME_ADDR=127.0.0.1:47243 SLIME_DATA=/tmp/keel-join ./bin/keel
+SLIME_ADDR=127.0.0.1:47243 SLIME_DATA=/tmp/keel-join ./bin/slime
 ```
 
 `open Slime.app` does not pass those env vars.

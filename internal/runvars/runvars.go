@@ -5,7 +5,7 @@
 // no clock, no globals that change.
 //
 // A command keeps its `{{name}}` references wherever it is stored, shown
-// to the model or logged. Values are put in (Fill) only by keel serve, at
+// to the model or logged. Values are put in (Fill) only by slime serve, at
 // Type time, for one host of a group run, after the user approved the
 // exact filled bytes.
 //

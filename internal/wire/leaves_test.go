@@ -9,14 +9,15 @@ import (
 	"testing"
 )
 
-// The leaf packages are imported by the window and by keel serve, so each may import only the keel packages listed here.
+// The leaf packages are imported by the window and by slime serve, so each may import only the keel packages listed here.
 func TestLeavesImportOnlyTheirListedKeelPackages(t *testing.T) {
 	for dir, allowed := range map[string][]string{
 		"wire":      nil,
 		"cmdrule":   {"keel/internal/wire"},
 		"limits":    nil,
 		"sharelink": nil,
-		"paths":     nil,
+		"paths":     {"keel/internal/env"},
+		"env":       nil,
 		"authtoken": {"keel/internal/paths"},
 		"randid":    nil,
 	} {

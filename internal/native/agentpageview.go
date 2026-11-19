@@ -192,7 +192,7 @@ func (w *workspace) pageHead(c *ui.Context, p *agentPage) {
 	})
 }
 
-// pageRenameField is the heading as a field: ↵ and Save rename the conversation on the id keel serve gave, Esc leaves it.
+// pageRenameField is the heading as a field: ↵ and Save rename the conversation on the id slime serve gave, Esc leaves it.
 func (w *workspace) pageRenameField(c *ui.Context, p *agentPage) {
 	a := w.agent
 	conv := a.conv

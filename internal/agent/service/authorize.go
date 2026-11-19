@@ -11,7 +11,7 @@ import (
 
 // One gate for every way agent output reaches a pane (docs/ui-redesign.md
 // §6 rules 1, 5, 6, 7, 9, 10, 11, 13). The user's action is always the
-// trigger; keel serve asks authorize before it writes, and authorize writes
+// trigger; slime serve asks authorize before it writes, and authorize writes
 // nothing to a pane.
 //
 // Two things vary, and both are data:
@@ -141,7 +141,7 @@ type typeAsk struct {
 	shift     bool
 }
 
-// Grant is one authorized write. keel serve writes the bytes, then settles
+// Grant is one authorized write. slime serve writes the bytes, then settles
 // the grant (DirectTyped, InsertDone), which logs it or gives it back.
 type Grant struct {
 	path   *typePath
@@ -151,7 +151,7 @@ type Grant struct {
 	source string
 }
 
-// DirectGrant and InsertGrant are Grant under the names keel serve's two
+// DirectGrant and InsertGrant are Grant under the names slime serve's two
 // callers use.
 type (
 	DirectGrant = Grant

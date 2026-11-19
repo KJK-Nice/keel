@@ -24,7 +24,7 @@ func TestFakeProviderIsRefusedWithoutItsTag(t *testing.T) {
 	}
 }
 
-// keel serve stops before it opens the store or a port.
+// slime serve stops before it opens the store or a port.
 func TestRunServeRefusesTheFakeWithoutItsTag(t *testing.T) {
 	t.Setenv(agentProviderEnv, "fake")
 	dir := filepath.Join(t.TempDir(), "data")
@@ -32,7 +32,7 @@ func TestRunServeRefusesTheFakeWithoutItsTag(t *testing.T) {
 		t.Fatalf("RunServe = %v, want a refusal", err)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
-		t.Fatalf("a refused keel serve made its data directory: %v", err)
+		t.Fatalf("a refused slime serve made its data directory: %v", err)
 	}
 }
 
@@ -66,13 +66,13 @@ func TestFakeProviderIsLinkedOnlyWithItsTag(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs go list")
 	}
-	for _, pkg := range []string{"./cmd/keel", "./cmd/keel-native"} {
+	for _, pkg := range []string{"./cmd/slime", "./cmd/keel-native"} {
 		if linksFake(t, pkg, "") {
 			t.Errorf("%s without keelfake links %s", pkg, fakePkg)
 		}
 	}
-	if !linksFake(t, "./cmd/keel", "keelfake") {
-		t.Errorf("./cmd/keel with keelfake does not link %s", fakePkg)
+	if !linksFake(t, "./cmd/slime", "keelfake") {
+		t.Errorf("./cmd/slime with keelfake does not link %s", fakePkg)
 	}
 }
 

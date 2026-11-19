@@ -10,11 +10,11 @@ import (
 )
 
 // In-pane suggestions in the window (docs/ui-redesign.md §5.5): the glue between a pane's terminal, its
-// suggestion machine (suggest.go) and keel serve.
+// suggestion machine (suggest.go) and slime serve.
 //
 // Nothing here builds a frame or writes a byte. The questions go through keelclient SuggestDetect and SuggestAsk, the
 // insert through SuggestInsert (insertSuggestion, below, is its one caller) and the put-back of the user's words through
-// RestoreWords (restoreWords, its one caller); guard_test.go keeps each so. keel serve decides everything: whether a line
+// RestoreWords (restoreWords, its one caller); guard_test.go keeps each so. slime serve decides everything: whether a line
 // is noticed, which command is offered, whether ⇥ may insert it, and it writes the bytes (Ctrl-U and the command, never
 // an Enter). The user's keys are never held back: suggestKey answers at once and only ever takes ⇥, ⇧⇥, esc, the option
 // keys and ⌘Z while a notice or a card shows.
@@ -121,14 +121,14 @@ func (w *workspace) suggestMode() sugMode {
 	return sugHash
 }
 
-// noteSuggestSettings takes the settings keel serve answered with, or the ones the Settings page just changed.
+// noteSuggestSettings takes the settings slime serve answered with, or the ones the Settings page just changed.
 func (w *workspace) noteSuggestSettings(s keelclient.AgentSettings) {
 	w.sugSet = sugSettings{s.Settings.Suggestions, s.Settings.Detection}
 	w.suggestSettingsChanged()
 }
 
 // suggestSettingsChanged tells every pane's machine when the settings changed what a pane may do on its own (suggestions
-// on or off, how a line is noticed): at once, from the Settings switch (before keel serve has answered the save), from
+// on or off, how a line is noticed): at once, from the Settings switch (before slime serve has answered the save), from
 // First run, and through the vault rev poll when another window changed them.
 func (w *workspace) suggestSettingsChanged() {
 	mode := w.suggestMode()
@@ -158,7 +158,7 @@ func (w *workspace) refreshSuggestSettings() {
 }
 
 // suggestRequest is the suggest key and the palette's action: ask for a command for the words on the focused pane's
-// prompt line. It only asks (the machine's one question to keel serve); the card's ⇥ is the one way a command is inserted.
+// prompt line. It only asks (the machine's one question to slime serve); the card's ⇥ is the one way a command is inserted.
 func (w *workspace) suggestRequest() {
 	if p := w.focusedPane(); p != nil && !p.remote {
 		w.suggestMachine(p).Request()
@@ -207,7 +207,7 @@ func (w *workspace) suggestKey(p *pane, mods ui.Modifiers, key ui.Key) bool {
 	return false
 }
 
-// suggestFrame runs once a frame: it hands keel serve's answers to the machines, runs a detection whose pause is over,
+// suggestFrame runs once a frame: it hands slime serve's answers to the machines, runs a detection whose pause is over,
 // and follows a noticed line or a card (at most every sugReadEvery).
 func (w *workspace) suggestFrame(c *ui.Context) {
 	w.sugNow = c.Now()
@@ -264,8 +264,8 @@ func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int
 }
 
 // insertSuggestion is the user's ⇥ / ⇧⇥ on a card: the one caller of SuggestInsert. The reference names the suggestion,
-// the option and ⇧ as the key was pressed; the bytes are keel serve's own, which keelclient keeps. Off the window's
-// thread: keel serve answers within 4 s.
+// the option and ⇧ as the key was pressed; the bytes are slime serve's own, which keelclient keeps. Off the window's
+// thread: slime serve answers within 4 s.
 func (w *workspace) insertSuggestion(p *pane, ref keelclient.SuggestionRef, done func(insertResult)) {
 	conn := p.conn
 	callErr(w, func(c context.Context) error { return conn.SuggestInsert(c, ref) }, func(err error) {

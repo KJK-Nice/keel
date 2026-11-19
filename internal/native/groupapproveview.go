@@ -9,7 +9,7 @@ import (
 // advance unless there is only one host. The keyboard starts on Cancel, so a stray ↵ never types. Type is a click (⇧ held
 // when a ticked host needs it), or Tab and ↵ on it.
 //
-// After a Type each row that was reached shows what happened to it: "Typed." or keel serve's refusal, in its words. A row
+// After a Type each row that was reached shows what happened to it: "Typed." or slime serve's refusal, in its words. A row
 // that was reached is final: it cannot be ticked again and nothing is retried.
 
 const (
@@ -24,7 +24,7 @@ const (
 func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {
 	g := d.group()
 	open := true
-	var typeable []*groupRow // the rows keel serve made bytes for
+	var typeable []*groupRow // the rows slime serve made bytes for
 	attempted := false
 	for _, r := range g.rows {
 		if r.err == "" {

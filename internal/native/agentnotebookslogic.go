@@ -12,10 +12,10 @@ import (
 )
 
 // The pure rules of notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12): the words of the trace, the picker,
-// the cards and their buttons (agentnotebookslogic_test.go pins them; notebookslogic.go has the rest). keel serve
+// the cards and their buttons (agentnotebookslogic_test.go pins them; notebookslogic.go has the rest). slime serve
 // decides everything; nothing here talks to it, draws or types.
 
-// maxAttached is how many notebooks one question may carry (keel serve refuses more).
+// maxAttached is how many notebooks one question may carry (slime serve refuses more).
 const maxAttached = limits.MaxAttachedNotebooks
 
 var attachLimit = fmt.Sprintf("Attach at most %d notebooks to a question", maxAttached)

@@ -16,13 +16,13 @@ import (
 	"keel/internal/native/layout"
 )
 
-// Notebooks (docs/ui-redesign.md §18). A notebook is one Markdown document kept by keel serve. The pane shows it rendered and, on Edit, as
+// Notebooks (docs/ui-redesign.md §18). A notebook is one Markdown document kept by slime serve. The pane shows it rendered and, on Edit, as
 // plain Markdown in a text area: the stored text is never passed through a rich text model (docs/native.md "Read and edit").
 //
 // What this file does and does not do:
 //   - The list of notebooks and the text of every open pane live in memory; the workspace file keeps a notebook pane's id
 //     and place only (saved.go), never its text.
-//   - A save sends the whole state with the revision the pane loaded. keel serve keeps the user's text over an agent edit
+//   - A save sends the whole state with the revision the pane loaded. slime serve keeps the user's text over an agent edit
 //     the pane had not loaded and puts the agent's version in History.
 //   - Nothing here writes to a session. A shell fence reaches a terminal only through typeNow or the Approve before type
 //     dialog (notebooktype.go); opening, rendering, editing, saving, restoring and deleting type nothing.
@@ -90,7 +90,7 @@ func (n *notebookPane) load(rec keelclient.Notebook) {
 	n.failed = false
 }
 
-// dirty is typing that keel serve does not have: a save is pending or running, or the last one failed.
+// dirty is typing that slime serve does not have: a save is pending or running, or the last one failed.
 func (n *notebookPane) dirty() bool { return n.auto.pending() || n.failed }
 
 // retryFailed makes the typing of a failed save pending again, so a flush (a close, a quit) saves it once more.
@@ -162,7 +162,7 @@ func (w *workspace) shownNotebooks(q string) (out []keelclient.Notebook) {
 	return out
 }
 
-// rememberNotebook puts a notebook keel serve answered with into the list at once.
+// rememberNotebook puts a notebook slime serve answered with into the list at once.
 func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
 	if i := slices.IndexFunc(w.notebooks, func(n keelclient.Notebook) bool { return n.ID == rec.ID }); i >= 0 {
 		w.notebooks[i] = rec
@@ -194,8 +194,8 @@ func (w *workspace) notebookPanes() (out []*pane) {
 	return out
 }
 
-// followNotebooks is notebookChanged for every open pane: a pane with no typing shows what keel serve has; a pane with
-// typing keeps it (its next save carries the revision it started from, so keel serve keeps the user's text and the agent's
+// followNotebooks is notebookChanged for every open pane: a pane with no typing shows what slime serve has; a pane with
+// typing keeps it (its next save carries the revision it started from, so slime serve keeps the user's text and the agent's
 // version in History), and says so once when the agent made the change.
 func (w *workspace) followNotebooks() {
 	for _, p := range w.notebookPanes() {
@@ -337,7 +337,7 @@ func (w *workspace) nbPump(p *pane) {
 		if len(res.Cells) > 0 {
 			n.cellID = res.Cells[0].ID
 		}
-		if strings.TrimSpace(n.title) == name { // not typed over since: the name keel serve kept
+		if strings.TrimSpace(n.title) == name { // not typed over since: the name slime serve kept
 			n.title = res.Name
 			n.titleSeen = n.title
 		}
@@ -415,7 +415,7 @@ func (w *workspace) nbClosed(p *pane) {
 // quitSaveWait is how long the quit waits, in all, for the notebook saves.
 var quitSaveWait = 3 * time.Second
 
-// flushNotebooksNow saves every open notebook with typing keel serve does not have before the window closes: all of them
+// flushNotebooksNow saves every open notebook with typing slime serve does not have before the window closes: all of them
 // at once, under one deadline. A pane whose save is running saves its newer text after that save ends, on the revision the
 // running one made.
 func (w *workspace) flushNotebooksNow() {
@@ -488,7 +488,7 @@ func nbErr(err error, fallback string) string {
 
 // ---- the user's own changes: rename, pin, Private, reviewed, delete ----
 
-// applyNotebook takes a record keel serve answered a change with into the list and the panes that show it. A pane with
+// applyNotebook takes a record slime serve answered a change with into the list and the panes that show it. A pane with
 // typing keeps it.
 func (w *workspace) applyNotebook(rec keelclient.Notebook) {
 	w.rememberNotebook(rec)
@@ -585,7 +585,7 @@ func (w *workspace) askDeleteNotebook(id string) {
 }
 
 // deleteNotebook deletes after the user confirmed. Pending edits land first (a save after the delete would put the notebook
-// back); when keel serve cannot keep it in Recently deleted it asks before deleting for good.
+// back); when slime serve cannot keep it in Recently deleted it asks before deleting for good.
 func (w *workspace) deleteNotebook(id string, permanent bool) {
 	rec, _ := w.notebook(id)
 	deleting := func(on bool) {

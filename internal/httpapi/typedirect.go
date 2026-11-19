@@ -57,7 +57,7 @@ func looksLikeInput(line string) bool {
 
 // promptCheck sends a direct type to the dialog unless the pane is at its
 // shell's prompt: with OSC 133 marks, at a prompt with no command open;
-// in any case, not on a line that asks for input (keel serve's view of the
+// in any case, not on a line that asks for input (slime serve's view of the
 // output tail, or the window's own line).
 func promptCheck(sess *runtime.Session, d *wire.DirectType) error {
 	marks, atPrompt, last := sess.PromptState()

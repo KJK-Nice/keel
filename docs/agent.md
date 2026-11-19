@@ -6,13 +6,13 @@ Its rules (`docs/ui-redesign.md` §6): the agent never writes to a PTY, never se
 
 The **agent panel** (right side, **⌘I** on macOS, **Ctrl+Shift+I** on Windows/Linux, the titlebar **Agent** button, or View › Toggle Agent Panel).
 
-You ask about the panes in its scope (the chip "Reads N of M panes"); keel serve reads their last lines (or, when the shell reports its commands with OSC 133, the last command, its output and its exit status; see [Shell integration](shell-integration.md)), redacts them, and sends that and your question to the model provider you chose (Google Gemini or Anthropic Claude), only when you press send.
+You ask about the panes in its scope (the chip "Reads N of M panes"); slime serve reads their last lines (or, when the shell reports its commands with OSC 133, the last command, its output and its exit status; see [Shell integration](shell-integration.md)), redacts them, and sends that and your question to the model provider you chose (Google Gemini or Anthropic Claude), only when you press send.
 
 The answer can carry command proposals: Slime shows the exact bytes and a Read-only / Changes state / Destructive badge, and nothing is typed until you press **Type into pane** and approve the bytes (destructive commands, and state changes on a production host, need **⇧** as well).
 
 The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are saved encrypted in the vault and kept for the period set in Settings · Agent · Keep conversations (7, 30 or 90 days, 1 year, or "Only while open", which saves nothing).
 
-`SLIME_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `keel serve` refuses to start with the variable set to `fake`.
+`SLIME_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `slime serve` refuses to start with the variable set to `fake`.
 
 ## Model providers
 
@@ -25,23 +25,23 @@ Connect a key for either in **Settings · Agent**, then pick a model there: the 
 
 The Claude client calls the Messages API (`POST /v1/messages`, key in `x-api-key`). Slime's thinking levels map to `output_config.effort` (minimal and low → `low`, medium → `medium`, high → `high`; none → the model's default), and `max_tokens` leaves room for thinking on top of the answer, since thinking counts toward it. Thinking text is never asked for or shown.
 
-## Claude Code (keel mcp)
+## Claude Code (slime mcp)
 
-`keel mcp` is an [MCP](https://modelcontextprotocol.io) server on stdio that lets Claude Code work with your Slime panes under the same rules as the agent panel (`docs/ui-redesign.md` §6, rule 14). Slime must be open and the vault unlocked; `keel mcp` never starts `keel serve` itself.
+`slime mcp` is an [MCP](https://modelcontextprotocol.io) server on stdio that lets Claude Code work with your Slime panes under the same rules as the agent panel (`docs/ui-redesign.md` §6, rule 14). Slime must be open and the vault unlocked; `slime mcp` never starts `slime serve` itself.
 
-It is **off by default**. Turn it on in Settings · Agent → Claude Code → **Allow Claude Code (keel mcp)**, or on macOS from the same switch in Slime's menu bar item (docs/runtime.md). Until then every `/api/mcp/` route answers 403 and Claude Code is told `Claude Code is off in Slime: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`; nothing is listed, read, proposed or logged. Unlike the agent panel, which reads only when you Ask, Claude Code reads whenever it decides to, so turn it on only while you use it, and only hosts with **Agent can read** on are visible to it (new hosts, Local Shell included, start with it on; turn it off in Edit host for hosts Claude Code should not see).
+It is **off by default**. Turn it on in Settings · Agent → Claude Code → **Allow Claude Code (slime mcp)**, or on macOS from the same switch in Slime's menu bar item (docs/runtime.md). Until then every `/api/mcp/` route answers 403 and Claude Code is told `Claude Code is off in Slime: turn on "Allow Claude Code (slime mcp)" in Settings · Agent`; nothing is listed, read, proposed or logged. Unlike the agent panel, which reads only when you Ask, Claude Code reads whenever it decides to, so turn it on only while you use it, and only hosts with **Agent can read** on are visible to it (new hosts, Local Shell included, start with it on; turn it off in Edit host for hosts Claude Code should not see).
 
 ```bash
 # The keel binary: on macOS the one in Slime.app (build/darwin-*/Slime.app/Contents/MacOS/Slime
-# when built from source, or wherever you put Slime.app); on Linux `keel` (the .deb
-# links it into /usr/bin) or bin/keel.
-claude mcp add keel -- /Applications/Slime.app/Contents/MacOS/Slime mcp
+# when built from source, or wherever you put Slime.app); on Linux `slime` (the .deb
+# links it into /usr/bin) or bin/slime.
+claude mcp add slime -- /Applications/Slime.app/Contents/MacOS/Slime mcp
 ```
 
 Or in a project's `.mcp.json`:
 
 ```json
-{ "mcpServers": { "keel": { "command": "/Applications/Slime.app/Contents/MacOS/Slime", "args": ["mcp"] } } }
+{ "mcpServers": { "slime": { "command": "/Applications/Slime.app/Contents/MacOS/Slime", "args": ["mcp"] } } }
 ```
 
 Set `SLIME_ADDR` / `SLIME_DATA` in the server's `env` if your Slime uses others.
@@ -55,7 +55,7 @@ Set `SLIME_ADDR` / `SLIME_DATA` in the server's `env` if your Slime uses others.
 
 There is no tool that types: Claude Code cannot run anything in a pane. Proposals appear in the agent panel's conversation list (reopen the list to see new ones); with **Keep conversations** set to "Only while the panel is open", the conversation is not listed, so keep history on to use it.
 
-`keel mcp` sends its own token, `keel-mcp.token` in `SLIME_DATA` (made by `keel serve` on start). It opens `/api/mcp/` only, never the vault or the rest of the API, and the UI's token does not open `/api/mcp/`. That keeps keel mcp to its routes, but it is not a sandbox: any program running as you, Claude Code's shell commands included, can read `SLIME_DATA` (and `keel-serve.token` in it). Deny it in Claude Code's permissions, for example in `~/.claude/settings.json`:
+`slime mcp` sends its own token, `keel-mcp.token` in `SLIME_DATA` (made by `slime serve` on start). It opens `/api/mcp/` only, never the vault or the rest of the API, and the UI's token does not open `/api/mcp/`. That keeps slime mcp to its routes, but it is not a sandbox: any program running as you, Claude Code's shell commands included, can read `SLIME_DATA` (and `keel-serve.token` in it). Deny it in Claude Code's permissions, for example in `~/.claude/settings.json`:
 
 ```json
 { "permissions": { "deny": ["Read(~/Library/Application Support/keel/**)"] } }
@@ -69,4 +69,4 @@ There is no tool that types: Claude Code cannot run anything in a pane. Proposal
 - Agent settings (provider, model, detection, default scope, scrollback lines 50–1000, IP/hostname redaction, history) are in `keel.json` and at `GET`/`PUT /api/agent/settings`. Secret redaction is always on.
 - Provider keys (Gemini, Anthropic, Jev) are vault secrets, set with `PUT /api/agent/keys/{provider}` and removed with `DELETE`. No response ever returns a key, only `configured: true/false`.
 - Agent reads and inserts are written to `keel.log` as `agent.read`, `agent.suggest`, `agent.insert` and `agent.type`, with line counts and redaction counts, never the text. Every Ask writes one `agent.read` entry for the request, also when no pane is in scope.
-- **The log gates the agent.** While `keel.log` cannot be written (a full disk, a bad file), keel serve refuses the agent's reads, its sends to a provider and any approved Type, with the error "agent: keel.log cannot be written, so the agent reads, sends and types nothing; check the disk and the log file"; entries for things that already happened (a suggestion made, a note saved) are kept in memory, up to 256, and written first once the file can be written again.
+- **The log gates the agent.** While `keel.log` cannot be written (a full disk, a bad file), slime serve refuses the agent's reads, its sends to a provider and any approved Type, with the error "agent: keel.log cannot be written, so the agent reads, sends and types nothing; check the disk and the log file"; entries for things that already happened (a suggestion made, a note saved) are kept in memory, up to 256, and written first once the file can be written again.

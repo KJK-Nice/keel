@@ -16,7 +16,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notebooks and the agent against a real keel serve with the fake provider (SLIME_AGENT_PROVIDER=fake, made-up key only; no
+// Notebooks and the agent against a real slime serve with the fake provider (SLIME_AGENT_PROVIDER=fake, made-up key only; no
 // model is reached). The questions are: "read / edit / drop the notebook <title in
 // lower case>" makes the fake read, edit (keel-edit-me becomes keel-edited-by-agent) or propose deleting it, and "write this
 // up" makes it create a notebook (named agentDraftName) with a shell fence. The daemon decides everything; these tests look
@@ -24,7 +24,7 @@ import (
 
 const (
 	agentDraftName = "keel-notebook-e2e draft"
-	nbFakeToken    = "API_TOKEN=Zx81Kq0LmN4pR7tV2wY5bC9dF3gH6jK" // secret-looking and made up: keel serve must redact it
+	nbFakeToken    = "API_TOKEN=Zx81Kq0LmN4pR7tV2wY5bC9dF3gH6jK" // secret-looking and made up: slime serve must redact it
 )
 
 // closeToasts closes the toasts, which sit over the composer.
@@ -240,7 +240,7 @@ func TestE2EAgentEditsANotebookAndUndo(t *testing.T) {
 func (e *win) onScreenText(s string) bool { return strings.Contains(e.texts(), s) }
 
 // nbSaveFail is a window's backend whose notebook saves fail while on is set: the typing then stays only in the window.
-// Everything else, the ask included, goes to the real keel serve.
+// Everything else, the ask included, goes to the real slime serve.
 type nbSaveFail struct {
 	backend
 	on atomic.Bool
@@ -248,7 +248,7 @@ type nbSaveFail struct {
 
 func (b *nbSaveFail) SaveNotebook(ctx context.Context, id string, in keelclient.NotebookSave) (keelclient.SavedNotebook, error) {
 	if b.on.Load() {
-		return keelclient.SavedNotebook{}, &keelclient.StatusError{Code: 503, Msg: "keel serve is busy"}
+		return keelclient.SavedNotebook{}, &keelclient.StatusError{Code: 503, Msg: "slime serve is busy"}
 	}
 	return b.backend.SaveNotebook(ctx, id, in)
 }
@@ -263,7 +263,7 @@ func TestE2EAgentEditRefusedWhileTyping(t *testing.T) {
 	np := e.openNotebookFromSidebar("keel-nb-e2e typing")
 	e.pump(func() bool { return e.tt.HasText("keel-edit-me") }, "the notebook on screen")
 
-	// Typing that cannot be saved right now stays only in the window. The ask names the notebook (Editing), and keel serve
+	// Typing that cannot be saved right now stays only in the window. The ask names the notebook (Editing), and slime serve
 	// refuses the agent's edit to it.
 	fail.on.Store(true)
 	e.click("Edit")
@@ -287,7 +287,7 @@ func TestE2EAgentEditRefusedWhileTyping(t *testing.T) {
 	}
 	e.shot("TestE2EAgentEditRefusedWhileTyping")
 
-	// The typing is intact and saves once keel serve takes a save again: the next edit carries it.
+	// The typing is intact and saves once slime serve takes a save again: the next edit carries it.
 	fail.on.Store(false)
 	e.click("Markdown document") // the keyboard went to the composer with the ask
 	e.tt.Type(" more")
@@ -404,7 +404,7 @@ func TestE2EAgentNeverSeesAPrivateNotebook(t *testing.T) {
 			t.Fatalf("a log row names the private notebook: %+v", l)
 		}
 	}
-	// A client that sent the id anyway (the test does, by hand) is refused by keel serve, and nothing of the notebook is sent.
+	// A client that sent the id anyway (the test does, by hand) is refused by slime serve, and nothing of the notebook is sent.
 	code, body := e.raw("POST", "/api/agent/ask", map[string]any{"conversationId": "conv-private-1", "question": "what is in it? no command", "panes": []string{}, "notebooks": []string{priv}})
 	if code != 200 || strings.Contains(body, marker) || !strings.Contains(body, "notebook-private") || strings.Contains(body, "I was also given 1 attached notebook") {
 		t.Fatalf("a forced ask: %d %s", code, body)

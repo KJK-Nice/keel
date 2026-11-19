@@ -12,7 +12,7 @@ import (
 	"keel/internal/wire"
 )
 
-// Share (docs/ui-redesign.md §5.6, docs/sharing.md). Nothing here decides who may watch or type: admission is keel serve's (internal/share), and
+// Share (docs/ui-redesign.md §5.6, docs/sharing.md). Nothing here decides who may watch or type: admission is slime serve's (internal/share), and
 // the only calls that answer a join request are the Allow and Deny buttons (answerJoin); the only call that hands
 // control over is the Hand over button and the Pass control buttons (sendControl with GrantControl).
 
@@ -291,7 +291,7 @@ func (w *workspace) toggleShare() {
 	w.openShare()
 }
 
-// stopShare is Stop sharing (and the palette's "Stop sharing this session"): keel serve ends the share, every viewer
+// stopShare is Stop sharing (and the palette's "Stop sharing this session"): slime serve ends the share, every viewer
 // is disconnected and the link stops working.
 func (w *workspace) stopShare() {
 	p := w.shareTarget()
@@ -390,7 +390,7 @@ func (w *workspace) forgetPrompts(p *pane) {
 
 // answerJoin is the Allow and Deny buttons, and nothing else: it is the one place that answers a join request, and
 // allow is true only for Allow. Deny, Escape, closing the window and the two-minute timeout never admit: the timeout
-// is keel serve's (it denies the request itself and announces it resolved).
+// is slime serve's (it denies the request itself and announces it resolved).
 func (w *workspace) answerJoin(s *sharePrompt, allow bool) {
 	if s.busy {
 		return

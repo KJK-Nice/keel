@@ -12,8 +12,8 @@ import (
 	"time"
 )
 
-// docs/ui-redesign.md §6 rule 1: the only grant to write a PTY for the user is the one-time nonce keel serve issues.
-// A client flag "approved" in a frame is never a grant (keel serve ignores it: httpapi's TestInjectNonceOneShotRejectsClientApprovedReplay),
+// docs/ui-redesign.md §6 rule 1: the only grant to write a PTY for the user is the one-time nonce slime serve issues.
+// A client flag "approved" in a frame is never a grant (slime serve ignores it: httpapi's TestInjectNonceOneShotRejectsClientApprovedReplay),
 // and this client never sends one.
 func TestNoFrameOfAnApprovedInjectCarriesAnApprovedFlag(t *testing.T) {
 	for _, opts := range [][]InjectOption{nil, {FromNotebook}} {
@@ -31,7 +31,7 @@ func TestNoFrameOfAnApprovedInjectCarriesAnApprovedFlag(t *testing.T) {
 		for _, m := range s.all() {
 			for k := range m {
 				if strings.EqualFold(k, "approved") {
-					t.Errorf("a %v frame carries %q: only keel serve's nonce grants a write", m["type"], k)
+					t.Errorf("a %v frame carries %q: only slime serve's nonce grants a write", m["type"], k)
 				}
 			}
 		}
@@ -53,7 +53,7 @@ func TestNoSourceFileNamesAnApprovedFrameField(t *testing.T) {
 				return err
 			}
 			if strings.Contains(string(b), `"approved"`) || strings.Contains(string(b), `approved:`) {
-				t.Errorf("%s names an approved frame field: only keel serve's nonce grants a write", f)
+				t.Errorf("%s names an approved frame field: only slime serve's nonce grants a write", f)
 			}
 			// A field named Approved with no tag is the JSON key "Approved", which a decoder matches to "approved".
 			file, err := parser.ParseFile(token.NewFileSet(), f, b, 0)
@@ -64,7 +64,7 @@ func TestNoSourceFileNamesAnApprovedFrameField(t *testing.T) {
 				if fd, ok := n.(*ast.Field); ok {
 					for _, id := range fd.Names {
 						if strings.EqualFold(id.Name, "approved") {
-							t.Errorf("%s declares a field %s: only keel serve's nonce grants a write", f, id.Name)
+							t.Errorf("%s declares a field %s: only slime serve's nonce grants a write", f, id.Name)
 						}
 					}
 				}

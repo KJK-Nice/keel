@@ -26,7 +26,7 @@ const (
 )
 
 // agentPage is the state of the Agent tab: only what the page itself holds. No conversation text is kept here: the
-// conversation is the window's (agentPanel), read from keel serve into memory.
+// conversation is the window's (agentPanel), read from slime serve into memory.
 type agentPage struct {
 	filter  string
 	filterH ui.Handle

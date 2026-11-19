@@ -30,9 +30,9 @@ func TestSettingsFormatting(t *testing.T) {
 	if displayName(" Ann ", "bob") != "Ann" || displayName("", "bob") != "bob" || displayName("", "") != "guest" {
 		t.Error("display name")
 	}
-	if stopMessage(3) != "This ends all 3 running sessions and every port forward, then closes keel serve. Reopen Slime to start it again." ||
-		stopMessage(1) != "This ends the 1 running session and every port forward, then closes keel serve. Reopen Slime to start it again." ||
-		stopMessage(0) != "This ends every running session and every port forward, then closes keel serve. Reopen Slime to start it again." {
+	if stopMessage(3) != "This ends all 3 running sessions and every port forward, then closes slime serve. Reopen Slime to start it again." ||
+		stopMessage(1) != "This ends the 1 running session and every port forward, then closes slime serve. Reopen Slime to start it again." ||
+		stopMessage(0) != "This ends every running session and every port forward, then closes slime serve. Reopen Slime to start it again." {
 		t.Errorf("stop messages %q", stopMessage(3))
 	}
 }

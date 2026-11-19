@@ -1,6 +1,6 @@
 // Package joinpeer is the joiner's side of a share for keel-native: it reads a join link, checks the host's WebRTC peer
 // against the key in the link, and gives the window a connection that reads the host's terminal and writes what the
-// window allows. The link, the MAC and the signal URL are internal/sharelink's, the same code keel serve's share hub uses.
+// window allows. The link, the MAC and the signal URL are internal/sharelink's, the same code slime serve's share hub uses.
 //
 // The link's key (the #k= fragment) is a secret: it is used for the check of the host's MAC and for nothing else. It is
 // never sent to the signal server, never logged, never put in an error, and the types that hold it print without it.

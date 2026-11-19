@@ -2,7 +2,7 @@ package native
 
 import "github.com/egoist/mygo/ui"
 
-// One way to the clipboard. Action and view code, and answers coming back from keel serve, have no UI context to write
+// One way to the clipboard. Action and view code, and answers coming back from slime serve, have no UI context to write
 // with; copy queues the text and the frame writes it (flushClipboard, called from runLater, once per frame), so a copy is
 // never lost because of which panel is on screen.
 

@@ -165,9 +165,9 @@ func TestARunbookWithASecretInItsCommandShowsWhatWasKeptAndTheCount(t *testing.T
 		t.Fatal("the count is not told, or the value shows")
 	}
 	if got := r.w.runbooksPage().ed.steps[0].command; got != "mysql -p[secret:1]" {
-		t.Fatalf("the editor holds %q, not what keel serve kept", got)
+		t.Fatalf("the editor holds %q, not what slime serve kept", got)
 	}
-	// keel serve refuses a command the redactor would change in a saved runbook: the editor shows its reason.
+	// slime serve refuses a command the redactor would change in a saved runbook: the editor shows its reason.
 	r.fb.mem.rbErr = &keelclient.StatusError{Code: 400, Status: "400 Bad Request", Msg: "a step command holds a secret or a secret-looking value"}
 	r.click(t, "Save")
 	if !r.tt.HasText("a step command holds a secret or a secret-looking value") {
@@ -325,7 +325,7 @@ func stepProposal(n int, placeholders bool) keelclient.Proposal {
 		Runbook: &keelclient.ProposalStep{RunbookID: "rb1", Name: "Marker check", Step: n, Of: 3, StepID: "st" + string(rune('0'+n))}}
 }
 
-// walkAnswers makes the fake propose the current step of the run, as keel serve does: only for the step it is on.
+// walkAnswers makes the fake propose the current step of the run, as slime serve does: only for the step it is on.
 func (r *rig) walkAnswers() {
 	r.fb.mem.run = newRun()
 	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {

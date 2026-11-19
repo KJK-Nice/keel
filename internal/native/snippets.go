@@ -15,10 +15,10 @@ import (
 //
 // There are no {{var}} fields, "Offer on hosts tagged", Read-only / Changes state kind or ⇧↵ rule. The editor has "Let
 // the agent suggest this snippet" and the preview of what gets typed: the page's
-// Save sends the switch; the dialogs send no flag, so keel serve keeps it.
+// Save sends the switch; the dialogs send no flag, so slime serve keeps it.
 //
 // Nothing here writes to a session. Every entry point (a row, the row menu, the editor's "Type into pane…", the palette)
-// calls typeSnippet, which hands the snippet to typeNow (typenow.go): a read-only one-liner keel serve agrees to is typed
+// calls typeSnippet, which hands the snippet to typeNow (typenow.go): a read-only one-liner slime serve agrees to is typed
 // without the dialog and without Enter, any other opens the Approve before type dialog (approve.go).
 
 // snippetsPage is the state of the Snippets tab.
@@ -134,7 +134,7 @@ func (e *snippetEditor) sync(s keelclient.Snippet) {
 }
 
 // typeSnippet is "Type into pane…", a row, the palette. A one-line, plainly read-only snippet
-// keel serve agrees to is typed with no dialog and no Enter; every other one opens Approve before type for the snippet as
+// slime serve agrees to is typed with no dialog and no Enter; every other one opens Approve before type for the snippet as
 // it is saved. Both go through typeNow, which is the only thing here that types.
 func (w *workspace) typeSnippet(id string) {
 	sn, ok := w.snippet(id)

@@ -8,7 +8,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The folders half of fakeBackend: what the window asks of keel serve about folders, recorded, and answered as the test says.
+// The folders half of fakeBackend: what the window asks of slime serve about folders, recorded, and answered as the test says.
 
 type fakeFolders struct {
 	reqs []string // "post name parent", "put id name parent", "delete id", "move ids -> dest"

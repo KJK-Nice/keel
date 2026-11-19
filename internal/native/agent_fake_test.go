@@ -6,7 +6,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// The agent half of fakeBackend: what the panel asks of keel serve, recorded, and answered as the test says. Nothing
+// The agent half of fakeBackend: what the panel asks of slime serve, recorded, and answered as the test says. Nothing
 // here reads a pane: an ask records only the question and the session ids.
 
 type fakeAgent struct {
@@ -73,7 +73,7 @@ func (f *fakeBackend) SetAgentKey(_ context.Context, in keelclient.AgentKeyInput
 func (f *fakeBackend) Ask(ctx context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error) {
 	f.rec("ask")
 	f.agent.asks = append(f.agent.asks, req)
-	if f.agent.askWait != nil { // an ask that waits for its context, as keel serve's waits for a model
+	if f.agent.askWait != nil { // an ask that waits for its context, as slime serve's waits for a model
 		close(f.agent.askWait)
 		<-ctx.Done()
 		return keelclient.AskResponse{}, ctx.Err()
@@ -115,7 +115,7 @@ func (f *fakeBackend) Conversations(context.Context) (keelclient.ConversationLis
 	if f.convs.listErr != nil {
 		return keelclient.ConversationList{}, f.convs.listErr
 	}
-	if f.agent.settings.Settings.Provider != "" { // keel serve keeps nothing, and lists nothing, when history is off
+	if f.agent.settings.Settings.Provider != "" { // slime serve keeps nothing, and lists nothing, when history is off
 		l.HistoryDays = f.agent.settings.Settings.HistoryDays
 		if l.HistoryDays == 0 {
 			l.Sessions = nil

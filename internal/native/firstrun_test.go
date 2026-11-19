@@ -57,7 +57,7 @@ func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 		"Slime keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.",
 		"Unlock with "+kc, "Recommended",
 		"Slime was started with SLIME_KEYRING=off, so it does not use the keychain.",
-		"Use a passphrase", "You type it each time keel serve starts. Pick this on shared machines or when there is no keychain.",
+		"Use a passphrase", "You type it each time slime serve starts. Pick this on shared machines or when there is no keychain.",
 		"Passphrase", "Repeat passphrase", "Slime can't recover the vault if you lose the passphrase.",
 		"Vault file", "~/keel/keel.vault", "Encryption", "age, with a key made from your passphrase (scrypt)",
 		"Holds", "Host passwords, private keys and key passphrases. Host names, addresses and snippets stay in keel.json.",
@@ -144,7 +144,7 @@ func TestFirstRunExistingVaultIsAnInstructionOnly(t *testing.T) {
 		t.Fatal("the instruction shows before it is asked for")
 	}
 	r.click(t, "I already have a keel.vault…")
-	r.texts(t, "To use a keel.vault you already have: quit Slime, run keel serve stop, put that keel.vault and its keel.json in ~/keel, then open Slime. It opens with the keychain or passphrase that made it. Slime does not change a vault it cannot open.")
+	r.texts(t, "To use a keel.vault you already have: quit Slime, run slime serve stop, put that keel.vault and its keel.json in ~/keel, then open Slime. It opens with the keychain or passphrase that made it. Slime does not change a vault it cannot open.")
 	r.click(t, "I already have a keel.vault…")
 	if r.tt.HasText("To use a keel.vault you already have") {
 		t.Error("the instruction stays open")

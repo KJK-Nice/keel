@@ -3,7 +3,7 @@ package shellmark
 import "testing"
 
 // The parser reads OSCs the way xterm.js's VT500 parser does, so the
-// marks keel serve records are the marks the terminal draws.
+// marks slime serve records are the marks the terminal draws.
 func TestMatchesXtermOSCRules(t *testing.T) {
 	c1osc, c1st := "\xc2\x9d", "\xc2\x9c"
 	cases := []struct {

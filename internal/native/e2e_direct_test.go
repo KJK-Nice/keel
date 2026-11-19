@@ -12,7 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Type without the dialog against a real keel serve and a real shell (Local Shell): rule 13 of docs/ui-redesign.md §6.
+// Type without the dialog against a real slime serve and a real shell (Local Shell): rule 13 of docs/ui-redesign.md §6.
 // What these prove is what reaches the PTY and when. A direct type puts the command alone on the prompt line and nothing
 // runs until the test presses Enter in the pane, so each scenario asserts the command text in the scrollback with none of
 // its output ("Filesystem" is what df prints first), and only then presses Enter. The commands typed are df -h, echo and
@@ -141,7 +141,7 @@ func TestE2EDirectTypeAppendsToThePromptLine(t *testing.T) {
 	e.settle(700 * time.Millisecond)
 	sb := e.scrollback(sid)
 	if e.w.approveOpen() {
-		t.Fatalf("keel serve chose the dialog for a prompt line that holds text: it should append (no Ctrl-U): %q", sb)
+		t.Fatalf("slime serve chose the dialog for a prompt line that holds text: it should append (no Ctrl-U): %q", sb)
 	}
 	if !strings.Contains(sb, "# df -h") {
 		t.Fatalf("the command was not appended to what was on the prompt line (no Ctrl-U): %q", sb)
@@ -165,7 +165,7 @@ func TestE2EDirectTypeInFullScreenProgram(t *testing.T) {
 	e.pump(func() bool { alt, _ := e.w.focusedPane().screen(); return alt }, "less on the alternate screen")
 
 	e.typeFromPalette("disk")
-	e.waitApprove() // the window reads the alternate screen and keeps keel serve out of it
+	e.waitApprove() // the window reads the alternate screen and keeps slime serve out of it
 	e.settle(700 * time.Millisecond)
 	if sb := e.scrollback(sid); strings.Contains(sb, "df -h") || strings.Contains(sb, "Filesystem") {
 		t.Fatalf("the pane received df -h: %q", sb)
@@ -201,7 +201,7 @@ func TestE2EDirectTypeAgentProposal(t *testing.T) {
 	e.click("Cancel")
 	e.pump(func() bool { return !e.w.approveOpen() }, "Cancel")
 
-	// The fake cannot propose a command in the grammar, so edit the proposal into one: keel serve rates the edit again.
+	// The fake cannot propose a command in the grammar, so edit the proposal into one: slime serve rates the edit again.
 	e.click("Edit command")
 	e.pump(func() bool { return e.tt.Focused("Edit command") }, "the edit field to have the keyboard")
 	e.key(ui.Cmd, ui.KeyA)
@@ -210,7 +210,7 @@ func TestE2EDirectTypeAgentProposal(t *testing.T) {
 	e.click("Save command")
 	e.pump(func() bool {
 		return !e.w.agentState().props[e.firstProposal()].editing && e.tt.HasText("1 line · 7 bytes")
-	}, "the card to show what keel serve holds")
+	}, "the card to show what slime serve holds")
 	e.pump(func() bool { return e.hasLabel("Type into pane") && !e.hasLabel("Type into pane…") }, "the button to name a one-click type")
 	e.shot("TestE2EDirectTypeAgentProposal-card")
 	e.click("Type into pane")
@@ -248,7 +248,7 @@ func TestE2EDirectTypeFollower(t *testing.T) {
 	b.tt.Type("Type snippet: disk")
 	b.step()
 	b.key(0, ui.KeyEnter)
-	// B is refused: the dialog is the existing refusal and says why; nothing was asked of keel serve, nothing typed.
+	// B is refused: the dialog is the existing refusal and says why; nothing was asked of slime serve, nothing typed.
 	pumpAll(t, both, func() bool { return b.w.approveOpen() && b.tt.HasText(msgFollowing) }, "B to be refused")
 	for end := time.Now().Add(700 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
 		a.step()

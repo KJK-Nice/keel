@@ -28,7 +28,7 @@ func TestTitleBarRightIsTheAgentIconOnly(t *testing.T) {
 		t.Errorf("Agent at %v (%v), want a %v px icon at the right of the title bar", agent, ok, sizeControlSm)
 	}
 	r.click(t, "New tab")
-	if tx := r.tt.Texts(); len(tx) == 0 || !strings.HasPrefix(tx[len(tx)-1], "keel serve") { // the status bar is last
+	if tx := r.tt.Texts(); len(tx) == 0 || !strings.HasPrefix(tx[len(tx)-1], "slime serve") { // the status bar is last
 		t.Errorf("the status bar ends with %v", tx[len(tx)-3:])
 	}
 }

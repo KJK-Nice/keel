@@ -228,7 +228,7 @@ func useTheme(dark bool) {
 	}
 }
 
-// hostTint is the colour of a host's label. keel serve stores it as var(--ansi-N), a reference to
+// hostTint is the colour of a host's label. slime serve stores it as var(--ansi-N), a reference to
 // an ANSI token; anything else (a legacy value) falls back to ink-muted.
 func hostTint(color string) ui.Color {
 	var n int

@@ -369,7 +369,7 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	if got := r.w.prefs.Name; got != strings.Repeat("n", 40) || string(r.prefsFile(t)["name"]) != `"`+strings.Repeat("n", 40)+`"` {
 		t.Errorf("name %q file %v", got, r.prefsFile(t)["name"])
 	}
-	// The signal server goes to keel serve as typed (trimmed); keel serve validates it.
+	// The signal server goes to slime serve as typed (trimmed); slime serve validates it.
 	r.fill(t, "Signal server input", "  https://signal.example.com  ")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
@@ -390,7 +390,7 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 		t.Fatalf("signal calls %v", fb.signalSet)
 	}
 	r.texts(t, "Signal server removed")
-	// keel serve's refusal is shown in its own words; the field keeps what was typed.
+	// slime serve's refusal is shown in its own words; the field keeps what was typed.
 	fb.signalErr = &keelclient.StatusError{Code: 400, Msg: "signal server must be an https or wss URL"}
 	r.fill(t, "Signal server input", "ftp://nope")
 	r.tt.Key(0, ui.KeyEnter)
@@ -433,14 +433,14 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Runtime")
-	r.texts(t, "keel serve owns your sessions and serves this window. It keeps running when the window closes.",
+	r.texts(t, "slime serve owns your sessions and serves this window. It keeps running when the window closes.",
 		"Status", "Build", "9d62912abcde-0123456789ab", "Address", "127.0.0.1:50123", "Data folder", "/scratch/data", "Process id", "4242",
 		"Running sessions", "Uptime", "3 h 05 min", "Window", "Sessions keep running after the window closes", "Stop", "Stop the Slime runtime", "Stop runtime…")
 	if !r.has("value 1") {
 		t.Errorf("running sessions: %v", r.tt.Texts())
 	}
 	r.click(t, "Stop runtime…")
-	r.texts(t, "Stop the Slime runtime?", "This ends the 1 running session and every port forward, then closes keel serve. Reopen Slime to start it again.", "Stop runtime")
+	r.texts(t, "Stop the Slime runtime?", "This ends the 1 running session and every port forward, then closes slime serve. Reopen Slime to start it again.", "Stop runtime")
 	if fb.runtimeStops != 0 {
 		t.Fatal("stopped before the confirm")
 	}

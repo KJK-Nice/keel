@@ -33,7 +33,7 @@ go mod download
 for os in darwin linux; do
 	GOOS=$os CGO_ENABLED=0 go list -deps \
 		-f '{{with .Module}}{{if not .Main}}{{.Path}}@{{.Version}}{{"\t"}}{{.Dir}}{{end}}{{end}}' \
-		./cmd/keel ./cmd/keel-signal
+		./cmd/slime ./cmd/keel-signal
 done | sort -u >"$tmp/modules"
 while IFS="$(printf '\t')" read -r mod dir; do
 	files=$(license_files "$dir")

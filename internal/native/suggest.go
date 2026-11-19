@@ -20,8 +20,8 @@ const (
 	offBackoff    = 15 * time.Second
 	suggestMaxLen = 300
 	insertedSeen  = 3 * time.Second // how long an inserted command may stay unseen on the line
-	// suggestWait is how long a request may stay loading: keel serve's history pick (1.5 s) and model call (30 s, agent
-	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; keel serve answers every
+	// suggestWait is how long a request may stay loading: slime serve's history pick (1.5 s) and model call (30 s, agent
+	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; slime serve answers every
 	// request it accepted, so this is for an answer that was lost.
 	suggestWait = 37 * time.Second
 )
@@ -81,7 +81,7 @@ func askable(input string) bool {
 }
 
 // sugMode is what the settings let the pane do on its own: nothing (suggestions off), notice only lines the user starts
-// with # (Only lines starting with #), or also have keel serve check each line after a typing pause (Notice
+// with # (Only lines starting with #), or also have slime serve check each line after a typing pause (Notice
 // automatically). The suggest key asks in the last two; off says so.
 type sugMode int
 
@@ -217,7 +217,7 @@ func sourceLabel(source string) string {
 	return "Suggested from your words"
 }
 
-// insertResult is what an insert came to: ok, a refusal in keel serve's words, or dropped (the line changed under the
+// insertResult is what an insert came to: ok, a refusal in slime serve's words, or dropped (the line changed under the
 // card, so nothing was written).
 type insertResult struct {
 	OK, Dropped bool
@@ -313,7 +313,7 @@ const offMessage = "Suggestions in panes are off. Turn them on in Settings · Ag
 
 // ModeChanged follows a change of the settings: nothing asked before counts any more. The cache of plain lines, a
 // detection in flight, the typing pause and the backoff go; a notice goes (it was for the old rule); with suggestions
-// off a loading request or a card goes too, since keel serve would refuse it.
+// off a loading request or a card goes too, since slime serve would refuse it.
 func (m *sugMachine) ModeChanged() {
 	m.cache, m.cacheKeys = map[string]detectHit{}, nil
 	m.dueAt, m.pendSeq, m.offUntil = time.Time{}, 0, time.Time{}

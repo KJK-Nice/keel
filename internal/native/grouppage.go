@@ -17,17 +17,17 @@ import (
 // The Group page (docs/ui-redesign.md §17, board GroupRoles): one
 // folder's hosts with their roles, its notes for the agent, its variables, "Run a runbook on this group" and the Ansible
 // export drawer. A tab page, one instance, named after the folder; the folder it shows is kept in the saved workspace
-// (saved.go). Roles and variables are saved one at a time by keel serve, which checks them; this client holds what keel
+// (saved.go). Roles and variables are saved one at a time by slime serve, which checks them; this client holds what keel
 // serve answered in memory and writes nothing to disk. Nothing on this page reads a pane, calls the agent's provider or
 // types: a run started from here is a group run (grouprun.go), whose every host × step is a proposal the user approves.
 //
-// Variables are config, not secrets (keel serve refuses a secret-looking value or one that holds a vault value): they are
-// shown, filled into commands by keel serve alone and exported. The export is whatever keel serve built, and a variable it
+// Variables are config, not secrets (slime serve refuses a secret-looking value or one that holds a vault value): they are
+// shown, filled into commands by slime serve alone and exported. The export is whatever slime serve built, and a variable it
 // withheld is not in it.
 
 // downloadFile is the export drawer's Download: the system's save dialog (MyGo's Dialog.Save, set by Run as w.saveDialog)
 // names a path, and the shown file's text is written there, off the UI thread. A cancelled dialog writes nothing and says
-// nothing. The text is what keel serve built (no secret is in it), and nothing here runs it.
+// nothing. The text is what slime serve built (no secret is in it), and nothing here runs it.
 func (w *workspace) downloadFile(name, content string) {
 	base := path.Base(name)
 	if w.saveDialog == nil {
@@ -217,7 +217,7 @@ func (w *workspace) loadGroupRunbooks(p *groupPage) {
 
 // ---- roles ----
 
-// setRole saves one host's role (PUT /api/groups/{id}/roles). keel serve checks it again.
+// setRole saves one host's role (PUT /api/groups/{id}/roles). slime serve checks it again.
 func (w *workspace) setRole(p *groupPage, hostID, role string) {
 	r, ok := cleanRole(role)
 	if !ok {
@@ -263,7 +263,7 @@ func (w *workspace) endNewRole(p *groupPage, ok bool) {
 
 // ---- variables ----
 
-// setVar saves a variable (PUT /api/groups/{id}/vars); an empty value removes it. keel serve refuses a value that looks like a
+// setVar saves a variable (PUT /api/groups/{id}/vars); an empty value removes it. slime serve refuses a value that looks like a
 // secret or holds a vault value, and its words are shown.
 func (w *workspace) setVar(p *groupPage, name, value string, onDone func()) {
 	if p.varsBusy {
@@ -329,7 +329,7 @@ func (w *workspace) toggleExport(p *groupPage) {
 	}
 }
 
-// exportRefresh asks keel serve for the files again (open drawer only): a role or a variable changed, or an option did.
+// exportRefresh asks slime serve for the files again (open drawer only): a role or a variable changed, or an option did.
 func (w *workspace) exportRefresh(p *groupPage) {
 	if !p.ex.open || p.id == "" {
 		return

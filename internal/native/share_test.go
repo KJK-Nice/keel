@@ -370,7 +370,7 @@ func TestAJoinRequestShowsAnAllowDenyPromptAndNothingAdmitsWithoutAClick(t *test
 		t.Fatalf("admitted without a click: %v", r.fb.admitted)
 	}
 	if !r.has("Allow") {
-		t.Fatal("Escape closed the prompt: only keel serve's resolved frame does")
+		t.Fatal("Escape closed the prompt: only slime serve's resolved frame does")
 	}
 	// The same request again does not stack.
 	joinRequest(r, "p1", "Ann")
@@ -393,7 +393,7 @@ func TestDenySendsAllowFalseAndAResolvedFrameRemovesThePrompt(t *testing.T) {
 	if len(r.w.prompts) != 2 {
 		t.Fatalf("prompts %d", len(r.w.prompts))
 	}
-	// keel serve resolves p2 itself (it timed out after 2 minutes, or the joiner left): no admit call.
+	// slime serve resolves p2 itself (it timed out after 2 minutes, or the joiner left): no admit call.
 	r.fb.conns[0].events = []keelclient.Event{{Kind: keelclient.EventJoinResolved, PeerID: "p2", Message: "expired"}}
 	r.fb.conns[0].onChange()
 	r.tt.Frame()

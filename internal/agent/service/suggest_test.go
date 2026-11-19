@@ -664,7 +664,7 @@ func TestSuggestEgressIsLoggedEvenWhenItFails(t *testing.T) {
 	}
 }
 
-// Close writes the detection summaries still open (keel serve stopping).
+// Close writes the detection summaries still open (slime serve stopping).
 func TestCloseFlushesDetectionLog(t *testing.T) {
 	f := newSuggestFixture(t, "")
 	f.svc.detectWindow = time.Hour

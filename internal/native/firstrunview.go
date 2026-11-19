@@ -248,7 +248,7 @@ func (w *workspace) vaultStep(c *ui.Context, f *firstRun) {
 	})
 	if setup && f.existing {
 		box(c).Label("existing vault").Children(func() {
-			help(c, "To use a keel.vault you already have: quit Slime, run keel serve stop, put that keel.vault and its keel.json in "+
+			help(c, "To use a keel.vault you already have: quit Slime, run slime serve stop, put that keel.vault and its keel.json in "+
 				dataFolder(f.vault.Path)+", then open Slime. It opens with the keychain or passphrase that made it. Slime does not change a vault it cannot open.")
 		})
 	}

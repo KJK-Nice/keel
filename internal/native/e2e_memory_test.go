@@ -13,10 +13,10 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notes for the agent and runbooks against a real keel serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake,
-// set for every daemon by startServeAt): nothing here reaches a model provider or calls keel mcp's routes. "remember" in a
+// Notes for the agent and runbooks against a real slime serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake,
+// set for every daemon by startServeAt): nothing here reaches a model provider or calls slime mcp's routes. "remember" in a
 // question makes the fake propose a note, "save this as a runbook" a runbook, and a runbook in use makes it say which step is
-// current while keel serve itself proposes the step (internal/agent/provider/providertest/scripted.go). Every command is a
+// current while slime serve itself proposes the step (internal/agent/provider/providertest/scripted.go). Every command is a
 // harmless echo and the only secret is made up.
 
 const e2eNoteSecret = "native-e2e-fake-note-secret-7391" // a made-up password; no test prints it
@@ -330,8 +330,8 @@ func TestE2EYourNotesAndDeleteAll(t *testing.T) {
 	}, "the empty list")
 }
 
-// typeStepCard presses Type on the card of the step in the thread (a card made by keel serve for the current step) and
-// answers whatever follows: the dialog's Type, or nothing when keel serve let it be typed without one.
+// typeStepCard presses Type on the card of the step in the thread (a card made by slime serve for the current step) and
+// answers whatever follows: the dialog's Type, or nothing when slime serve let it be typed without one.
 func (e *win) typeStepCard(sid, want string) {
 	e.t.Helper()
 	e.click("Type into pane…")
@@ -378,7 +378,7 @@ func TestE2ERunbookPageAndWalk(t *testing.T) {
 	e.pump(func() bool { return e.tt.HasText("Runbook saved") && e.hasLabel("Open keel-rb-e2e marker check") }, "the saved runbook in the list")
 	e.shot("TestE2ERunbookPageAndWalk-page")
 
-	// Use in agent: an ask with the runbook; keel serve proposes step 1 and nothing is typed.
+	// Use in agent: an ask with the runbook; slime serve proposes step 1 and nothing is typed.
 	e.click("Use in agent")
 	e.pump(func() bool { return e.hasLabel("Runbook keel-rb-e2e marker check") && e.tt.HasText("Step 1 · Run on") }, "the run card and step 1's card")
 	for _, s := range []string{"You picked this runbook.", "Used runbook · keel-rb-e2e marker check", "Step 1 is proposed below. Nothing is typed until you press Type."} {
@@ -485,12 +485,12 @@ func TestE2ERunbookProposalAndPlaceholder(t *testing.T) {
 	e.click("Undo")
 	e.pump(func() bool { return len(e.serverRunbooks()) == 0 }, "Undo to delete it")
 
-	// A step whose command holds [secret:1] cannot exist in keel serve: it refuses to keep one, from the API and from the editor,
+	// A step whose command holds [secret:1] cannot exist in slime serve: it refuses to keep one, from the API and from the editor,
 	// so a step proposal never carries a placeholder from a saved runbook. The card for one that does (an ordinary proposal
 	// that holds a placeholder) is runbooks_test.go's: no Type button, the explanatory sentence, nothing typed.
 	if code, body := e.raw("POST", "/api/agent/runbooks", map[string]any{"name": "keel-rb-e2e placeholder", "agentMayPick": true,
 		"steps": []map[string]string{{"title": "Uses a placeholder", "command": "echo [secret:1]"}}}); code != 400 || !strings.Contains(body, "a step command holds a secret") {
-		t.Fatalf("keel serve kept, or did not explain refusing, a step with a placeholder: %d", code)
+		t.Fatalf("slime serve kept, or did not explain refusing, a step with a placeholder: %d", code)
 	}
 	e.w.showPage("runbooks")
 	e.pump(func() bool { return e.hasLabel("Runbook name") == false && e.tt.HasText("No runbooks yet") }, "the Runbooks page")

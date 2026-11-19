@@ -192,7 +192,7 @@ func nbBtn(c *ui.Context, act, title string, busy bool) bool {
 var nbCardLabels = map[string]string{actOpen: "Open", actUndo: "Undo", actRestore: "Restore", actKeep: "Keep", actDelete: "Delete…"}
 
 // agentNbCard is what the agent did to a notebook, or a delete it proposes. Its buttons are
-// requests to keel serve; Delete asks first, and nothing is deleted until the user confirms.
+// requests to slime serve; Delete asks first, and nothing is deleted until the user confirms.
 func (w *workspace) agentNbCard(c *ui.Context, id string) {
 	rec := w.agent.nbProps[id]
 	if rec == nil {

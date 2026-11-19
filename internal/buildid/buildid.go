@@ -1,7 +1,7 @@
 // Package buildid names a Slime build, so the window can tell when the keel
 // serve it connects to came from a different build.
 //
-// keel serve outlives the window (sessions keep running). After an upgrade
+// slime serve outlives the window (sessions keep running). After an upgrade
 // the old daemon keeps running the old code until it is stopped, which looks
 // exactly like a fix that didn't land.
 package buildid
@@ -18,8 +18,8 @@ import (
 // Of returns an id for this binary: the VCS revision it was built from. A
 // build from a modified tree, or one with no revision (go run, go test, a
 // source archive), adds a hash of the running binary, so two different dev
-// builds still differ. keel app and the keel serve it starts run the same
-// executable and agree; a keel serve left over from an older binary differs.
+// builds still differ. slime app and the slime serve it starts run the same
+// executable and agree; a slime serve left over from an older binary differs.
 func Of() string {
 	rev, modified := vcs()
 	return compose(rev, modified, binaryHash)

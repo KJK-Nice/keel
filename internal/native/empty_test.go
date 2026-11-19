@@ -92,9 +92,9 @@ func TestLogsCannotLoadHasTryAgain(t *testing.T) {
 	r.tt.Frame()
 	r.w.showPage("logs")
 	r.tt.Frame()
-	pageAs[*logsPage](r.w.activeTab()).err = "keel serve is not answering"
+	pageAs[*logsPage](r.w.activeTab()).err = "slime serve is not answering"
 	r.tt.Frame()
-	r.texts(t, "Cannot load the log", "keel serve is not answering", "empty Try again")
+	r.texts(t, "Cannot load the log", "slime serve is not answering", "empty Try again")
 	before := r.fb.logsCalls
 	r.click(t, "empty Try again")
 	if r.fb.logsCalls == before {

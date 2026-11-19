@@ -1,4 +1,4 @@
-// Command keel-native is the native (MyGo) client for a running keel serve.
+// Command keel-native is the native (MyGo) client for a running slime serve.
 package main
 
 import (
@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	// AppKit must run on thread 0, as in cmd/keel.
+	// AppKit must run on thread 0, as in cmd/slime.
 	runtime.LockOSThread()
 }
 

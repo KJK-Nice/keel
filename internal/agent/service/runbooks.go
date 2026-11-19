@@ -60,7 +60,7 @@ type RunbookStore interface {
 }
 
 // StepSource finds the command a runbook step started in a pane, from its
-// shell-integration marks. The runtime adapter in keel serve satisfies it
+// shell-integration marks. The runtime adapter in slime serve satisfies it
 // (with the pane's stream offset taken right before the step was typed).
 type StepSource interface {
 	CommandsAfter(sessionID string, from uint64) []shellmark.Command
@@ -150,7 +150,7 @@ type RunbookInput struct {
 	Hosts        []string            `json:"hosts"`
 	AgentMayPick bool                `json:"agentMayPick"`
 	Steps        []store.RunbookStep `json:"steps"`
-	// Source and SourceRef are set by keel serve: a save takes them from
+	// Source and SourceRef are set by slime serve: a save takes them from
 	// the draft DraftID names (made by RunbookDraft), never from the
 	// client; without a draft the runbook is the user's own.
 	Source    string `json:"source,omitempty"`
@@ -161,7 +161,7 @@ type RunbookInput struct {
 	FromPrivate bool `json:"fromPrivate,omitempty"`
 }
 
-// draftOrigin is where a draft came from, kept by keel serve so a save
+// draftOrigin is where a draft came from, kept by slime serve so a save
 // cannot claim to be the user's own writing.
 type draftOrigin struct {
 	source, ref string
@@ -401,7 +401,7 @@ func (s *Service) AddRunbook(in RunbookInput) (SavedRunbook, error) {
 	if s.books == nil {
 		return SavedRunbook{}, ErrNoRunbooks
 	}
-	// The source comes from keel serve's own record of the draft, never
+	// The source comes from slime serve's own record of the draft, never
 	// from the client: without a known draft it is the user's own.
 	in.Source, in.SourceRef = store.RunbookSourceUser, ""
 	if d, ok := s.takeDraft(in.DraftID); ok {

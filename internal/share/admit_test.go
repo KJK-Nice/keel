@@ -382,7 +382,7 @@ func TestShareRejectsUnverifiedAnswer(t *testing.T) {
 	}
 }
 
-// Over a real share, a joined peer cannot make keel serve type for it or
+// Over a real share, a joined peer cannot make slime serve type for it or
 // ask the agent, even while it drives: every inject and agent frame it
 // sends over the data channel is refused, it is given no nonce, it is told
 // nothing of the host, and nothing reaches the PTY but its own keystrokes.

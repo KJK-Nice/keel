@@ -2,7 +2,7 @@ package native
 
 import "context"
 
-// One way to ask keel serve something: do runs off the UI thread under callTimeout, done runs back on it with the
+// One way to ask slime serve something: do runs off the UI thread under callTimeout, done runs back on it with the
 // answer. A result that arrives after the window closed is dropped here, so no site has to remember to check.
 // Both go through w.work and w.post, which tests replace to run in line.
 

@@ -24,7 +24,7 @@ Each private key the hosts name has its own switch, off by default: a key you tu
 
 ## Unlock
 
-When the vault exists but keel serve could not open it at start, the window shows **Unlock your vault**: the passphrase, how many sessions are waiting in `keel serve` (they keep running while the vault is locked), and a reminder that a lost passphrase cannot be recovered. Slime never creates, re-keys or overwrites a vault from that screen.
+When the vault exists but slime serve could not open it at start, the window shows **Unlock your vault**: the passphrase, how many sessions are waiting in `slime serve` (they keep running while the vault is locked), and a reminder that a lost passphrase cannot be recovered. Slime never creates, re-keys or overwrites a vault from that screen.
 
 ## Port forwarding
 

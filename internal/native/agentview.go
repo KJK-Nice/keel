@@ -594,9 +594,9 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	}
 }
 
-// agentExpiredCard is a proposal saved from an earlier run. keel serve does not hold it any more,
+// agentExpiredCard is a proposal saved from an earlier run. slime serve does not hold it any more,
 // so it cannot be typed and cannot be edited: the card has Copy and Propose again and nothing else. Propose again asks
-// keel serve for a new proposal, which is a live card like any other.
+// slime serve for a new proposal, which is a live card like any other.
 func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
 	rec := w.agent.props[id]
 	p := rec.p
@@ -698,7 +698,7 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	}
 	b.Background(bg)
 	// The app's key cap is ↵, or ⇧↵ for a proposal that needs ⇧. MyGo gives a button pressed from the keyboard no modifier, so
-	// ⇧↵ cannot be offered: a ⇧ proposal says ⇧ (held with a click) instead, and ↵ is a plain Type, which keel serve and
+	// ⇧↵ cannot be offered: a ⇧ proposal says ⇧ (held with a click) instead, and ↵ is a plain Type, which slime serve and
 	// the card refuse for it (docs/native.md).
 	cap := "↵"
 	if offer == offerShift {

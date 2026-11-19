@@ -8,9 +8,9 @@ import (
 	"keel/internal/wire"
 )
 
-// Share is POST /api/share: keel serve shares the session (or returns the live link of a session already shared)
+// Share is POST /api/share: slime serve shares the session (or returns the live link of a session already shared)
 // and answers with the join link. The link carries the share's secret after "#k=": it is returned to the caller and
-// kept nowhere here, and never put in an error. keel serve's own refusal ("set a signal server in Settings · Sharing
+// kept nowhere here, and never put in an error. slime serve's own refusal ("set a signal server in Settings · Sharing
 // to share") comes back as a StatusError whose Msg is shown as it is.
 func (c *Client) Share(ctx context.Context, sessionID string) (link string, err error) {
 	var out struct {

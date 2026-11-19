@@ -425,7 +425,7 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 
 // §6.1 at the source: the agent routes cannot write to a session. The
 // files that hold them (the ask, the settings and conversations, notes,
-// runbooks, groups and notebooks, and keel mcp's routes) call no write,
+// runbooks, groups and notebooks, and slime mcp's routes) call no write,
 // inject, spawn or resize method, and touch the runtime only through Get,
 // List, ReadScrollback, LastCommand, CommandsAfter and CommandOutput
 // (reads). TestAgentAndMCPRoutesReachNoWriter follows every handler, in

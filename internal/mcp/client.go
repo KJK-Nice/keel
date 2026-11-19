@@ -17,10 +17,10 @@ import (
 	"keel/internal/authtoken"
 )
 
-// Client asks keel serve's /api/mcp/ routes on loopback with keel mcp's
-// token. It reads the token when it first needs it (keel serve makes it on
+// Client asks slime serve's /api/mcp/ routes on loopback with slime mcp's
+// token. It reads the token when it first needs it (slime serve makes it on
 // start), and before every request checks that the server on the address
-// holds the same token: a program that took the port (after keel serve
+// holds the same token: a program that took the port (after slime serve
 // stopped, say) gets a nonce, never the token. It never follows a
 // redirect, so the token header is sent only to the address it checked.
 type Client struct {
@@ -32,18 +32,18 @@ type Client struct {
 	token string
 }
 
-// NewClient returns a client for the keel serve on addr whose data
+// NewClient returns a client for the slime serve on addr whose data
 // directory is dataDir.
 func NewClient(addr, dataDir string) *Client {
 	return &Client{addr: addr, dataDir: dataDir, http: &http.Client{
 		Timeout: 30 * time.Second,
-		// A redirect would carry keel mcp's token to wherever it points.
+		// A redirect would carry slime mcp's token to wherever it points.
 		CheckRedirect: authtoken.NoRedirect,
 	}}
 }
 
-// errNotRunning says how to get keel serve up.
-var errNotRunning = errors.New("keel serve is not running: open the Slime app (or run `keel serve`), then try again")
+// errNotRunning says how to get slime serve up.
+var errNotRunning = errors.New("slime serve is not running: open the Slime app (or run `slime serve`), then try again")
 
 func (c *Client) base() string { return "http://" + c.addr }
 
@@ -55,7 +55,7 @@ func (c *Client) ready(ctx context.Context) (string, error) {
 		tok, err := authtoken.ReadMCP(c.dataDir)
 		if errors.Is(err, os.ErrNotExist) {
 			c.mu.Unlock()
-			return "", errors.New("no keel-mcp.token yet: open the Slime app once (keel serve makes it on start), then try again")
+			return "", errors.New("no keel-mcp.token yet: open the Slime app once (slime serve makes it on start), then try again")
 		}
 		if err != nil {
 			c.mu.Unlock()
@@ -71,7 +71,7 @@ func (c *Client) ready(ctx context.Context) (string, error) {
 	return tok, nil
 }
 
-// forget drops the token, so the next request reads it again (keel serve
+// forget drops the token, so the next request reads it again (slime serve
 // may have restarted with a new one).
 func (c *Client) forget() {
 	c.mu.Lock()
@@ -83,7 +83,7 @@ func (c *Client) forget() {
 func (c *Client) verify(ctx context.Context, token string) error {
 	err := authtoken.VerifyServer(ctx, c.http, c.addr, authtoken.MCPChallenge, token)
 	if errors.Is(err, authtoken.ErrUnproven) {
-		return fmt.Errorf("the server on %s did not prove it is this user's keel serve (an older Slime without keel mcp, or another program on that port)", c.addr)
+		return fmt.Errorf("the server on %s did not prove it is this user's slime serve (an older Slime without slime mcp, or another program on that port)", c.addr)
 	}
 	if err != nil {
 		return errNotRunning
@@ -91,8 +91,8 @@ func (c *Client) verify(ctx context.Context, token string) error {
 	return nil
 }
 
-// Do sends one request to keel serve and decodes the answer into out. An
-// error answer comes back as an error with keel serve's message.
+// Do sends one request to slime serve and decodes the answer into out. An
+// error answer comes back as an error with slime serve's message.
 func (c *Client) Do(ctx context.Context, method, path string, body, out any) error {
 	tok, err := c.ready(ctx)
 	if err != nil {
@@ -116,7 +116,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	authtoken.SetMCPToken(req.Header, tok)
 	res, err := c.http.Do(req)
 	if err != nil {
-		// keel serve may have restarted on another token: read it again
+		// slime serve may have restarted on another token: read it again
 		// next time.
 		c.forget()
 		return errNotRunning
@@ -136,14 +136,14 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 		}
 		msg := strings.TrimSpace(e.Error)
 		if res.StatusCode == http.StatusLocked {
-			// keel serve says "vault locked" to every client; Claude Code
+			// slime serve says "vault locked" to every client; Claude Code
 			// is told what to do about it.
 			msg = "the Slime vault is locked: unlock it in Slime"
 		}
 		if msg == "" {
 			msg = http.StatusText(res.StatusCode)
 		}
-		return fmt.Errorf("keel serve: %s", msg)
+		return fmt.Errorf("slime serve: %s", msg)
 	}
 	if out == nil {
 		return nil

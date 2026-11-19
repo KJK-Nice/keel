@@ -8,8 +8,8 @@ import (
 )
 
 // Saved agent conversations and the agent's settings (internal/httpapi/agent.go, agentask.go; the service is
-// internal/agent/service/sessions.go). keel serve saves a conversation in the vault, redacted as sent; this client only
-// reads one into memory to show it and never writes it anywhere. Nothing here reads a pane, types, or calls keel mcp's routes.
+// internal/agent/service/sessions.go). slime serve saves a conversation in the vault, redacted as sent; this client only
+// reads one into memory to show it and never writes it anywhere. Nothing here reads a pane, types, or calls slime mcp's routes.
 
 // ConversationSummary is one row of GET /api/agent/conversations.
 type ConversationSummary struct {
@@ -22,7 +22,7 @@ type ConversationSummary struct {
 	Proposals int       `json:"proposals"`
 }
 
-// ConversationList is GET /api/agent/conversations: the saved conversations, most recent first, and how long keel serve
+// ConversationList is GET /api/agent/conversations: the saved conversations, most recent first, and how long slime serve
 // keeps them (HistoryDays 0: only while open, and the list is empty).
 type ConversationList struct {
 	HistoryDays int                   `json:"historyDays"`
@@ -39,7 +39,7 @@ type SavedTurn struct {
 	Answer    string             `json:"answer"`
 	Cut       string             `json:"cut"`
 	Trace     []TraceStep        `json:"trace"`
-	Proposals []Proposal         `json:"proposals"` // a proposal keel serve no longer holds is Expired
+	Proposals []Proposal         `json:"proposals"` // a proposal slime serve no longer holds is Expired
 	Notes     []NoteProposal     `json:"notes"`
 	Runbooks  []RunbookProposal  `json:"runbooks"`
 	Notebooks []NotebookProposal `json:"notebooks"`
@@ -71,7 +71,7 @@ func (c *Client) Conversation(ctx context.Context, id string) (out Transcript, e
 	return out, err
 }
 
-// RenameConversation is PATCH /api/agent/conversations/{id}; it returns the title keel serve kept.
+// RenameConversation is PATCH /api/agent/conversations/{id}; it returns the title slime serve kept.
 func (c *Client) RenameConversation(ctx context.Context, id, title string) (string, error) {
 	var out struct {
 		Title string `json:"title"`
@@ -91,7 +91,7 @@ func (c *Client) DeleteAllConversations(ctx context.Context) error {
 	return c.do(ctx, http.MethodDelete, "/api/agent/conversations", nil, nil)
 }
 
-// ProposeAgain is POST /api/agent/conversations/{id}/proposals/{pid}/again: keel serve rates a saved command again and
+// ProposeAgain is POST /api/agent/conversations/{id}/proposals/{pid}/again: slime serve rates a saved command again and
 // makes a new, live proposal, which is typed (if at all) like any other, through Approve before type.
 func (c *Client) ProposeAgain(ctx context.Context, conversationID, proposalID string) (out Proposal, err error) {
 	err = c.do(ctx, http.MethodPost, "/api/agent/conversations/"+url.PathEscape(conversationID)+"/proposals/"+url.PathEscape(proposalID)+"/again", nil, &out)
@@ -105,8 +105,8 @@ type AgentRedact struct {
 	Hostnames bool `json:"hostnames"`
 }
 
-// AgentSettingsPatch is the body of PUT /api/agent/settings. keel serve merges the sent fields over the saved
-// settings, so a field left nil is not sent and is not changed. Redaction, scope and retention are keel serve's
+// AgentSettingsPatch is the body of PUT /api/agent/settings. slime serve merges the sent fields over the saved
+// settings, so a field left nil is not sent and is not changed. Redaction, scope and retention are slime serve's
 // to apply; this only sends the values.
 type AgentSettingsPatch struct {
 	Provider           *string      `json:"provider,omitempty"`
@@ -122,7 +122,7 @@ type AgentSettingsPatch struct {
 }
 
 // SaveAgentSettings is PUT /api/agent/settings with only the fields of the patch; the answer is the settings as
-// keel serve saved them.
+// slime serve saved them.
 func (c *Client) SaveAgentSettings(ctx context.Context, p AgentSettingsPatch) (out AgentSettings, err error) {
 	err = c.do(ctx, http.MethodPut, "/api/agent/settings", p, &out)
 	return out, err

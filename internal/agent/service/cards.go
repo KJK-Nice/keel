@@ -13,7 +13,7 @@ type cardKind[P, V any] struct {
 	saved   func(c *conversation, id string) bool // the card is in the saved record
 	busy    func(p *P) *bool
 	view    func(p *P) V
-	expired error // the card is only in the saved record: keel serve no longer holds it
+	expired error // the card is only in the saved record: slime serve no longer holds it
 	closed  error // the card is busy, or not in a state the action takes
 	// finishGone: finish records the status and saves the conversation even
 	// when the conversation or the card was dropped while the action ran.

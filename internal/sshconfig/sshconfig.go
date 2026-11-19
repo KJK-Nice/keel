@@ -38,7 +38,7 @@ const (
 )
 
 type Options struct {
-	// SSHDir is ~/.ssh (SLIME_SSH_DIR overrides it in keel serve). The config
+	// SSHDir is ~/.ssh (SLIME_SSH_DIR overrides it in slime serve). The config
 	// is SSHDir/config and a relative Include is relative to it.
 	SSHDir string
 	// Home is what ~ and %d stand for. Empty means the parent of SSHDir, so

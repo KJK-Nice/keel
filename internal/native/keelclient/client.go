@@ -1,4 +1,4 @@
-// Package keelclient is the only code in keel-native that talks to keel serve:
+// Package keelclient is the only code in keel-native that talks to slime serve:
 // the JSON API and the /ws/session socket. It never creates the token and never
 // puts it in an error.
 package keelclient
@@ -21,7 +21,7 @@ import (
 	"keel/internal/wire"
 )
 
-// Client talks to one keel serve.
+// Client talks to one slime serve.
 type Client struct {
 	addr, token string
 	http        *http.Client
@@ -32,11 +32,11 @@ type Client struct {
 }
 
 // New reads the address (paths.Addr) and the token (authtoken.Read). It does
-// not start keel serve and does not create the token.
+// not start slime serve and does not create the token.
 func New() (*Client, error) {
 	tok, err := authtoken.Read(paths.DataDir())
 	if err != nil {
-		return nil, fmt.Errorf("read the keel serve token (is keel serve running?): %w", err)
+		return nil, fmt.Errorf("read the slime serve token (is slime serve running?): %w", err)
 	}
 	return NewAt(paths.Addr(), tok), nil
 }
@@ -240,7 +240,7 @@ func (c *Client) Attach(sessionID string, cols, rows int) (*Conn, error) {
 	return c.dial(url.Values{"id": {sessionID}}, cols, rows)
 }
 
-// name is who this client says it is: Name, else in the order cmd/keel parseName uses.
+// name is who this client says it is: Name, else in the order cmd/slime parseName uses.
 func (c *Client) name() string {
 	if c.Name != "" {
 		return c.Name
@@ -256,6 +256,6 @@ func (c *Client) name() string {
 func (c *Client) dial(q url.Values, cols, rows int) (*Conn, error) {
 	q.Set("cols", strconv.Itoa(cols))
 	q.Set("rows", strconv.Itoa(rows))
-	q.Set("name", c.name()) // no kind: a WebSocket is the window (wire.KindWindow), keel serve says
+	q.Set("name", c.name()) // no kind: a WebSocket is the window (wire.KindWindow), slime serve says
 	return dialWS("ws://"+c.addr+"/ws/session?"+q.Encode(), c.token)
 }

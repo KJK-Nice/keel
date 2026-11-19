@@ -12,11 +12,11 @@ import (
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session.
 // They are pinned by typedirect_test.go.
 //
-// keel serve decides whether a Type goes without the dialog (internal/httpapi/typedirect.go, agent.DirectSafe). These
+// slime serve decides whether a Type goes without the dialog (internal/httpapi/typedirect.go, agent.DirectSafe). These
 // only skip the round trip when the answer is certainly "dialog", and name the button and the badge. A hint that says
-// direct can still meet the dialog; one that says no never reaches keel serve. Nothing here types.
+// direct can still meet the dialog; one that says no never reaches slime serve. Nothing here types.
 
-// The grammar of a direct type is cmdrule.DirectSafe, the rule keel serve applies; the window calls it as a hint (is the
+// The grammar of a direct type is cmdrule.DirectSafe, the rule slime serve applies; the window calls it as a hint (is the
 // dialog certain?) so the two cannot differ.
 
 // snippetLine is what a direct type of a snippet sends: its command without the newlines that would run it.
@@ -30,7 +30,7 @@ func snippetBadge(command string) string {
 	return "Approve first"
 }
 
-// proposalDirect: an agent proposal that keel serve should type without the dialog, as far as the window knows.
+// proposalDirect: an agent proposal that slime serve should type without the dialog, as far as the window knows.
 func proposalDirect(p keelclient.Proposal) bool {
 	return p.Risk == keelclient.RiskReadOnly && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && cmdrule.DirectSafe(p.Command)
 }
@@ -73,7 +73,7 @@ const promptLineMax = 512
 // screenOf reads the pane's alternate screen and cursor line from a terminal Snapshot, with rows the terminal's height.
 // It never guesses "normal": a snapshot it cannot read (empty, no home sequence) is the alternate screen, which sends
 // the Type to the dialog. The line is the one the cursor is on, or when the snapshot does not place it, the last line
-// with text; keel serve checks its own view of the output as well and only ever adds a dialog.
+// with text; slime serve checks its own view of the output as well and only ever adds a dialog.
 func screenOf(snap string, rows int) (altScreen bool, promptLine string) {
 	alt, lines, top, row := readSnapshot(snap, rows)
 	if alt {

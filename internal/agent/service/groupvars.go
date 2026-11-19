@@ -22,13 +22,13 @@ import (
 //     shell word) or {{name|q}} (single-quoted). Its value is a value
 //     captured earlier in the same run, or one of the group's variables.
 //   - A step may capture values: after its command ends with a reported
-//     exit 0 on a host, keel serve applies the step's pattern to that
+//     exit 0 on a host, slime serve applies the step's pattern to that
 //     command's output on that host, between the shell's OSC 133 C and D
 //     marks (CaptureSource), and keeps the value in memory, in the run, for
 //     that host, for at most captureTTL. The model plays no part: patterns
 //     are applied by this code, and a group run sends nothing to a
 //     provider.
-//   - Values are filled in only at Type time, by keel serve, for one host's
+//   - Values are filled in only at Type time, by slime serve, for one host's
 //     proposal (fillProposal): the approve dialog asks for the filled bytes
 //     (FillGroupProposals) and shows them; AuthorizeType fills again and
 //     compares the client's bytes with those, so what is typed is exactly
@@ -56,7 +56,7 @@ var (
 	ErrGroupVarSecret = errors.New("agent: that value looks like a secret or holds a value from the vault; group variables are not secret (they are shown, filled into commands and exported). Keep secrets in the vault")
 )
 
-// CaptureSource reads a finished command's raw output. keel serve's
+// CaptureSource reads a finished command's raw output. slime serve's
 // runtime satisfies it (through httpapi's agentPanes).
 type CaptureSource interface {
 	CommandOutput(sessionID string, cmd shellmark.Command) ([]byte, bool)
@@ -156,7 +156,7 @@ const maxWithheld = 1024
 const minCapturedBytes = 3
 
 // withholdLocked adds a captured value to the redact-only set, kept for
-// the life of this keel serve whatever happens to its run (finished,
+// the life of this slime serve whatever happens to its run (finished,
 // stopped, evicted, expired, retried): the value stays in the scrollback
 // of the pane it was captured from and of every pane it was typed into.
 // It reports false when the set is full. Call with s.mu held.

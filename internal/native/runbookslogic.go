@@ -13,7 +13,7 @@ import (
 
 // The pure rules of runbooks (docs/ui-redesign.md §16): the words and states the screens show for a saved runbook, a
 // runbook in use in a conversation and a runbook the agent proposes (runbookslogic_test.go pins them), without the parts that belong to group runs (§17: roles,
-// "one host only", captures) and to notebooks. Nothing here talks to keel serve, draws or types.
+// "one host only", captures) and to notebooks. Nothing here talks to slime serve, draws or types.
 
 const maxRunbookSteps = limits.MaxRunbookSteps
 
@@ -188,7 +188,7 @@ type rbPane struct {
 	readable bool
 }
 
-// runbookFitsPane is keel serve's rule for offering a runbook: no hosts, or a pane whose host's folder or one of its tags
+// runbookFitsPane is slime serve's rule for offering a runbook: no hosts, or a pane whose host's folder or one of its tags
 // is listed (any case).
 func runbookFitsPane(rb keelclient.Runbook, p *rbPane) bool {
 	if len(rb.Hosts) == 0 {
@@ -230,7 +230,7 @@ func runbookOfferFor(rb keelclient.Runbook, panes []rbPane) (ok bool, reason str
 	return false, "Not offered: no " + strings.Join(rb.Hosts, " or ") + " host in scope"
 }
 
-// cleanLine is one line, as keel serve keeps a runbook's text fields.
+// cleanLine is one line, as slime serve keeps a runbook's text fields.
 func cleanLine(text string) string {
 	var b strings.Builder
 	for _, r := range text {
@@ -258,7 +258,7 @@ type rbEdit struct {
 }
 
 // toRunbookInput is the editor's state as POST/PUT /api/agent/runbooks takes it. Empty steps (no title and no command)
-// are dropped. keel serve takes the source from its own record of the draft.
+// are dropped. slime serve takes the source from its own record of the draft.
 func toRunbookInput(ed rbEdit) keelclient.RunbookInput {
 	steps := []keelclient.RunbookStepInput{}
 	for _, s := range ed.steps {

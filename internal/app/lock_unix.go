@@ -24,7 +24,7 @@ func lockDataDir(dataDir string) (release func(), err error) {
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("another keel serve is using %s", dataDir)
+			return nil, fmt.Errorf("another slime serve is using %s", dataDir)
 		}
 		return nil, err
 	}

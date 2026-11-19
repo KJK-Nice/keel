@@ -55,11 +55,11 @@ func main() {
 			log.Fatal(err)
 		}
 	case "version", "--version":
-		fmt.Println("keel", version)
+		fmt.Println("slime", version)
 	case "help", "-h", "--help":
 		fmt.Print(helpText)
 	default:
-		log.Fatalf("unknown command %q (try keel, keel app, keel serve, or keel mcp)", cmd)
+		log.Fatalf("unknown command %q (try slime, slime app, slime serve, or slime mcp)", cmd)
 	}
 }
 
@@ -84,16 +84,16 @@ func parseName(args []string) string {
 
 const helpText = `Slime — local SSH workspace
 
-keel opens a desktop window (native, MyGo + libghostty). Closing the window
-detaches; PTYs keep running in a background keel serve process. Closing a
+slime opens a desktop window (native, MyGo + libghostty). Closing the window
+detaches; PTYs keep running in a background slime serve process. Closing a
 session tab kills that PTY.
 
-  keel            open the desktop app (starts serve if needed)
-  keel app        same
-  keel serve      run the runtime daemon in the foreground
-  keel serve stop stop the daemon and kill leftover sessions
-  keel version    print the version
-  keel mcp        MCP server on stdio for Claude Code: claude mcp add keel -- keel mcp
+  slime           open the desktop app (starts serve if needed)
+  slime app       same
+  slime serve     run the runtime daemon in the foreground
+  slime serve stop stop the daemon and kill leftover sessions
+  slime version   print the version
+  slime mcp       MCP server on stdio for Claude Code: claude mcp add slime -- slime mcp
                   (lists and reads panes the agent may read; proposes commands
                   that wait in the agent panel; never types)
 
@@ -101,16 +101,16 @@ Internet follow (no LAN) needs a public signaling server:
 
   keel-signal                 # listen :47242
   Settings · Sharing · Signal server: its URL (saved; host copies a join link from Share)
-  SLIME_SIGNAL=https://… keel  # or for one run (wins over the saved server)
+  SLIME_SIGNAL=https://… slime # or for one run (wins over the saved server)
   make build SLIME_SIGNAL=https://…   or bake a default into the build
 
   Host: Share. Other Slime: Join session, paste the link.
-  Two apps on one Mac: SLIME_ADDR=127.0.0.1:47243 SLIME_DATA=/tmp/keel-join ./bin/keel
+  Two apps on one Mac: SLIME_ADDR=127.0.0.1:47243 SLIME_DATA=/tmp/keel-join ./bin/slime
 
 Environment:
-  SLIME_ADDR       local bind of keel serve (default 127.0.0.1:47241)
+  SLIME_ADDR       local bind of slime serve (default 127.0.0.1:47241)
   SLIME_DATA       data directory (default: OS config dir / keel)
-  SLIME_NAME       display name (keel app --name sets it for the run)
+  SLIME_NAME       display name (slime app --name sets it for the run)
   SLIME_SIGNAL     public URL of keel-signal for this run (overrides Settings · Sharing)
   SLIME_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
   (each also works under its old name, KEEL_*)
@@ -121,5 +121,5 @@ and SHA-256 checked on first run, or found beside the binary). Build:
   make build
   make build SLIME_SIGNAL=https://your-signal.example
 
-make build also packages the app with mygo build (build/darwin-*/Slime.app on macOS) — open that, or run ./bin/keel.
+make build also packages the app with mygo build (build/darwin-*/Slime.app on macOS) — open that, or run ./bin/slime.
 `

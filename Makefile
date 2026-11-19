@@ -1,9 +1,9 @@
-.PHONY: app build keel-binary helpers package native-e2e native-automation native-automation-build test bench signal macos-icon lint fmt vet staticcheck vulncheck
+.PHONY: app build slime-binary helpers package native-e2e native-automation native-automation-build test bench signal macos-icon lint fmt vet staticcheck vulncheck
 
 ADDR ?= 127.0.0.1:47241
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
-# Release builds stamp the version into `keel version`:
+# Release builds stamp the version into `slime version`:
 #   make package SLIME_VERSION=vX.Y.Z
 # (the packages carry the version of mygo.json; scripts/release.sh checks the two agree)
 # SLIME_VERSION, SLIME_SIGNAL and SLIME_SIGN were KEEL_* before the rename; the old names still work.
@@ -20,24 +20,25 @@ SLIME_LDFLAGS := -ldflags "$(SLIME_X)"
 # macOS deployment target of its own.
 # make app opens the native window.
 app:
-	CGO_ENABLED=0 SLIME_ADDR=$(ADDR) go run $(SLIME_LDFLAGS) ./cmd/keel app
+	CGO_ENABLED=0 SLIME_ADDR=$(ADDR) go run $(SLIME_LDFLAGS) ./cmd/slime app
 
-# The one recipe that builds ./cmd/keel into SLIME_OUT, with the build tags in SLIME_TAGS (none for a normal build; the
-# test builds below set them for their own target only). bin/keel is the plain binary for development (no bundle:
+# The one recipe that builds ./cmd/slime into SLIME_OUT, with the build tags in SLIME_TAGS (none for a normal build; the
+# test builds below set them for their own target only). bin/slime is the plain binary for development (no bundle:
 # libghostty-vt downloads into the user cache on first run).
 SLIME_TAGS ?=
-SLIME_OUT ?= bin/keel
-keel-binary:
+SLIME_OUT ?= bin/slime
+slime-binary:
 	rm -f $(SLIME_OUT)
-	CGO_ENABLED=0 go build $(SLIME_LDFLAGS) $(if $(SLIME_TAGS),-tags $(SLIME_TAGS)) -o $(SLIME_OUT) ./cmd/keel
+	CGO_ENABLED=0 go build $(SLIME_LDFLAGS) $(if $(SLIME_TAGS),-tags $(SLIME_TAGS)) -o $(SLIME_OUT) ./cmd/slime
+	$(if $(filter bin/slime,$(SLIME_OUT)),ln -sf slime bin/keel) # keel, the command's name before the rename, still works
 
-# The helper binaries next to bin/keel: the signaling server and the test SSH server.
+# The helper binaries next to bin/slime: the signaling server and the test SSH server.
 helpers:
 	go build -o bin/keel-signal ./cmd/keel-signal
 	go build -o bin/keel-sshtest ./cmd/keel-sshtest
 
-# make package builds the shipped app next to bin/keel.
-build: keel-binary helpers
+# make package builds the shipped app next to bin/slime.
+build: slime-binary helpers
 	$(MAKE) package
 
 # THIRD_PARTY_NOTICES goes into every package (mygo.json resources). It needs the network, so it is made once;
@@ -62,11 +63,11 @@ signal:
 	go run ./cmd/keel-signal
 
 # The native client end to end: the real view and terminal under MyGo's
-# ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
+# ui.Tester against a scratch slime serve it starts. PNGs: .scratch-native/e2e/.
 # The tag keelfake links the agent's test provider (SLIME_AGENT_PROVIDER=fake), which no other build has: this
-# bin/keel is a test binary, and make build replaces it.
+# bin/slime is a test binary, and make build replaces it.
 native-e2e: SLIME_TAGS = keelfake
-native-e2e: keel-binary helpers
+native-e2e: slime-binary helpers
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 # bin/keel-e2e is the test build the automation suite drives: its first tag opens MyGo's automation socket
@@ -74,7 +75,7 @@ native-e2e: keel-binary helpers
 # either tag.
 native-automation-build: SLIME_TAGS = keelautomation,keelfake
 native-automation-build: SLIME_OUT = bin/keel-e2e
-native-automation-build: keel-binary
+native-automation-build: slime-binary
 
 # Drives the built app from outside through MyGo's automation socket. Opens real windows briefly.
 # Scratch data only; not part of make test or make native-e2e.

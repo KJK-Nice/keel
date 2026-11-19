@@ -96,7 +96,7 @@ func (f *firstRun) handleFor(path string) *ui.Handle {
 	return h
 }
 
-// usesKeychain: the vault exists and keel serve opened it with the keychain.
+// usesKeychain: the vault exists and slime serve opened it with the keychain.
 func (f *firstRun) usesKeychain() bool { return !f.vault.NeedsSetup && f.vault.Mode == "keychain" }
 
 // ---- opening and closing ----
@@ -214,7 +214,7 @@ func passDesc(f *firstRun, keychain string) string {
 	if f.usesKeychain() {
 		return "Slime already made this vault with " + keychain + ". It does not re-key a vault here."
 	}
-	return "You type it each time keel serve starts. Pick this on shared machines or when there is no keychain."
+	return "You type it each time slime serve starts. Pick this on shared machines or when there is no keychain."
 }
 
 func vaultEnc(f *firstRun) string {

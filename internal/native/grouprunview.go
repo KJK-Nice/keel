@@ -241,7 +241,7 @@ func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.Gr
 	}
 }
 
-// runModeSeg is Rolling | Parallel; both are off while the mode may not change (keel serve refuses it too, with 409).
+// runModeSeg is Rolling | Parallel; both are off while the mode may not change (slime serve refuses it too, with 409).
 func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
 	ui.Row(c).Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(stage).Border(1, line).Label("How to run on several hosts").Children(func() {
 		for _, o := range [][2]string{{wire.ModeRolling, "Rolling"}, {wire.ModeParallel, "Parallel"}} {
@@ -361,7 +361,7 @@ func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelcli
 	}
 }
 
-// bytesNamesView is bytesView with each {{name}} drawn as a chip: the bytes as keel serve holds them, names and all.
+// bytesNamesView is bytesView with each {{name}} drawn as a chip: the bytes as slime serve holds them, names and all.
 func bytesNamesView(c *ui.Context, bytes string) {
 	var spans []ui.Span
 	for _, seg := range splitVars(bytes) {
@@ -387,7 +387,7 @@ func textBtnOffAs(c *ui.Context, name, shown string, kind btnKind, off bool) boo
 // ---- the captured values ----
 
 // runCaptures is a step's box of captured values (board CaptureVars): each name, its pattern and, per host, a mask and the
-// length, or why there is none. keel serve never sends the value to this page.
+// length, or why there is none. slime serve never sends the value to this page.
 func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) {
 	st := run.Steps[i]
 	if len(st.Captures) == 0 {
@@ -561,7 +561,7 @@ func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *keelclient
 }
 
 // runCellActions are the current step's actions on one host (cellActions): Confirm, Mark done, Retry, Skip. Mark done waits
-// while the shell may still report the exit status (keel serve refuses it too).
+// while the shell may still report the exit status (slime serve refuses it too).
 func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, cell *keelclient.GroupRunCell) {
 	btn := func(action, shown, name string, kind btnKind) {
 		if textBtnAs(c, name+" "+host, shown, kind) {
