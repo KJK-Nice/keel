@@ -279,7 +279,7 @@ func postRuntimeStop(addr, token string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
-		req.Header.Set(authtoken.Header, token)
+		authtoken.SetToken(req.Header, token)
 	}
 	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
 	res, err := client.Do(req)

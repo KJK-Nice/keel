@@ -120,7 +120,7 @@ func (c *Client) doWith(ctx context.Context, hc *http.Client, method, path strin
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set(authtoken.Header, c.token) // a native client sends no origin header
+	authtoken.SetToken(req.Header, c.token) // a native client sends no origin header
 	resp, err := hc.Do(req)
 	if err != nil {
 		// url.Error carries the URL, which has no secret in it.

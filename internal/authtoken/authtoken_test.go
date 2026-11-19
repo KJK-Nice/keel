@@ -2,6 +2,7 @@ package authtoken
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"runtime"
 	"sync"
@@ -101,5 +102,40 @@ func TestProof(t *testing.T) {
 	}
 	if CheckProof("other", nonce, p) || CheckProof("tok", nonce+"x", p) || CheckProof("tok", nonce, "") {
 		t.Fatal("bad proof accepted")
+	}
+}
+
+func TestHeadersUnderEitherName(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		get      func(http.Header) string
+		set      func(http.Header, string)
+		new, old string
+	}{
+		{"window", Token, SetToken, Header, OldHeader},
+		{"mcp", MCPToken, SetMCPToken, MCPHeader, OldMCPHeader},
+	} {
+		h := http.Header{}
+		c.set(h, "tok")
+		if h.Get(c.new) != "tok" || h.Get(c.old) != "tok" {
+			t.Errorf("%s: set wrote %v, want both names", c.name, h)
+		}
+		for _, name := range []string{c.new, c.old} {
+			h := http.Header{}
+			h.Set(name, "tok")
+			if got := c.get(h); got != "tok" {
+				t.Errorf("%s: only %s: got %q", c.name, name, got)
+			}
+		}
+		if got := c.get(http.Header{}); got != "" {
+			t.Errorf("%s: none: got %q", c.name, got)
+		}
+	}
+	// The two tokens never stand in for each other under any name.
+	mcp, win := http.Header{}, http.Header{}
+	SetMCPToken(mcp, "x")
+	SetToken(win, "x")
+	if Token(mcp) != "" || MCPToken(win) != "" {
+		t.Error("one token's header read as the other's")
 	}
 }

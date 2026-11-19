@@ -9,7 +9,7 @@ import (
 	"keel/internal/store"
 )
 
-// WithAuth sets the token required, in the X-Keel-Token header, on the
+// WithAuth sets the token required, in the X-Slime-Token header (or X-Keel-Token), on the
 // privileged routes (/api/ and /ws/, except /api/health). There is no open
 // server: Handler refuses to build one without a token.
 func (s *Server) WithAuth(token string) *Server {
@@ -65,7 +65,7 @@ func isMCPPath(p string) bool {
 // keel mcp's token opens no other route, so neither can stand in for the
 // other.
 func (s *Server) mcpAuthorized(r *http.Request) bool {
-	return r.Header.Get("Origin") == "" && authtoken.Equal(r.Header.Get(authtoken.MCPHeader), s.mcpToken)
+	return r.Header.Get("Origin") == "" && authtoken.Equal(authtoken.MCPToken(r.Header), s.mcpToken)
 }
 
 func (s *Server) withAuth(next http.Handler) http.Handler {
@@ -93,7 +93,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if authtoken.Equal(r.Header.Get(authtoken.Header), s.authToken) {
+		if authtoken.Equal(authtoken.Token(r.Header), s.authToken) {
 			next.ServeHTTP(w, r)
 			return
 		}

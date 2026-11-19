@@ -114,7 +114,8 @@ func (s State) CanType() bool { return s.Ready() && s.Driving() }
 var dialTimeout = 5 * time.Second
 
 func dialWS(u, token string) (*Conn, error) {
-	h := http.Header{authtoken.Header: {token}} // a native client sends no origin header
+	h := http.Header{} // a native client sends no origin header
+	authtoken.SetToken(h, token)
 	d := websocket.Dialer{Proxy: http.ProxyFromEnvironment, HandshakeTimeout: dialTimeout}
 	ws, _, err := d.Dial(u, h)
 	if err != nil {

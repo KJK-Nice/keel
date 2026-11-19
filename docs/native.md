@@ -2,7 +2,7 @@
 
 The Slime window is a native window drawn with [MyGo](https://github.com/egoist/mygo) (pure Go, purego, no cgo) and libghostty terminals. `keel app` opens it in the same process as `keel` (`internal/app/run_native.go` calls `native.RunWith`); `cmd/keel-native` is the same window as a separate binary that attaches to a running `keel serve`. It is the only UI: the daemon serves no web page. This file is the UI document: what the window is, how to run and verify it, what each area does, and what it does not do. `docs/ui-redesign.md` holds the screens, the agent invariants (§6) and the design intent; its section numbers are cited throughout the code.
 
-The window is a client only. `keel serve` owns SSH and the PTYs, and the window never reads the keychain or the vault: it sees what `keel serve` returns on loopback, with the token from the data directory (`X-Keel-Token`, never a cookie or an `Origin`).
+The window is a client only. `keel serve` owns SSH and the PTYs, and the window never reads the keychain or the vault: it sees what `keel serve` returns on loopback, with the token from the data directory (`X-Slime-Token`, never a cookie or an `Origin`).
 
 ## Run it
 

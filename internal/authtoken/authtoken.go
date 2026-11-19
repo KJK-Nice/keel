@@ -16,6 +16,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,11 +25,38 @@ import (
 )
 
 // Header carries the token on requests from native clients.
-const Header = "X-Keel-Token"
+const Header = "X-Slime-Token"
 
 // MCPHeader carries keel mcp's own token (paths.MCPTokenFile). keel serve
 // accepts it on /api/mcp/ only, and only it there.
-const MCPHeader = "X-Keel-MCP-Token"
+const MCPHeader = "X-Slime-MCP-Token"
+
+// OldHeader and OldMCPHeader are the two headers' names from before the
+// rename to Slime. keel serve reads either name and clients send both, so
+// an app and a keel serve from either side of the rename work together.
+const (
+	OldHeader    = "X-Keel-Token"
+	OldMCPHeader = "X-Keel-MCP-Token"
+)
+
+// Token is the window's token h carries, under either name.
+func Token(h http.Header) string { return either(h, Header, OldHeader) }
+
+// MCPToken is keel mcp's token h carries, under either name.
+func MCPToken(h http.Header) string { return either(h, MCPHeader, OldMCPHeader) }
+
+// SetToken puts the window's token in h under both names.
+func SetToken(h http.Header, tok string) { h.Set(Header, tok); h.Set(OldHeader, tok) }
+
+// SetMCPToken puts keel mcp's token in h under both names.
+func SetMCPToken(h http.Header, tok string) { h.Set(MCPHeader, tok); h.Set(OldMCPHeader, tok) }
+
+func either(h http.Header, name, old string) string {
+	if v := h.Get(name); v != "" {
+		return v
+	}
+	return h.Get(old)
+}
 
 const tokenBytes = 32
 

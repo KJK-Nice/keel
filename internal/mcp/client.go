@@ -37,7 +37,7 @@ type Client struct {
 func NewClient(addr, dataDir string) *Client {
 	return &Client{addr: addr, dataDir: dataDir, http: &http.Client{
 		Timeout: 30 * time.Second,
-		// A redirect would carry X-Keel-MCP-Token to wherever it points.
+		// A redirect would carry keel mcp's token to wherever it points.
 		CheckRedirect: authtoken.NoRedirect,
 	}}
 }
@@ -113,7 +113,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set(authtoken.MCPHeader, tok)
+	authtoken.SetMCPToken(req.Header, tok)
 	res, err := c.http.Do(req)
 	if err != nil {
 		// keel serve may have restarted on another token: read it again
