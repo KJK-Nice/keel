@@ -6,7 +6,7 @@ import (
 	"os"
 	"runtime"
 
-	"keel/internal/native"
+	"slime/internal/native"
 )
 
 func init() {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The fake records attaches in the order they arrive and many tests read that order, so they attach one at a time.

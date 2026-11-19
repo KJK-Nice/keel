@@ -78,7 +78,7 @@ func loadTyped() ([]*typedPkg, error) {
 			return nil, err
 		}
 		exports[p.ImportPath] = p.Export
-		if p.ImportPath == "keel/internal/native" || strings.HasPrefix(p.ImportPath, "keel/internal/native/") {
+		if p.ImportPath == "slime/internal/native" || strings.HasPrefix(p.ImportPath, "slime/internal/native/") {
 			own = append(own, p)
 		}
 	}
@@ -187,7 +187,7 @@ func usesOfWriters(pkgs []*typedPkg, names map[string][]string) map[string][]str
 				if _, tracked := names[fn.Name()]; !tracked {
 					return true
 				}
-				if path := fn.Pkg().Path(); path != "x" && path != "keel/internal/native" && !strings.HasPrefix(path, "keel/internal/native/") {
+				if path := fn.Pkg().Path(); path != "x" && path != "slime/internal/native" && !strings.HasPrefix(path, "slime/internal/native/") {
 					return true // a name of the same spelling from elsewhere
 				}
 				site := name + ":" + funcAt(f, id.Pos())
@@ -376,7 +376,7 @@ func hasWrite(t types.Type) bool {
 func TestASessionBecomesAWriterOnlyAsTheTerminalViewsConnection(t *testing.T) {
 	var native *typedPkg
 	for _, p := range typedNative(t) {
-		if p.path == "keel/internal/native" {
+		if p.path == "slime/internal/native" {
 			native = p
 		}
 	}
@@ -456,7 +456,7 @@ var typingWire = map[string]bool{
 // wireName is obj's name in typingWire's terms: "Name" for a package-level object of internal/wire, "Control.Field" for
 // a field of wire.Control, "" for anything else.
 func wireName(obj types.Object) string {
-	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != "keel/internal/wire" {
+	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != "slime/internal/wire" {
 		return ""
 	}
 	if v, ok := obj.(*types.Var); ok && v.IsField() {

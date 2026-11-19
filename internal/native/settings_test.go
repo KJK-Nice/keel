@@ -11,7 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Settings on the fake backend: the nav, each section's controls, the sliders that repaint, the signal field and Stop.

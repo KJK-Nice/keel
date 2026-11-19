@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/shellmark"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/shellmark"
+	"slime/internal/store"
 )
 
 // fakeBooks is an in-memory RunbookStore that cleans like the store.

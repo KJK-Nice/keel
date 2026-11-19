@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Agent tab page (docs/ui-redesign.md §5.4.2) on the fake backend: it shows the window's one conversation, so the

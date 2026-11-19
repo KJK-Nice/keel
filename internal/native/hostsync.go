@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Keeping the host list current. The native client has no event stream, so it reads the hosts

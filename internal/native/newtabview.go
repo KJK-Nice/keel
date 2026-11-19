@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/sshparse"
 )
 
 // The New tab page: "Where to?", the input, the offer for a pasted command, the recent cards, the Start actions and the

@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"time"
 
-	"keel/internal/authtoken"
-	"keel/internal/env"
-	"keel/internal/paths"
-	"keel/internal/wire"
+	"slime/internal/authtoken"
+	"slime/internal/env"
+	"slime/internal/paths"
+	"slime/internal/wire"
 )
 
 // Client talks to one slime serve.

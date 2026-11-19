@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/store"
 )
 
 // The one place anything leaves the machine (docs/ui-redesign.md §6 rules

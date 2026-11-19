@@ -6,7 +6,7 @@ import (
 	"context"
 	"sync"
 
-	"keel/internal/agent/provider"
+	"slime/internal/agent/provider"
 )
 
 type Fake struct {

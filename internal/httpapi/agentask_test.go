@@ -18,13 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/applog"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/applog"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 const (

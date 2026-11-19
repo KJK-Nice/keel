@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/store"
 )
 
 // Saved conversations (docs/ui-redesign.md §5.4.1).

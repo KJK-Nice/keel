@@ -17,7 +17,7 @@ import (
 
 	"filippo.io/age"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Saved agent conversations (docs/ui-redesign.md §5.4.1).

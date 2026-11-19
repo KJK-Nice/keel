@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"keel/internal/env"
-	"keel/internal/signal"
+	"slime/internal/env"
+	"slime/internal/signal"
 )
 
 func main() {

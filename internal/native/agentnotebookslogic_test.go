@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The trace words, attaching, and the card words and actions. (The panel cases are agentnotebooks_test.go.)

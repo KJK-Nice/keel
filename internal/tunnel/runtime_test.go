@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 type loopDialer struct {

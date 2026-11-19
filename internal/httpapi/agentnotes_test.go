@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // The notes routes end to end with the scripted provider: a note proposed

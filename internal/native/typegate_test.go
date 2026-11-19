@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The typing gate, pinned for every input: whether a pane may be typed into (a local session that is ready and that

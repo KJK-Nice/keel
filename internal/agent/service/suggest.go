@@ -32,11 +32,11 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/store"
 )
 
 var (

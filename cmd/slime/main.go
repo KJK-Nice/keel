@@ -7,9 +7,9 @@ import (
 	"runtime"
 	"strings"
 
-	"keel/internal/app"
-	"keel/internal/env"
-	"keel/internal/paths"
+	"slime/internal/app"
+	"slime/internal/env"
+	"slime/internal/paths"
 )
 
 func init() {

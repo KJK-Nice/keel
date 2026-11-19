@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/authtoken"
+	"slime/internal/authtoken"
 )
 
 // Client asks slime serve's /api/mcp/ routes on loopback with slime mcp's

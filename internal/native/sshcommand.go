@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
 )
 
 // sshCommand is the host menu's "Copy SSH command" text: ssh, the port when

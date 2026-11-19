@@ -19,7 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/crypto/ssh"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // First run, Keychain and Logs against a scratch slime serve. Every daemon has SLIME_KEYRING=off, its own

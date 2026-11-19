@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15).

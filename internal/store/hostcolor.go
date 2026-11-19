@@ -1,6 +1,6 @@
 package store
 
-import "keel/internal/limits"
+import "slime/internal/limits"
 
 // HostColor is one swatch of the host label palette (internal/limits holds
 // the palette: the window shows the same one).

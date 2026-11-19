@@ -3,8 +3,8 @@ package httpapi
 import (
 	"net/http"
 
-	"keel/internal/agent/service"
-	"keel/internal/store"
+	"slime/internal/agent/service"
+	"slime/internal/store"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15): the user's CRUD on host

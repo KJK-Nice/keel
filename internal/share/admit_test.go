@@ -13,12 +13,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/sharelink"
-	"keel/internal/signal"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/sharelink"
+	"slime/internal/signal"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // shareRig is a session with a fake PTY, a local client watching for join

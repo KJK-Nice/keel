@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
 )
 
 // The workspace comes back: the tabs, how each is split, the custom titles, the focused and zoomed pane

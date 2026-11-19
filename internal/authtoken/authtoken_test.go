@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/paths"
+	"slime/internal/paths"
 )
 
 func TestLoadOrCreatePersists(t *testing.T) {

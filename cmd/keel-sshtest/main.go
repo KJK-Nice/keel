@@ -13,7 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"keel/internal/session/sshtest"
+	"slime/internal/session/sshtest"
 )
 
 type server struct {

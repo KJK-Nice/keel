@@ -6,11 +6,11 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/joinpeer"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/native/joinpeer"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // Join a session (docs/ui-redesign.md §5.7, docs/sharing.md); the peer is

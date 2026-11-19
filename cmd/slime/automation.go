@@ -8,7 +8,7 @@ import (
 
 	_ "github.com/egoist/mygo/plugins/automation"
 
-	"keel/internal/native"
+	"slime/internal/native"
 )
 
 // Test builds only (make native-automation-build). The plugin listens in its own init and answers nothing until

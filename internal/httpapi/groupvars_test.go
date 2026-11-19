@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent/service"
-	"keel/internal/store"
+	"slime/internal/agent/service"
+	"slime/internal/store"
 )
 
 // Groups, part 2 end to end (docs/ui-redesign.md §17): a group variable

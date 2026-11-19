@@ -15,7 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Saved conversations, the Agent page and Settings · Agent against a real slime serve that answers from its in-process fake

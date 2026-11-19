@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
 )
 
 // platform is the OS the window runs on, decided once. Every choice of a key or a label by platform reads it through isMac;

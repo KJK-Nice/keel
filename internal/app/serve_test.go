@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent/service"
-	"keel/internal/authtoken"
-	"keel/internal/paths"
-	"keel/internal/store"
+	"slime/internal/agent/service"
+	"slime/internal/authtoken"
+	"slime/internal/paths"
+	"slime/internal/store"
 )
 
 func TestProbeHealth(t *testing.T) {

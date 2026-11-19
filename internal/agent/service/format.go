@@ -5,10 +5,10 @@ import (
 	"regexp"
 	"strings"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/wire"
 )
 
 // ProposalFence is the info string of the fenced block in which the model

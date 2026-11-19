@@ -13,7 +13,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Notebooks and the agent against a real slime serve with the fake provider (SLIME_AGENT_PROVIDER=fake, made-up key only; no

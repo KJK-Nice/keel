@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/store"
 )
 
 // fakeChats is an in-memory ChatStore (the store's own tests cover

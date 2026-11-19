@@ -3,9 +3,9 @@ package httpapi
 import (
 	"net/http"
 
-	"keel/internal/agent/service"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent/service"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Groups, part 1 (docs/ui-redesign.md §17, boards GroupRoles and

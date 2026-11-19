@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // Share (docs/ui-redesign.md §5.6, docs/sharing.md). Nothing here decides who may watch or type: admission is slime serve's (internal/share), and

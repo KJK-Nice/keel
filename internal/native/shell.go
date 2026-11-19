@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The app shell around the window: the menu bar, the menu bar item (tray) and keeping Slime there when the window is

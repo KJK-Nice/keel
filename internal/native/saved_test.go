@@ -12,8 +12,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
 )
 
 // newRigIn is newRig with a data dir for the saved workspace.

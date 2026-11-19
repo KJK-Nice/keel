@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // A command whose group the Keyboard page does not list would have no row there.

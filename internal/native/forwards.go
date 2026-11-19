@@ -10,8 +10,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // Port forwarding (docs/ui-redesign.md §5.10). Each forward opens its own SSH connection from slime serve and keeps

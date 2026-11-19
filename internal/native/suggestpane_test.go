@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // In-pane suggestions on the fake backend: what a pane asks of slime serve, what it shows, which keys it takes, and what

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/randid"
+	"slime/internal/randid"
 )
 
 // KnownHosts holds one SHA256 fingerprint (ssh.FingerprintSHA256, the

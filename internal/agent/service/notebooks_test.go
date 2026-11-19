@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/store"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12), against

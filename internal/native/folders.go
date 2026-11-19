@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
 )
 
 // Folders (docs/ui-redesign.md §9 Group, §17): a vault folder is a keelclient.Group with a parent, a host points at one with

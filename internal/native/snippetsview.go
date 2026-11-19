@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Snippets page, the sidebar's Snippets section and the snippet dialog, with the Keychain page's split layout

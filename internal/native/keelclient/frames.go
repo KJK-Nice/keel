@@ -1,6 +1,6 @@
 package keelclient
 
-import "keel/internal/wire"
+import "slime/internal/wire"
 
 // A joined share has no socket to slime serve: its control frames arrive on a WebRTC data channel (joinpeer). It
 // keeps the state those frames describe in a Conn that has no socket, so that a joined pane and a local one read

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
 )
 
 // ScriptedJudge is the test detector `slime serve` uses with

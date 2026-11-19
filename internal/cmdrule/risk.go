@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Risk is how much a command can change on the host it runs on. It is the

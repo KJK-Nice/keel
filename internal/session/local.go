@@ -10,7 +10,7 @@ import (
 
 	"github.com/creack/pty"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 type localBridge struct {

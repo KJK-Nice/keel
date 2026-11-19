@@ -3,7 +3,7 @@ package app
 import (
 	"os"
 
-	"keel/internal/authtoken"
+	"slime/internal/authtoken"
 )
 
 // serveSteps are the calls that come before any window, in this order. Fakes in tests.

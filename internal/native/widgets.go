@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Small building blocks shared by the views. Colours and sizes come from tokens.go only.

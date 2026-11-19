@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The group run on the fake backend (docs/ui-redesign.md §6 rules 10 and 11, §17): the run page, the group approve dialog and

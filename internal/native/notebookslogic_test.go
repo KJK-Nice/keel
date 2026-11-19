@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Cases for placeholders, diffLines, history rows and autosave.

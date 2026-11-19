@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The cards of what the agent did to notebooks : every kind and status draws its head, status and

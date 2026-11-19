@@ -12,8 +12,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/cmdrule"
-	"keel/internal/wire"
+	"slime/internal/cmdrule"
+	"slime/internal/wire"
 )
 
 // The one place keel-native types into a session on the user's behalf (docs/ui-redesign.md §6, rule 1). Keystrokes

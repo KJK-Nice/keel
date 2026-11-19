@@ -47,7 +47,7 @@ The headless tester cannot reach the menu bar, tray, Dock or close behaviour; `m
 
 ### Linux
 
-CI runs `make test` on Ubuntu as well as macOS, the window's package (`keel/internal/native`) included. Nobody has run the window on a Linux desktop. What is known about the Linux text path and layout:
+CI runs `make test` on Ubuntu as well as macOS, the window's package (`slime/internal/native`) included. Nobody has run the window on a Linux desktop. What is known about the Linux text path and layout:
 
 - MyGo draws text on Linux with Pango, cairo and fontconfig loaded at run time with purego, and falls back to a stub engine (text does not show, widths are zero) when they are missing. The runner has them, with DejaVu Sans and DejaVu Sans Mono, and `libghostty-vt` is downloaded at run time and loads (terminals run).
 - The theme's default UI family is `system-ui`: the desktop's interface font or, with none, fontconfig's default sans (DejaVu Sans on Ubuntu), wider than macOS's. Layouts are checked against both: the Agent page's root has `MinWidth(0)` so its content cannot set its width; the narrowest sidebar is `sidebarFontSlack` (6 px) wider off macOS so its four labels fit; the test sets that assume macOS metrics sample by region or column instead of fixed points.

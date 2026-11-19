@@ -10,7 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // #157: the joiner's name is passed to the host capped.

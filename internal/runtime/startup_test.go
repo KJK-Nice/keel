@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // recorder drains a fake bridge's input (what Slime typed into the PTY).

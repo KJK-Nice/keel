@@ -3,7 +3,7 @@ package native
 import (
 	"context"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The agent half of fakeBackend: what the panel asks of slime serve, recorded, and answered as the test says. Nothing

@@ -8,7 +8,7 @@ import (
 
 	_ "github.com/egoist/mygo/plugins/automation"
 
-	"keel/internal/native"
+	"slime/internal/native"
 )
 
 // Test builds only. See cmd/slime/automation.go.

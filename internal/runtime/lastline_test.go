@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"keel/internal/scrollback"
+	"slime/internal/scrollback"
 )
 
 func TestLastLine(t *testing.T) {

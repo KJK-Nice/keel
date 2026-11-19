@@ -6,8 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/keelclient"
 )
 
 // Type without the dialog (docs/ui-redesign.md §6 rule 13): the one function that asks keelclient.DirectType to type, and

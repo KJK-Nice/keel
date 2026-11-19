@@ -17,9 +17,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"keel/internal/hostimport"
-	"keel/internal/runtime"
-	"keel/internal/store"
+	"slime/internal/hostimport"
+	"slime/internal/runtime"
+	"slime/internal/store"
 )
 
 type fileSnap struct {

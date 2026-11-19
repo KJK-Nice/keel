@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // In-pane suggestions in the window (docs/ui-redesign.md §5.5): the glue between a pane's terminal, its

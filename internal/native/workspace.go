@@ -13,10 +13,10 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/joinpeer"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/wire"
+	"slime/internal/native/joinpeer"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
+	"slime/internal/wire"
 )
 
 const (

@@ -12,7 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The agent panel on the fake backend: what an ask sends, what the thread shows, and that a proposal reaches a session

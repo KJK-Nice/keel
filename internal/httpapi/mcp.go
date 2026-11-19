@@ -3,9 +3,9 @@ package httpapi
 import (
 	"net/http"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/wire"
 )
 
 // slime mcp's routes (docs/agent.md, Claude Code): the bridge that lets

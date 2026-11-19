@@ -17,8 +17,8 @@ import (
 	"strings"
 	"unicode"
 
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
 )
 
 // Kind is one rule that matched. Kinds are stable: they are written to

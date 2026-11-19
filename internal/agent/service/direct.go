@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"keel/internal/agent"
-	"keel/internal/cmdrule"
+	"slime/internal/agent"
+	"slime/internal/cmdrule"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for

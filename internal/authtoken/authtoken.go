@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"keel/internal/paths"
+	"slime/internal/paths"
 )
 
 // Header carries the token on requests from native clients.

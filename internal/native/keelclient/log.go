@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // LogLine is one line of a pane's connection log: Kind is "user" (what the user asked for), "work" (a step) or "fail".

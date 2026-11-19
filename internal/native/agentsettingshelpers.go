@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
 )
 
 // The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions

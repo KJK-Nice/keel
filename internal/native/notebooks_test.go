@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Notebooks on the fake backend: the sidebar section, the page, the row menu, the pane (read rendered, edit as Markdown),

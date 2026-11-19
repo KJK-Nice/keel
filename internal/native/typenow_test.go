@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Type without the dialog on the fake backend (typeNow): what is asked of slime serve, with which bytes, and what the

@@ -15,7 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Folders, the Group page and group runs against a real slime serve that answers from its in-process fake

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/limits"
+	"slime/internal/limits"
 )
 
 // Host roles in a group (docs/ui-redesign.md §17, board GroupRoles): what

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // fakeBridge is a PTY: what is written to the session comes out of inR.

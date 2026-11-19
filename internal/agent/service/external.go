@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 const (

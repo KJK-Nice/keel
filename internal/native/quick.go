@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/sshparse"
 )
 
 // Quick connect, and "Connect once" on the New tab page, which is the same dialog. It saves a password host under the group "Quick

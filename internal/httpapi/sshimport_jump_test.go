@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/hostimport"
-	"keel/internal/runtime"
-	"keel/internal/store"
+	"slime/internal/hostimport"
+	"slime/internal/runtime"
+	"slime/internal/store"
 )
 
 func jumpImportFixture(t *testing.T, cfg string) importFixture {

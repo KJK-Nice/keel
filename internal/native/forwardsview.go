@@ -6,8 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The Port forwarding page, the sidebar's Forwards section and the forward dialog, with the Logs page's table layout

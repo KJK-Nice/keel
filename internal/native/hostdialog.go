@@ -13,9 +13,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/sshparse"
 )
 
 // New host and Edit host (docs/ui-redesign.md §5.8): one dialog. It sends the values as JSON to

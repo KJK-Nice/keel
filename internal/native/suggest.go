@@ -6,8 +6,8 @@ import (
 	"time"
 	"unicode"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // Plain language → command in a pane (docs/ui-redesign.md §5.5): the state machine and the pure rules, held by suggest_test.go.

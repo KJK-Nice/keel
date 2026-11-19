@@ -14,9 +14,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"keel/internal/inject"
-	"keel/internal/runtime"
-	"keel/internal/wire"
+	"slime/internal/inject"
+	"slime/internal/runtime"
+	"slime/internal/wire"
 )
 
 // Transport carries a client's frames: SendJSON a text frame, SendBytes a

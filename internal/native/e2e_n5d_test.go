@@ -18,8 +18,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/authtoken"
-	"keel/internal/native/keelclient"
+	"slime/internal/authtoken"
+	"slime/internal/native/keelclient"
 )
 
 // Port forwarding, the sidebar's Panes section, Settings and toasts against a scratch slime serve. Every daemon has

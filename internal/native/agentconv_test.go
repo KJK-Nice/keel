@@ -10,7 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Saved conversations in the panel (docs/ui-redesign.md §5.4.1) on the fake backend: the list, rename, delete, resume

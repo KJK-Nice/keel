@@ -12,8 +12,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
 )
 
 // The notebook pane: the document rendered, the Markdown edited as plain text, and a fence typed only through typeNow and

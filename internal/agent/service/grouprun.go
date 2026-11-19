@@ -6,12 +6,12 @@ import (
 	"sort"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Group runs (docs/ui-redesign.md §17, board GroupRunbook): one runbook

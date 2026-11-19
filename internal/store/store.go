@@ -18,11 +18,11 @@ import (
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"
 
-	"keel/internal/env"
-	"keel/internal/limits"
-	"keel/internal/paths"
-	"keel/internal/randid"
-	"keel/internal/wire"
+	"slime/internal/env"
+	"slime/internal/limits"
+	"slime/internal/paths"
+	"slime/internal/randid"
+	"slime/internal/wire"
 )
 
 var ErrNotFound = errors.New("not found")

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
 )
 
 // The questions Slime asks the detector (TypeSafe Jev) and the numbers it

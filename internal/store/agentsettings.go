@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/limits"
+	"slime/internal/limits"
 )
 
 // Agent settings choices. The settings live in keel.json and hold no

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"keel/internal/env"
+	"slime/internal/env"
 
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"

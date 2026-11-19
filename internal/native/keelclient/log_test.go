@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 func TestTheConnectionLogKeepsStepsAndFailuresAndDropsNoise(t *testing.T) {

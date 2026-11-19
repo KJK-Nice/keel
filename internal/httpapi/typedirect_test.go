@@ -8,10 +8,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for

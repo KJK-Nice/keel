@@ -9,8 +9,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/authtoken"
-	"keel/internal/wire"
+	"slime/internal/authtoken"
+	"slime/internal/wire"
 )
 
 // Conn is an io.ReadWriteCloser over /ws/session: binary frames are PTY bytes,

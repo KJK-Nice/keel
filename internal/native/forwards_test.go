@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Port forwarding on the fake backend: the page, the dialog, the sidebar section and the status bar.

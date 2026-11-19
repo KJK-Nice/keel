@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/store"
 )
 
 // The runbook routes end to end with the scripted provider (docs/ui-redesign.md §16):

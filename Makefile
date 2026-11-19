@@ -13,7 +13,7 @@ SLIME_X := -X main.version=$(SLIME_VERSION)
 # Finder-launched Slime.app has no shell env. Bake the public signal URL:
 #   make build SLIME_SIGNAL=https://keel-signal-production.up.railway.app
 ifneq ($(strip $(SLIME_SIGNAL)),)
-SLIME_X += -X keel/internal/share.DefaultSignal=$(SLIME_SIGNAL)
+SLIME_X += -X slime/internal/share.DefaultSignal=$(SLIME_SIGNAL)
 endif
 SLIME_LDFLAGS := -ldflags "$(SLIME_X)"
 # Slime is pure Go (the native window is MyGo, purego): no cgo, so a build needs no C toolchain and carries no

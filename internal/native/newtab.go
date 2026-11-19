@@ -8,10 +8,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/native/sshparse"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
+	"slime/internal/native/sshparse"
 )
 
 // The New tab page (docs/ui-redesign.md §5.3): one input, the recent host cards, the Start actions and the

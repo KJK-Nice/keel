@@ -14,11 +14,11 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/applog"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/session/sshtest"
-	"keel/internal/store"
+	"slime/internal/applog"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/session/sshtest"
+	"slime/internal/store"
 )
 
 func hostCheckServer(t *testing.T) (*httptest.Server, *store.Store, string) {

@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/limits"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/wire"
 )
 
 // LatestProtocol is the MCP version slime mcp answers with when the client

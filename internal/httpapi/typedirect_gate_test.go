@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/runtime"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/runtime"
+	"slime/internal/store"
 )
 
 // The gate of a direct type (§6 rule 13): the strict allowlist

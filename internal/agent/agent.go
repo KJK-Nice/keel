@@ -17,9 +17,9 @@ import (
 	"errors"
 	"strings"
 
-	"keel/internal/agent/redact"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent/redact"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Log event kinds in keel.log.

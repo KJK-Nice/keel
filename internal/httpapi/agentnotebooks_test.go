@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/store"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12) over the

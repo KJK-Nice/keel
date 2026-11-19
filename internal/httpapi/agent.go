@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"keel/internal/agent/provider"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent/provider"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Agent settings and provider keys. These routes store choices

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
+	"slime/internal/agent"
 )
 
 // Fixes from the review of groups, part 1 (§17).

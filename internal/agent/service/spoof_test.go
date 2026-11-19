@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/shellmark"
+	"slime/internal/shellmark"
 )
 
 // A remote file holding fake OSC 133 marks (`cat evil.log`) makes the

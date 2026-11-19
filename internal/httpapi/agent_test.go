@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 type agentFixture struct {

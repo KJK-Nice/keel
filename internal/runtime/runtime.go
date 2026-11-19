@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/inject"
-	"keel/internal/paths"
-	"keel/internal/randid"
-	"keel/internal/scrollback"
-	"keel/internal/session"
-	"keel/internal/sharelink"
-	"keel/internal/shellmark"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/inject"
+	"slime/internal/paths"
+	"slime/internal/randid"
+	"slime/internal/scrollback"
+	"slime/internal/session"
+	"slime/internal/sharelink"
+	"slime/internal/shellmark"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Status, Role and Client are the session socket's own (internal/wire).

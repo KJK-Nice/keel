@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent/redact"
-	"keel/internal/store"
+	"slime/internal/agent/redact"
+	"slime/internal/store"
 )
 
 // An agent edit never changes, unmasks or probes a value Slime redacts

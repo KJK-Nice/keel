@@ -5,8 +5,8 @@ import (
 	"errors"
 	"slices"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12). slime serve decides everything:

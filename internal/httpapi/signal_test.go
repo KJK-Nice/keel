@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"keel/internal/runtime"
-	"keel/internal/share"
-	"keel/internal/store"
+	"slime/internal/runtime"
+	"slime/internal/share"
+	"slime/internal/store"
 )
 
 func signalServer(t *testing.T) (*httptest.Server, *store.Store, *share.Hub) {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // What the folder menus, the folder dialog and a drop do. slime serve keeps the folders; this client reads them again after every write and keeps

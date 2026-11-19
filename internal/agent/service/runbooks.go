@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
-	"keel/internal/shellmark"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
+	"slime/internal/shellmark"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Runbooks (docs/ui-redesign.md §16).

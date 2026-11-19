@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Issue #160: Reconnect on a pane whose socket was lost opens a new connection to the session and swaps it in.

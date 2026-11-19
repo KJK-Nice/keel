@@ -18,11 +18,11 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/runtime"
+	"slime/internal/agent"
+	"slime/internal/runtime"
 )
 
-const module = "keel"
+const module = "slime"
 
 func moduleRoot(t *testing.T) string {
 	t.Helper()

@@ -5,8 +5,8 @@ import (
 
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // The joiner's half of the end-to-end check of a share's WebRTC peer (the MAC itself is internal/sharelink's, shared

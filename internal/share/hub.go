@@ -17,10 +17,10 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/runtime"
-	"keel/internal/sessionsock"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/runtime"
+	"slime/internal/sessionsock"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 type Hub struct {
@@ -108,7 +108,7 @@ var (
 // DefaultSignal is the compile-time signaling URL. Finder-launched Slime.app
 // has no shell env, so bake it in:
 //
-//	go build -ldflags "-X keel/internal/share.DefaultSignal=https://…"
+//	go build -ldflags "-X slime/internal/share.DefaultSignal=https://…"
 var DefaultSignal string
 
 // New makes a hub on signalURL, which no saved setting overrides.

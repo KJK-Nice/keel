@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo/ui/markdown/parser"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/keelclient"
 )
 
 // The pure rules of notebooks (docs/ui-redesign.md §18): the words and states the screens show, pinned by

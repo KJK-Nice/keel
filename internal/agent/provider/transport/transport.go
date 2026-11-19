@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent/provider"
-	"keel/internal/authtoken"
+	"slime/internal/agent/provider"
+	"slime/internal/authtoken"
 )
 
 // DefaultAnswerTokens is the answer room of a request that sets none, for

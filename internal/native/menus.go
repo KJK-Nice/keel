@@ -7,8 +7,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/layout"
-	"keel/internal/wire"
+	"slime/internal/native/layout"
+	"slime/internal/wire"
 )
 
 // The pane menu and the tab menu. A menu never types into a session.

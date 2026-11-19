@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"keel/internal/sshconfig"
-	"keel/internal/store"
+	"slime/internal/sshconfig"
+	"slime/internal/store"
 )
 
 // ErrNotSetUp is returned when slime serve has no ssh folder to read.

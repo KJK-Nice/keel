@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // A reconnect loads the host as saved now; when that fails (here the jump

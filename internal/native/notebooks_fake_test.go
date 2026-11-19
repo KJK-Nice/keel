@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The notebooks half of fakeBackend: what the window asks of slime serve, recorded, and answered as the test says. Nothing

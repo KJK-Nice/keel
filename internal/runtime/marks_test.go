@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/shellmark"
+	"slime/internal/shellmark"
 )
 
 func markSession(ringSize int) *Session {

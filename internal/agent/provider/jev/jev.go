@@ -21,8 +21,8 @@ import (
 	"net/http"
 	"time"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/transport"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/transport"
 )
 
 const id = "jev"

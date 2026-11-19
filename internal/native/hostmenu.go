@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The host row menu: right-click on a row, or its "…" control: Connect, Open in split, Edit, Duplicate (not the local

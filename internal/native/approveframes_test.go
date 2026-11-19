@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // What the Approve dialog hands the one writer, whole, for each of its four sources: the bytes, every field of the

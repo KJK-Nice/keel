@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
 )
 
 // The host import's rules (docs/ui-redesign.md §5.15): which hosts start ticked, what the table says about each,

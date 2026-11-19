@@ -13,7 +13,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Notebooks against a real slime serve and a real shell (Local Shell): the document is shown rendered and edited as plain

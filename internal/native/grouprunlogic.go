@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11), pinned by grouprunlogic_test.go and

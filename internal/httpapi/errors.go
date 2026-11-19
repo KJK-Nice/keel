@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strings"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/hostimport"
-	"keel/internal/runtime"
-	"keel/internal/share"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/hostimport"
+	"slime/internal/runtime"
+	"slime/internal/share"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // One error policy for every route: writeErr is the only place that turns

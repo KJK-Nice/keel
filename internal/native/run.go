@@ -12,9 +12,9 @@ import (
 	updatewin "github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/authtoken"
-	"keel/internal/native/keelclient"
-	"keel/internal/paths"
+	"slime/internal/authtoken"
+	"slime/internal/native/keelclient"
+	"slime/internal/paths"
 )
 
 // terminalTheme is Slime's terminal palette from the tokens of the theme in use.

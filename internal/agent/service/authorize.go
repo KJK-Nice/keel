@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"keel/internal/agent"
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
+	"slime/internal/agent"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
 )
 
 // One gate for every way agent output reaches a pane (docs/ui-redesign.md

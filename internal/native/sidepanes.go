@@ -6,9 +6,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
+	"slime/internal/wire"
 )
 
 // The sidebar's Panes section (docs/ui-redesign.md §5.1 "Panes in the sidebar"). The segment exists only while the active tab has two or more

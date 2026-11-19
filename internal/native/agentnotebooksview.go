@@ -7,8 +7,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The agent's notebooks drawn: the chips and the picker of the composer, and the card of what the agent did to a notebook. A card's buttons ask the workspace (agentnotebooks.go); none of them changes a

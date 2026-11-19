@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Group page on the fake backend: its hosts and roles, notes, variables, the list of runbooks and the Ansible drawer, and

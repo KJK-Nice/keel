@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
 )
 
 // Groups, part 1 (docs/ui-redesign.md §17): a group run's proposal is

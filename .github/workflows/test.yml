@@ -28,7 +28,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Both legs run every package, the window's (keel/internal/native) included (docs/native.md "Linux"). Nobody has
+      # Both legs run every package, the window's (slime/internal/native) included (docs/native.md "Linux"). Nobody has
       # run the window on a Linux desktop.
       - name: make test
         run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test

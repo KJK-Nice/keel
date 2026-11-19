@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/runtime"
-	"keel/internal/sessionsock"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/runtime"
+	"slime/internal/sessionsock"
+	"slime/internal/wire"
 )
 
 // In-pane suggestions (docs/ui-redesign.md §5.5) ride on the

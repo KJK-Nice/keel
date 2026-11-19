@@ -13,12 +13,12 @@ import (
 func TestLeavesImportOnlyTheirListedKeelPackages(t *testing.T) {
 	for dir, allowed := range map[string][]string{
 		"wire":      nil,
-		"cmdrule":   {"keel/internal/wire"},
+		"cmdrule":   {"slime/internal/wire"},
 		"limits":    nil,
 		"sharelink": nil,
-		"paths":     {"keel/internal/env"},
+		"paths":     {"slime/internal/env"},
 		"env":       nil,
-		"authtoken": {"keel/internal/paths"},
+		"authtoken": {"slime/internal/paths"},
 		"randid":    nil,
 	} {
 		t.Run(dir, func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestLeavesImportOnlyTheirListedKeelPackages(t *testing.T) {
 				}
 				for _, imp := range f.Imports {
 					p := strings.Trim(imp.Path.Value, `"`)
-					if !strings.HasPrefix(p, "keel/") || p == "keel/internal/"+dir {
+					if !strings.HasPrefix(p, "slime/") || p == "slime/internal/"+dir {
 						continue
 					}
 					ok := false

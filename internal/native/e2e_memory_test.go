@@ -10,7 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Notes for the agent and runbooks against a real slime serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake,

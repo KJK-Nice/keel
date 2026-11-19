@@ -9,8 +9,8 @@ package joinpeer
 import (
 	"net/url"
 
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // Link is a parsed join link (sharelink.ParseLink reads one).

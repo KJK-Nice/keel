@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 var testGemini = keelclient.AgentProvider{ID: "gemini", Name: "Google Gemini", Kind: "model", KeyLabel: "Gemini API key", Models: []string{"a", "b"}}

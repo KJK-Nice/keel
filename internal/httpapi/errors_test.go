@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/hostimport"
-	"keel/internal/runtime"
-	"keel/internal/store"
-	"keel/internal/tunnel"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/hostimport"
+	"slime/internal/runtime"
+	"slime/internal/store"
+	"slime/internal/tunnel"
 )
 
 // answerOf is what writeErr sends for err: the status and the decoded body.

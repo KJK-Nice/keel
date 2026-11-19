@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 func TestParseSize(t *testing.T) {

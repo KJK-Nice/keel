@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/runvars"
+	"slime/internal/native/keelclient"
+	"slime/internal/runvars"
 )
 
 // The rules of roles and group variables. The group run's own rules are in grouprunlogic_test.go.

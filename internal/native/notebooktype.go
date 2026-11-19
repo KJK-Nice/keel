@@ -3,7 +3,7 @@ package native
 import (
 	"strings"
 
-	"keel/internal/cmdrule"
+	"slime/internal/cmdrule"
 )
 
 // Typing a notebook's fence (docs/ui-redesign.md §6 rules 12 and 13). A notebook is one more source for the two ways a snippet is typed, and adds no writer and no call

@@ -3,9 +3,9 @@ package service
 import (
 	"sort"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/store"
 )
 
 // Every Redactor the service uses is built here, for a named purpose

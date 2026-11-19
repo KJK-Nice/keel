@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"keel/internal/env"
-	"keel/internal/paths"
+	"slime/internal/env"
+	"slime/internal/paths"
 )
 
 // CheckAutomationEnv is the run-time half of the automation guard. Only the test builds (tag keelautomation) call it,

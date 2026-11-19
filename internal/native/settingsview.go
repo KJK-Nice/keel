@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Settings page. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
@@ -612,6 +612,6 @@ func (w *workspace) termPreview(c *ui.Context) {
 		})
 		ln("view.go:272: warning: label shrinks", ansi[3], wt)
 		ln("if err != nil && n >= 0 { return x => y } // ligatures", inkMuted, wt)
-		ln("ok  keel/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it
+		ln("ok  slime/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it
 	})
 }

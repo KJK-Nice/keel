@@ -18,7 +18,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Host is one inventory host. It deliberately has NO field for passwords,

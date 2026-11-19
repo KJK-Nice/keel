@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The notes and runbooks half of fakeBackend: what the window asks of slime serve, recorded, and answered as the test says.

@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
-	"keel/internal/shellmark"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
+	"slime/internal/shellmark"
+	"slime/internal/store"
 )
 
 // Group variables and captured values in group runs (docs/ui-redesign.md

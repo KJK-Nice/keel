@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/runvars"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/runvars"
+	"slime/internal/wire"
 )
 
 // The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17), pinned by

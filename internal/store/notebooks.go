@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/limits"
+	"slime/internal/limits"
 )
 
 // Notebooks and who may change them (docs/ui-redesign.md §18, §6 rule 12).

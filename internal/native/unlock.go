@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Unlock screen (docs/ui-redesign.md §5.14): the vault exists and slime serve could not open it, or the poll

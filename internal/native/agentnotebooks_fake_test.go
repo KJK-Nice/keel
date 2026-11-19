@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The agent-and-notebooks half of fakeBackend: the card routes recorded, and answered as the test says. Nothing here reads

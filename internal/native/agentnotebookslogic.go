@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12): the words of the trace, the picker,

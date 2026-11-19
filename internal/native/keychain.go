@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Keychain page (docs/ui-redesign.md §5.11): the identities in the vault, SSH keys then passwords, with the

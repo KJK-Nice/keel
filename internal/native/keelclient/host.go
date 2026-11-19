@@ -3,8 +3,8 @@ package keelclient
 import (
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/wire"
 )
 
 // What a Host says about itself, decided once. slime serve stores the defaults (a port of 0 on a saved SSH host is 22, an

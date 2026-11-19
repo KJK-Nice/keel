@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"keel/internal/hostimport"
-	"keel/internal/paths"
-	"keel/internal/sshconfig"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/hostimport"
+	"slime/internal/paths"
+	"slime/internal/sshconfig"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // First-run host import (docs/ui-redesign.md §5.15) over HTTP. The import

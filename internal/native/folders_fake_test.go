@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The folders half of fakeBackend: what the window asks of slime serve about folders, recorded, and answered as the test says.

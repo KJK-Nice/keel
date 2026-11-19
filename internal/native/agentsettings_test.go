@@ -11,7 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Settings · Agent (docs/ui-redesign.md §5.9) on the fake backend: each control shows what slime serve holds and sends the

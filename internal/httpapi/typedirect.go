@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/cmdrule"
-	"keel/internal/runtime"
-	"keel/internal/sessionsock"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/cmdrule"
+	"slime/internal/runtime"
+	"slime/internal/sessionsock"
+	"slime/internal/wire"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for

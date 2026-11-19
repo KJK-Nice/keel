@@ -17,9 +17,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/sharelink"
-	keelsignal "keel/internal/signal"
+	"slime/internal/native/keelclient"
+	"slime/internal/sharelink"
+	keelsignal "slime/internal/signal"
 )
 
 // These tests run the real signal server (internal/signal) on a loopback port and a pion peer that stands in for keel

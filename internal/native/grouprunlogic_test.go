@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The rules of a group run, plus fillRows / approveGroups / sameSources.

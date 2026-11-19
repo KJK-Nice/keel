@@ -6,8 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/keelclient"
 )
 
 // Approve before type (docs/ui-redesign.md §6): keel-native types nothing on the user's behalf until the user has seen

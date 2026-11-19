@@ -5,7 +5,7 @@ package app
 import (
 	"fmt"
 
-	"keel/internal/agent/service"
+	"slime/internal/agent/service"
 )
 
 // agentProviders returns how slime serve builds the model provider and the

@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo/plugins/terminal"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/keelclient"
 )
 
 // screenOf reads the alt screen and the cursor line against a real terminal.

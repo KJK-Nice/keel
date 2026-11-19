@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of saved conversations (docs/ui-redesign.md §5.4.1, §5.4.2): the groups of the list, its labels, the

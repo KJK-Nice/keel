@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // nbGate is a backend whose notebook saves can be held or made to meet, and which keeps the fake's shared state behind a lock

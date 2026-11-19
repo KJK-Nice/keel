@@ -7,9 +7,9 @@ import (
 	"unicode"
 	"unicode/utf16"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of notes for the agent (docs/ui-redesign.md §15): the words a note and a proposed note carry. They are

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"keel/internal/authtoken"
-	"keel/internal/store"
+	"slime/internal/authtoken"
+	"slime/internal/store"
 )
 
 // WithAuth sets the token required, in the X-Slime-Token header (or X-Keel-Token), on the

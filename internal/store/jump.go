@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/limits"
+	"slime/internal/limits"
 )
 
 // Jump hosts (ProxyJump, docs/ui-redesign.md §5.8).

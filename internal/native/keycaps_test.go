@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
 )
 
 // capLabels are the key caps the last frame drew, as "B", "⇧D", in order.

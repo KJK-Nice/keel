@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 func TestNoteSourceLineSaysWhoWroteItAndFromWhichPane(t *testing.T) {

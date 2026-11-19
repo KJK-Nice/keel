@@ -1,6 +1,6 @@
 package service
 
-import "keel/internal/wire"
+import "slime/internal/wire"
 
 // The words the service puts in what it returns and saves are wire values
 // (the window reads them, and saved conversations hold them): they live in

@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The notice, the card and the inserted look drawn over a pane's terminal. The text on the line stays the terminal's: marks sit over its cells, the hint after the

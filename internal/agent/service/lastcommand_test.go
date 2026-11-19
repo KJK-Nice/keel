@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent/provider"
-	"keel/internal/shellmark"
+	"slime/internal/agent/provider"
+	"slime/internal/shellmark"
 )
 
 // cmdPanes is fakePanes with shell-integration marks: blocks holds each

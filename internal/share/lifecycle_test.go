@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/signal"
-	"keel/internal/store"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/signal"
+	"slime/internal/store"
 )
 
 func shareFixture(t *testing.T) (*runtime.Runtime, string) {

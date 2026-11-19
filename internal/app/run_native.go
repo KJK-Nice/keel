@@ -3,8 +3,8 @@ package app
 import (
 	"log"
 
-	"keel/internal/buildid"
-	"keel/internal/native"
+	"slime/internal/buildid"
+	"slime/internal/native"
 )
 
 // RunNative is slime app's window: the MyGo client in this process, on the slime serve that PrepareServe started or

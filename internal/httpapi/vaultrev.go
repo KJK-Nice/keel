@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"sync"
 
-	"keel/internal/randid"
+	"slime/internal/randid"
 )
 
 // vaultRev names the vault's state as of now: GET /api/vault reports it as "rev", and the native client polls it to

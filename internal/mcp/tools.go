@@ -3,8 +3,8 @@ package mcp
 import (
 	"fmt"
 
-	"keel/internal/limits"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/wire"
 )
 
 // instructions is what slime mcp tells the client about itself

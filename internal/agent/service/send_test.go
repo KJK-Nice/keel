@@ -8,11 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // §6 rule 4, by type: what send can carry holds terminal text only as

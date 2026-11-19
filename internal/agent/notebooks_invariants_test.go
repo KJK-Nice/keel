@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
 )
 
 // Notebooks (docs/ui-redesign.md §18, §6 rule 12). In the agent tree a

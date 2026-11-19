@@ -15,12 +15,12 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/tunnel"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/tunnel"
 )
 
 type fakeBridge struct {

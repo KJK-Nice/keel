@@ -5,9 +5,9 @@ import (
 	"io"
 	"net/http"
 
-	"keel/internal/agent/service"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent/service"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12).

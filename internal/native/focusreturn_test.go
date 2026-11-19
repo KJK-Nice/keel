@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
 )
 
 // A confirm opens with the keyboard on Cancel, so ↵ on open asks nothing of the destructive action,

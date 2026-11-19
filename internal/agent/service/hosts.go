@@ -1,6 +1,6 @@
 package service
 
-import "keel/internal/agent"
+import "slime/internal/agent"
 
 // hostSet is the saved hosts as the agent sees them (no credentials), read
 // once for a request: the list, each by id, and what the agent may read.

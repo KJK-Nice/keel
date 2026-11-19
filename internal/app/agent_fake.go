@@ -3,9 +3,9 @@
 package app
 
 import (
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/agent/service"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/agent/service"
 )
 
 // Test builds only (make native-e2e, make native-automation-build). Only

@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/env"
-	"keel/internal/native/keelclient"
+	"slime/internal/env"
+	"slime/internal/native/keelclient"
 )
 
 // Settings (docs/ui-redesign.md §5.9). The helpers are in settingshelpers.go and the agent's own settings in agentsettings.go.

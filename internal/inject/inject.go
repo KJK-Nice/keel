@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/randid"
+	"slime/internal/randid"
 )
 
 var (

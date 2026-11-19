@@ -77,7 +77,7 @@ func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	name := regexp.MustCompile(`\bTypeInject(Challenge)?\b|\bwire\.(DirectType|AgentType|AgentInsert|Type(AgentDetect|AgentSuggest|AgentSuggestRisk|AgentType|AgentInsert|TypeDirect))\b`)
 	for file, src := range sourceFiles(t) {
 		for _, line := range strings.Split(src, "\n") {
-			if l := strings.TrimSpace(line); strings.HasSuffix(l, `"keel/internal/wire"`) && l != `"keel/internal/wire"` && l != `import "keel/internal/wire"` {
+			if l := strings.TrimSpace(line); strings.HasSuffix(l, `"slime/internal/wire"`) && l != `"slime/internal/wire"` && l != `import "slime/internal/wire"` {
 				t.Errorf("%s imports the wire package under another name (%s): the guards look for wire.…", file, l)
 			}
 		}

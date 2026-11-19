@@ -6,10 +6,10 @@ import (
 	"strings"
 	"unicode"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
+	"slime/internal/wire"
 )
 
 // The command palette (docs/ui-redesign.md §5.2): groups, matching, ordering, cursor, highlight, and the item list.

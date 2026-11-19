@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/paths"
+	"slime/internal/paths"
 )
 
 // The automation guards: MyGo's automation plugin (a socket that can type into the app) is linked only with the tag

@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // Runbooks on the fake backend: the page's list and editor and the bodies they send; the card for a runbook the agent

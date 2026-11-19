@@ -29,12 +29,12 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
-	"keel/internal/randid"
-	"keel/internal/runvars"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
+	"slime/internal/randid"
+	"slime/internal/runvars"
+	"slime/internal/store"
 )
 
 // Store is what the service reads from slime serve's store. *store.Store

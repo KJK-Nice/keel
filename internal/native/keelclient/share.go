@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Share is POST /api/share: slime serve shares the session (or returns the live link of a session already shared)

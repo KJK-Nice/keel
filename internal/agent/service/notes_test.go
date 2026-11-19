@@ -5,15 +5,15 @@ import (
 
 	"errors"
 	"fmt"
-	"keel/internal/agent/redact"
+	"slime/internal/agent/redact"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/store"
 )
 
 // fakeNotes is an in-memory NoteStore.

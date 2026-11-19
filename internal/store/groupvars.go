@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/runvars"
+	"slime/internal/runvars"
 )
 
 // Group variables (docs/ui-redesign.md §17, groups part 2, board

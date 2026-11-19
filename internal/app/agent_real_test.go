@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const fakePkg = "keel/internal/agent/provider/providertest"
+const fakePkg = "slime/internal/agent/provider/providertest"
 
 func TestFakeProviderIsRefusedWithoutItsTag(t *testing.T) {
 	if _, _, _, err := agentProviders("fake"); err == nil || !strings.Contains(err.Error(), "keelfake") {

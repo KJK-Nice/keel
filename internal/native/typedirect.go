@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/keelclient"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session.

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/limits"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/limits"
 )
 
 // Notebooks (docs/ui-redesign.md §18, §6 rule 12). The agent sees the

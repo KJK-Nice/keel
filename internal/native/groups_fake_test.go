@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The groups half of fakeBackend: roles, variables, the export and the group run, recorded, and answered as the test says.

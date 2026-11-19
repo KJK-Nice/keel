@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 // A host saved or deleted under the id of one of the vault's own secrets

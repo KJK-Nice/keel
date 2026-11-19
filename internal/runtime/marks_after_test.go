@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // A command running when the connection drops is abandoned there: after

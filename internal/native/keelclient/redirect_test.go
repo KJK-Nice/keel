@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/authtoken"
+	"slime/internal/authtoken"
 )
 
 // The client never follows a redirect, so the token header is never sent to another server: not by a plain

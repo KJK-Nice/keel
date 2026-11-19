@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // First run (docs/ui-redesign.md §5.15): step 1 creates the vault (or shows the one that exists), step 2 brings

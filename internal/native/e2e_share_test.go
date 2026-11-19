@@ -17,7 +17,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/joinpeer"
+	"slime/internal/native/joinpeer"
 )
 
 // Share and Join end to end. The owner is a window on a scratch slime serve with SLIME_SIGNAL on a loopback

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 var testAgentPanes = []agentPane{

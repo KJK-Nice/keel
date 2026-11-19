@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"keel/internal/buildid"
-	"keel/internal/mcp"
+	"slime/internal/buildid"
+	"slime/internal/mcp"
 )
 
 // RunMCP runs slime mcp: an MCP server on stdin and stdout for Claude Code

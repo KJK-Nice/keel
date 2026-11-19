@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Groups (docs/ui-redesign.md §17; internal/httpapi/agentgroups.go, groupvars.go): a folder's members with their roles,

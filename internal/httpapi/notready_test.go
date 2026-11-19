@@ -9,9 +9,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // gatedServer is testServer whose opener blocks until release is called, so

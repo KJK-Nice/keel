@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"keel/internal/authtoken"
+	"slime/internal/authtoken"
 )
 
 // fakeKeel answers the /api/mcp/ routes from fixed values and records the

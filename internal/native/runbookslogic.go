@@ -6,9 +6,9 @@ import (
 	"time"
 	"unicode"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of runbooks (docs/ui-redesign.md §16): the words and states the screens show for a saved runbook, a

@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
 )
 
 // splitRig opens api-1 and splits it right: one tab, two panes, the second focused.

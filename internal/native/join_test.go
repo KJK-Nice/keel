@@ -10,8 +10,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/joinpeer"
-	"keel/internal/native/keelclient"
+	"slime/internal/native/joinpeer"
+	"slime/internal/native/keelclient"
 )
 
 const joinTestLink = "http://127.0.0.1:9/join?room=r1#k=" + shareTestKey

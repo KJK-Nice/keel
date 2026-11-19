@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
 )
 
 // Rearranging the panes of a tab by dragging a pane bar: a pane dragged by its bar

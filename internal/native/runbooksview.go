@@ -7,10 +7,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/runvars"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/native/keelclient"
+	"slime/internal/runvars"
+	"slime/internal/wire"
 )
 
 // The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes. Colours and sizes are

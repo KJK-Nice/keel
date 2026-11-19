@@ -1,4 +1,4 @@
-module keel
+module slime
 
 go 1.27.4
 

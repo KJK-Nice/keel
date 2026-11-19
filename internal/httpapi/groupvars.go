@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/ansible"
-	"keel/internal/cmdrule"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/ansible"
+	"slime/internal/cmdrule"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Groups, part 2 (docs/ui-redesign.md §17, boards CaptureVars,

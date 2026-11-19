@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/inject"
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/inject"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 type fakeBridge struct {

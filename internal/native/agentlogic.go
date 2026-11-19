@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/randid"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/randid"
+	"slime/internal/wire"
 )
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card

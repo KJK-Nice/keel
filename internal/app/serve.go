@@ -18,17 +18,17 @@ import (
 	"syscall"
 	"time"
 
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/buildid"
-	"keel/internal/env"
-	"keel/internal/httpapi"
-	"keel/internal/paths"
-	"keel/internal/runtime"
-	"keel/internal/share"
-	"keel/internal/store"
-	"keel/internal/tunnel"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/buildid"
+	"slime/internal/env"
+	"slime/internal/httpapi"
+	"slime/internal/paths"
+	"slime/internal/runtime"
+	"slime/internal/share"
+	"slime/internal/store"
+	"slime/internal/tunnel"
 )
 
 // agentProviderEnv set to "fake" swaps every provider for the in-process

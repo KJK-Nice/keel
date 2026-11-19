@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The Notebooks page, the sidebar's Notebooks section and the row menu, in the Logs page's layout (logsview.go). The

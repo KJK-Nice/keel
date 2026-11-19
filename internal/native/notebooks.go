@@ -12,8 +12,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
 )
 
 // Notebooks (docs/ui-redesign.md §18). A notebook is one Markdown document kept by slime serve. The pane shows it rendered and, on Edit, as

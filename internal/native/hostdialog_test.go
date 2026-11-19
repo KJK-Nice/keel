@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/sshparse"
 )
 
 // Made-up secrets for the fake backend: they open nothing.

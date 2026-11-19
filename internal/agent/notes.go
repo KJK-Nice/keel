@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15). A note is text the user

@@ -13,13 +13,13 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/jev"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/jev"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // egress is the agent.read entries for text sent off the machine (they

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"keel/internal/agent/provider"
+	"slime/internal/agent/provider"
 )
 
 // Scripted is the test provider `slime serve` uses when started with

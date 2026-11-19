@@ -24,10 +24,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/authtoken"
-	"keel/internal/native/joinpeer"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/authtoken"
+	"slime/internal/native/joinpeer"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
 )
 
 const e2eWait = 15 * time.Second
@@ -92,7 +92,7 @@ func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...string) (addr string, stop func()) {
 	t.Helper()
 	root := repoRoot(t)
-	bin := filepath.Join(root, "bin", "keel")
+	bin := filepath.Join(root, "bin", "slime")
 	if _, err := os.Stat(bin); err != nil {
 		t.Fatalf("%s is missing: run make native-e2e (it builds bin/slime first)", bin)
 	}

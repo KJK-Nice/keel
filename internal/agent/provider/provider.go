@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent/redact"
+	"slime/internal/agent/redact"
 )
 
 // Role of a message in a conversation.

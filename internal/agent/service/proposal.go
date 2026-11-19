@@ -3,9 +3,9 @@ package service
 import (
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
 )
 
 // Every proposal the user can type is made here (docs/ui-redesign.md §6

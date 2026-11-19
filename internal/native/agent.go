@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The agent panel (docs/ui-redesign.md §5.4): ask about the panes in scope, read the trace, and type a

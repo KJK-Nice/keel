@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/shellmark"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/shellmark"
 )
 
 // Logger is where audit entries go. *applog.Book (keel.log) satisfies it.

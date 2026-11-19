@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/shellmark"
+	"slime/internal/shellmark"
 )
 
 // What slime serve's tracker yields for `cat evil.log` where evil.log holds

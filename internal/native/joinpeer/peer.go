@@ -12,9 +12,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/native/keelclient"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // STUN is the one ICE server a joiner uses. A peer dials the signal server named in the link and

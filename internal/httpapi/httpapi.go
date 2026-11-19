@@ -15,17 +15,17 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/cmdrule"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/sessionsock"
-	"keel/internal/share"
-	"keel/internal/store"
-	"keel/internal/tunnel"
-	"keel/internal/wire"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/cmdrule"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/sessionsock"
+	"slime/internal/share"
+	"slime/internal/store"
+	"slime/internal/tunnel"
+	"slime/internal/wire"
 )
 
 var upgrader = websocket.Upgrader{

@@ -5,7 +5,7 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"keel/internal/env"
+	"slime/internal/env"
 )
 
 const DefaultListen = "127.0.0.1:47241"

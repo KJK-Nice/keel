@@ -14,9 +14,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/randid"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/randid"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 const (

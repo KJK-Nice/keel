@@ -9,8 +9,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"keel/internal/limits"
-	"keel/internal/runvars"
+	"slime/internal/limits"
+	"slime/internal/runvars"
 )
 
 // Runbooks for the agent (docs/ui-redesign.md §16): user-curated, ordered

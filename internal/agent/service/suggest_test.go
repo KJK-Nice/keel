@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // keyStore is fakeStore with one key per provider.

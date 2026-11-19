@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strings"
 
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Edit host: Test connection and the host key line (docs/ui-redesign.md

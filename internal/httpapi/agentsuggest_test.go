@@ -11,9 +11,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 func sendJSON(t *testing.T, conn *websocket.Conn, v map[string]any) {

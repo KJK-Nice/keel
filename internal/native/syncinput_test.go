@@ -11,8 +11,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/keelclient"
+	"slime/internal/native/layout"
 )
 
 // Sync input (syncinput.go) on the fake backend. The terminal view's own write is (*syncConn).Write, so the tests call it with

@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The sidebar's folder tree and the folder dialog: hosts in no folder first, then each folder (collapsible, with its host count and its menu) holding its

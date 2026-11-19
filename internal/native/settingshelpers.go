@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/keelclient"
 )
 
 // The pure helpers of Settings (tested in settingshelpers_test.go). No UI here.
