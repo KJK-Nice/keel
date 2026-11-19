@@ -10,7 +10,7 @@ import (
 func TestWithheldVars(t *testing.T) {
 	inv := Inventory{Group: "g", Vars: []Var{{Name: "ok", Value: "1"}}, Withheld: []string{"old_pw"}}
 	for _, out := range []string{INI(inv), YAML(inv)} {
-		if !strings.Contains(out, "# old_pw: left out: its value is also in Keel's vault") || !strings.Contains(out, "ok") {
+		if !strings.Contains(out, "# old_pw: left out: its value is also in Slime's vault") || !strings.Contains(out, "ok") {
 			t.Fatalf("withheld:\n%s", out)
 		}
 	}

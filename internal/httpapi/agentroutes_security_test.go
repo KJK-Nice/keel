@@ -190,7 +190,7 @@ func writerName(obj types.Object) string {
 		rt = p.Elem()
 	}
 	if types.IsInterface(rt) {
-		// A call through an interface of Keel's own with a writer's name could land on a session.
+		// A call through an interface of Slime's own with a writer's name could land on a session.
 		if strings.HasPrefix(fn.Pkg().Path(), "keel/") {
 			for w := range writers {
 				if strings.HasSuffix(w, "."+fn.Name()) {
@@ -258,7 +258,7 @@ func (a *typedAPI) reach(roots []*types.Func) (found []string, visited map[strin
 // §6 rules 1 and 14: no agent route and no keel mcp route reaches a writer. Every handler Handler registers under
 // /api/agent/ or /api/mcp/, the service's setup (initAgent) and the panes it is given (agentPanes) are followed through
 // every function of this package they use, in any file, called or passed as a value; none uses a runtime method that
-// writes, spawns, kills or moves control, a name of internal/inject or internal/sessionsock, or a Keel interface method
+// writes, spawns, kills or moves control, a name of internal/inject or internal/sessionsock, or a Slime interface method
 // with a writer's name.
 func TestAgentAndMCPRoutesReachNoWriter(t *testing.T) {
 	a := loadTypedAPI(t)

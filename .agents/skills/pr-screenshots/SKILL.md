@@ -1,6 +1,6 @@
 ---
 name: pr-screenshots
-description: Put before/after UI screenshots in a GitHub pull request body. Use when a PR changes how Keel looks (tokens, fonts, views) and the reviewer should see the difference, or when asked to add or refresh PR screenshots.
+description: Put before/after UI screenshots in a GitHub pull request body. Use when a PR changes how Slime looks (tokens, fonts, views) and the reviewer should see the difference, or when asked to add or refresh PR screenshots.
 ---
 
 # PR screenshots
@@ -25,7 +25,7 @@ git worktree remove --force $S/wt-before
 make native-e2e && mkdir -p $S/prN-after && cp .scratch-native/e2e/*.png $S/prN-after/
 ```
 
-Never stop the user's Keel on 127.0.0.1:47241; the e2e uses its own ports and data.
+Never stop the user's Slime on 127.0.0.1:47241; the e2e uses its own ports and data.
 
 ## 3. Pick the screens
 

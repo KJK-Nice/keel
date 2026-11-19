@@ -1,5 +1,5 @@
 {
-  "name": "Keel",
+  "name": "Slime",
   "slug": "keel",
   "identifier": "app.keel.desktop",
   "version": "0.2.5",
@@ -12,7 +12,7 @@
   },
   "resources": ["LICENSE", "THIRD_PARTY_NOTICES"],
   "macos": {
-    "icon": "packaging/macos/Keel.icns",
+    "icon": "packaging/macos/Slime.icns",
     "minimumSystemVersion": "13.0",
     "entitlements": "packaging/macos/entitlements.plist",
     "notarize": { "keychainProfile": "notary" },

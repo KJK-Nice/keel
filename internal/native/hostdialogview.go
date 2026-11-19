@@ -188,9 +188,9 @@ func (w *workspace) hostKeyBlock(c *ui.Context, d *hostDialog) {
 		})
 		if known {
 			ui.Text(c, d.key.Fingerprint).Font(monoStack).TextColor(inkMuted).FontSize(captionSize) // wraps: it is long
-			help(c, "Saved for "+d.key.Hostname+". Keel refuses a different key until you replace it.")
+			help(c, "Saved for "+d.key.Hostname+". Slime refuses a different key until you replace it.")
 		} else {
-			help(c, "Trusted on first connect; Keel asks again if it changes.")
+			help(c, "Trusted on first connect; Slime asks again if it changes.")
 		}
 	})
 }

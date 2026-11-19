@@ -111,7 +111,7 @@ func TestASnippetOutsideTheGrammarOrOnSeveralLinesOpensTheDialogAndAsksNothing(t
 
 func TestAServerDialogAnswerOpensTheDialogAndTypesNothingItself(t *testing.T) {
 	r := directRig(t)
-	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "Keel cannot check this command here"}
+	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "Slime cannot check this command here"}
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
 	if len(r.directs()) != 1 || !r.w.approveOpen() || len(r.typed()) != 0 {

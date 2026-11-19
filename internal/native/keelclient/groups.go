@@ -89,7 +89,7 @@ func (q AnsibleQuery) Values() string {
 
 // GroupAnsible is GET /api/groups/{id}/ansible: the inventory and, with a runbook, a playbook, built by keel serve from
 // the folder's members, roles and variables. No secret is in it (a variable holding a vault value is left out with a
-// comment). Keel never runs Ansible.
+// comment). Slime never runs Ansible.
 func (c *Client) GroupAnsible(ctx context.Context, id string, q AnsibleQuery) ([]ExportFile, error) {
 	var out struct {
 		Files []ExportFile `json:"files"`

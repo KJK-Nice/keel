@@ -348,7 +348,7 @@ func TestAPastedCommandListsWhatWasLeftOut(t *testing.T) {
 	r.tt.Frame()
 	for _, s := range []string{
 		"Read as", "deploy@10.0.0.5:2222", "Left out (3), not applied", "-o StrictHostKeyChecking=no", "changes host key trust",
-		"-L 1:x:2", "opens a port forward; add it in Forwards", "uptime", "remote command; Keel opens a shell and does not run it",
+		"-L 1:x:2", "opens a port forward; add it in Forwards", "uptime", "remote command; Slime opens a shell and does not run it",
 		"Key file ~/.ssh/k was not read.",
 	} {
 		if !r.tt.HasText(s) {
@@ -381,11 +381,11 @@ func TestAnInvalidInputShowsTheError(t *testing.T) {
 	r = startRig(t)
 	r.tt.Type("deploy@-bad")
 	r.tt.Frame()
-	if r.tt.HasText("Host name has characters Keel does not accept") {
+	if r.tt.HasText("Host name has characters Slime does not accept") {
 		t.Fatal("a half-typed target is already an error")
 	}
 	r.press(0, ui.KeyEnter)
-	if !r.tt.HasText("Host name has characters Keel does not accept") {
+	if !r.tt.HasText("Host name has characters Slime does not accept") {
 		t.Error("↵ does not show the error")
 	}
 	if len(r.fb.spawned) != 0 {

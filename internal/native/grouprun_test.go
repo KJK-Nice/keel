@@ -455,7 +455,7 @@ func TestGroupDialogSameFilledBytesAreShownOnceWithWhereTheyCameFrom(t *testing.
 		"p2": {Bytes: "\x15echo port-8080\n", Used: used},
 	}
 	r.pressTypeAll(t, 2)
-	if !r.tt.HasText("1 line · 16 bytes · the same bytes in every pane · filled in by Keel: {{port}} group variable") {
+	if !r.tt.HasText("1 line · 16 bytes · the same bytes in every pane · filled in by Slime: {{port}} group variable") {
 		t.Errorf("no single description: %v", r.tt.Texts())
 	}
 }
@@ -711,7 +711,7 @@ func TestACapturedValueIsAMaskAndALengthNeverTheValue(t *testing.T) {
 	})
 	run.Steps[0].Captures = []keelclient.StepCapture{{Name: "join_token", Pattern: `--token\s+(\S+)`}}
 	r.startRun(run)
-	for _, s := range []string{"Captured from step 1 · Print a marker", "Captured by Keel, never sent to the agent", "{{join_token}}", `--token\s+(\S+)`, "••••••••••••", "23 bytes", "not kept: it holds a value from the vault"} {
+	for _, s := range []string{"Captured from step 1 · Print a marker", "Captured by Slime, never sent to the agent", "{{join_token}}", `--token\s+(\S+)`, "••••••••••••", "23 bytes", "not kept: it holds a value from the vault"} {
 		if !r.tt.HasText(s) {
 			t.Errorf("no %q: %v", s, r.tt.Texts())
 		}

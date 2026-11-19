@@ -1,4 +1,4 @@
-# Keel
+# Slime
 
 Local SSH workspace: Go owns SSH and PTYs in a daemon (`keel serve`, a loopback HTTP/WebSocket API behind a token) and the window is native (`internal/native`: MyGo, pure Go, libghostty terminals). The daemon serves no UI. See CONTRIBUTING.md for build and checks, README.md plus `docs/*.md` for features, configuration and shortcuts, and `docs/native.md` for what the window is and does.
 

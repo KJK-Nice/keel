@@ -31,6 +31,6 @@ func main() {
 		Handler:           sig.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	log.Printf("Keel signal on %s — joiners open /join?room=…", addr)
+	log.Printf("Slime signal on %s — joiners open /join?room=…", addr)
 	log.Fatal(srv.ListenAndServe())
 }

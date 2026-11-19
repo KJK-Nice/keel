@@ -488,7 +488,7 @@ func TestAFailedSaveKeepsTheTypingAndTheNextEditTriesAgain(t *testing.T) {
 		t.Errorf("did not try again: failed %v reqs %v", np.nb.failed, r.fb.nb.reqs)
 	}
 	// The server's refusal is shown as it is.
-	r.fb.nb.saveErr = &keelclient.StatusError{Code: 409, Reason: "history", Msg: "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page."}
+	r.fb.nb.saveErr = &keelclient.StatusError{Code: 409, Reason: "history", Msg: "Not saved: this notebook holds an agent edit, and Slime cannot keep that version in History right now. Your typing is still in the page."}
 	r.click(t, "Edit")
 	r.frames(2)
 	r.tt.Type("c")

@@ -453,7 +453,7 @@ func TestAStepWithAPlaceholderHasNoTypeButtonAndIsNeverTyped(t *testing.T) {
 		return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Proposals: []keelclient.Proposal{p}, Runbook: r.fb.mem.run}, nil
 	}
 	r.ask(t, "walk me through it")
-	if !r.tt.HasText("It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Keel will not type it: edit it to the real value or an environment variable first.") {
+	if !r.tt.HasText("It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Slime will not type it: edit it to the real value or an environment variable first.") {
 		t.Fatal("the app's sentence is not shown")
 	}
 	if r.has("Type into pane…") {

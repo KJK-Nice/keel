@@ -9,7 +9,7 @@ import (
 	"keel/internal/store"
 )
 
-// An agent edit never changes, unmasks or probes a value Keel redacts
+// An agent edit never changes, unmasks or probes a value Slime redacts
 // (§6 rule 12). The model sees the notebook with such values replaced, so
 // a find that touches one, or an edit that would stop one being redacted,
 // is refused with the same answer as a find that is not there.
@@ -71,7 +71,7 @@ func TestAgentEditCannotTouchRedactedValues(t *testing.T) {
 	if got, err := tryEdit(t, multi, r, "ls -la", "ls -lah"); err != nil || !strings.Contains(got.Cells[0].Body, vaultPass) {
 		t.Fatalf("a plain edit → %v", err)
 	}
-	// A cell Keel cannot map exactly (control characters) takes no edit.
+	// A cell Slime cannot map exactly (control characters) takes no edit.
 	ctl := nbOf("ls\x1b[31m -la")
 	if _, err := tryEdit(t, ctl, r, "ls", "dir"); !errors.Is(err, errNoMatch) {
 		t.Fatalf("an inexact cell → %v", err)

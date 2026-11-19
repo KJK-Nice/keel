@@ -222,7 +222,7 @@ func TestE2EAgentEditsANotebookAndUndo(t *testing.T) {
 	e.pump(func() bool {
 		return strings.Contains(np.nb.md, "keel-edited-by-agent") && e.tt.HasText("Edited by the agent") && e.tt.HasText("Mark reviewed")
 	}, "the pane showing the agent's edit")
-	if !e.tt.HasText("Keel kept the version before it") && !e.onScreenText("Keel kept the version before it") {
+	if !e.tt.HasText("Slime kept the version before it") && !e.onScreenText("Slime kept the version before it") {
 		t.Errorf("the card lacks its status: %q", e.tt.Texts())
 	}
 	e.shot("TestE2EAgentEditsANotebookAndUndo-edited")
@@ -276,7 +276,7 @@ func TestE2EAgentEditRefusedWhileTyping(t *testing.T) {
 
 	e.settledAsk("edit the notebook keel-nb-e2e typing")
 	e.pump(func() bool { return e.hasLabel("Notebook not changed") }, "the card Notebook not changed")
-	if !e.tt.HasText("You were typing in it, so Keel did not apply the agent's edit.") {
+	if !e.tt.HasText("You were typing in it, so Slime did not apply the agent's edit.") {
 		t.Fatalf("the card does not say why: %q", e.tt.Texts())
 	}
 	if got := e.serverNotebook(id).Markdown(); got != original {

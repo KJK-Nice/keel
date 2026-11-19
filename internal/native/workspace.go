@@ -467,7 +467,7 @@ type workspace struct {
 	hostDlg         *hostDialog
 	identDlg        *identityDialog
 	confirm         *confirmDialog // the confirm dialog, over the dialog or page that asked
-	approve         *approveDialog // Approve before type: the one way Keel types a snippet or an agent proposal (approve.go)
+	approve         *approveDialog // Approve before type: the one way Slime types a snippet or an agent proposal (approve.go)
 	agent           *agentPanel    // the agent panel and its conversation (agent.go)
 	clips           []clipItem     // copies the frame writes to the clipboard (clipboard.go)
 	lastSession     *tab           // the session tab shown last: where a snippet typed from a page goes

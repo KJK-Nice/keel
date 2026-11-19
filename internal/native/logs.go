@@ -13,7 +13,7 @@ import (
 	"keel/internal/wire"
 )
 
-// The Logs page (docs/ui-redesign.md §5.13): what Keel did on this machine, newest first. Entries carry counts, never
+// The Logs page (docs/ui-redesign.md §5.13): what Slime did on this machine, newest first. Entries carry counts, never
 // content: nothing here could show a secret.
 //
 // The chips are §5.13's: All, Sessions, Forwards, Vault, Sharing and Agent.

@@ -242,7 +242,7 @@ func (e *RequestError) Error() string { return e.Msg }
 type JumpError struct{ Hosts []string }
 
 func (e *JumpError) Error() string {
-	return "Keel cannot keep the jump host of " + strings.Join(e.Hosts, ", ") + ": add its jump host too, or tick Without the jump to add it as a direct host"
+	return "Slime cannot keep the jump host of " + strings.Join(e.Hosts, ", ") + ": add its jump host too, or tick Without the jump to add it as a direct host"
 }
 
 // KeyError is a key that could not be read. Kind is "passphrase" (one is

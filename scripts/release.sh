@@ -2,9 +2,9 @@
 # Builds the release files into dist/. The release workflow runs it
 # (.github/workflows/release.yml); it also runs locally, and changes nothing outside the worktree: it never uploads.
 #
-#   sh scripts/release.sh vX.Y.Z macos  Keel for macOS, universal (arm64 + x86_64), packaged by mygo build:
-#                                        keel-<mygo.json version>.dmg (Keel.app inside)
-#   sh scripts/release.sh vX.Y.Z linux  Keel for Linux, x86_64 and arm64 (mygo build builds both on any machine):
+#   sh scripts/release.sh vX.Y.Z macos  Slime for macOS, universal (arm64 + x86_64), packaged by mygo build:
+#                                        keel-<mygo.json version>.dmg (Slime.app inside)
+#   sh scripts/release.sh vX.Y.Z linux  Slime for Linux, x86_64 and arm64 (mygo build builds both on any machine):
 #                                        keel-<v>-linux-<amd64|arm64>.tar.gz and keel_<v>_<amd64|arm64>.deb
 #   sh scripts/release.sh vX.Y.Z signal keel-signal for every OS (plain go build, not a MyGo app)
 #
@@ -90,8 +90,8 @@ case "$what" in
 macos)
 	[ "$(uname -s)" = Darwin ] || fail "the macOS app is signed and put in a disk image on macOS only"
 	package darwin/universal
-	app=build/darwin-universal/Keel.app
-	exe=$app/Contents/MacOS/Keel
+	app=build/darwin-universal/Slime.app
+	exe=$app/Contents/MacOS/Slime
 	for f in "$exe" "$app/Contents/Resources/libghostty-vt.dylib"; do
 		archs=$(lipo -archs "$f")
 		case "$archs" in *arm64*x86_64* | *x86_64*arm64*) ;; *) fail "$f is $archs, want arm64 and x86_64" ;; esac

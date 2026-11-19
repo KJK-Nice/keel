@@ -251,11 +251,11 @@ func (w *workspace) hostKeyDialog(c *ui.Context) {
 func hostKeyModal(c *ui.Context, k keelclient.HostKey, onTrust func()) (closed bool) {
 	open := true
 	mismatch := k.Kind == keelclient.HostKeyMismatch
-	title, hint := "Unknown host key", "Trust this key once to connect. Keel will reject a different key later."
+	title, hint := "Unknown host key", "Trust this key once to connect. Slime will reject a different key later."
 	trust := btnPrimary
 	if mismatch {
 		title = "Host key changed"
-		hint = "This machine presented a different key than the one saved in Keel. Only replace it if you reinstalled the server."
+		hint = "This machine presented a different key than the one saved in Slime. Only replace it if you reinstalled the server."
 		trust = btnDanger
 	}
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {

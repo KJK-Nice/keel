@@ -8,7 +8,7 @@ import (
 
 const DefaultListen = "127.0.0.1:47241"
 
-// LocalUser is the name of the user running Keel: $USER, else the account
+// LocalUser is the name of the user running Slime: $USER, else the account
 // the OS reports, else "".
 func LocalUser() string {
 	if u := os.Getenv("USER"); u != "" {

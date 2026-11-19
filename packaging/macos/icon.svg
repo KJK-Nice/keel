@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- In-app mark (splash, favicon, tray header): Keel.icon's slime, flat and a little larger, for 16–64 px. Dock icon is Keel.icon via genicon.go. -->
+  <!-- In-app mark (splash, favicon, tray header): Slime.icon's slime, flat and a little larger, for 16–64 px. Dock icon is Slime.icon via genicon.go. -->
   <defs>
     <linearGradient id="ground" x1="0" y1="0" x2="0" y2=".7">
       <stop offset="0" stop-color="#d02fd0"/>

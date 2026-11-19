@@ -125,8 +125,8 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	sid := e.openLocal()
 	e.clickBody("1")
-	e.typeLine("echo 'Keel 0Oo1lI {}[] wmi'")
-	e.waitScrollback(sid, "Keel 0Oo1lI")
+	e.typeLine("echo 'Slime 0Oo1lI {}[] wmi'")
+	e.waitScrollback(sid, "Slime 0Oo1lI")
 	e.settle(500 * time.Millisecond)
 	cols := func() int {
 		for _, s := range e.sessions() {

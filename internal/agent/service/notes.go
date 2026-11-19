@@ -56,7 +56,7 @@ type NoteStore interface {
 // for is "host" (about the host of pane N) or "user" (the user's own
 // preference, every host); from is "pane" (the text comes from pane
 // output), "user" (the user said it) or "conversation" (the model's
-// summary). from can only make the warning stricter: Keel also checks
+// summary). from can only make the warning stricter: Slime also checks
 // the text against the panes it sent.
 const NoteFence = "keel-note"
 
@@ -104,7 +104,7 @@ type NoteProposal struct {
 	// From is what the model said ("pane", "user", "conversation").
 	From string `json:"from"`
 	// FromPane is set when the text came from terminal output: the model
-	// said so, or Keel found it in a pane it sent. SeenIn names that
+	// said so, or Slime found it in a pane it sent. SeenIn names that
 	// pane's host.
 	FromPane   bool       `json:"fromPane"`
 	SeenIn     string     `json:"seenIn,omitempty"`

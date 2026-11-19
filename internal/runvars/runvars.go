@@ -1,7 +1,7 @@
 // Package runvars is the syntax and the safety rules of variables in
 // runbook steps (docs/ui-redesign.md §17, groups part 2, board
 // CaptureVars): `{{name}}` in a step's command names a group variable or a
-// value Keel captured from an earlier step's output. It is pure: no I/O,
+// value Slime captured from an earlier step's output. It is pure: no I/O,
 // no clock, no globals that change.
 //
 // A command keeps its `{{name}}` references wherever it is stored, shown
@@ -65,7 +65,7 @@ var (
 	NameRe = regexp.MustCompile(`^` + namePattern + `$`)
 	// DeclaredRefRe finds a reference to a name that can be declared
 	// (lower case only, reserved words included): what stands for a value
-	// Keel withholds from the model. refRe below is wider on purpose.
+	// Slime withholds from the model. refRe below is wider on purpose.
 	DeclaredRefRe = regexp.MustCompile(`\{\{` + namePattern + `(\|q)?\}\}`)
 	// refRe finds a reference. It accepts upper case too, so `{{FOO}}` is
 	// a reference to a variable no one can declare (and is refused as
@@ -170,7 +170,7 @@ func Quote(v string) (string, error) {
 		return "", fmt.Errorf("%w: it holds a single quote or a backslash, which shells read differently inside quotes", ErrUnsafe)
 	}
 	// Quotes keep the shell from reading it, not the command: '-rf' is
-	// still an option to rm. Keel cannot tell whether a -- came first.
+	// still an option to rm. Slime cannot tell whether a -- came first.
 	if strings.HasPrefix(v, "-") {
 		return "", fmt.Errorf("%w: it starts with -, which the command would read as an option even in quotes", ErrUnsafe)
 	}
@@ -208,7 +208,7 @@ func Fill(cmd string, lookup func(name string) (Value, error)) (string, []Used, 
 	last := 0
 	for _, r := range refs {
 		if !ValidName(r.Name) {
-			return "", nil, fmt.Errorf("%w: {{%s}} is not a variable name Keel knows (names are lower case)", ErrMissing, r.Name)
+			return "", nil, fmt.Errorf("%w: {{%s}} is not a variable name Slime knows (names are lower case)", ErrMissing, r.Name)
 		}
 		v, err := lookup(r.Name)
 		if err != nil {

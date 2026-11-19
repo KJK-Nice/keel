@@ -31,7 +31,7 @@ const (
 // StartupCommandProblem says why cmd is not a startup command, in the words
 // the API answers with; "" when it is one: one line of printable text, no
 // newline, carriage return, tab or other control character, at most
-// MaxStartupCommand bytes. Keel adds the Enter itself.
+// MaxStartupCommand bytes. Slime adds the Enter itself.
 func StartupCommandProblem(cmd string) string {
 	if cmd == "" {
 		return ""

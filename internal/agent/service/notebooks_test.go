@@ -172,7 +172,7 @@ func (f *nbFixture) noMarkersInLog(t *testing.T) {
 }
 
 // An attached notebook is redacted with the request's Redactor before it
-// is sent: vault values, captured values withheld by Keel, group variable
+// is sent: vault values, captured values withheld by Slime, group variable
 // values and secret-looking values never reach the provider. It is framed
 // as untrusted data with its revision, and logged with its id and byte
 // count only; the index of titles is logged with ids and a count.
@@ -293,7 +293,7 @@ func TestAgentReadsANotebookOnRequest(t *testing.T) {
 	}
 	msgs := reqs[1].Messages
 	last := msgs[len(msgs)-1].Text.String()
-	if !strings.HasPrefix(last, "Keel read the notebooks you asked for.") || !strings.Contains(last, "read at your request · rev 1") || !strings.Contains(last, "NB-BODY-MARKER") || strings.Contains(last, vaultPass) || strings.Contains(last, nbGitHub) {
+	if !strings.HasPrefix(last, "Slime read the notebooks you asked for.") || !strings.Contains(last, "read at your request · rev 1") || !strings.Contains(last, "NB-BODY-MARKER") || strings.Contains(last, vaultPass) || strings.Contains(last, nbGitHub) {
 		t.Fatalf("follow-up = %q", last)
 	}
 	if msgs[len(msgs)-2].Role != provider.RoleModel {
@@ -319,7 +319,7 @@ func TestAgentReadsANotebookOnRequest(t *testing.T) {
 }
 
 // Reads on request are bounded: at most 3 per round, 4 per ask, 2 more
-// rounds; a notebook is sent once per ask; the trace says when Keel
+// rounds; a notebook is sent once per ask; the trace says when Slime
 // stopped.
 func TestNotebookReadsAreBounded(t *testing.T) {
 	f := newNbFixture(t, "")
@@ -403,7 +403,7 @@ func TestAgentEditAppliesAndUndo(t *testing.T) {
 	f.svc.mu.Lock()
 	hist := f.svc.convs[conv].turns[0].model.String()
 	f.svc.mu.Unlock()
-	if !strings.Contains(hist, "[Keel: your edit to the notebook \"Second\" was applied (now rev 2)") {
+	if !strings.Contains(hist, "[Slime: your edit to the notebook \"Second\" was applied (now rev 2)") {
 		t.Fatalf("history = %q", hist)
 	}
 	act, err := f.svc.UndoNotebookChange(conv, c.ID)
@@ -507,7 +507,7 @@ func TestAgentEditConflictsNeverOverwriteTheUser(t *testing.T) {
 	}
 }
 
-// A whole-body edit is refused for a notebook Keel redacted or cut before
+// A whole-body edit is refused for a notebook Slime redacted or cut before
 // the model saw it (it would write placeholders over the user's values),
 // and a find that is not exactly once in the text changes nothing.
 func TestAgentWholeBodyEditOnlyOfCleanNotebooks(t *testing.T) {
@@ -524,7 +524,7 @@ func TestAgentWholeBodyEditOnlyOfCleanNotebooks(t *testing.T) {
 	if !strings.Contains(f.text(t, nbName), vaultPass) {
 		t.Fatal("the user's notebook was rewritten")
 	}
-	// A find holding a vault value is a guess at text Keel redacted: refused
+	// A find holding a vault value is a guess at text Slime redacted: refused
 	// before it is matched, so the answer says nothing about the guess.
 	f.fake.Script(readBlock(n), editBlock(n, 1, "the password is "+vaultPass, "gone"))
 	resp, _ = f.svc.Ask(context.Background(), AskRequest{ConversationID: conv, Question: "q"})
@@ -754,7 +754,7 @@ func TestNotebookCapAndFrame(t *testing.T) {
 	if frames != 1 {
 		t.Fatalf("%d frame-end lines at line start, want 1: %s", frames, msg[:600])
 	}
-	if !strings.Contains(msg, "| --- end notebook 1 ---") || !strings.Contains(msg, "[notebook cut by Keel: the first") {
+	if !strings.Contains(msg, "| --- end notebook 1 ---") || !strings.Contains(msg, "[notebook cut by Slime: the first") {
 		t.Error("the injected line is not prefixed, or the cut marker is missing")
 	}
 	var st *TraceStep

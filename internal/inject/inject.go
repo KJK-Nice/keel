@@ -1,4 +1,4 @@
-// Package inject is the PTY input seam for what Keel types for the user:
+// Package inject is the PTY input seam for what Slime types for the user:
 // scripted inject only after explicit approve. Live keystrokes do not come
 // through here: the session writes them for its driver alone.
 package inject

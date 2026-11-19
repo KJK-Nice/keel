@@ -45,7 +45,7 @@ const (
 	KindEnvLine        Kind = "env_line"
 	KindHighEntropy    Kind = "high_entropy"
 	KindKnownSecret    Kind = "known_secret" // a value stored in the vault
-	// KindCaptured is a value Keel captured from a runbook step's output
+	// KindCaptured is a value Slime captured from a runbook step's output
 	// in a group run, and KindVariable a group variable's value: both are
 	// replaced by their name, {{name}}, so the model can refer to them but
 	// never sees them (docs/ui-redesign.md §17, part 2).
@@ -129,7 +129,7 @@ func (r Report) Strings() map[string]int {
 }
 
 // Safe is text that went through a Redactor (or is a constant written in
-// Keel's source). Provider requests take Safe values only.
+// Slime's source). Provider requests take Safe values only.
 type Safe struct {
 	text string
 }
@@ -155,7 +155,7 @@ func (s Safe) Tail(max int) Safe {
 // package.
 type staticText string
 
-// Static makes a Safe value from a string constant in Keel's own source,
+// Static makes a Safe value from a string constant in Slime's own source,
 // such as a system prompt. It cannot take a variable.
 func Static(s staticText) Safe { return Safe{text: string(s)} }
 

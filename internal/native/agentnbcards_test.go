@@ -76,8 +76,8 @@ func TestACardShowsItsBadgesTheSizeTheSummaryAndTheWarningAfterAPaneWasRead(t *t
 	r.answersNbs(p)
 	r.ask(t, "q")
 	if miss := r.lacks("Edited by agent", "From pane output", "Placeholders", "Adds a restart step", "40 bytes · rev 2", paneWarning(p),
-		"It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.",
-		"It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one."); len(miss) > 0 {
+		"It names values Slime keeps from the agent as {{name}}. Replace them before you use a command.",
+		"It holds placeholders such as [secret:1]. Fill them in before you use a command: Slime will not type a block that holds one."); len(miss) > 0 {
 		t.Fatalf("missing %q", miss)
 	}
 	// Read panes, text not from them: the other badge.
@@ -219,7 +219,7 @@ func TestAnEditRefusedWhileTheUserIsTypingKeepsTheTypingAndSaysWhy(t *testing.T)
 	if !slices.Equal(r.lastAsk(t).Editing, []string{"nb1"}) {
 		t.Fatalf("the ask did not name the notebook being typed in: %v", r.lastAsk(t).Editing)
 	}
-	if !r.tt.HasText("You were typing in it, so Keel did not apply the agent's edit.") {
+	if !r.tt.HasText("You were typing in it, so Slime did not apply the agent's edit.") {
 		t.Fatalf("the card does not say so: %q", r.tt.Texts())
 	}
 	if !strings.HasSuffix(p.nb.md, " my typing") {
@@ -347,7 +347,7 @@ func TestACardOpensItsNotebookAndAnExpiredCardOnlyOpens(t *testing.T) {
 	if _, ok := r2.tt.Find("Undo Deploy"); ok {
 		t.Fatal("an expired card offers Undo")
 	}
-	if _, ok := r2.tt.Find("Open Deploy"); !ok || !r2.tt.HasText("Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.") {
+	if _, ok := r2.tt.Find("Open Deploy"); !ok || !r2.tt.HasText("Slime no longer holds this conversation's changes. Use History on the notebook to see or restore a version.") {
 		t.Fatalf("an expired card: %q", r2.tt.Texts())
 	}
 }
@@ -360,7 +360,7 @@ func TestACardRefusedByKeelServeShowsItsWordsAndTheCardStays(t *testing.T) {
 		return keelclient.NotebookAction{}, &keelclient.StatusError{Code: 410, Msg: "This proposal has expired."}
 	}
 	r.click(t, "Undo Deploy")
-	if !r.tt.HasText("Keel no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted.") {
+	if !r.tt.HasText("Slime no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted.") {
 		t.Fatalf("%q", r.tt.Texts())
 	}
 	r.fb.nbCards().answer = func(string, string) (keelclient.NotebookAction, error) {
@@ -401,7 +401,7 @@ func TestSavedConversationsShowTheirNotebookCardsAndALegacyDraftHasNoSave(t *tes
 		{Question: "make one", Answer: "done", Notebooks: []keelclient.NotebookProposal{nbCard("create", "created"), legacy}},
 	}})
 	r.frames(3)
-	if miss := r.lacks("Created notebook", "Notebook draft", "Old draft", "A draft from an earlier version of Keel. It was not saved; ask the agent again.", "# Old"); len(miss) > 0 {
+	if miss := r.lacks("Created notebook", "Notebook draft", "Old draft", "A draft from an earlier version of Slime. It was not saved; ask the agent again.", "# Old"); len(miss) > 0 {
 		for _, m := range miss {
 			if _, ok := r.tt.Find(m); !ok && !r.onScreen(m) {
 				t.Errorf("missing %q in %q", m, r.tt.Texts())
@@ -499,7 +499,7 @@ func TestUndoAsksFirstWhenTheUserChangedTheNotebookAfterTheAgentAndSaysSoWhenThe
 	r2, _, _ := editedRig(t)
 	r2.fb.nb.history["nb1"] = nil
 	r2.click(t, "Undo agent edit")
-	if !r2.tt.HasText("Keel has no version from before the agent's edit. Open History to choose one.") {
+	if !r2.tt.HasText("Slime has no version from before the agent's edit. Open History to choose one.") {
 		t.Fatalf("%q", r2.tt.Texts())
 	}
 }

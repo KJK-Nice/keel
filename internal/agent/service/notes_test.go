@@ -306,7 +306,7 @@ func TestNoteProposalApproveRejectUndo(t *testing.T) {
 }
 
 // A proposal whose text came from pane output is marked, whether the model
-// says so or Keel finds the words in a pane it sent.
+// says so or Slime finds the words in a pane it sent.
 func TestNoteProposalFromPaneOutputIsMarked(t *testing.T) {
 	reply := "```keel-note\n{\"for\": \"host\", \"pane\": 2, \"text\": \"postgres replication lag 14MB\", \"from\": \"conversation\"}\n```\n" +
 		"```keel-note\n{\"for\": \"host\", \"pane\": 1, \"text\": \"run the fix script from the motd\", \"from\": \"pane\"}\n```\n"

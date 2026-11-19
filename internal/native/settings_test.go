@@ -71,7 +71,7 @@ func (r *rig) prefsFile(t *testing.T) map[string]json.RawMessage {
 
 func TestSettingsNavIsTheApps(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
-	r.texts(t, "Settings", "Search settings", "Appearance", "Terminal", "Keyboard", "Agent", "Sharing", "Vault & security", "Runtime", "About Keel", "9d62912")
+	r.texts(t, "Settings", "Search settings", "Appearance", "Terminal", "Keyboard", "Agent", "Sharing", "Vault & security", "Runtime", "About Slime", "9d62912")
 	if !r.has("settings nav Agent") {
 		t.Error("no Agent section")
 	}
@@ -264,7 +264,7 @@ func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 	if string(r.prefsFile(t)["opacity"]) != "70" {
 		t.Errorf("opacity not saved: %v", r.prefsFile(t))
 	}
-	r.texts(t, "The window turns see-through the next time Keel starts.")
+	r.texts(t, "The window turns see-through the next time Slime starts.")
 }
 
 func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
@@ -276,8 +276,8 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
 		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
-	r.texts(t, "Font", "Monospace face used in every pane: Keel's own, or any installed on this machine.", "JetBrains Mono") // the first of the five, chosen by default
-	r.w.openHost(testHosts[1])                                                                                               // a pane to change live
+	r.texts(t, "Font", "Monospace face used in every pane: Slime's own, or any installed on this machine.", "JetBrains Mono") // the first of the five, chosen by default
+	r.w.openHost(testHosts[1])                                                                                                // a pane to change live
 	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")
@@ -328,7 +328,7 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Keyboard")
-	r.texts(t, "The keys Keel handles. They are fixed; the command palette shows the same keys beside each action.",
+	r.texts(t, "The keys Slime handles. They are fixed; the command palette shows the same keys beside each action.",
 		"General", "Tabs", "Vault", "Panes", "Terminal", "New tab", "Command palette", "Settings", "Focus view (zoom pane)", "Reset text size")
 	if !r.has("keys ⌘⇧T") || !r.has("keys ⌘,") {
 		t.Errorf("key caps missing: %v", r.tt.Texts())
@@ -401,7 +401,7 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	fb.runtime = keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://saved.example"}
 	r.w.loadSettings()
 	r.tt.Frame()
-	r.texts(t, "KEEL_SIGNAL is set for this run, so Keel uses https://env.example. The server saved here is used when it is not set.")
+	r.texts(t, "KEEL_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set.")
 }
 
 func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
@@ -409,7 +409,7 @@ func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
 	r := settingsRig(t, fb)
 	r.section(t, "Vault & security")
 	r.texts(t, "Passwords, key passphrases and the agent key are encrypted in the vault file. Nothing here shows a secret.",
-		"Vault", "State", "Unlocked", "Unlocked with", "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Keel asks for the passphrase.",
+		"Vault", "State", "Unlocked", "Unlocked with", "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Slime asks for the passphrase.",
 		"Vault file", "/scratch/data/keel.vault", "Copy path", "Safety", "The agent never sees vault contents", "A lost passphrase cannot be recovered")
 	r.click(t, "Copy path")
 	if r.tt.Clipboard() != "/scratch/data/keel.vault" || !r.tt.HasText("Copied") {
@@ -435,12 +435,12 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	r.section(t, "Runtime")
 	r.texts(t, "keel serve owns your sessions and serves this window. It keeps running when the window closes.",
 		"Status", "Build", "9d62912abcde-0123456789ab", "Address", "127.0.0.1:50123", "Data folder", "/scratch/data", "Process id", "4242",
-		"Running sessions", "Uptime", "3 h 05 min", "Window", "Sessions keep running after the window closes", "Stop", "Stop the Keel runtime", "Stop runtime…")
+		"Running sessions", "Uptime", "3 h 05 min", "Window", "Sessions keep running after the window closes", "Stop", "Stop the Slime runtime", "Stop runtime…")
 	if !r.has("value 1") {
 		t.Errorf("running sessions: %v", r.tt.Texts())
 	}
 	r.click(t, "Stop runtime…")
-	r.texts(t, "Stop the Keel runtime?", "This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again.", "Stop runtime")
+	r.texts(t, "Stop the Slime runtime?", "This ends the 1 running session and every port forward, then closes keel serve. Reopen Slime to start it again.", "Stop runtime")
 	if fb.runtimeStops != 0 {
 		t.Fatal("stopped before the confirm")
 	}
@@ -449,10 +449,10 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 		t.Fatalf("Cancel stopped: %d", fb.runtimeStops)
 	}
 	r.click(t, "Stop runtime…")
-	r.click(t, "alertdialog Stop the Keel runtime?")
+	r.click(t, "alertdialog Stop the Slime runtime?")
 	r.w.confirmDlg().run()
 	r.tt.Frame()
-	if fb.runtimeStops != 1 || !r.tt.HasText("Keel runtime stopped") {
+	if fb.runtimeStops != 1 || !r.tt.HasText("Slime runtime stopped") {
 		t.Errorf("stops %d", fb.runtimeStops)
 	}
 	// A refusal is a toast, not a silent stop.
@@ -476,7 +476,7 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 	r := newRig(t, fb)
 	r.tt.Frame()
 	r.openPal(t)
-	r.typePal("stop keel runtime")
+	r.typePal("stop slime runtime")
 	rows := r.rows()
 	if len(rows) != 1 {
 		t.Fatalf("rows %+v", rows)
@@ -487,13 +487,13 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 	if fb.runtimeStops != 0 || !r.w.confirmOpen() {
 		t.Fatalf("the palette stopped the runtime without asking: stops %d", fb.runtimeStops)
 	}
-	r.texts(t, "Stop the Keel runtime?")
+	r.texts(t, "Stop the Slime runtime?")
 }
 
 func TestSettingsAboutAndSearch(t *testing.T) {
 	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
-	r.section(t, "About Keel")
+	r.section(t, "About Slime")
 	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/keel", "README", "Copy link")
 	r.click(t, "Copy link")
 	if !strings.HasPrefix(r.tt.Clipboard(), "https://github.com/KJK-Nice/keel") {
@@ -510,7 +510,7 @@ func TestSettingsAboutAndSearch(t *testing.T) {
 	r.fill(t, "Search settings", "zzzz")
 	r.texts(t, "Nothing matches")
 	r.fill(t, "Search settings", "")
-	r.texts(t, "About Keel", "Source")
+	r.texts(t, "About Slime", "Source")
 }
 
 func TestSettingsPageIsSavedWithTheTabs(t *testing.T) {

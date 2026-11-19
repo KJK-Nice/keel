@@ -542,7 +542,7 @@ func TestLogsPageRowsAreNewestFirstWithTimeKindTargetAndEvent(t *testing.T) {
 	r := pageRig(t, fb)
 	r.w.showPage("logs")
 	r.tt.Frame()
-	r.texts(t, "Logs", "What Keel did on this machine, newest first. Secrets are never written here.", "Refresh", "Search events",
+	r.texts(t, "Logs", "What Slime did on this machine, newest first. Secrets are never written here.", "Refresh", "Search events",
 		"All", "Sessions", "Forwards", "Vault", "Sharing", "Agent", "Time", "Kind", "Target", "Event",
 		"15:04:08", "host", "api-1", "host deleted", "15:04:05", "tunnel", "tunnel started",
 		"agent.read", "pg-primary", "agent read 12 lines", "12 lines", "300 bytes", "3 redacted", "via jev",

@@ -73,7 +73,7 @@ func kindLabel(kind string) string {
 	case keelclient.KindJoined:
 		return "joined by link"
 	case keelclient.KindWindow:
-		return "Keel window"
+		return "Slime window"
 	}
 	return ""
 }

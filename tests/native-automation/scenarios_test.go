@@ -27,7 +27,7 @@ func openShell(r *rig) {
 func TestStartsAndShowsFirstRun(t *testing.T) {
 	r := newRig(t)
 	r.startApp() // no vault: the app starts its own daemon on the scratch data
-	r.waitFor("the First run heading", has("Welcome to Keel"))
+	r.waitFor("the First run heading", has("Welcome to Slime"))
 	r.capture("first-run")
 	r.quit()
 }
@@ -108,7 +108,7 @@ func TestMenuBar(t *testing.T) {
 	choose("File", "Close Tab")
 	r.waitFor("the New Tab closed", lacks("tab New Tab"))
 	choose("File", "Reopen Tab")
-	for _, item := range []string{"New Host", "Quick Connect", "Join Session", "Split Notebook", "Stop Keel runtime"} {
+	for _, item := range []string{"New Host", "Quick Connect", "Join Session", "Split Notebook", "Stop Slime runtime"} {
 		choose("File", item)
 		dismiss()
 	}

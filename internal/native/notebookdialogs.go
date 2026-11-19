@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	historyDesc   = "Keel keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days."
-	historyNone   = "No earlier versions yet. Keel keeps one before every agent edit and restore, and when you start editing again."
+	historyDesc   = "Slime keeps the version before every agent edit and every restore, and one when you start editing again. Up to 20 versions, for 30 days."
+	historyNone   = "No earlier versions yet. Slime keeps one before every agent edit and restore, and when you start editing again."
 	historyLeft   = "No earlier versions left."
 	trashTitle    = "Recently deleted"
 	trashDesc     = "Deleted notebooks stay here for 30 days (at most 50). Restore puts one back in Notebooks."

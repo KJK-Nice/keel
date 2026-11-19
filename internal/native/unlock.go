@@ -18,7 +18,7 @@ import (
 // field when the request is sent, and is in no log, error or file.
 //
 // There is no "Try the keychain again next time" box: it would have no effect (keel serve always asks the keychain
-// first at start); its note ("Keel always asks … first") is drawn.
+// first at start); its note ("Slime always asks … first") is drawn.
 
 // unlockGate is the Unlock screen's state.
 type unlockGate struct {
@@ -69,11 +69,11 @@ func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
 	kc := keychainName()
 	switch {
 	case v.Mode == "keychain":
-		return kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Keel in " + kc + ", then run keel serve stop and open Keel again.", true
+		return kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run keel serve stop and open Slime again.", true
 	case v.KeyringOff:
-		return "Keel was started with KEEL_KEYRING=off, so it needs your passphrase.", false
+		return "Slime was started with KEEL_KEYRING=off, so it needs your passphrase.", false
 	}
-	return kc + " doesn't hold this vault's key, so Keel needs your passphrase.", false
+	return kc + " doesn't hold this vault's key, so Slime needs your passphrase.", false
 }
 
 // gateSessions is the status line's count.
@@ -208,16 +208,16 @@ func (w *workspace) unlockCard(c *ui.Context, g *unlockGate) {
 		}
 	})
 	if !g.vault.KeyringOff {
-		caption(c, "Keel always asks "+keychainName()+" first when keel serve starts.", inkMuted)
+		caption(c, "Slime always asks "+keychainName()+" first when keel serve starts.", inkMuted)
 	}
 	if capButton(c, "Unlock", "↵", false).FillWidth().Clicked() {
 		w.act(w.submitUnlock)
 	}
-	ui.Text(c, "Forgot it? Keel can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.").
+	ui.Text(c, "Forgot it? Slime can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.").
 		TextColor(inkMuted).FontSize(captionSize)
 }
 
-// markPath is the Keel mark: the keel on a tile. The tile is ink and the keel is stage, so no colour literal is added.
+// markPath is the Slime mark: the keel on a tile. The tile is ink and the keel is stage, so no colour literal is added.
 const markPath = `m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z`
 
 var markSVG *ui.SVG
@@ -226,7 +226,7 @@ func mark(c *ui.Context) {
 	if markSVG == nil {
 		markSVG = ui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path fill="currentColor" transform="translate(4,5.5) scale(0.24)" d="` + markPath + `"/></svg>`))
 	}
-	ui.Box(c).Size(markSize, markSize).Radius(radiusLg).Background(ink).Shrink(0).Label("Keel").Children(func() {
+	ui.Box(c).Size(markSize, markSize).Radius(radiusLg).Background(ink).Shrink(0).Label("Slime").Children(func() {
 		ui.Icon(c, markSVG).FontSize(markSize).TextColor(stage)
 	})
 }

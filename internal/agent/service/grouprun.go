@@ -16,7 +16,7 @@ import (
 
 // Group runs (docs/ui-redesign.md §17, board GroupRunbook): one runbook
 // walked across the hosts of a group, step by step, Ansible-style, except
-// that nothing is ever run by Keel or the agent.
+// that nothing is ever run by Slime or the agent.
 //
 //   - The user starts a run (StartGroupRun) with a runbook, a group and a
 //     mode: rolling (one host at a time, in order; the first failure stops
@@ -29,7 +29,7 @@ import (
 //     fixed when the run starts: the group's members (its folder and the
 //     folders below) with that role and "Agent can read" on. A member the
 //     agent may not read is listed as left out and never targeted.
-//   - Keel turns the current step into one ordinary command proposal per
+//   - Slime turns the current step into one ordinary command proposal per
 //     host (ProposeGroupStep), from the saved command, each aimed at a pane
 //     open on that host in the asking window (the client sends its panes;
 //     keel serve resolves their hosts itself). Every host × step is its own
@@ -118,7 +118,7 @@ type GroupRun struct {
 	Halted string `json:"halted,omitempty"`
 	// ModeLocked is set while the mode may not change (modeLockedLocked).
 	ModeLocked bool `json:"modeLocked,omitempty"`
-	// NeedPane are the hosts of the current step Keel would propose for now
+	// NeedPane are the hosts of the current step Slime would propose for now
 	// but found no pane open on in the asking window.
 	NeedPane []GroupRunHost `json:"needPane"`
 }
@@ -178,7 +178,7 @@ type GroupRunCell struct {
 	// Confirm is set on a production host whose reported exit 0 waits for
 	// the user.
 	Confirm bool `json:"confirm,omitempty"`
-	// Blocked says why Keel did not propose for this host now.
+	// Blocked says why Slime did not propose for this host now.
 	Blocked string `json:"blocked,omitempty"`
 	// Pending is set on a typed host whose shell sends OSC 133 marks and
 	// has not reported this command's exit status yet (for up to

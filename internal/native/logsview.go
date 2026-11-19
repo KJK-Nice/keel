@@ -25,7 +25,7 @@ func pageHead(c *ui.Context, title, desc string, actions func()) {
 
 func (w *workspace) logsView(c *ui.Context, p *logsPage) {
 	ui.Column(c).Grow(1).FillWidth().FillHeight().Background(w.ground(surface)).Children(func() {
-		pageHead(c, "Logs", "What Keel did on this machine, newest first. Secrets are never written here.", func() {
+		pageHead(c, "Logs", "What Slime did on this machine, newest first. Secrets are never written here.", func() {
 			if textBtn(c, "Refresh", btnDefault) {
 				w.act(w.loadLogs)
 			}

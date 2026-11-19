@@ -1,5 +1,5 @@
 // Package service runs the agent panel's conversations (docs/ui-redesign.md
-// §5.4). It is the one place in Keel that sends anything off the machine,
+// §5.4). It is the one place in Slime that sends anything off the machine,
 // and only from Ask, which keel serve calls on the user's own request
 // (POST /api/agent/ask).
 //
@@ -278,7 +278,7 @@ type TraceStep struct {
 	RunbookID string `json:"runbookId,omitempty"`
 	// Notebook (its name, redacted) and NotebookID are set on a step with
 	// Status "notebook": an attached notebook sent with the question,
-	// Bytes long after redaction (Truncated when Keel cut it).
+	// Bytes long after redaction (Truncated when Slime cut it).
 	Notebook   string `json:"notebook,omitempty"`
 	NotebookID string `json:"notebookId,omitempty"`
 	Bytes      int    `json:"bytes,omitempty"`
@@ -310,7 +310,7 @@ type Proposal struct {
 	// Expired is set on a saved proposal the service no longer holds
 	// (sessions.go): it can be copied or proposed again, not typed.
 	Expired bool `json:"expired,omitempty"`
-	// Runbook is set on a proposal Keel made from a runbook step
+	// Runbook is set on a proposal Slime made from a runbook step
 	// (runbooks.go): typed like any other, through approve-before-type.
 	Runbook *ProposalStep `json:"runbook,omitempty"`
 	// Vars are the variables a group run's step names ({{name}}): Command
@@ -589,7 +589,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	var made []*Proposal
 	// The runbook in use: the agent's pick, then the current step as one
-	// proposal made by Keel from the saved command (runbooks.go).
+	// proposal made by Slime from the saved command (runbooks.go).
 	stepProp, rbTrace := s.runbookAfter(conv, rbTurn, rbUse, excerpts, byID, r, now)
 	if len(rbTrace) > 0 {
 		trace = append(rbTrace, trace...)
@@ -640,11 +640,11 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	hq.WriteString(question)
 	modelText := truncate(resp.Text, maxAnswerBytes)
 	if len(nbW.notes) > 0 {
-		modelText += "\n\n[Keel: " + strings.Join(nbW.notes, ". ") + ".]"
+		modelText += "\n\n[Slime: " + strings.Join(nbW.notes, ". ") + ".]"
 	}
 	if resp.Stop != "" {
 		// The model hears that its reply was cut, so "continue" works.
-		modelText += "\n\n[Keel: this reply was cut off before it ended (" + resp.Stop + "); the user saw only the text above.]"
+		modelText += "\n\n[Slime: this reply was cut off before it ended (" + resp.Stop + "); the user saw only the text above.]"
 	}
 	userSafeTurn, modelSafe := r.Text(hq.String()), r.Text(modelText)
 	s.mu.Lock()

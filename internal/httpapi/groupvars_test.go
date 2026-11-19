@@ -139,7 +139,7 @@ func TestGroupVarsCaptureFillTypeAndExport(t *testing.T) {
 	if inv.Name != "inventory.ini" || !strings.Contains(inv.Content, "[control_plane]") || !strings.Contains(inv.Content, "k8s_version=1.31.2") || !strings.Contains(inv.Content, "--ask-pass") {
 		t.Fatalf("inventory:\n%s", inv.Content)
 	}
-	if pb.Name != "playbooks/bootstrap.yml" || !strings.Contains(pb.Content, "{{ join_token | quote }}") || !strings.Contains(pb.Content, "TODO: Keel captures join_token") {
+	if pb.Name != "playbooks/bootstrap.yml" || !strings.Contains(pb.Content, "{{ join_token | quote }}") || !strings.Contains(pb.Content, "TODO: Slime captures join_token") {
 		t.Fatalf("playbook:\n%s", pb.Content)
 	}
 	for _, secret := range []string{askHostPass, "other-pass-1234", token} {
@@ -154,7 +154,7 @@ func TestGroupVarsCaptureFillTypeAndExport(t *testing.T) {
 	}
 	for _, format := range []string{"ini", "yaml"} {
 		code, b = f.call(t, "GET", "/api/groups/"+g.ID+"/ansible?format="+format, nil)
-		if code != 200 || strings.Contains(string(b), askHostPass) || !strings.Contains(string(b), "old_pw: left out: its value is also in Keel's vault") {
+		if code != 200 || strings.Contains(string(b), askHostPass) || !strings.Contains(string(b), "old_pw: left out: its value is also in Slime's vault") {
 			t.Fatalf("%s export with a vault value → %d %s", format, code, b)
 		}
 	}

@@ -63,7 +63,7 @@ const (
 	groupVarsEmpty  = "No variables yet. Add one a runbook step can use, such as k8s_version."
 	groupNoBooks    = "No runbooks yet. Add one on the Runbooks page."
 	groupExportHelp = "Built from this folder's hosts, roles and group variables. Change a role or a variable and this updates."
-	groupExportSafe = "Keel does not run Ansible. Save the files and run ansible-playbook yourself. No passwords, keys or tokens are written into them; a host whose key or password is in the vault gets a comment instead."
+	groupExportSafe = "Slime does not run Ansible. Save the files and run ansible-playbook yourself. No passwords, keys or tokens are written into them; a host whose key or password is in the vault gets a comment instead."
 )
 
 // groupPage is the state of the Group tab.

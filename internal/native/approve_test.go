@@ -187,7 +187,7 @@ func TestAServerRefusalShowsItsMessageAndStaysOpenWithoutRetry(t *testing.T) {
 		t.Error("the refusal is not shown")
 	}
 	if len(r.typed()) != 1 {
-		t.Fatalf("typed %v: Keel retried on its own", r.typed())
+		t.Fatalf("typed %v: Slime retried on its own", r.typed())
 	}
 	// Another press is another request, made by the user.
 	r.fb.conns[0].injectErr = errors.New("x")

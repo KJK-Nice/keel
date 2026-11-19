@@ -403,7 +403,7 @@ func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) 
 		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Wrap().Children(func() {
 			icon(c, "shield-01", inkMuted)
 			body(c, fmt.Sprintf("Captured from step %d · %s", i+1, st.Title), ink).Grow(1)
-			pill(c, "Captured by Keel, never sent to the agent", accentSoft, accentInk)
+			pill(c, "Captured by Slime, never sent to the agent", accentSoft, accentInk)
 		})
 		for _, cap := range st.Captures {
 			ui.Column(c).FillWidth().Gap(space1).Key(cap.Name).Label("capture " + cap.Name).Children(func() {

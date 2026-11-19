@@ -14,6 +14,6 @@ func RunNative(addr, dataDir, name string) error {
 	if _, err := PrepareServe(addr, dataDir); err != nil {
 		return err
 	}
-	log.Printf("Keel app on http://%s — close the window to detach; sessions stay in keel serve", addr)
+	log.Printf("Slime app on http://%s — close the window to detach; sessions stay in keel serve", addr)
 	return native.RunWith(native.Options{Addr: addr, DataDir: dataDir, AppBuild: buildid.Of(), Name: name})
 }

@@ -9,7 +9,7 @@ import (
 	"keel/internal/agent/redact"
 )
 
-// The questions Keel asks the detector (TypeSafe Jev) and the numbers it
+// The questions Slime asks the detector (TypeSafe Jev) and the numbers it
 // acts on, in one place so they can be reviewed and tuned together
 // (docs/ui-redesign.md §5.5, §7).
 //
@@ -36,7 +36,7 @@ const (
 	// nothing (⇥ keeps its shell meaning), a false one steals ⇥.
 	NoticeThreshold = 0.70
 	// A Jev risk rating counts only when it is at least this sure. Jev
-	// can only make Keel's code rating stricter (agent.Stricter).
+	// can only make Slime's code rating stricter (agent.Stricter).
 	RiskDestructiveMin = 0.50 // P(destructive)
 	RiskChangesMin     = 0.50 // P(changes) + P(destructive)
 
@@ -221,7 +221,7 @@ func judgedRisk(a provider.ChoiceAnswer) agent.Risk {
 
 // suggestPrompt is the model provider's system prompt for one in-pane
 // suggestion. It reuses the panel's proposal block (ProposalFence).
-const suggestPrompt = "You turn a request typed on a shell prompt line into a shell command, inside Keel, a local SSH workspace.\n" +
+const suggestPrompt = "You turn a request typed on a shell prompt line into a shell command, inside Slime, a local SSH workspace.\n" +
 	"The user typed words instead of a command and asked for a suggestion. Values that look secret (and, if the user asked, " +
 	"IP addresses and hostnames) were replaced with placeholders such as [secret:1], [ip:2] or [host:1]; never guess them.\n" +
 	"You cannot run anything. The user reviews the command and inserts it on the prompt line; it is not run until they press Enter.\n" +

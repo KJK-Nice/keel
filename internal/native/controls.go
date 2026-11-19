@@ -15,7 +15,7 @@ func workingBlocks(c *ui.Context, col ui.Color, name string) ui.Element {
 	return loading.Blocks(c, loading.Options{Size: iconSize, Color: col}).Label(name).Shrink(0)
 }
 
-// The shared control layer: Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
+// The shared control layer: Slime's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
 // two looks MyGo has no variant for: quiet (no face until hovered) and destructive (the flare colours of the Destructive
 // badge). Colours come from the theme MyGo sets from the tokens (theme.go), so a control follows the system accent.
 
@@ -106,7 +106,7 @@ func busyMark(c *ui.Context, on bool, name string) {
 }
 
 // modalChrome gives a dialog MyGo's Modal look (the dimmed backdrop, the theme's panel with its radius, border and shadow, sized
-// to fit the window) on a ui.DialogBase, which is the part of ui.Modal that lets Keel set the panel's width, label and keys.
+// to fit the window) on a ui.DialogBase, which is the part of ui.Modal that lets Slime set the panel's width, label and keys.
 func modalChrome(c *ui.Context, backdrop, panel ui.Element) {
 	t := c.Theme()
 	w, h := c.Size()

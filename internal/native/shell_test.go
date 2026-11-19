@@ -101,8 +101,8 @@ func TestTrayStatusLabelAndMenuBar(t *testing.T) {
 		}
 	}
 	for _, c := range []struct{ release, app, serve, wantApp, wantServe string }{
-		{"0.2.3", "6d3796f1a2b3-0123abcd", "6d3796f1a2b3+dirty-0123abcd", "Keel 0.2.3 (6d3796f)", "keel serve 6d3796f+dirty"},
-		{"", "", "", "Keel dev", "keel serve —"},
+		{"0.2.3", "6d3796f1a2b3-0123abcd", "6d3796f1a2b3+dirty-0123abcd", "Slime 0.2.3 (6d3796f)", "keel serve 6d3796f+dirty"},
+		{"", "", "", "Slime dev", "keel serve —"},
 	} {
 		if a, s := versionLabels(c.release, c.app, c.serve); a != c.wantApp || s != c.wantServe {
 			t.Errorf("%v: %q %q", c, a, s)

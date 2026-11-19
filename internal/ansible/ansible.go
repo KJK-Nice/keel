@@ -1,5 +1,5 @@
 // Package ansible renders an Ansible inventory (INI and YAML) and a playbook
-// (YAML) from a Keel group and runbook. Keel never runs Ansible: the user
+// (YAML) from a Slime group and runbook. Slime never runs Ansible: the user
 // downloads or copies these files. The package is pure: no I/O, no clock.
 //
 // Every user string is treated as hostile. Names are reduced to the
@@ -24,7 +24,7 @@ import (
 // Host is one inventory host. It deliberately has NO field for passwords,
 // keys or passphrases: secrets can never reach an export.
 type Host struct {
-	Name       string // Keel host name (any text; sanitized for Ansible)
+	Name       string // Slime host name (any text; sanitized for Ansible)
 	Address    string
 	Port       int // 0 or 22: not written
 	User       string
@@ -48,7 +48,7 @@ type Jump struct {
 // Var is one group variable. Values are never secrets.
 type Var struct{ Name, Value string }
 
-// Inventory is a Keel group ready for export.
+// Inventory is a Slime group ready for export.
 type Inventory struct {
 	Group   string // the folder's name (any text)
 	Hosts   []Host
@@ -61,7 +61,7 @@ type Inventory struct {
 	Withheld []string
 }
 
-// Names maps Keel names to the Ansible names used in both files.
+// Names maps Slime names to the Ansible names used in both files.
 type Names struct {
 	Group string            // the folder's Ansible group name
 	Roles map[string]string // role -> Ansible group name
@@ -230,11 +230,11 @@ func writeHeader(b *strings.Builder, inv Inventory, n Names) {
 	if strings.TrimSpace(group) == "" {
 		group = n.Group
 	}
-	b.WriteString("# " + group + " · exported by Keel")
+	b.WriteString("# " + group + " · exported by Slime")
 	if st := oneLine(inv.Stamp); strings.TrimSpace(st) != "" {
 		b.WriteString(" · " + st)
 	}
-	b.WriteString("\n# Keel does not run Ansible. No passwords, keys or tokens are written here.\n")
+	b.WriteString("\n# Slime does not run Ansible. No passwords, keys or tokens are written here.\n")
 }
 
 func port(p int) int {
@@ -274,9 +274,9 @@ func hostHints(inv Inventory, h Host, name string) []string {
 	var out []string
 	switch h.Auth {
 	case wire.AuthKey, wire.AuthIdentity:
-		out = append(out, name+": Keel keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.")
+		out = append(out, name+": Slime keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.")
 	case wire.AuthPassword:
-		out = append(out, name+": this host signs in with a password kept in Keel's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.")
+		out = append(out, name+": this host signs in with a password kept in Slime's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.")
 	}
 	if h.Production {
 		out = append(out, name+": production")
@@ -299,7 +299,7 @@ func leftOutINI(name, key string) string {
 // the rest (bad names, repeats).
 func usableVars(vars []Var, withheld []string) (ok []Var, notes []string) {
 	for _, name := range withheld {
-		notes = append(notes, oneLine(name)+": left out: its value is also in Keel's vault. Set it yourself, with ansible-vault.")
+		notes = append(notes, oneLine(name)+": left out: its value is also in Slime's vault. Set it yourself, with ansible-vault.")
 	}
 	seen := map[string]bool{}
 	for _, v := range vars {
@@ -477,7 +477,7 @@ func YAML(inv Inventory) string {
 	return b.String()
 }
 
-// Capture is a value Keel extracts from a step's output at run time.
+// Capture is a value Slime extracts from a step's output at run time.
 type Capture struct{ Name, Pattern string }
 
 // Step is one runbook step.
@@ -487,7 +487,7 @@ type Step struct {
 	Command     string
 	Role        string
 	OneHost     bool
-	ReadOnly    bool // Keel rated the command read-only
+	ReadOnly    bool // Slime rated the command read-only
 	Captures    []Capture
 }
 
@@ -537,13 +537,13 @@ func needsRaw(s string) bool {
 
 // goKeywords are Go template keywords. Written alone as {{end}} (no |q) they
 // are template text, e.g. kubectl -o go-template='{{range .items}}…{{end}}',
-// not Keel variable references.
+// not Slime variable references.
 var goKeywords = map[string]bool{
 	"end": true, "else": true, "break": true, "continue": true,
 	"nil": true, "true": true, "false": true,
 }
 
-// convertCommand turns Keel's {{name}} and {{name|q}} into
+// convertCommand turns Slime's {{name}} and {{name|q}} into
 // {{ name | quote }} and wraps every other piece holding Jinja text in
 // {% raw %}. It reports false when a piece cannot be wrapped (it holds
 // "endraw").
@@ -589,8 +589,8 @@ func PlaybookYAML(pb Playbook, inv Inventory) string {
 	if name == "" {
 		name = "Runbook"
 	}
-	b.WriteString("# " + name + " · exported by Keel from a runbook. Review before use.\n")
-	b.WriteString("# Keel does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini playbooks/" + Slug(pb.Name) + ".yml --check\n")
+	b.WriteString("# " + name + " · exported by Slime from a runbook. Review before use.\n")
+	b.WriteString("# Slime does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini playbooks/" + Slug(pb.Name) + ".yml --check\n")
 	if len(pb.Steps) == 0 {
 		b.WriteString("[]\n")
 		return b.String()
@@ -645,13 +645,13 @@ func PlaybookYAML(pb Playbook, inv Inventory) string {
 			}
 		} else {
 			b.WriteString("      ansible.builtin.fail:\n")
-			b.WriteString("        msg: " + yq(fmt.Sprintf("Step %d's command holds Jinja text Keel cannot escape. Copy it from Keel by hand.", num)) + "\n")
+			b.WriteString("        msg: " + yq(fmt.Sprintf("Step %d's command holds Jinja text Slime cannot escape. Copy it from Slime by hand.", num)) + "\n")
 		}
 		if s.OneHost {
 			b.WriteString("      run_once: true\n")
 		}
 		for _, c := range s.Captures {
-			comment(&b, "    ", fmt.Sprintf("TODO: Keel captures %s from this step's output (pattern %s). Ansible does not: set it with ansible.builtin.set_fact from keel_step_%d.stdout, or pass -e %s=… .", c.Name, c.Pattern, num, c.Name))
+			comment(&b, "    ", fmt.Sprintf("TODO: Slime captures %s from this step's output (pattern %s). Ansible does not: set it with ansible.builtin.set_fact from keel_step_%d.stdout, or pass -e %s=… .", c.Name, c.Pattern, num, c.Name))
 		}
 	}
 	return b.String()

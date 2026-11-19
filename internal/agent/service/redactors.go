@@ -11,7 +11,7 @@ import (
 // Every Redactor the service uses is built here, for a named purpose
 // (docs/ui-redesign.md §6 rules 3, 4 and 11). A call site says what it
 // redacts for; what that means (the user's settings, the vault, the values
-// Keel withholds) is decided once, in redactShapes. Every Redactor holds
+// Slime withholds) is decided once, in redactShapes. Every Redactor holds
 // the vault's values and the secret detectors: there is no purpose
 // without them.
 
@@ -22,7 +22,7 @@ const (
 	// forRequest: text that leaves the machine, to a model, to Jev or to an
 	// outside agent.
 	forRequest redactFor = iota
-	// forKept: text Keel keeps and may send again (a saved conversation's
+	// forKept: text Slime keeps and may send again (a saved conversation's
 	// turns and titles, a proposal's reason).
 	forKept
 	// forKeptCommand: a command the user will type, as kept in the
@@ -87,7 +87,7 @@ func (s *Service) requestRedactor(opts store.AgentRedaction, hosts []agent.Host)
 }
 
 // buildRedactor is the one place a Redactor is made. It fails, and
-// nothing is redacted or sent, when the vault's values or the values Keel
+// nothing is redacted or sent, when the vault's values or the values Slime
 // withholds cannot be read.
 func (s *Service) buildRedactor(p redactFor, opts store.AgentRedaction, hosts []agent.Host) (*redact.Redactor, error) {
 	shape := redactShapes[p]

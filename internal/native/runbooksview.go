@@ -396,7 +396,7 @@ func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 		})
 	}
 	if len(s.captures) > 0 {
-		help(c, "In a group run Keel takes the pattern's group from this step's output on each host and fills it in where a later step says {{name}}. Never sent to the agent.")
+		help(c, "In a group run Slime takes the pattern's group from this step's output on each host and fills it in where a later step says {{name}}. Never sent to the agent.")
 	}
 	if len(s.captures) < maxCaptures && textBtn(c, "Capture a value", btnGhost) {
 		w.act(func() { s.captures = append(s.captures, keelclient.StepCapture{}) })

@@ -26,7 +26,7 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 		"Unlock your vault",
 		"Your hosts and keys are encrypted on this machine. 2 sessions are waiting in keel serve.",
 		"Vault passphrase", "Unlock",
-		"Forgot it? Keel can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.",
+		"Forgot it? Slime can't recover the vault without the passphrase. Sessions already running in keel serve keep working while the vault is locked.",
 		"keel serve · 2 sessions waiting", "keel.vault · age encrypted",
 	} {
 		if !r.tt.HasText(s) {
@@ -36,7 +36,7 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 	if !r.tt.Focused("Vault passphrase") {
 		t.Error("the passphrase field does not have the keyboard")
 	}
-	if r.tt.HasText("Filter hosts") || r.tt.HasText("Welcome to Keel") {
+	if r.tt.HasText("Filter hosts") || r.tt.HasText("Welcome to Slime") {
 		t.Error("the workspace or First run shows under the Unlock screen")
 	}
 	if !slices.Equal(fb.calls, []string{"vault"}) {
@@ -52,9 +52,9 @@ func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
 		field      bool
 		keychainFn bool
 	}{
-		{keelclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Keel in " + kc + ", then run keel serve stop and open Keel again.", false, false},
-		{keelclient.Vault{Locked: true, KeyringOff: true}, "Keel was started with KEEL_KEYRING=off, so it needs your passphrase.", true, false},
-		{keelclient.Vault{Locked: true}, kc + " doesn't hold this vault's key, so Keel needs your passphrase.", true, true},
+		{keelclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run keel serve stop and open Slime again.", false, false},
+		{keelclient.Vault{Locked: true, KeyringOff: true}, "Slime was started with KEEL_KEYRING=off, so it needs your passphrase.", true, false},
+		{keelclient.Vault{Locked: true}, kc + " doesn't hold this vault's key, so Slime needs your passphrase.", true, true},
 	} {
 		fb := &fakeBackend{vault: c.v}
 		r := newRig(t, fb)
@@ -65,7 +65,7 @@ func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
 		if r.has("Vault passphrase") != c.field || r.has("Unlock") != c.field {
 			t.Errorf("%+v: field shown %v, want %v", c.v, r.has("Vault passphrase"), c.field)
 		}
-		if got := r.tt.HasText("Keel always asks " + kc + " first when keel serve starts."); got != c.keychainFn {
+		if got := r.tt.HasText("Slime always asks " + kc + " first when keel serve starts."); got != c.keychainFn {
 			t.Errorf("%+v: keychain note shown %v, want %v", c.v, got, c.keychainFn)
 		}
 	}
@@ -156,7 +156,7 @@ func TestSetupAndFirstRunShowFirstRunNotUnlock(t *testing.T) {
 	for _, v := range []keelclient.Vault{{Locked: true, NeedsSetup: true}, {FirstRun: true}} {
 		r := newRig(t, &fakeBackend{vault: v})
 		r.tt.Frame()
-		if !r.tt.HasText("Welcome to Keel") || r.has("Vault passphrase") {
+		if !r.tt.HasText("Welcome to Slime") || r.has("Vault passphrase") {
 			t.Errorf("%+v", v)
 		}
 	}
@@ -185,7 +185,7 @@ func TestLockedFirstRunShowsUnlockThenFirstRun(t *testing.T) {
 	r.typeIn(testPass)
 	r.press(0, ui.KeyEnter)
 	r.tt.Frame()
-	if r.w.gate != nil || !r.tt.HasText("Welcome to Keel") {
+	if r.w.gate != nil || !r.tt.HasText("Welcome to Slime") {
 		t.Error("after unlocking, an open first run shows its step 1")
 	}
 }

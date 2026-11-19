@@ -273,7 +273,7 @@ func TestClientVerifiesThenSendsToken(t *testing.T) {
 
 func TestClientWithoutToken(t *testing.T) {
 	c := NewClient("127.0.0.1:1", t.TempDir())
-	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, nil); err == nil || !strings.Contains(err.Error(), "open the Keel app") {
+	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, nil); err == nil || !strings.Contains(err.Error(), "open the Slime app") {
 		t.Fatalf("err = %v", err)
 	}
 }

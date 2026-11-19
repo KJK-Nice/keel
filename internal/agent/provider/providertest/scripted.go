@@ -30,7 +30,7 @@ import (
 //     user's own for "remember my preference", one taken from pane output
 //     for "remember from the pane", else a note about the host of pane 1;
 //   - runbooks (docs/ui-redesign.md §16): with a runbook in use it says
-//     which step is current and proposes no command of its own (Keel
+//     which step is current and proposes no command of its own (Slime
 //     proposes the step); offered runbooks and a question that says
 //     "runbook" or "walk me" make it pick the first one; "save this as a
 //     runbook" makes it propose a two-step runbook;
@@ -253,7 +253,7 @@ func suggestReply(words string) provider.Response {
 
 // NotebookReadsPrefix must match the start of the message the agent
 // service sends with the notebooks the model asked to read.
-const NotebookReadsPrefix = "Keel read the notebooks you asked for."
+const NotebookReadsPrefix = "Slime read the notebooks you asked for."
 
 const readFence = "```keel-notebook-read"
 

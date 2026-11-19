@@ -1,16 +1,16 @@
 ---
 name: verify-keel
-description: Launch, check, drive and prove Keel's native window (tabs, the Vault sidebar, the command palette, dialogs, the terminal) with `make native-e2e` and `make native-automation`, against a scratch `keel serve`. Use before claiming a Keel UI or httpapi change works, or when asked to verify or screenshot a Keel screen.
+description: Launch, check, drive and prove Slime's native window (tabs, the Vault sidebar, the command palette, dialogs, the terminal) with `make native-e2e` and `make native-automation`, against a scratch `keel serve`. Use before claiming a Slime UI or httpapi change works, or when asked to verify or screenshot a Slime screen.
 ---
 
-# Verify Keel
+# Verify Slime
 
-Keel has one UI: the native MyGo window in `internal/native`. `keel serve` serves only its JSON/WebSocket API. What the window does, and how to drive each part, is in `docs/native.md`; read the section for the feature you touched. This skill is how to prove a change.
+Slime has one UI: the native MyGo window in `internal/native`. `keel serve` serves only its JSON/WebSocket API. What the window does, and how to drive each part, is in `docs/native.md`; read the section for the feature you touched. This skill is how to prove a change.
 
 ## Rules that never bend
 
-- Scratch data only. Every check runs on its own data directory and loopback port, with `KEEL_KEYRING=off` (never read or write the OS keychain item) and `KEEL_AGENT_PROVIDER=fake` when the agent is involved. Never point anything at the user's Keel: not `127.0.0.1:47241`, not the default data directory, not `~/.ssh` (the host import reads `KEEL_SSH_DIR`, which the tests point at a copy of `tests/fixtures/ssh-home/.ssh`).
-- Stop a daemon you started by its handle or with `KEEL_ADDR=<addr> KEEL_DATA=<dir> ./bin/keel serve stop`, never `pkill keel`: that kills the user's own Keel and its PTYs.
+- Scratch data only. Every check runs on its own data directory and loopback port, with `KEEL_KEYRING=off` (never read or write the OS keychain item) and `KEEL_AGENT_PROVIDER=fake` when the agent is involved. Never point anything at the user's Slime: not `127.0.0.1:47241`, not the default data directory, not `~/.ssh` (the host import reads `KEEL_SSH_DIR`, which the tests point at a copy of `tests/fixtures/ssh-home/.ssh`).
+- Stop a daemon you started by its handle or with `KEEL_ADDR=<addr> KEEL_DATA=<dir> ./bin/keel serve stop`, never `pkill keel`: that kills the user's own Slime and its PTYs.
 - Never print a token file's contents or a vault passphrase.
 
 ## The checks
@@ -50,7 +50,7 @@ If something looks off: `go build ./... && go vet ./...`, then one e2e test as a
 
 ## Bundle
 
-`make build` (or `make package`) writes the shipped app with `mygo build` into `build/<os>-<arch>/` (`Keel.app` on macOS; `mygo.json`, `packaging/macos/`, libghostty-vt in `Contents/Resources`). Check it as separate commands: the dylib exists in `Contents/Resources`; `lipo -archs` of it and of `Contents/MacOS/Keel` name the architectures built (arm64 and x86_64 for `PLATFORM=darwin/universal`); `codesign --verify --deep --strict` exits 0; `sh scripts/release.sh vX.Y.Z macos` does all of that and checks `keel version`. To check that it launches, run it on scratch data: `env KEEL_ADDR=127.0.0.1:<free port> KEEL_DATA=<scratch dir> KEEL_KEYRING=off KEEL_VAULT_PASSPHRASE=<scratch> SHELL=/bin/sh build/darwin-arm64/Keel.app/Contents/MacOS/Keel app`, wait for the port, then stop it and its `keel serve` as above. Opening the app from Finder is a person-only check.
+`make build` (or `make package`) writes the shipped app with `mygo build` into `build/<os>-<arch>/` (`Slime.app` on macOS; `mygo.json`, `packaging/macos/`, libghostty-vt in `Contents/Resources`). Check it as separate commands: the dylib exists in `Contents/Resources`; `lipo -archs` of it and of `Contents/MacOS/Slime` name the architectures built (arm64 and x86_64 for `PLATFORM=darwin/universal`); `codesign --verify --deep --strict` exits 0; `sh scripts/release.sh vX.Y.Z macos` does all of that and checks `keel version`. To check that it launches, run it on scratch data: `env KEEL_ADDR=127.0.0.1:<free port> KEEL_DATA=<scratch dir> KEEL_KEYRING=off KEEL_VAULT_PASSPHRASE=<scratch> SHELL=/bin/sh build/darwin-arm64/Slime.app/Contents/MacOS/Slime app`, wait for the port, then stop it and its `keel serve` as above. Opening the app from Finder is a person-only check.
 
 ## What only a person can check
 

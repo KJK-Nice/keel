@@ -352,7 +352,7 @@ type persistIdentity struct {
 type persistData struct {
 	Version int    `json:"version"`
 	Vault   string `json:"vault,omitempty"`
-	// FirstRun is set on a store Keel seeds itself and cleared when the
+	// FirstRun is set on a store Slime seeds itself and cleared when the
 	// first-run screens finish (FinishFirstRun). Files written before it
 	// existed lack it, so upgrades never see the first run.
 	FirstRun   bool              `json:"firstRun,omitempty"`
@@ -1315,7 +1315,7 @@ func (s *Store) snapshotLocked() (saveSnapshot, error) {
 		return saveSnapshot{}, errors.New("vault has no recipient")
 	}
 	s.data.Version = 3
-	s.data.AgentDetectionDefault = true // every file Keel writes has the new detection default; a later "auto" is a choice
+	s.data.AgentDetectionDefault = true // every file Slime writes has the new detection default; a later "auto" is a choice
 	b, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
 		return saveSnapshot{}, err

@@ -60,7 +60,7 @@ func TestJoinDialogHasTheAppsWordsAndTheAppsErrors(t *testing.T) {
 	jr := newJoinRig(t)
 	jr.tt.Key(ui.Cmd, ui.KeyJ)
 	jr.tt.Frame()
-	for _, s := range []string{"Join a session", "Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault.", "Join link", "Cancel", "Join"} {
+	for _, s := range []string{"Join a session", "Paste the Share link from the other Slime. You follow until they pass control. You never see their hosts or vault.", "Join link", "Cancel", "Join"} {
 		if !jr.tt.HasText(s) && !jr.has(s) {
 			t.Errorf("dialog lacks %q", s)
 		}

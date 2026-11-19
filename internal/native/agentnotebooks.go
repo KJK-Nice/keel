@@ -152,7 +152,7 @@ func (w *workspace) nbFlushAll(done func()) {
 func nbCardMessage(err error) string {
 	var se *keelclient.StatusError
 	if errors.As(err, &se) && se.Code == 410 {
-		return "Keel no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted."
+		return "Slime no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted."
 	}
 	return nbErr(err, err.Error())
 }
@@ -236,7 +236,7 @@ func (w *workspace) undoAgentEdit(id string) {
 			}
 			i := slices.IndexFunc(vs, func(v keelclient.NotebookVersion) bool { return v.Event == "before-agent-edit" })
 			if i < 0 {
-				w.warn("Keel has no version from before the agent's edit. Open History to choose one.")
+				w.warn("Slime has no version from before the agent's edit. Open History to choose one.")
 				return
 			}
 			vid := vs[i].ID

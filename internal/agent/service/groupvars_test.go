@@ -565,7 +565,7 @@ func TestPerHostCaptureNotFilledElsewhere(t *testing.T) {
 
 // A value under 3 bytes could never be withheld from the model, so it is
 // not kept; when the redact-only set is full a new value is not kept
-// either, and the user is told to restart Keel.
+// either, and the user is told to restart Slime.
 func TestCaptureTooShortOrSetFull(t *testing.T) {
 	v := varRunFixture(t)
 	run := v.startToStep2(t, v.joinRunbook(t, "echo {{join_token}}"), "kubeadm join x --token ab\n")

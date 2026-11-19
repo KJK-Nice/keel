@@ -16,14 +16,14 @@ func TestTheTraceSaysWhichNotebooksWereSentReadOrNotSent(t *testing.T) {
 		want string
 	}{
 		{keelclient.TraceStep{Status: "notebook", Notebook: "Patroni failover", Bytes: 2048, Redactions: map[string]int{"secret": 2, "captured": 1}}, "Sent notebook Patroni failover (2048 bytes, 3 redacted)"},
-		{keelclient.TraceStep{Status: "notebook", Notebook: "Big", Bytes: 32768, Truncated: true}, "Sent notebook Big (32768 bytes, cut by Keel, 0 redacted)"},
+		{keelclient.TraceStep{Status: "notebook", Notebook: "Big", Bytes: 32768, Truncated: true}, "Sent notebook Big (32768 bytes, cut by Slime, 0 redacted)"},
 		{keelclient.TraceStep{Status: "notebook", Notebook: "Ops", Bytes: 10, Asked: true}, "Read notebook Ops (10 bytes, 0 redacted) · the agent asked"},
 		{keelclient.TraceStep{Status: "notebook", Notebook: "One", Bytes: 1}, "Sent notebook One (1 byte, 0 redacted)"},
 		{keelclient.TraceStep{Status: "notebook-index", Count: 3}, "Sent the titles of 3 notebooks (not private)"},
 		{keelclient.TraceStep{Status: "notebook-index", Count: 1}, "Sent the titles of 1 notebook (not private)"},
 		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-missing"}, "Skipped a notebook · it was deleted"},
 		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-private"}, "Not sent · a private notebook (the agent cannot read it)"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-limit"}, "Stopped reading notebooks · Keel's limit for one question"},
+		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-limit"}, "Stopped reading notebooks · Slime's limit for one question"},
 	} {
 		if got := traceText(c.step); got != c.want {
 			t.Errorf("traceText(%+v) = %q, want %q", c.step, got, c.want)
@@ -111,7 +111,7 @@ func TestCardWordsAndActionsFollowWhatKeelServeDid(t *testing.T) {
 	expired := np("edit", "edited")
 	expired.Expired = true
 	eq(cardActions(expired), "open") // an expired card cannot undo
-	if !strings.Contains(cardStatus(keelclient.NotebookProposal{Status: "open"}), "earlier version of Keel") {
+	if !strings.Contains(cardStatus(keelclient.NotebookProposal{Status: "open"}), "earlier version of Slime") {
 		t.Fatal(cardStatus(keelclient.NotebookProposal{Status: "open"}))
 	}
 	if c := deleteConfirmText(keelclient.NotebookProposal{Title: "Ops"}); !strings.Contains(c, "“Ops”") || !strings.Contains(c, "Recently deleted") {

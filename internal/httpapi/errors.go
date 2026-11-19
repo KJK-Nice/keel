@@ -42,7 +42,7 @@ var rules = []rule{
 	{err: service.ErrTooManyRuns, status: http.StatusConflict},
 	{err: service.ErrNotebookClosed, status: http.StatusConflict},
 	{err: store.ErrNotebookConflict, status: http.StatusConflict, reason: "conflict", words: "The notebook changed since then. Open History on the notebook to restore an earlier version."},
-	{err: store.ErrNotebookPrivate, status: http.StatusForbidden, reason: "private", words: "This notebook is private now. Keel did not change it."},
+	{err: store.ErrNotebookPrivate, status: http.StatusForbidden, reason: "private", words: "This notebook is private now. Slime did not change it."},
 	{err: service.ErrNotebookExpired, status: http.StatusGone},
 	{err: store.ErrHistoryUnavailable, status: http.StatusConflict, reason: "history"},
 	{err: service.ErrNoNotebooks, status: http.StatusServiceUnavailable},

@@ -105,7 +105,7 @@ var (
 	ErrNoRequest     = errors.New("no such join request (it may have expired)")
 )
 
-// DefaultSignal is the compile-time signaling URL. Finder-launched Keel.app
+// DefaultSignal is the compile-time signaling URL. Finder-launched Slime.app
 // has no shell env, so bake it in:
 //
 //	go build -ldflags "-X keel/internal/share.DefaultSignal=https://…"

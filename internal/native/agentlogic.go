@@ -201,7 +201,7 @@ func redactedNote(counts map[string]int) string {
 		out = fmt.Sprintf(" · %d redacted", n)
 	}
 	if held > 0 {
-		out += " · " + countWord(held, "value", "values") + " withheld by Keel"
+		out += " · " + countWord(held, "value", "values") + " withheld by Slime"
 	}
 	return out
 }

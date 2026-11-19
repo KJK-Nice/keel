@@ -178,7 +178,7 @@ func TestMCPListReadPropose(t *testing.T) {
 		t.Fatalf("refused reads logged: %d entries", n)
 	}
 
-	// Propose: kept, rated by Keel, typed only by the driver's approval.
+	// Propose: kept, rated by Slime, typed only by the driver's approval.
 	code, prop := mcpDo(t, f.srv.URL, "POST", "/api/mcp/propose", askMCPToken, map[string]any{"paneId": web.ID, "command": "echo keel-mcp-ok", "why": "says hello"}, nil)
 	if code != 200 || prop["risk"] != "readonly" || prop["needsShift"] != false || prop["conversation"] != service.ExternalTitle {
 		t.Fatalf("propose %d %v", code, prop)

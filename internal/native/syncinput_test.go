@@ -193,7 +193,7 @@ func TestOnePanesFailingWriteStopsNeitherTheOthersNorTheUsersOwn(t *testing.T) {
 	}
 }
 
-// What Keel types for the user goes to one pane only, with sync on: nothing but the terminal's own write fans out.
+// What Slime types for the user goes to one pane only, with sync on: nothing but the terminal's own write fans out.
 func TestWhatKeelTypesGoesToOnePaneEvenWithSyncOn(t *testing.T) {
 	r := syncRig(t, 3)
 	r.syncOn(t)

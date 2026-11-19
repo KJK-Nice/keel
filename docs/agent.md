@@ -8,7 +8,7 @@ The **agent panel** (right side, **⌘I** on macOS, **Ctrl+Shift+I** on Windows/
 
 You ask about the panes in its scope (the chip "Reads N of M panes"); keel serve reads their last lines (or, when the shell reports its commands with OSC 133, the last command, its output and its exit status; see [Shell integration](shell-integration.md)), redacts them, and sends that and your question to the model provider you chose (Google Gemini or Anthropic Claude), only when you press send.
 
-The answer can carry command proposals: Keel shows the exact bytes and a Read-only / Changes state / Destructive badge, and nothing is typed until you press **Type into pane** and approve the bytes (destructive commands, and state changes on a production host, need **⇧** as well).
+The answer can carry command proposals: Slime shows the exact bytes and a Read-only / Changes state / Destructive badge, and nothing is typed until you press **Type into pane** and approve the bytes (destructive commands, and state changes on a production host, need **⇧** as well).
 
 The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are saved encrypted in the vault and kept for the period set in Settings · Agent · Keep conversations (7, 30 or 90 days, 1 year, or "Only while open", which saves nothing).
 
@@ -23,28 +23,28 @@ The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and
 
 Connect a key for either in **Settings · Agent**, then pick a model there: the Model list holds every provider's models, and picking one switches the agent to that model's provider. The first-run screen offers Gemini only; Claude is set up in Settings.
 
-The Claude client calls the Messages API (`POST /v1/messages`, key in `x-api-key`). Keel's thinking levels map to `output_config.effort` (minimal and low → `low`, medium → `medium`, high → `high`; none → the model's default), and `max_tokens` leaves room for thinking on top of the answer, since thinking counts toward it. Thinking text is never asked for or shown.
+The Claude client calls the Messages API (`POST /v1/messages`, key in `x-api-key`). Slime's thinking levels map to `output_config.effort` (minimal and low → `low`, medium → `medium`, high → `high`; none → the model's default), and `max_tokens` leaves room for thinking on top of the answer, since thinking counts toward it. Thinking text is never asked for or shown.
 
 ## Claude Code (keel mcp)
 
-`keel mcp` is an [MCP](https://modelcontextprotocol.io) server on stdio that lets Claude Code work with your Keel panes under the same rules as the agent panel (`docs/ui-redesign.md` §6, rule 14). Keel must be open and the vault unlocked; `keel mcp` never starts `keel serve` itself.
+`keel mcp` is an [MCP](https://modelcontextprotocol.io) server on stdio that lets Claude Code work with your Slime panes under the same rules as the agent panel (`docs/ui-redesign.md` §6, rule 14). Slime must be open and the vault unlocked; `keel mcp` never starts `keel serve` itself.
 
-It is **off by default**. Turn it on in Settings · Agent → Claude Code → **Allow Claude Code (keel mcp)**, or on macOS from the same switch in Keel's menu bar item (docs/runtime.md). Until then every `/api/mcp/` route answers 403 and Claude Code is told `Claude Code is off in Keel: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`; nothing is listed, read, proposed or logged. Unlike the agent panel, which reads only when you Ask, Claude Code reads whenever it decides to, so turn it on only while you use it, and only hosts with **Agent can read** on are visible to it (new hosts, Local Shell included, start with it on; turn it off in Edit host for hosts Claude Code should not see).
+It is **off by default**. Turn it on in Settings · Agent → Claude Code → **Allow Claude Code (keel mcp)**, or on macOS from the same switch in Slime's menu bar item (docs/runtime.md). Until then every `/api/mcp/` route answers 403 and Claude Code is told `Claude Code is off in Slime: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`; nothing is listed, read, proposed or logged. Unlike the agent panel, which reads only when you Ask, Claude Code reads whenever it decides to, so turn it on only while you use it, and only hosts with **Agent can read** on are visible to it (new hosts, Local Shell included, start with it on; turn it off in Edit host for hosts Claude Code should not see).
 
 ```bash
-# The keel binary: on macOS the one in Keel.app (build/darwin-*/Keel.app/Contents/MacOS/Keel
-# when built from source, or wherever you put Keel.app); on Linux `keel` (the .deb
+# The keel binary: on macOS the one in Slime.app (build/darwin-*/Slime.app/Contents/MacOS/Slime
+# when built from source, or wherever you put Slime.app); on Linux `keel` (the .deb
 # links it into /usr/bin) or bin/keel.
-claude mcp add keel -- /Applications/Keel.app/Contents/MacOS/Keel mcp
+claude mcp add keel -- /Applications/Slime.app/Contents/MacOS/Slime mcp
 ```
 
 Or in a project's `.mcp.json`:
 
 ```json
-{ "mcpServers": { "keel": { "command": "/Applications/Keel.app/Contents/MacOS/Keel", "args": ["mcp"] } } }
+{ "mcpServers": { "keel": { "command": "/Applications/Slime.app/Contents/MacOS/Slime", "args": ["mcp"] } } }
 ```
 
-Set `KEEL_ADDR` / `KEEL_DATA` in the server's `env` if your Keel uses others.
+Set `KEEL_ADDR` / `KEEL_DATA` in the server's `env` if your Slime uses others.
 
 | Tool | What it does |
 |---|---|

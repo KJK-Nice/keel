@@ -48,7 +48,7 @@ const captureTTL = time.Hour
 var (
 	// ErrVarsOutsideRun refuses typing a command that names a variable
 	// anywhere but a group run's step: nothing else fills them in.
-	ErrVarsOutsideRun = errors.New("agent: this command names a variable such as {{name}}, which Keel fills in only in a group run's steps; edit it to the real value first")
+	ErrVarsOutsideRun = errors.New("agent: this command names a variable such as {{name}}, which Slime fills in only in a group run's steps; edit it to the real value first")
 	// ErrFill is a variable that cannot be filled in now (missing, unsafe
 	// or a vault value); the message names it.
 	ErrFill = errors.New("agent: a variable cannot be filled in")
@@ -289,7 +289,7 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 			out = append(out, captureResult{name: c.Name, value: v, state: CaptureCaptured})
 		}
 	}
-	// A value that holds a vault value is never kept: Keel will not carry
+	// A value that holds a vault value is never kept: Slime will not carry
 	// a vault secret into a command through a variable. (Fails closed: no
 	// vault answer, nothing kept.)
 	for i := range out {
@@ -422,7 +422,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 				return v, fmt.Errorf("%w: {{%s}} has no value for %s: it was captured on %s by a step that runs on each host, so it is that host's own value. Capture it on %s too, or make the capturing step One host only", ErrFill, name, snap.Host, strings.Join(hosts, ", "), snap.Host)
 			}
 			if len(vals) > 1 {
-				return v, fmt.Errorf("%w: {{%s}} was captured with different values on %s; Keel will not pick one for %s. Skip the hosts whose value you do not want, or retry the step", ErrFill, name, strings.Join(hosts, ", "), snap.Host)
+				return v, fmt.Errorf("%w: {{%s}} was captured with different values on %s; Slime will not pick one for %s. Skip the hosts whose value you do not want, or retry the step", ErrFill, name, strings.Join(hosts, ", "), snap.Host)
 			}
 			v, found = runvars.Value{Value: any.value, From: fmt.Sprintf("captured on %s · step %d", any.host, any.stepNo)}, true
 		}
@@ -437,7 +437,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 			return v, fmt.Errorf("%w: {{%s}} has no value for %s: no earlier step of this run captured it (or it expired after an hour) and the group has no variable with that name. Add it on the group's page, or retry the step that captures it", ErrFill, name, snap.Host)
 		}
 		if vault.HoldsKnown(v.Value) || vault.InsideKnown(v.Value) {
-			return v, fmt.Errorf("%w: {{%s}} (%s) holds a value from the vault; Keel never types a vault secret from a variable", ErrFill, name, v.From)
+			return v, fmt.Errorf("%w: {{%s}} (%s) holds a value from the vault; Slime never types a vault secret from a variable", ErrFill, name, v.From)
 		}
 		return v, nil
 	}

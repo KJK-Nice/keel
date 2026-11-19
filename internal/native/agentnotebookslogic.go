@@ -51,12 +51,12 @@ func notebookStepText(s keelclient.TraceStep) string {
 		case wire.SkipNotebookPrivate:
 			return "Not sent · a private notebook (the agent cannot read it)"
 		case wire.SkipNotebookLimit:
-			return "Stopped reading notebooks · Keel's limit for one question"
+			return "Stopped reading notebooks · Slime's limit for one question"
 		}
 	}
 	parts := []string{countWord(s.Bytes, "byte", "bytes")}
 	if s.Truncated {
-		parts = append(parts, "cut by Keel")
+		parts = append(parts, "cut by Slime")
 	}
 	parts = append(parts, fmt.Sprintf("%d redacted", redactedCount(s.Redactions)))
 	if s.Asked {
@@ -146,17 +146,17 @@ func paneWarning(p keelclient.NotebookProposal) string {
 }
 
 var refusedTexts = map[string]string{
-	wire.RefusedConflict:  "You changed it after the agent read it, so Keel did not apply the agent's edit. Your text is as you left it.",
-	wire.RefusedEditing:   "You were typing in it, so Keel did not apply the agent's edit.",
+	wire.RefusedConflict:  "You changed it after the agent read it, so Slime did not apply the agent's edit. Your text is as you left it.",
+	wire.RefusedEditing:   "You were typing in it, so Slime did not apply the agent's edit.",
 	wire.RefusedPrivate:   "It is private, so the agent cannot change it.",
-	wire.RefusedNotRead:   "The agent had not read it in this question, so Keel did not apply the edit.",
+	wire.RefusedNotRead:   "The agent had not read it in this question, so Slime did not apply the edit.",
 	wire.RefusedNotFound:  "It is not a notebook the agent may change.",
 	wire.RefusedDeleted:   "It was deleted.",
 	wire.RefusedNoMatch:   "The text the agent meant to change was not found exactly once, so nothing changed.",
-	wire.RefusedRedacted:  "Keel had removed values from it before the agent saw it, so the agent may change it only piece by piece. Nothing changed.",
-	wire.RefusedTruncated: "Keel had sent only part of it, so the agent may change it only piece by piece. Nothing changed.",
-	wire.RefusedTooLarge:  "The edit would make the notebook larger than Keel allows. Nothing changed.",
-	wire.RefusedHistory:   "Keel could not keep the previous version, so it made no change.",
+	wire.RefusedRedacted:  "Slime had removed values from it before the agent saw it, so the agent may change it only piece by piece. Nothing changed.",
+	wire.RefusedTruncated: "Slime had sent only part of it, so the agent may change it only piece by piece. Nothing changed.",
+	wire.RefusedTooLarge:  "The edit would make the notebook larger than Slime allows. Nothing changed.",
+	wire.RefusedHistory:   "Slime could not keep the previous version, so it made no change.",
 }
 
 func refusedText(reason string) string {
@@ -203,7 +203,7 @@ func cardStatus(p keelclient.NotebookProposal) string {
 	case wire.NotebookEdit:
 		switch s {
 		case wire.CardEdited:
-			return "The agent changed this notebook. Keel kept the version before it: Undo puts it back, and History has every version."
+			return "The agent changed this notebook. Slime kept the version before it: Undo puts it back, and History has every version."
 		case wire.CardUndone:
 			return "Undone. The notebook is back to the version before the agent's edit."
 		case wire.CardRefused:
@@ -227,7 +227,7 @@ func cardStatus(p keelclient.NotebookProposal) string {
 		case wire.CardDismissed:
 			return "Dismissed. Nothing was saved."
 		}
-		return "A draft from an earlier version of Keel. It was not saved; ask the agent again."
+		return "A draft from an earlier version of Slime. It was not saved; ask the agent again."
 	}
 	return ""
 }

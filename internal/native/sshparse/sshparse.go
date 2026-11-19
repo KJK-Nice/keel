@@ -1,5 +1,5 @@
 // Package sshparse reads a pasted `ssh …` command, an ssh:// URL or `user@host:port` into the few fields
-// Keel's host model has (host, port, user).
+// Slime's host model has (host, port, user).
 //
 // Pure functions of a string: nothing here starts a process, opens a file, expands a variable or looks a
 // name up, and the package imports only the standard library (never os, os/exec or net). The text is split
@@ -184,7 +184,7 @@ func splitWords(text string) (words []string, errText string) {
 
 type withArg struct{ kind, reason string }
 
-// Short options that take a value, and what Keel does with them.
+// Short options that take a value, and what Slime does with them.
 var withArgs = map[rune]withArg{
 	'p': {"port", ""}, 'l': {"user", ""}, 'i': {"identity", ""}, 'J': {"jump", ""}, 'o': {"o", ""},
 	'L': {"forward", "opens a port forward; add it in Forwards"},
@@ -218,7 +218,7 @@ var flags = map[rune]string{
 	'1': "not part of the host model", '2': "not part of the host model",
 }
 
-// -o keys Keel can use, and keys it names a reason for. Any other key is dropped as "not part of the host
+// -o keys Slime can use, and keys it names a reason for. Any other key is dropped as "not part of the host
 // model". "jump" and "identity" are not reasons: they are the two keys that fill a field.
 var oReason = map[string]string{
 	"proxycommand": "runs a command", "localcommand": "runs a command", "permitlocalcommand": "runs a command",
@@ -263,7 +263,7 @@ func parseDest(raw string) (dest, string) {
 	if at := strings.LastIndex(rest, "@"); at >= 0 {
 		user, rest = rest[:at], rest[at+1:]
 		if !ValidUser(user) {
-			return dest{}, "User name has characters Keel does not accept"
+			return dest{}, "User name has characters Slime does not accept"
 		}
 	}
 	host, port := rest, ""
@@ -289,7 +289,7 @@ func parseDest(raw string) (dest, string) {
 		if host == "" {
 			return dest{}, "Host is missing"
 		}
-		return dest{}, "Host name has characters Keel does not accept"
+		return dest{}, "Host name has characters Slime does not accept"
 	}
 	if port != "" && !ValidPort(port) {
 		return dest{}, "Port must be 1 to 65535"
@@ -524,7 +524,7 @@ func parseCommand(text string) *Result {
 			continue
 		}
 		// The first word after the destination that is not an option starts a remote command. It is never run.
-		drop(strings.Join(words[i:], " "), "remote command; Keel opens a shell and does not run it")
+		drop(strings.Join(words[i:], " "), "remote command; Slime opens a shell and does not run it")
 		break
 	}
 
@@ -565,7 +565,7 @@ func parseCommand(text string) *Result {
 		}
 	}
 	if userText.set && !ValidUser(userText.v) {
-		return fail("User name has characters Keel does not accept")
+		return fail("User name has characters Slime does not accept")
 	}
 
 	out.Host = d.host

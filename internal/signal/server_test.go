@@ -98,7 +98,7 @@ func TestJoinAnswersAPlainNoteAndTheRelayServesNoPage(t *testing.T) {
 		t.Fatalf("Cache-Control %q", got)
 	}
 	body, _ := io.ReadAll(res.Body)
-	if string(body) != "This is a Keel share link. Open Keel and choose Join session, then paste the link.\n" {
+	if string(body) != "This is a Slime share link. Open Slime and choose Join session, then paste the link.\n" {
 		t.Fatalf("body %q", body)
 	}
 	for _, p := range []string{"/", "/join.js", "/joinpeer.js", "/sharemac.js", "/vendor/xterm/xterm.min.js", "/index.html"} {
@@ -190,7 +190,7 @@ func TestSignalRejectsCrossSiteOrigin(t *testing.T) {
 		t.Fatalf("ws status = %d", resp.StatusCode)
 	}
 	// The relay serves no page, so not even its own origin or a loopback one has a reason to use it: any Origin is
-	// refused. Keel's dialers (the host's and the joiner's) send none, which is what every other test here does.
+	// refused. Slime's dialers (the host's and the joiner's) send none, which is what every other test here does.
 	for _, origin := range []string{srv.URL, "http://127.0.0.1:47241", "http://localhost", "null"} {
 		hdr.Set("Origin", origin)
 		conn, resp, err = websocket.DefaultDialer.Dial(ws, hdr)
@@ -204,7 +204,7 @@ func TestSignalRejectsCrossSiteOrigin(t *testing.T) {
 	}
 	conn, _, err = websocket.DefaultDialer.Dial(ws, nil)
 	if err != nil {
-		t.Fatalf("a dialer with no Origin (Keel's) was refused: %v", err)
+		t.Fatalf("a dialer with no Origin (Slime's) was refused: %v", err)
 	}
 	conn.Close()
 }

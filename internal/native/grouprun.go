@@ -36,7 +36,7 @@ const (
 	stopTitle       = "Stop this runbook?"
 	stopRunMessage  = "Nothing more is proposed in this run. What was typed stays typed, and Logs keep it."
 	stopAction      = "Stop runbook"
-	fillNote        = "Keel fills these in only when you press Type, and shows you the exact bytes first. Logs record how many values were filled in, never a value. Copy leaves the {{names}} in."
+	fillNote        = "Slime fills these in only when you press Type, and shows you the exact bytes first. Logs record how many values were filled in, never a value. Copy leaves the {{names}} in."
 	runSafetyLine   = "Each step is one proposal per host. Nothing runs until you press Enter in each pane: a step is typed only into the hosts you tick. Each host's result comes from its shell's exit code."
 	runReportedLine = "Exit codes are reported by each pane's shell (OSC 133 marks): they are not proof. On a production host a reported exit 0 waits for you to confirm it."
 )

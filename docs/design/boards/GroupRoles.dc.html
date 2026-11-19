@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Keel group roles</title>
+<title>Slime group roles</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="ds/keel/tokens.css">
 <link rel="stylesheet" href="ds/keel/components/bundle.css">
@@ -196,7 +196,7 @@ class Component extends DCLogic {
       const head = '[' + r.replace('-', '_') + ']';
       return hs.length ? head + '\n' + hs.map((h) => h.name + ' ansible_host=' + h.addr + ' ansible_user=ops').join('\n') : head;
     };
-    const inventory = '# k8s-prod · exported by Keel · Oct 16\n' + order.map(section).join('\n\n') +
+    const inventory = '# k8s-prod · exported by Slime · Oct 16\n' + order.map(section).join('\n\n') +
       '\n\n[k8s_prod:children]\ncontrol_plane\nworker\netcd\n\n[k8s_prod:vars]\nk8s_version=1.31.2\napi_vip=10.20.0.10\npod_cidr=10.244.0.0/16\ncri=containerd';
     const exportOpen = this.state.exportOpen ?? (this.props.exportOpen ?? true);
     return {

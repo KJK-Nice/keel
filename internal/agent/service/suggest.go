@@ -123,12 +123,12 @@ type SuggestInput struct {
 	Redactor *redact.Redactor
 }
 
-// Candidate is a command a suggester offers, before Keel rates it.
+// Candidate is a command a suggester offers, before Slime rates it.
 type Candidate struct {
 	Command string
 	Why     string
 	// ModelRisk is the suggester's own rating, if any; it can only make
-	// Keel's rating stricter.
+	// Slime's rating stricter.
 	ModelRisk string
 	Source    string
 }

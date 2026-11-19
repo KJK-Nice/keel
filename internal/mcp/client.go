@@ -43,7 +43,7 @@ func NewClient(addr, dataDir string) *Client {
 }
 
 // errNotRunning says how to get keel serve up.
-var errNotRunning = errors.New("keel serve is not running: open the Keel app (or run `keel serve`), then try again")
+var errNotRunning = errors.New("keel serve is not running: open the Slime app (or run `keel serve`), then try again")
 
 func (c *Client) base() string { return "http://" + c.addr }
 
@@ -55,7 +55,7 @@ func (c *Client) ready(ctx context.Context) (string, error) {
 		tok, err := authtoken.ReadMCP(c.dataDir)
 		if errors.Is(err, os.ErrNotExist) {
 			c.mu.Unlock()
-			return "", errors.New("no keel-mcp.token yet: open the Keel app once (keel serve makes it on start), then try again")
+			return "", errors.New("no keel-mcp.token yet: open the Slime app once (keel serve makes it on start), then try again")
 		}
 		if err != nil {
 			c.mu.Unlock()
@@ -83,7 +83,7 @@ func (c *Client) forget() {
 func (c *Client) verify(ctx context.Context, token string) error {
 	err := authtoken.VerifyServer(ctx, c.http, c.addr, authtoken.MCPChallenge, token)
 	if errors.Is(err, authtoken.ErrUnproven) {
-		return fmt.Errorf("the server on %s did not prove it is this user's keel serve (an older Keel without keel mcp, or another program on that port)", c.addr)
+		return fmt.Errorf("the server on %s did not prove it is this user's keel serve (an older Slime without keel mcp, or another program on that port)", c.addr)
 	}
 	if err != nil {
 		return errNotRunning
@@ -138,7 +138,7 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 		if res.StatusCode == http.StatusLocked {
 			// keel serve says "vault locked" to every client; Claude Code
 			// is told what to do about it.
-			msg = "the Keel vault is locked: unlock it in Keel"
+			msg = "the Slime vault is locked: unlock it in Slime"
 		}
 		if msg == "" {
 			msg = http.StatusText(res.StatusCode)

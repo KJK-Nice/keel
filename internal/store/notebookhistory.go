@@ -35,7 +35,7 @@ const (
 // ErrHistoryUnavailable refuses a change that must keep a version first
 // (an agent edit, a delete the agent proposed) when the history cannot be
 // read or written.
-var ErrHistoryUnavailable = errors.New("the notebook history cannot be read or written, so Keel will not make a change it could not undo")
+var ErrHistoryUnavailable = errors.New("the notebook history cannot be read or written, so Slime will not make a change it could not undo")
 
 // NotebookVersion is one kept version of a notebook.
 type NotebookVersion struct {

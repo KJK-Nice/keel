@@ -33,7 +33,7 @@ type typePath struct {
 	noNewline bool
 	// noDialog: nobody saw the exact bytes in the approve dialog (rule 13).
 	// The command must be one line, plainly read-only and one of the
-	// commands Keel types without asking; what is not sends the user to
+	// commands Slime types without asking; what is not sends the user to
 	// the dialog (*DialogError) instead of refusing.
 	noDialog bool
 	// editable: the user edits the line before running it (§5.5), so a
@@ -158,7 +158,7 @@ type (
 	InsertGrant = Grant
 )
 
-// authorize runs every check before Keel writes agent output into a pane,
+// authorize runs every check before Slime writes agent output into a pane,
 // in this order:
 //
 //  1. the client drives the pane (rule 6);
@@ -166,7 +166,7 @@ type (
 //     the path asks for it (rule 13);
 //  3. the subject exists and is waiting;
 //  4. it is for this pane;
-//  5. its command holds no placeholder (rule 9) and no variable that Keel
+//  5. its command holds no placeholder (rule 9) and no variable that Slime
 //     does not fill in here, now (rule 11);
 //  6. the bytes are exactly the ones shown;
 //  7. the host as of now: its production flag, and that it may still be

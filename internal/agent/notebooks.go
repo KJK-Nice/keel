@@ -91,7 +91,7 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 		b.WriteByte('\n')
 	}
 	if truncated {
-		fmt.Fprintf(&b, "[notebook cut by Keel: the first %d of %d bytes were sent]\n", sent, total)
+		fmt.Fprintf(&b, "[notebook cut by Slime: the first %d of %d bytes were sent]\n", sent, total)
 	}
 	fmt.Fprintf(&b, "--- end notebook %d ---", n)
 	safe := r.Text(b.String())

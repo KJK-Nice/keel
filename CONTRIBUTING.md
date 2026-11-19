@@ -1,14 +1,14 @@
-# Contributing to Keel
+# Contributing to Slime
 
 ## Build
 
 ```bash
 make build && ./bin/keel
-# bake a public signal URL into Keel.app (Finder launch has no shell env):
+# bake a public signal URL into Slime.app (Finder launch has no shell env):
 make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
 ```
 
-Keel is pure Go (no cgo, no Node, no generated code). `make build` compiles `bin/keel`, `bin/keel-signal` and `bin/keel-sshtest` and then runs `make package` (MyGo's `go tool mygo build`, configured by `mygo.json`) for this machine. `make package PLATFORM=darwin/universal,linux/amd64,linux/arm64` builds other targets, `make app` runs the window from source, and `KEEL_SIGN="Developer ID Application: …"` signs and notarizes on macOS. Packaging, the libghostty-vt download and signing are in [docs/native.md](docs/native.md) and [docs/release.md](docs/release.md). `make macos-icon` regenerates the icon files in `packaging/macos/` from `Keel.icon` (needs the Xcode Command Line Tools).
+Slime is pure Go (no cgo, no Node, no generated code). `make build` compiles `bin/keel`, `bin/keel-signal` and `bin/keel-sshtest` and then runs `make package` (MyGo's `go tool mygo build`, configured by `mygo.json`) for this machine. `make package PLATFORM=darwin/universal,linux/amd64,linux/arm64` builds other targets, `make app` runs the window from source, and `KEEL_SIGN="Developer ID Application: …"` signs and notarizes on macOS. Packaging, the libghostty-vt download and signing are in [docs/native.md](docs/native.md) and [docs/release.md](docs/release.md). `make macos-icon` regenerates the icon files in `packaging/macos/` from `Slime.icon` (needs the Xcode Command Line Tools).
 
 `keel app` opens the native window (MyGo, libghostty-vt terminals): see `docs/native.md`. `make native-e2e` drives the window under MyGo's tester; `make native-automation` drives the built app from outside through MyGo's automation socket (menu bar, close and reopen, real keys, both themes). It builds `bin/keel-e2e` with the build tags `keelautomation` and `keelfake`, which no release path may pass, opens real windows briefly and runs only on scratch data; see "Driving the built app from outside" in `docs/native.md`.
 

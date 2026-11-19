@@ -1,6 +1,6 @@
 name: release
 
-# Pushing a tag vX.Y.Z builds Keel for macOS (universal) and Linux (x86_64,
+# Pushing a tag vX.Y.Z builds Slime for macOS (universal) and Linux (x86_64,
 # arm64) with `mygo build` (scripts/release.sh), keel-signal for every OS,
 # and publishes them as a GitHub Release with SHA256SUMS and notes
 # generated from the merged PRs. A tag with a hyphen (vX.Y.Z-rc.1) is
@@ -40,7 +40,7 @@ env:
   VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-pr{0}', github.event.number) }}
 
 jobs:
-  # The license of every Go module and library Keel ships, once for all
+  # The license of every Go module and library Slime ships, once for all
   # packages (scripts/notices.sh). mygo.json puts it in each of them.
   notices:
     name: third-party notices
@@ -61,7 +61,7 @@ jobs:
           path: THIRD_PARTY_NOTICES
 
   macos:
-    name: Keel (macOS universal)
+    name: Slime (macOS universal)
     needs: notices
     runs-on: macos-15
     timeout-minutes: 30
@@ -91,7 +91,7 @@ jobs:
         run: |
           if [ -z "$MACOS_CERTIFICATE" ] || [ -z "$MACOS_CERTIFICATE_PASSWORD" ] || [ -z "$MACOS_SIGNING_IDENTITY" ] ||
              [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_PASSWORD" ]; then
-            echo "::notice::The signing secrets are not all set: Keel.app is signed ad hoc and not notarized."
+            echo "::notice::The signing secrets are not all set: Slime.app is signed ad hoc and not notarized."
             exit 0
           fi
           keychain="$RUNNER_TEMP/signing.keychain-db"
@@ -126,7 +126,7 @@ jobs:
   # mygo build needs no cgo, so one runner builds both CPUs; the checks of
   # scripts/release.sh read the archives, and run the binary of this CPU.
   linux:
-    name: Keel (Linux x86_64 and arm64)
+    name: Slime (Linux x86_64 and arm64)
     needs: notices
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -203,5 +203,5 @@ jobs:
           pre=
           case "$VERSION" in *-*) pre=--prerelease ;; esac
           gh release create "$VERSION" dist/* --verify-tag $pre \
-            --title "Keel $VERSION" \
+            --title "Slime $VERSION" \
             --notes-file .github/release-notes.md --generate-notes

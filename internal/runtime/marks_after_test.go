@@ -11,7 +11,7 @@ import (
 )
 
 // A command running when the connection drops is abandoned there: after
-// the reconnect it is not "still running" over Keel's note and the new
+// the reconnect it is not "still running" over Slime's note and the new
 // shell's banner, which come after it instead.
 func TestLastCommandAbandonedOnReconnect(t *testing.T) {
 	st := testStore(t)

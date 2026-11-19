@@ -58,7 +58,7 @@ func repoRoot(t *testing.T) string {
 	return filepath.Join(wd, "..", "..")
 }
 
-// freePort is a free loopback port that is none of the user's own Keel ports.
+// freePort is a free loopback port that is none of the user's own Slime ports.
 func freePort(t *testing.T) int {
 	t.Helper()
 	for i := 0; i < 20; i++ {
@@ -102,7 +102,7 @@ func newRig(t *testing.T) *rig {
 	return r
 }
 
-// env is the process environment of every Keel binary here. Nothing of the user's KEEL_ or MYGO_ settings passes.
+// env is the process environment of every Slime binary here. Nothing of the user's KEEL_ or MYGO_ settings passes.
 func (r *rig) env(extra ...string) []string {
 	var env []string
 	for _, kv := range os.Environ() {

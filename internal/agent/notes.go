@@ -62,7 +62,7 @@ func (a *Auditor) ReadHostNotes(scope Scope, h Host, notes []string, r *redact.R
 // logs agent.note with the group's id and the count, never the text or the
 // group's name. read are the hosts in the group whose panes were read for
 // the question: it is refused, before anything is redacted or logged,
-// unless the agent may read at least one of them. extra are lines Keel
+// unless the agent may read at least one of them. extra are lines Slime
 // adds after the notes (the roles of the hosts read), redacted with them.
 func (a *Auditor) ReadGroupNotes(scope Scope, groupID string, read []Host, notes, extra []string, r *redact.Redactor) (NoteExcerpt, error) {
 	ok := false

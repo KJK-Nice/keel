@@ -28,7 +28,7 @@ type Key struct {
 	Exists    bool   `json:"exists"`
 	Encrypted bool   `json:"encrypted"`
 	// Problem says why the key cannot be copied (missing, not a regular
-	// file, too large, not a private key Keel can read).
+	// file, too large, not a private key Slime can read).
 	Problem string `json:"problem,omitempty"`
 }
 
@@ -54,7 +54,7 @@ func InspectKey(path, display string) Key {
 	case errors.As(err, &missing):
 		k.Encrypted = true
 	default:
-		k.Problem = "not a private key Keel can read"
+		k.Problem = "not a private key Slime can read"
 	}
 	return k
 }
@@ -81,7 +81,7 @@ func LoadKey(path, passphrase string) ([]byte, error) {
 		}
 		return b, nil
 	default:
-		return nil, fmt.Errorf("not a private key Keel can read")
+		return nil, fmt.Errorf("not a private key Slime can read")
 	}
 }
 

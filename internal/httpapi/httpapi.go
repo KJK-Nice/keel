@@ -745,7 +745,7 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 	// version in History (store.SaveUserNotebook).
 	saved, replaced, err := s.store.SaveUserNotebook(nb)
 	if err != nil {
-		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page."))
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Not saved: this notebook holds an agent edit, and Slime cannot keep that version in History right now. Your typing is still in the page."))
 		return
 	}
 	writeJSON(w, http.StatusOK, savedNotebook{Notebook: saved, ReplacedAgentEdit: replaced})
@@ -756,7 +756,7 @@ func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
 	permanent := r.URL.Query().Get("permanent") == "1"
 	if err := s.store.DeleteNotebook(r.PathValue("id"), permanent); err != nil {
 		err = worded(err, store.ErrNotFound, "notebook not found")
-		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?"))
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Slime cannot keep this notebook in Recently deleted right now. Delete it permanently?"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -952,7 +952,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		// Live keystrokes: written for the driver only, with no approval.
-		// Anything Keel types for the user is an inject frame instead.
+		// Anything Slime types for the user is an inject frame instead.
 		if c.Keys(msg) != nil {
 			return
 		}

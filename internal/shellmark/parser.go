@@ -8,9 +8,9 @@
 // mark authorizes nothing. It is strict (printable ASCII payloads, digits
 // only for an exit status, caps on every length) and keeps a bounded state
 // whatever it is fed, so a hostile or broken program can at worst make
-// Keel record a wrong or missing command, never more.
+// Slime record a wrong or missing command, never more.
 //
-// The package imports nothing from Keel, so the agent may use its types
+// The package imports nothing from Slime, so the agent may use its types
 // without reaching a PTY writer (internal/agent/invariants_test.go).
 package shellmark
 
@@ -65,7 +65,7 @@ const (
 // sequence split across chunks is found as if it came in one. The zero
 // value is ready to use. It is not safe for concurrent use.
 //
-// It follows xterm.js's VT500 parser for OSCs, so the marks Keel records
+// It follows xterm.js's VT500 parser for OSCs, so the marks Slime records
 // are the marks the terminal draws: an OSC starts with ESC ] or the C1
 // code U+009D (UTF-8 C2 9D); it ends with BEL, ST (ESC \ or U+009C), or
 // any other ESC (which then starts a new sequence); CAN and SUB, and the

@@ -193,17 +193,17 @@ func TestINI(t *testing.T) {
 	inv.UseUser = true
 	inv.UseJump = true
 	got := INI(inv)
-	want := `# Prod web · exported by Keel · 2026-10-18
-# Keel does not run Ansible. No passwords, keys or tokens are written here.
+	want := `# Prod web · exported by Slime · 2026-10-18
+# Slime does not run Ansible. No passwords, keys or tokens are written here.
 
 [Prod_web]
-# web-1: Keel keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.
+# web-1: Slime keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.
 # web-1: production
 web-1 ansible_host="10.0.0.1" ansible_port=2222 ansible_user="ops"
-# db_1: this host signs in with a password kept in Keel's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.
+# db_1: this host signs in with a password kept in Slime's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.
 db_1 ansible_host="db.internal" ansible_user="root"
 local ansible_connection=local
-# behind: Keel keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.
+# behind: Slime keeps this host's key in its vault and does not export it. Use your SSH agent, or set ansible_ssh_private_key_file to a key file you keep.
 behind ansible_host="10.0.1.5" ansible_user="ops" ansible_ssh_common_args="-o ProxyJump=jump@10.0.0.254:22"
 
 [db]
@@ -298,7 +298,7 @@ func TestYAMLStructure(t *testing.T) {
 	inv.UseJump = true
 	src := YAML(inv)
 	endsWithOneNewline(t, src)
-	if !strings.HasPrefix(src, "# Prod web · exported by Keel · 2026-10-18\n# Keel does not run Ansible.") {
+	if !strings.HasPrefix(src, "# Prod web · exported by Slime · 2026-10-18\n# Slime does not run Ansible.") {
 		t.Errorf("header:\n%s", src)
 	}
 	got := decode(t, src)
@@ -325,9 +325,9 @@ func TestYAMLStructure(t *testing.T) {
 		t.Errorf("YAML structure\n got %#v\nwant %#v\n%s", got, want, src)
 	}
 	for _, c := range []string{
-		"        # web-1: Keel keeps this host's key in its vault and does not export it.",
+		"        # web-1: Slime keeps this host's key in its vault and does not export it.",
 		"        # web-1: production\n",
-		"        # db_1: this host signs in with a password kept in Keel's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.\n",
+		"        # db_1: this host signs in with a password kept in Slime's vault. Run ansible-playbook with --ask-pass, or use ansible-vault.\n",
 	} {
 		if !strings.Contains(src, c) {
 			t.Errorf("YAML missing comment %q", c)
@@ -437,11 +437,11 @@ func TestSecretHints(t *testing.T) {
 	}}
 	for name, out := range map[string]string{"INI": INI(inv), "YAML": YAML(inv)} {
 		for _, h := range []string{"k", "i"} {
-			if !strings.Contains(out, "# "+h+": Keel keeps this host's key in its vault and does not export it.") {
+			if !strings.Contains(out, "# "+h+": Slime keeps this host's key in its vault and does not export it.") {
 				t.Errorf("%s: no key hint for %s", name, h)
 			}
 		}
-		if !strings.Contains(out, "# p: this host signs in with a password kept in Keel's vault.") {
+		if !strings.Contains(out, "# p: this host signs in with a password kept in Slime's vault.") {
 			t.Errorf("%s: no password hint", name)
 		}
 		for _, bad := range []string{"ansible_password", "ansible_ssh_pass", "private_key_file:", "private_key_file=", "become_pass"} {
@@ -532,10 +532,10 @@ func TestPlaybookRolling(t *testing.T) {
 	src := PlaybookYAML(pb, playbookInv())
 	endsWithOneNewline(t, src)
 	for _, want := range []string{
-		"# Upgrade K8s! · exported by Keel from a runbook. Review before use.\n",
-		"# Keel does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini playbooks/upgrade-k8s.yml --check\n",
+		"# Upgrade K8s! · exported by Slime from a runbook. Review before use.\n",
+		"# Slime does not run Ansible. Try a dry run first: ansible-playbook -i inventory.ini playbooks/upgrade-k8s.yml --check\n",
 		"# Look first then act\n- name: \"Step 1 · Check\"\n",
-		"    # TODO: Keel captures ver from this step's output (pattern v(\\d+) #x). Ansible does not: set it with ansible.builtin.set_fact from keel_step_2.stdout, or pass -e ver=… .\n",
+		"    # TODO: Slime captures ver from this step's output (pattern v(\\d+) #x). Ansible does not: set it with ansible.builtin.set_fact from keel_step_2.stdout, or pass -e ver=… .\n",
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("playbook missing %q:\n%s", want, src)
@@ -606,7 +606,7 @@ func TestPlaybookJinja(t *testing.T) {
 		{Title: "{% if 1 %}pause{% endif %}"},
 	}}
 	src := PlaybookYAML(pb, playbookInv())
-	if !strings.HasPrefix(src, "# {{ lookup('pipe','id') }} · exported by Keel") {
+	if !strings.HasPrefix(src, "# {{ lookup('pipe','id') }} · exported by Slime") {
 		t.Errorf("header:\n%s", src)
 	}
 	if !strings.Contains(src, "--check\n") || !strings.Contains(src, "inventory.ini playbooks/lookup-pipe-id.yml") {
@@ -632,7 +632,7 @@ func TestPlaybookJinja(t *testing.T) {
 	if _, ok := t2["ansible.builtin.shell"]; ok {
 		t.Errorf("endraw command emitted as shell: %#v", t2)
 	}
-	if t2["ansible.builtin.fail"].(map[string]any)["msg"] != "Step 2's command holds Jinja text Keel cannot escape. Copy it from Keel by hand." {
+	if t2["ansible.builtin.fail"].(map[string]any)["msg"] != "Step 2's command holds Jinja text Slime cannot escape. Copy it from Slime by hand." {
 		t.Errorf("fail task = %#v", t2)
 	}
 	if strings.Contains(src, "lookup(\"pipe\"") {

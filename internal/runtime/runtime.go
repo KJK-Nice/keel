@@ -93,9 +93,9 @@ var (
 	ErrNotOwner   = errors.New("only the session owner can do that")
 	ErrNoClient   = errors.New("client is not attached")
 	ErrNotAllowed = errors.New("not allowed to pass control")
-	// ErrNotLocal refuses a joined peer what only a client attached in Keel
-	// itself may ask: Keel typing for it, and the agent.
-	ErrNotLocal = errors.New("only Keel on the session's own machine can do that")
+	// ErrNotLocal refuses a joined peer what only a client attached in Slime
+	// itself may ask: Slime typing for it, and the agent.
+	ErrNotLocal = errors.New("only Slime on the session's own machine can do that")
 	// ErrNotReady is Write while the session has no bridge (connecting,
 	// reconnecting, failed). Live keystrokes then are dropped, not buffered:
 	// buffered input would land in whatever prompt comes up first (a
@@ -361,7 +361,7 @@ func (s *Session) Mark() uint64 {
 	return s.buf.Mark()
 }
 
-// Announce sends ev to the clients attached in Keel itself, not to share
+// Announce sends ev to the clients attached in Slime itself, not to share
 // viewers: it is for the host's own UI (e.g. "bob wants to watch").
 func (s *Session) Announce(ev Event) {
 	s.mu.Lock()
@@ -432,7 +432,7 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	if s.ownerID == id {
 		s.ownerID = firstLocalClientID(s.clients)
 	}
-	// With no local client left, nobody from Keel watches the shell: a
+	// With no local client left, nobody from Slime watches the shell: a
 	// viewer handed control loses it.
 	if s.driverID == id || s.ownerID == 0 {
 		s.driverID = s.ownerID
@@ -496,8 +496,8 @@ func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) er
 
 // IssueInjectTicket mints a one-shot nonce bound to this driver and command.
 // WS inject must consume it; a client approved:true flag is not enough. A
-// joined peer gets none, driving or not: Keel types only for a client
-// attached in Keel itself, and with no ticket InjectTicket writes nothing.
+// joined peer gets none, driving or not: Slime types only for a client
+// attached in Slime itself, and with no ticket InjectTicket writes nothing.
 func (s *Session) IssueInjectTicket(clientID uint64, command string) (string, error) {
 	s.mu.Lock()
 	c, ok := s.clients[clientID]
@@ -1009,7 +1009,7 @@ func (s *Session) runLoop() {
 				s.br = nil
 			}
 			// The shell is gone: a command it left open ends here, before
-			// Keel's own note ("Connection lost — reconnecting…").
+			// Slime's own note ("Connection lost — reconnecting…").
 			s.marks.Reset(s.buf.Mark())
 			s.alt.Reset()
 			auto := s.host.AutoReconnect()

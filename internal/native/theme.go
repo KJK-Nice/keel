@@ -66,7 +66,7 @@ func (w *workspace) resolveTheme(c *ui.Context) {
 
 // The system accent. MyGo reads it from the desktop (NSColor.controlAccentColor on macOS, the settings portal on
 // Linux) and hands it to a frame as Context.Preferences().Accent, and a change of it repaints the next frame; zero means the
-// desktop has none, and the appearance's MyGo accent stands. No cgo and no private API: nothing of Keel's own reads it.
+// desktop has none, and the appearance's MyGo accent stands. No cgo and no private API: nothing of Slime's own reads it.
 // accentSet is the family a theme and the views take from it.
 type accentSet struct{ fill, hover, pressed, text, ink, soft, focus, selection, base ui.Color } // base is the system accent itself, opaque
 
@@ -130,7 +130,7 @@ func deriveAccent(dark bool, a ui.Color) accentSet {
 // useAccent sets the accent family of the colour variables for the system accent a (zero: MyGo's default).
 func useAccent(dark bool, a ui.Color) {
 	accent = deriveAccent(dark, a)
-	accentFill, accentStrong, onAccent, accentInk, accentSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Keel's own rings (the tile) are opaque; MyGo's ring is accent.focus
+	accentFill, accentStrong, onAccent, accentInk, accentSoft, focus = accent.fill, accent.hover, accent.text, accent.ink, accent.soft, accent.ink // focus: Slime's own rings (the tile) are opaque; MyGo's ring is accent.focus
 }
 
 // readableOn is the one of the candidates with the most contrast against bg.
@@ -144,7 +144,7 @@ func readableOn(bg ui.Color, candidates ...ui.Color) ui.Color {
 	return best
 }
 
-// terminalColors is Keel's terminal theme from the colours in use. The cursor is the terminal's text colour (the maintainer's
+// terminalColors is Slime's terminal theme from the colours in use. The cursor is the terminal's text colour (the maintainer's
 // choice) and the text under a block cursor the terminal's background; the selection is the system
 // accent's, as in a text field. A find match is a neutral tint; the current one is the accent.
 func terminalColors(a accentSet, fg, bg ui.Color, palette [16]ui.Color) *terminal.Theme {

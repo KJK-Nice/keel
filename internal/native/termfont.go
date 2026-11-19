@@ -37,8 +37,8 @@ type termFont struct{ value, label, desc, stack string }
 const fallbackStack = ",SFMono-Regular,Menlo,Consolas," + monoFallback
 
 var termFonts = []termFont{
-	{fontJetBrains, "JetBrains Mono", "Ships with Keel", monoFamily + fallbackStack},
-	{fontPlex, plexFamily, "Ships with Keel", plexFamily + ",Menlo,Consolas," + monoFallback},
+	{fontJetBrains, "JetBrains Mono", "Ships with Slime", monoFamily + fallbackStack},
+	{fontPlex, plexFamily, "Ships with Slime", plexFamily + ",Menlo,Consolas," + monoFallback},
 	{"menlo", "Menlo / SF Mono", "macOS", "Menlo,SFMono-Regular," + monoFallback},
 	{"consolas", "Consolas", "Windows", "Consolas," + monoFallback},
 	{"system", "System mono", "The system's monospace font", "SFMono-Regular,Menlo,Consolas," + monoFallback},

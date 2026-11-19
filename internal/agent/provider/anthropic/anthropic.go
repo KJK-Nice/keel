@@ -155,7 +155,7 @@ func (c *Client) Generate(ctx context.Context, req provider.Request) (provider.R
 		return provider.Response{}, err
 	}
 	// The answer is every text block in order; thinking blocks (empty
-	// unless asked for, which Keel never does) are left out.
+	// unless asked for, which Slime never does) are left out.
 	var text strings.Builder
 	for _, blk := range out.Content {
 		if blk.Type == "text" {

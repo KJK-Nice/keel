@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="packaging/macos/icon.png" width="96" alt="Keel">
+<img src="packaging/macos/icon.png" width="96" alt="Slime">
 
-# Keel
+# Slime
 
 **A local SSH workspace with an encrypted vault, live session sharing, and an agent that asks before it types.**
 
@@ -11,14 +11,14 @@
 ![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/keel)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<img src="docs/images/hero-light.png" alt="Keel: the Vault sidebar with hosts beside a terminal tab" width="80%">
+<img src="docs/images/hero-light.png" alt="Slime: the Vault sidebar with hosts beside a terminal tab" width="80%">
 
 </div>
 
 ## Features
 
 - **Native desktop window** ([MyGo](https://github.com/egoist/mygo) and libghostty terminals, no webview). Tabs, splits, a command palette (⌘K) and [keyboard shortcuts](docs/shortcuts.md) for everything.
-- **Sessions that survive the window.** PTYs live in `keel serve`; close the window to detach, reopen Keel and your tabs come back.
+- **Sessions that survive the window.** PTYs live in `keel serve`; close the window to detach, reopen Slime and your tabs come back.
 - **Encrypted vault.** Passwords, private keys and passphrases are encrypted with [age](https://age-encryption.org) and wrapped by the OS keychain. Import hosts from `~/.ssh/config` in one step; your `~/.ssh` is never changed. [More →](docs/vault.md)
 - **Share a session over the internet** with WebRTC. Joiners see one terminal, never your hosts or keys, and follow read-only until you hand over control. [More →](docs/sharing.md)
 - **Port forwarding**: local, remote and SOCKS5, on and off per forward.
@@ -36,9 +36,9 @@ Download the latest build from **[Releases](https://github.com/KJK-Nice/keel/rel
 
 What each release holds (file names, platforms, signing) is in [docs/release.md](docs/release.md).
 
-**macOS 13+** (Apple Silicon and Intel): open the `.dmg` and drag **Keel.app** to Applications. Unless the release says it is notarized, macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Keel was blocked", or run `xattr -dr com.apple.quarantine /Applications/Keel.app`. The `keel` command of the app (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Keel.app/Contents/MacOS/Keel`.
+**macOS 13+** (Apple Silicon and Intel): open the `.dmg` and drag **Slime.app** to Applications. Unless the release says it is notarized, macOS blocks the first launch: open **System Settings → Privacy & Security** and click **Open Anyway** next to "Slime was blocked", or run `xattr -dr com.apple.quarantine /Applications/Slime.app`. The `keel` command of the app (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Slime.app/Contents/MacOS/Slime`.
 
-**Linux**, x86_64 (`amd64`) or arm64 (the window is Keel's own, so there is no WebKit to install; it needs GTK 3, and the package carries libghostty-vt beside the binary):
+**Linux**, x86_64 (`amd64`) or arm64 (the window is Slime's own, so there is no WebKit to install; it needs GTK 3, and the package carries libghostty-vt beside the binary):
 
 ```bash
 # Debian, Ubuntu: installs /opt/keel, the `keel` command and a menu entry
@@ -56,14 +56,14 @@ With Go (the version in `go.mod`):
 ```bash
 git clone https://github.com/KJK-Nice/keel.git && cd keel
 make build
-./bin/keel            # macOS: or open build/darwin-*/Keel.app (make build packages it)
+./bin/keel            # macOS: or open build/darwin-*/Slime.app (make build packages it)
 ```
 
 No C toolchain is needed to build; macOS needs the Xcode Command Line Tools (`xcode-select --install`) for `codesign`. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick start
 
-1. **Open Keel.** The first run creates your vault (in the OS keychain, or with a passphrase) and offers to import the hosts in `~/.ssh/config`.
+1. **Open Slime.** The first run creates your vault (in the OS keychain, or with a passphrase) and offers to import the hosts in `~/.ssh/config`.
 2. **Connect.** Click a host in the Vault sidebar, or press **⌘T** and type `user@host`, or paste an `ssh …` command (it is parsed, never run).
 3. **Split and share.** **⌘⇧D** splits the pane; **Share** in the titlebar gives a link someone else can join.
 

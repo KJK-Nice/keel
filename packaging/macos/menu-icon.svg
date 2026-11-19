@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- The tray menu header's icon (internal/native/macos/app-icon.png at 32 px): Keel.icon's slime without a ground, filling MyGo's fixed 16pt menu icon box. -->
+  <!-- The tray menu header's icon (internal/native/macos/app-icon.png at 32 px): Slime.icon's slime without a ground, filling MyGo's fixed 16pt menu icon box. -->
   <defs>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#8fd6fa"/>

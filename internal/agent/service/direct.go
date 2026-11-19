@@ -19,11 +19,11 @@ import (
 // approved path, unchanged) and nothing was typed.
 const (
 	ReasonLines   = "it is more than one line, or holds a control or invisible character"
-	ReasonRisk    = "it is not one of the plain read-only commands Keel types without asking"
+	ReasonRisk    = "it is not one of the plain read-only commands Slime types without asking"
 	ReasonJev     = "Jev did not rate it read-only"
 	ReasonJevNone = "Jev was asked and did not answer"
 	ReasonProd    = "a host of this step is production: tick each host"
-	ReasonBytes   = "Keel cannot confirm these are the bytes it was shown"
+	ReasonBytes   = "Slime cannot confirm these are the bytes it was shown"
 )
 
 // DialogError says a Type cannot go without the approve dialog, and why.
@@ -70,7 +70,7 @@ func (s *Service) AuthorizeDirect(ctx context.Context, req TypeRequest) (DirectG
 func (s *Service) DirectTyped(g DirectGrant) error { return s.settle(g, nil) }
 
 // directSafe is the one decision of rule 13 on a command: plainly
-// read-only by its kept rating and by Keel's code rule on the bytes, and
+// read-only by its kept rating and by Slime's code rule on the bytes, and
 // one of the few exact commands cmdrule.DirectSafe allows.
 func directSafe(kept agent.Risk, command string) bool {
 	return cmdrule.Stricter(kept, cmdrule.Classify(command)) == agent.RiskReadOnly && cmdrule.DirectSafe(command)
@@ -100,7 +100,7 @@ func (s *Service) DirectRating(ctx context.Context, sessionID, command string, m
 // made and got no answer (an error, a timeout, offline): fail closed. Jev
 // not asked (no key, or a host the agent may not read): the allowlist
 // alone has decided, and it stands. Only those two mean "not asked":
-// anything Keel could not find out (the vault or the hosts cannot be read,
+// anything Slime could not find out (the vault or the hosts cannot be read,
 // the client cannot be built, the entry cannot be logged) sends the Type
 // to the dialog too.
 func (s *Service) jevReadOnly(ctx context.Context, sessionID, command string) error {

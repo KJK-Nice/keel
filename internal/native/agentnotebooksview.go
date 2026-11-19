@@ -243,13 +243,13 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 			status := cardStatus(p)
 			switch {
 			case p.Expired && live:
-				cardNote(c, "agent-info", inkMuted, "Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")
+				cardNote(c, "agent-info", inkMuted, "Slime no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")
 			case status != "" && p.Status == wire.CardRefused:
 				cardNote(c, "alert", signal, status)
 			case status != "":
 				cardNote(c, "agent-info", inkMuted, status)
 			}
-			if p.Kind == "" && p.Body != "" { // a draft from an earlier Keel: its text as it was, never saved
+			if p.Kind == "" && p.Body != "" { // a draft from an earlier Slime: its text as it was, never saved
 				ui.Scroll(c).FillWidth().MaxHeight(sizeRow*5).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("notebook draft").Children(func() {
 					ui.Text(c, p.Body).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 				})
@@ -264,10 +264,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 				warnBlock(c, paneWarning(p))
 			}
 			if live && p.Withheld {
-				cardNote(c, "agent-info", signal, "It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.")
+				cardNote(c, "agent-info", signal, "It names values Slime keeps from the agent as {{name}}. Replace them before you use a command.")
 			}
 			if live && p.Placeholders {
-				cardNote(c, "agent-info", signal, "It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one.")
+				cardNote(c, "agent-info", signal, "It holds placeholders such as [secret:1]. Fill them in before you use a command: Slime will not type a block that holds one.")
 			}
 			if rec.err != "" {
 				cardNote(c, "alert", flare, rec.err)

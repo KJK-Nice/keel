@@ -9,7 +9,7 @@ package service
 //     the same Redactor an Ask builds;
 //   - it may propose a command for a pane it may read. The proposal is
 //     kept in one conversation, "Claude Code", in the agent panel, rated by
-//     Keel's own code rule, and typed only by the user, through the
+//     Slime's own code rule, and typed only by the user, through the
 //     approve-before-type path (AuthorizeType, the ⇧ rule, agent.type);
 //   - it never writes to a PTY, never sees vault contents, never reads a
 //     key, and never calls a model provider.
@@ -170,7 +170,7 @@ type ExternalProposeRequest struct {
 // ExternalPropose keeps a command an outside agent proposes for a pane it
 // may read, in the "Claude Code" conversation of the agent panel. It types
 // nothing: the user sees the exact bytes there and types them, or not,
-// through approve-before-type. The rating is Keel's code rule alone.
+// through approve-before-type. The rating is Slime's code rule alone.
 func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) {
 	cmd, ok := cleanCommand(req.Command)
 	if !ok {

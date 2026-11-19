@@ -2,7 +2,7 @@
 
 **Settings → Terminal** grows from four rows to five groups:
 
-- **Typography.** Pick any monospaced font installed on your machine, after Keel's own five. **Text size** and **Weight** are number fields; **Line height** goes from 100 to 200%. The preview draws in that font.
+- **Typography.** Pick any monospaced font installed on your machine, after Slime's own five. **Text size** and **Weight** are number fields; **Line height** goes from 100 to 200%. The preview draws in that font.
 - **Advanced font.** **Ligatures** on or off, **Font features** (OpenType tags such as `ss01, cv02, -calt`), **Cell width** (80–150%) and, on macOS, **Thicken**.
 - **Colors.** **Improve text contrast** (Off, Some, High) lightens or darkens text a program draws too faint. **Selection background** and **Selection text** take the system accent or a colour of the terminal palette.
 - **Cursor.** **Cursor style** (Block, Bar, Underline) and **Blink**. On macOS, **Option key** in Input sends Alt (Meta) to programs, or types special characters as before. These three apply to panes opened afterwards.
@@ -12,15 +12,17 @@ Everything except the Cursor rows and the Option key applies to every open pane 
 
 ## Install
 
-**macOS 13 or later** (Apple Silicon and Intel): download `keel-*.dmg`, open it and drag **Keel.app** to Applications. Keel is signed ad hoc and not notarized unless this release says it is; macOS then blocks the first launch: open **System Settings → Privacy & Security**, scroll to "Keel was blocked…" and click **Open Anyway** (skip this if macOS opens it without a warning), or run
+**macOS 13 or later** (Apple Silicon and Intel): download `keel-*.dmg`, open it and drag **Slime.app** to Applications. Slime is signed ad hoc and not notarized unless this release says it is; macOS then blocks the first launch: open **System Settings → Privacy & Security**, scroll to "Slime was blocked…" and click **Open Anyway** (skip this if macOS opens it without a warning), or run
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/Keel.app
+xattr -dr com.apple.quarantine /Applications/Slime.app
 ```
 
-The `keel` command (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Keel.app/Contents/MacOS/Keel`.
+The `keel` command (`keel serve`, `keel mcp`, `keel version`) is `/Applications/Slime.app/Contents/MacOS/Slime`.
 
-**Linux** (x86_64 is `amd64`): the window is Keel's own (not a web view), so there is no WebKitGTK to install; it needs GTK 3, and the package carries `libghostty-vt.so`, the terminal engine, beside the binary. What the desktop itself must provide for a window is MyGo's concern (<https://github.com/egoist/mygo>); Keel's CI runs the window's tests on Ubuntu, but nobody has run the window on a Linux desktop yet, so expect rough edges.
+**Keel is now Slime.** An app updated in place keeps its folder, `/Applications/Keel.app`, but its binary is now `Contents/MacOS/Slime`. If you linked the `keel` command or added `keel mcp` to Claude Code with `…/MacOS/Keel`, point it at `/Applications/Keel.app/Contents/MacOS/Slime`. Your hosts, vault and settings are untouched.
+
+**Linux** (x86_64 is `amd64`): the window is Slime's own (not a web view), so there is no WebKitGTK to install; it needs GTK 3, and the package carries `libghostty-vt.so`, the terminal engine, beside the binary. What the desktop itself must provide for a window is MyGo's concern (<https://github.com/egoist/mygo>); Slime's CI runs the window's tests on Ubuntu, but nobody has run the window on a Linux desktop yet, so expect rough edges.
 
 ```bash
 # Debian, Ubuntu: /opt/keel, the `keel` command and a menu entry

@@ -207,7 +207,7 @@ var captureText = map[string]string{
 	wire.CaptureBlocked:  "not kept: it holds a value from the vault",
 	wire.CaptureRefused:  "not kept: a line break, control character or over 512 bytes",
 	wire.CaptureTooShort: "not kept: under 3 bytes, too short to keep from the agent",
-	wire.CaptureFull:     "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
+	wire.CaptureFull:     "not kept: Slime already withholds 1024 captured values from the agent. Restart Slime to clear them",
 	wire.CaptureNoOutput: "not captured: the shell sent no command marks (OSC 133)",
 	wire.CaptureExpired:  "expired",
 }

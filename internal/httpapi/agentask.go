@@ -16,7 +16,7 @@ import (
 )
 
 // The agent panel's routes. POST /api/agent/ask is the only
-// route in Keel that sends anything off the machine, and only what the
+// route in Slime that sends anything off the machine, and only what the
 // agent service has read through the Auditor and redacted. These handlers
 // never write to a session: typing a proposal goes through the session
 // socket's approve-before-type path (sessionWS, "inject" with "agent"),

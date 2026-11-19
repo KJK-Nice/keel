@@ -604,7 +604,7 @@ func (w *workspace) deleteNotebook(id string, permanent bool) {
 				w.removeNotebook(id)
 			case !permanent && keelclient.IsHistoryRefusal(err):
 				w.askConfirm(&confirmDialog{title: "Delete permanently", action: "Delete permanently",
-					message: "Keel cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
+					message: "Slime cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
 					run:     func() { w.deleteNotebook(id, true) }})
 			default:
 				w.warn(nbErr(err, "Could not delete notebook"))

@@ -106,7 +106,7 @@ func inAgentTree(pkg string) bool {
 }
 
 // §6.1: the agent never writes to a PTY. No package under internal/agent
-// can reach a PTY writer, directly or through any Keel package it imports.
+// can reach a PTY writer, directly or through any Slime package it imports.
 func TestAgentCannotReachPTYWriters(t *testing.T) {
 	files := parseModule(t)
 	importsOf := map[string]map[string]bool{}
@@ -131,7 +131,7 @@ func TestAgentCannotReachPTYWriters(t *testing.T) {
 		if !inAgentTree(pkg) {
 			continue
 		}
-		// Walk the Keel packages it depends on.
+		// Walk the Slime packages it depends on.
 		seen := map[string]bool{}
 		stack := []string{pkg}
 		for len(stack) > 0 {
@@ -184,7 +184,7 @@ func TestAgentCallsNoWriteMethods(t *testing.T) {
 // into the x-goog-api-key header) and in judgeFor (the detector's key,
 // which goes only into Jev's Authorization header), never into a request
 // body. NewRedactor itself is called once, in the service's
-// buildRedactor, which also puts in the values Keel withholds (§6 rule
+// buildRedactor, which also puts in the values Slime withholds (§6 rule
 // 11): no call site can build a Redactor that forgets either.
 func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	secretFields := map[string]bool{"Password": true, "PrivateKey": true, "Passphrase": true, "Token": true}

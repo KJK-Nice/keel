@@ -90,9 +90,9 @@ func leadText(p keelclient.SSHPreview) string {
 		path = "~/.ssh/config"
 	}
 	if !p.Found {
-		return "Keel found no " + path + ". Add hosts later with New host."
+		return "Slime found no " + path + ". Add hosts later with New host."
 	}
-	return fmt.Sprintf("Keel found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
+	return fmt.Sprintf("Slime found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
 }
 
 func selectedCount(p keelclient.SSHPreview, s *importSel) (n int) {
@@ -137,7 +137,7 @@ func allState(p keelclient.SSHPreview, s *importSel) checkState {
 	return checkMixed
 }
 
-// jumpKept: the host's one-hop ProxyJump becomes its Keel jump host with this selection (a saved jump host, or its
+// jumpKept: the host's one-hop ProxyJump becomes its Slime jump host with this selection (a saved jump host, or its
 // config jump host being added).
 func jumpKept(h keelclient.ConfigHost, s *importSel) bool {
 	return h.Proxy == "ProxyJump" && (h.JumpSaved != "" || (h.JumpAlias != "" && s.hosts[h.JumpAlias]))
@@ -172,9 +172,9 @@ func viaOf(h keelclient.ConfigHost) via {
 		if h.Proxy == "ProxyJump" && h.ProxyJump != "" {
 			what = "ProxyJump " + h.ProxyJump
 		}
-		why := "Keel does not support it"
+		why := "Slime does not support it"
 		if h.JumpProblem != "" {
-			why = "Keel cannot keep it: " + h.JumpProblem
+			why = "Slime cannot keep it: " + h.JumpProblem
 		}
 		v = via{kind: "unused", text: what + ", not used", tip: what + ": " + why}
 	}

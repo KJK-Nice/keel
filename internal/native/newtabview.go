@@ -141,7 +141,7 @@ func (w *workspace) startHead(c *ui.Context, t *tab) {
 		ui.RichText(c).FontSize(captionSize).TextColor(inkMuted).Children(func() {
 			ui.Text(c, "Paste ")
 			ui.Text(c, "ssh -J bastion deploy@10.0.4.21 -p 2222").Font(monoStack)
-			ui.Text(c, " and Keel reads it, shows what it kept and left out, then offers to save it as a host. Nothing runs.")
+			ui.Text(c, " and Slime reads it, shows what it kept and left out, then offers to save it as a host. Nothing runs.")
 		})
 	})
 }

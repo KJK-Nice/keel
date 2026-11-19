@@ -60,7 +60,7 @@ func TestSharePeopleOrderRolesAndHowTheyCame(t *testing.T) {
 	want := []string{
 		"You|owner|owner · this window",
 		"Dee|driver|joined by link · 2 min ago",
-		"guest|follower|Keel window · 8 min ago",
+		"guest|follower|Slime window · 8 min ago",
 		"Cy|follower|joined by link · 1 min ago",
 	}
 	if !slices.Equal(got, want) {

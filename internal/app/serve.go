@@ -105,7 +105,7 @@ func runServe(addr, dataDir string, cfg serveConfig) error {
 	}
 	api.WithRuntimeInfo(ln.Addr().String(), dataDir)
 	base := "http://" + ln.Addr().String()
-	log.Printf("Keel serve on %s — sessions keep running until keel serve stop", base)
+	log.Printf("Slime serve on %s — sessions keep running until keel serve stop", base)
 	if hub.Enabled() {
 		log.Printf("Internet share via %s (%s)", hub.URL(), hub.Source())
 	}

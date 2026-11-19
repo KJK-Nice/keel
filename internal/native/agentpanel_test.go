@@ -665,7 +665,7 @@ func TestNoTypeButtonForAFollowedPaneAClosedPaneOrAProposalWithNoPane(t *testing
 	r.answers(okProposal(), noPane, gone, secret)
 	r.ask(t, "q")
 	for _, s := range []string{"No pane named for this command. Copy it instead.", "That pane is not open in this window. Copy the command instead.",
-		"It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Keel will not type it: edit it to the real value or an environment variable first."} {
+		"It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Slime will not type it: edit it to the real value or an environment variable first."} {
 		if !r.tt.HasText(s) {
 			t.Errorf("no note %q", s)
 		}

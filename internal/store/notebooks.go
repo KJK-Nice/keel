@@ -49,7 +49,7 @@ var (
 	// ErrNotebookName refuses a rename longer than MaxNotebookNameBytes.
 	ErrNotebookName = errors.New("a notebook name is at most 120 bytes")
 	// ErrNotebookTooLarge refuses an agent write over the size limits.
-	ErrNotebookTooLarge = errors.New("the notebook would be larger than Keel allows")
+	ErrNotebookTooLarge = errors.New("the notebook would be larger than Slime allows")
 )
 
 func (s *Store) ListNotebooks() ([]Notebook, error) {

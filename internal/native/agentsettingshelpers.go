@@ -15,10 +15,10 @@ import (
 // (agentsettingshelpers_test.go pins them).
 // A key never comes back from keel serve, so nothing here can show one: a provider is only ever configured or not.
 
-// providerPurpose is what each provider is for, in one line: Keel's own wording (the descriptor carries the name,
+// providerPurpose is what each provider is for, in one line: Slime's own wording (the descriptor carries the name,
 // models, warning and links).
 func providerPurpose(id string) string {
-	const model = "Answers questions about the panes you pick and writes command suggestions. Keel sends your message and their redacted scrollback, nothing else."
+	const model = "Answers questions about the panes you pick and writes command suggestions. Slime sends your message and their redacted scrollback, nothing else."
 	switch id {
 	case "gemini", "anthropic":
 		return model
@@ -50,7 +50,7 @@ func detectionNote(suggestions, detection string, jevConfigured bool) string {
 	case detection == detectionHashOnly:
 		return "Nothing you type is sent until you start a line with # or press " + suggestKeyHere() + ". Pressing ↵ by mistake is harmless: the shell treats a line that starts with # as a comment."
 	case !jevConfigured:
-		return "Jev is not connected, so Keel notices only lines that start with # for now. Connect Jev above to notice plain language automatically."
+		return "Jev is not connected, so Slime notices only lines that start with # for now. Connect Jev above to notice plain language automatically."
 	}
 	return "After a pause in typing, the line is sent, redacted, to Jev to check for plain language. A notice shows and ⇥ stays the shell's: press " + suggestKeyHere() + " to ask."
 }
@@ -143,7 +143,7 @@ func keyError(err error) string {
 // disconnectMessage is the confirm's text for removing a provider's key.
 func disconnectMessage(id, name string) string {
 	if id == "jev" {
-		return fmt.Sprintf("Keel will stop noticing plain language on its own and only notice lines that start with #. The %s key is removed from the vault.", name)
+		return fmt.Sprintf("Slime will stop noticing plain language on its own and only notice lines that start with #. The %s key is removed from the vault.", name)
 	}
 	return fmt.Sprintf("The agent panel and suggestions will stop working until you connect a key again. The %s key is removed from the vault.", name)
 }

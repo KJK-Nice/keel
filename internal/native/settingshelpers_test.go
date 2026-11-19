@@ -30,9 +30,9 @@ func TestSettingsFormatting(t *testing.T) {
 	if displayName(" Ann ", "bob") != "Ann" || displayName("", "bob") != "bob" || displayName("", "") != "guest" {
 		t.Error("display name")
 	}
-	if stopMessage(3) != "This ends all 3 running sessions and every port forward, then closes keel serve. Reopen Keel to start it again." ||
-		stopMessage(1) != "This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again." ||
-		stopMessage(0) != "This ends every running session and every port forward, then closes keel serve. Reopen Keel to start it again." {
+	if stopMessage(3) != "This ends all 3 running sessions and every port forward, then closes keel serve. Reopen Slime to start it again." ||
+		stopMessage(1) != "This ends the 1 running session and every port forward, then closes keel serve. Reopen Slime to start it again." ||
+		stopMessage(0) != "This ends every running session and every port forward, then closes keel serve. Reopen Slime to start it again." {
 		t.Errorf("stop messages %q", stopMessage(3))
 	}
 }
@@ -41,10 +41,10 @@ func TestVaultModeText(t *testing.T) {
 	if l, _ := vaultMode(keelclient.Vault{Mode: "keychain"}); l != "OS keychain" {
 		t.Error(l)
 	}
-	if _, h := vaultMode(keelclient.Vault{Mode: "passphrase", KeyringOff: true}); h != "The OS keychain is off for this run (KEEL_KEYRING=off), so Keel asks for the passphrase." {
+	if _, h := vaultMode(keelclient.Vault{Mode: "passphrase", KeyringOff: true}); h != "The OS keychain is off for this run (KEEL_KEYRING=off), so Slime asks for the passphrase." {
 		t.Error(h)
 	}
-	if l, h := vaultMode(keelclient.Vault{Mode: "passphrase"}); l != "Passphrase" || h != "Keel asks for the passphrase when it starts." {
+	if l, h := vaultMode(keelclient.Vault{Mode: "passphrase"}); l != "Passphrase" || h != "Slime asks for the passphrase when it starts." {
 		t.Error(l, h)
 	}
 	if l, h := vaultMode(keelclient.Vault{}); l != "Not set up" || h != "The vault is created on first run." {
@@ -62,11 +62,11 @@ func TestSignalFields(t *testing.T) {
 		t.Errorf("saved: %q %q", v, help)
 	}
 	v, _, help = signalFields(keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://x.example"})
-	if v != "https://x.example" || help != "KEEL_SIGNAL is set for this run, so Keel uses https://env.example. The server saved here is used when it is not set." {
+	if v != "https://x.example" || help != "KEEL_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set." {
 		t.Errorf("env: %q %q", v, help)
 	}
 	v, ph, help = signalFields(keelclient.Runtime{SignalURL: "https://baked.example", SignalSource: "build"})
-	if v != "" || ph != "https://baked.example" || help[:len("This copy of Keel was built with https://baked.example.")] != "This copy of Keel was built with https://baked.example." {
+	if v != "" || ph != "https://baked.example" || help[:len("This copy of Slime was built with https://baked.example.")] != "This copy of Slime was built with https://baked.example." {
 		t.Errorf("build: %q %q %q", v, ph, help)
 	}
 }

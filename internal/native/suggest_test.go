@@ -291,7 +291,7 @@ func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) {
 	}
 }
 
-// Esc on the notice is Keel's, not the shell's (a shell given it would eat the next key as Meta+key); the
+// Esc on the notice is Slime's, not the shell's (a shell given it would eat the next key as Meta+key); the
 // key typed right after goes to the session, and Esc with nothing showing stays the shell's.
 func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
 	h := newHarness(t)

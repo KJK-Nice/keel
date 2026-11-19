@@ -195,24 +195,24 @@ func dataFolder(path string) string {
 	if d := vaultFileSuffix.ReplaceAllString(path, ""); d != "" {
 		return d
 	}
-	return "the Keel data folder"
+	return "the Slime data folder"
 }
 
 func keychainDesc(f *firstRun, keychain string) string {
 	switch {
 	case f.usesKeychain():
-		return "The vault key lives in your login keychain. Keel opens without asking."
+		return "The vault key lives in your login keychain. Slime opens without asking."
 	case f.vault.KeyringOff:
-		return "Keel was started with KEEL_KEYRING=off, so it does not use the keychain."
+		return "Slime was started with KEEL_KEYRING=off, so it does not use the keychain."
 	case f.vault.NeedsSetup:
-		return keychain + " didn't answer, so Keel can't keep the vault key there. Use a passphrase, or allow Keel in " + keychain + " and open Keel again."
+		return keychain + " didn't answer, so Slime can't keep the vault key there. Use a passphrase, or allow Slime in " + keychain + " and open Slime again."
 	}
 	return "This vault opens with a passphrase."
 }
 
 func passDesc(f *firstRun, keychain string) string {
 	if f.usesKeychain() {
-		return "Keel already made this vault with " + keychain + ". It does not re-key a vault here."
+		return "Slime already made this vault with " + keychain + ". It does not re-key a vault here."
 	}
 	return "You type it each time keel serve starts. Pick this on shared machines or when there is no keychain."
 }
@@ -242,7 +242,7 @@ func (w *workspace) showHostsStep(f *firstRun) {
 	f.lead = "Reading " + f.sshConfig() + "…"
 	callIf(w, func() bool { return w.first == f && f.gen == gen && f.step == stepHosts }, w.be.SSHConfigPreview, func(p keelclient.SSHPreview, err error) {
 		if err != nil {
-			f.lead = "Keel could not read " + f.sshConfig() + ": " + vaultError(err)
+			f.lead = "Slime could not read " + f.sshConfig() + ": " + vaultError(err)
 			return
 		}
 		f.preview, f.sel, f.lead = &p, defaultSelection(p), leadText(p)
@@ -425,7 +425,7 @@ func (f *firstRun) pickAgentProvider(gemini bool) {
 	}
 }
 
-// openKeel is Open Keel: a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
+// openKeel is Open Slime: a typed key is stored in the vault (PUT /api/agent/keys/gemini: not checked
 // against the provider, so nothing is sent anywhere), the switch is saved either way, and then the first run ends. A
 // failed save keeps the step open with the reason. The key is emptied the moment it is sent and is in no log or error.
 func (w *workspace) openKeel(f *firstRun) {

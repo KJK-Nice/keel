@@ -160,7 +160,7 @@ func noteProposalDone(p keelclient.NoteProposal) string {
 const noteFromPaneWarning = "This text came from terminal output, not from you. Check it before saving: a saved note is sent to the agent with every question that reads this host, and text in a pane can be written to mislead the agent."
 
 // noteProposalWarn reports whether a proposed note gets the warning treatment: its text was found in pane output, or any
-// pane was read for the answer that proposed it. Keel's own "from pane output" check is a hint a crafted pane can evade,
+// pane was read for the answer that proposed it. Slime's own "from pane output" check is a hint a crafted pane can evade,
 // so a read pane is reason enough.
 func noteProposalWarn(p keelclient.NoteProposal) bool { return p.FromPane || len(p.PanesRead) > 0 }
 

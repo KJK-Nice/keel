@@ -26,7 +26,7 @@ func TestWaitsShowASpinner(t *testing.T) {
 	}
 }
 
-// The theme is MyGo's, with the system accent and Keel's meaning colours.
+// The theme is MyGo's, with the system accent and Slime's meaning colours.
 
 // The palette's chrome, text and lines are MyGo's own themes' values, so a MyGo update that moves them is seen here.
 func TestPaletteIsMyGos(t *testing.T) {

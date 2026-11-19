@@ -1,4 +1,4 @@
-Keel is a local SSH workspace: a native window of tabs and split panes over PTYs that keep running in `keel serve`, an encrypted vault of hosts and keys, and sessions you can share over WebRTC. The interface is a tool you sit inside for hours. It should feel like a well-kept instrument panel: dark, quiet and exact, with one warm light kept for what you can act on.
+Slime is a local SSH workspace: a native window of tabs and split panes over PTYs that keep running in `keel serve`, an encrypted vault of hosts and keys, and sessions you can share over WebRTC. The interface is a tool you sit inside for hours. It should feel like a well-kept instrument panel: dark, quiet and exact, with one warm light kept for what you can act on.
 
 ## Principles
 
@@ -44,12 +44,12 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 ## Type
 
-- `sans` is the **system UI font** (SF Pro Text on macOS, Segoe UI Variable on Windows, the desktop's sans on Linux) so Keel reads like a native app. `display` is the same system family at display optical size (SF Pro Display) for dialog titles, page titles and empty states. `mono` (JetBrains Mono) for terminals, addresses, paths, flags and commands only.
+- `sans` is the **system UI font** (SF Pro Text on macOS, Segoe UI Variable on Windows, the desktop's sans on Linux) so Slime reads like a native app. `display` is the same system family at display optical size (SF Pro Display) for dialog titles, page titles and empty states. `mono` (JetBrains Mono) for terminals, addresses, paths, flags and commands only.
 - Default UI size is 12px (`body`). The user scales the UI from 11–16px; text scales with it, and the fixed chrome dimensions (the `size-*` tokens) do not. Terminal text scales separately (10–22px, ⌘0 resets to 12).
 - Styles: `display` 28/32, `heading` 18/22, `title` 15/20, `body` 13/18, `body-strong`, `label` 12/16, `caption` 12/16, `reading` 14/22, `term` 12/16, `code` 12/18, `address` 12/16, `meta` 12/16 semibold sans in sentence case, `kbd` 11/14.
 - `reading` is for long-form prose only (the notebook's reading column, `size-reading` 68ch wide). The interface stays on `body`.
 - `tokens.json` carries each style as weight, size, line height and family; sizes in the window scale with the UI size setting.
-- The UI font needs nothing shipped: it is the OS font. Ship only the terminal fonts as local woff2 (JetBrains Mono, and IBM Plex Mono because Settings offers it as a terminal font). Keel is a desktop app and must look right offline; do not load fonts from the network at runtime.
+- The UI font needs nothing shipped: it is the OS font. Ship only the terminal fonts as local woff2 (JetBrains Mono, and IBM Plex Mono because Settings offers it as a terminal font). Slime is a desktop app and must look right offline; do not load fonts from the network at runtime.
 
 ## Space, size and shape
 
@@ -68,16 +68,16 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 ## Iconography
 
-- Hugeicons core-free 4.3.0, stroke style, 1.5 stroke width, `currentColor`, the same set Keel ships in `components/icon`. Sizes 14 (pane bar, small buttons), 15–16 (menus, rail, rows), 22 (empty states).
+- Hugeicons core-free 4.3.0, stroke style, 1.5 stroke width, `currentColor`, the same set Slime ships in `components/icon`. Sizes 14 (pane bar, small buttons), 15–16 (menus, rail, rows), 22 (empty states).
 - Icons default to `ink-muted`; they take `brass-ink` only when their item is active or highlighted.
 - Product-specific choices: steering wheel = driving, eye = following, crown = owner, panel-left = Vault sidebar toggle, two-column / two-row layout = split right / down, exchange = sync input.
 - No emoji anywhere in the UI.
 
 ## Logo
 
-The mark is a resting slime: a blue dome seen from slightly above with two closed eyes. It is the one place Keel uses blue outside the palette; it is not a token and nothing else in the UI takes its colours.
+The mark is a resting slime: a blue dome seen from slightly above with two closed eyes. It is the one place Slime uses blue outside the palette; it is not a token and nothing else in the UI takes its colours.
 
-- `packaging/macos/Keel.icon` is the Dock icon, an Icon Composer document of two flat layers (body, face) on a pink-to-blue gradient ground (the system dark ground in dark mode). Icon Composer draws the glass, rim and shadow, so the layers carry none. `make macos-icon` exports `icon.png` and `Keel.icns` from it.
+- `packaging/macos/Slime.icon` is the Dock icon, an Icon Composer document of two flat layers (body, face) on a pink-to-blue gradient ground (the system dark ground in dark mode). Icon Composer draws the glass, rim and shadow, so the layers carry none. `make macos-icon` exports `icon.png` and `Slime.icns` from it.
 - `packaging/macos/icon.svg` is the small mark (splash, favicon, 16 to 64 px): the Dock slime on the same gradient ground, flat, a little larger and without the mouth. `packaging/macos/menu-icon.svg` is the tray menu header's icon (`internal/native/macos/app-icon.png` at 32 px): the slime without a ground and with a navy outline, filling the 16pt box MyGo gives a menu icon.
 - `internal/native/macos/tray-template.png` is the menu bar template: the Dock slime's dome in black with the eyes cut out.
 

@@ -372,10 +372,10 @@ func TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt(t *testing.T) {
 	if !slices.Equal(from, []string{"Write"}) {
 		t.Errorf("fanOut is called from %v in syncinput.go, want only (*syncConn).Write", from)
 	}
-	// 4. syncinput.go names none of the ways Keel types for the user.
+	// 4. syncinput.go names none of the ways Slime types for the user.
 	for _, bad := range []string{"ApprovedInject", "DirectType", "SuggestInsert", "RestoreWords", "AgentRef", "typeNow", "approveType", "openApprove"} {
 		if strings.Contains(src["syncinput.go"], bad) {
-			t.Errorf("syncinput.go names %s: sync input fans out the user's own keys and nothing Keel types", bad)
+			t.Errorf("syncinput.go names %s: sync input fans out the user's own keys and nothing Slime types", bad)
 		}
 	}
 }

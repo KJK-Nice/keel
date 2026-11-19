@@ -16,7 +16,7 @@ import (
 
 // Kind says what a session's client is.
 const (
-	// KindWindow is the Keel window on this machine.
+	// KindWindow is the Slime window on this machine.
 	KindWindow = "window"
 	// KindJoined is a peer who joined through a share link, over WebRTC.
 	// keel serve never types for one, and it never owns a session.

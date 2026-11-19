@@ -1,4 +1,4 @@
-// Package agent is the core of Keel's agent: which panes it may read
+// Package agent is the core of Slime's agent: which panes it may read
 // (scope), how their text is read and redacted, who may insert its output,
 // and the audit log of every read and insert. See docs/ui-redesign.md §6.
 //

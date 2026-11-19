@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Keel captured variables</title>
+<title>Slime captured variables</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="ds/keel/tokens.css">
 <link rel="stylesheet" href="ds/keel/components/bundle.css">
@@ -87,7 +87,7 @@ kubeadm join 10.20.0.10:6443 --token <span class="k-sel">{{tokenShown}}</span> \
 	--discovery-token-ca-cert-hash <span class="k-sel">{{hashShown}}</span></pre>
 
 <div class="kw-gx-cap">
-<div style="display: flex; align-items: center; gap: 8px"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#i-lock"></use></svg><span style="flex: 1; font: 600 12px/16px var(--font-sans)">Captured from this step</span><span class="k-badge k-badge--brass">Captured by Keel, never sent to the agent</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#i-lock"></use></svg><span style="flex: 1; font: 600 12px/16px var(--font-sans)">Captured from this step</span><span class="k-badge k-badge--brass">Captured by Slime, never sent to the agent</span></div>
 <sc-for list="{{vars}}" as="v" hint-placeholder-count="2">
 <dl class="kw-gx-cap-row" style="margin: 0; padding-top: 8px; border-top: 1px solid var(--line)">
 <dt>Name</dt><dd><span class="kw-gx-var">{{v.hole}}</span></dd>
@@ -115,7 +115,7 @@ kubeadm join 10.20.0.10:6443 --token <span class="k-sel">{{tokenShown}}</span> \
 </div>
 <div style="display: flex; align-items: flex-start; gap: 8px">
 <svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-faint); margin-top: 2px"><use href="#i-shield"></use></svg>
-<span class="k-help">Keel fills these in only when you press Type. Logs record that join_token was used, not its value. Copy leaves the placeholders in.</span>
+<span class="k-help">Slime fills these in only when you press Type. Logs record that join_token was used, not its value. Copy leaves the placeholders in.</span>
 </div>
 </section>
 
@@ -140,16 +140,16 @@ kubeadm join 10.20.0.10:6443 --token <span class="k-sel">{{tokenShown}}</span> \
 <div class="kw-who"><svg class="kw-ico" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#i-ai"></use></svg>Agent</div>
 <div class="kw-trace">
 <div class="kw-step"><svg class="kw-ico ok" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-tick"></use></svg>Read cp-1 · last 40 lines</div>
-<div class="kw-step"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#i-lock"></use></svg>2 values withheld by Keel</div>
+<div class="kw-step"><svg class="kw-ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--brass-ink)"><use href="#i-lock"></use></svg>2 values withheld by Slime</div>
 </div>
-<p class="kw-msg">cp-1 is initialised. Step 2 joins the five workers, one at a time, with the token Keel captured from the init output. I don't see the token or the CA hash; Keel fills them in when you press Type.</p>
+<p class="kw-msg">cp-1 is initialised. Step 2 joins the five workers, one at a time, with the token Slime captured from the init output. I don't see the token or the CA hash; Slime fills them in when you press Type.</p>
 <p class="kw-msg" style="margin-top: 8px">After the last worker, step 3 checks <code>kubectl get nodes</code> on cp-1.</p>
 </div>
 <div style="display: grid; gap: 6px">
 <span class="k-menu-label" style="padding: 0">What the agent was sent</span>
 <pre class="kw-gx-code" style="white-space: pre-wrap; font-size: 11px; line-height: 16px">kubeadm join 10.20.0.10:6443 --token <span class="k">{{joinHole}}</span> \
 	--discovery-token-ca-cert-hash <span class="k">{{hashHole}}</span>
-<span class="c"># Keel replaced 2 captured values before sending.</span></pre>
+<span class="c"># Slime replaced 2 captured values before sending.</span></pre>
 </div>
 <div style="display: flex; align-items: flex-start; gap: 8px; padding: 0 2px">
 <svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-faint); margin-top: 2px"><use href="#i-shield"></use></svg>

@@ -17,7 +17,7 @@ import (
 	"keel/internal/paths"
 )
 
-// terminalTheme is Keel's terminal palette from the tokens of the theme in use.
+// terminalTheme is Slime's terminal palette from the tokens of the theme in use.
 func terminalTheme() *terminal.Theme {
 	return terminalColors(accent, termFg, termBg, ansi)
 }
@@ -62,7 +62,7 @@ func liveBodyT(p *pane, transparent bool) {
 	case rightNothing:
 		right = terminal.RightClickIgnore
 	}
-	th := p.theme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
+	th := p.theme() // the same colours in a light and a dark window: the theme is Slime's choice, not the window's
 	term, err := terminal.New(terminal.Options{
 		Conn: newSyncConn(p), Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right, MinimumContrast: p.contrast,
 		Cursor: p.cursor, NoBlink: p.noBlink, OptionAsAlt: p.optionAsAlt,
@@ -171,7 +171,7 @@ func RunWith(o Options) error {
 	mygo.App.SetWindowStateStore(newWindowStateStore(o.DataDir))
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title: "Keel", Width: 1280, Height: 800, StateKey: "main",
+			Title: "Slime", Width: 1280, Height: 800, StateKey: "main",
 			TitleBarStyle: mygo.TitleBarHidden,
 			// Hidden, not HiddenInset: HiddenInset's toolbar makes a taller bar than sizeTitlebar. The position
 			// centres the lights vertically in that row; x is the usual window padding.

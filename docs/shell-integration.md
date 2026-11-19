@@ -2,14 +2,14 @@
 
 When a shell reports its prompts and commands with OSC 133 escape sequences, `keel serve` follows each prompt and command in a pane (command records are kept in memory only), and the agent reads the last command, its output and its exit status instead of the pane's last lines; a runbook step's result also comes from the exit status (`docs/ui-redesign.md` §14). The window does not draw the marks and has no Previous / Next command action yet: the terminal plugin does not expose the marks (`docs/native.md`, "What the window does not do").
 
-Keel never edits a remote host's shell files, and does not change how the Local Shell starts. fish 4.0 and later already send the marks; for bash and zsh, and fish 3, add one of these snippets yourself, on each host where you want it (the Local Shell reads your local files). It only prints escape sequences around your prompt; it does not change what commands do.
+Slime never edits a remote host's shell files, and does not change how the Local Shell starts. fish 4.0 and later already send the marks; for bash and zsh, and fish 3, add one of these snippets yourself, on each host where you want it (the Local Shell reads your local files). It only prints escape sequences around your prompt; it does not change what commands do.
 
 ## bash
 
 bash 4.4 or later, at the end of `~/.bashrc` (macOS's `/bin/bash` 3.2 has no `PS0`, so it gets prompts but no commands):
 
 ```bash
-# Keel shell integration (OSC 133)
+# Slime shell integration (OSC 133)
 if [[ $- == *i* && -z ${__keel_osc133-} ]]; then
   __keel_osc133=1
   __keel_prompt() {
@@ -28,7 +28,7 @@ fi
 At the end of `~/.zshrc`:
 
 ```zsh
-# Keel shell integration (OSC 133)
+# Slime shell integration (OSC 133)
 if [[ -o interactive && -z ${__keel_osc133-} ]]; then
   __keel_osc133=1
   __keel_precmd() {
@@ -49,7 +49,7 @@ fi
 fish 4 needs nothing. fish 3, in `~/.config/fish/config.fish`:
 
 ```fish
-# Keel shell integration (OSC 133)
+# Slime shell integration (OSC 133)
 if status is-interactive; and test (string split -f1 . $version) -lt 4; and not set -q __keel_osc133
     set -g __keel_osc133 1
     function __keel_prompt --on-event fish_prompt

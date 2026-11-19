@@ -94,7 +94,7 @@ func CheckHostSignIn(h Host) error {
 
 // ValidateStartupCommand accepts one line of printable text: no newline,
 // carriage return, tab or other control character, at most
-// MaxStartupCommand bytes. Keel adds the Enter itself.
+// MaxStartupCommand bytes. Slime adds the Enter itself.
 func ValidateStartupCommand(cmd string) error {
 	if p := limits.StartupCommandProblem(cmd); p != "" {
 		return fieldErr("%s", p)

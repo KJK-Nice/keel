@@ -55,7 +55,7 @@ type Peer struct {
 	AttachedAt       string // RFC 3339; "" when the server did not say
 }
 
-// How a session's client came (Peer.Kind): the Keel window on the session's machine, or a share link.
+// How a session's client came (Peer.Kind): the Slime window on the session's machine, or a share link.
 const (
 	KindWindow = wire.KindWindow
 	KindJoined = wire.KindJoined

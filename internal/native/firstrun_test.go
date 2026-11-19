@@ -53,12 +53,12 @@ func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 	fb := setupBackend()
 	r := firstRunRig(t, fb)
 	kc := keychainName()
-	r.texts(t, "Vault", "Hosts", "Agent", "Welcome to Keel",
-		"Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.",
+	r.texts(t, "Vault", "Hosts", "Agent", "Welcome to Slime",
+		"Slime keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.",
 		"Unlock with "+kc, "Recommended",
-		"Keel was started with KEEL_KEYRING=off, so it does not use the keychain.",
+		"Slime was started with KEEL_KEYRING=off, so it does not use the keychain.",
 		"Use a passphrase", "You type it each time keel serve starts. Pick this on shared machines or when there is no keychain.",
-		"Passphrase", "Repeat passphrase", "Keel can't recover the vault if you lose the passphrase.",
+		"Passphrase", "Repeat passphrase", "Slime can't recover the vault if you lose the passphrase.",
 		"Vault file", "~/keel/keel.vault", "Encryption", "age, with a key made from your passphrase (scrypt)",
 		"Holds", "Host passwords, private keys and key passphrases. Host names, addresses and snippets stay in keel.json.",
 		"I already have a keel.vault…", "Create vault")
@@ -72,7 +72,7 @@ func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 	fb2 := setupBackend()
 	fb2.vault.KeyringOff = false
 	r2 := firstRunRig(t, fb2)
-	r2.texts(t, kc+" didn't answer, so Keel can't keep the vault key there. Use a passphrase, or allow Keel in "+kc+" and open Keel again.")
+	r2.texts(t, kc+" didn't answer, so Slime can't keep the vault key there. Use a passphrase, or allow Slime in "+kc+" and open Slime again.")
 }
 
 func TestFirstRunKeychainCardIsNotChoosableWhenSettingUp(t *testing.T) {
@@ -119,7 +119,7 @@ func TestFirstRunCreatesTheVaultThenAsksForHostsAndClearsThePassphrase(t *testin
 	if want := []string{"vault", "setup vault", "vault", "ssh preview"}; !slices.Equal(fb.calls, want) {
 		t.Errorf("calls %v, want %v", fb.calls, want)
 	}
-	r.texts(t, "Bring your hosts", "Keel found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed.", "Back", "Skip, add hosts later", "Add 1 host")
+	r.texts(t, "Bring your hosts", "Slime found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed.", "Back", "Skip, add hosts later", "Add 1 host")
 }
 
 func TestFirstRunSetupRefusalShowsTheServersWordsAndKeepsStep1(t *testing.T) {
@@ -144,7 +144,7 @@ func TestFirstRunExistingVaultIsAnInstructionOnly(t *testing.T) {
 		t.Fatal("the instruction shows before it is asked for")
 	}
 	r.click(t, "I already have a keel.vault…")
-	r.texts(t, "To use a keel.vault you already have: quit Keel, run keel serve stop, put that keel.vault and its keel.json in ~/keel, then open Keel. It opens with the keychain or passphrase that made it. Keel does not change a vault it cannot open.")
+	r.texts(t, "To use a keel.vault you already have: quit Slime, run keel serve stop, put that keel.vault and its keel.json in ~/keel, then open Slime. It opens with the keychain or passphrase that made it. Slime does not change a vault it cannot open.")
 	r.click(t, "I already have a keel.vault…")
 	if r.tt.HasText("To use a keel.vault you already have") {
 		t.Error("the instruction stays open")
@@ -157,8 +157,8 @@ func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 	fb := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "keychain", Path: "~/keel/keel.vault"}, hosts: testHosts, preview: testPreview()}
 	r := firstRunRig(t, fb)
 	kc := keychainName()
-	r.texts(t, "Welcome to Keel", "The vault key lives in your login keychain. Keel opens without asking.",
-		"Keel already made this vault with "+kc+". It does not re-key a vault here.",
+	r.texts(t, "Welcome to Slime", "The vault key lives in your login keychain. Slime opens without asking.",
+		"Slime already made this vault with "+kc+". It does not re-key a vault here.",
 		"age, with the wrapping key in your keychain", "Continue")
 	if r.has("Repeat passphrase") || r.has("I already have a keel.vault…") || r.has("Create vault") {
 		t.Error("a vault that exists shows the setup fields")
@@ -170,7 +170,7 @@ func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 	// A passphrase vault says so on its passphrase card.
 	fb2 := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "passphrase", KeyringOff: true}, preview: testPreview()}
 	r2 := firstRunRig(t, fb2)
-	r2.texts(t, "Keel was started with KEEL_KEYRING=off, so it does not use the keychain.", "age, with a key made from your passphrase (scrypt)")
+	r2.texts(t, "Slime was started with KEEL_KEYRING=off, so it does not use the keychain.", "age, with a key made from your passphrase (scrypt)")
 }
 
 func atHosts(t *testing.T, fb *fakeBackend) *rig {
@@ -188,7 +188,7 @@ func TestFirstRunStep2TableRowsAndRules(t *testing.T) {
 		"Already saved", "jumpy", "ProxyJump bastion, not used", "Without the jump", "1 of 3 selected",
 		"This pattern sets options for the hosts above. It is not a host to add.", "*.prod", "2 notes about this config",
 		"Copy private keys into the vault", "~/.ssh/id_web", "~/.ssh/gone", "file not found", "Used by web", "Passphrase",
-		"Each key is off until you turn it on. The files in ~/.ssh stay where they are; Keel only reads them. A copied key becomes a Keychain identity, encrypted in the vault with its passphrase. Hosts whose key stays off are added with password sign-in; edit them to pick a key.")
+		"Each key is off until you turn it on. The files in ~/.ssh stay where they are; Slime only reads them. A copied key becomes a Keychain identity, encrypted in the vault with its passphrase. Hosts whose key stays off are added with password sign-in; edit them to pick a key.")
 	// A pattern is not a host row.
 	if r.has("row *.prod") {
 		t.Error("a pattern is a host row")
@@ -203,7 +203,7 @@ func TestFirstRunStep2TableRowsAndRules(t *testing.T) {
 		}
 	}
 	r.click(t, "2 notes about this config")
-	r.texts(t, "~/.ssh/config:14", "Match block skipped: Keel imports Host blocks only", "jumpy")
+	r.texts(t, "~/.ssh/config:14", "Match block skipped: Slime imports Host blocks only", "jumpy")
 }
 
 func TestFirstRunStep2ImportSendsExactlyTheTicks(t *testing.T) {
@@ -358,7 +358,7 @@ func TestFirstRunSkipAndBack(t *testing.T) {
 		"Reads only the panes you pick", `Every pane it can read carries an "Agent reads" mark. Hosts can opt out.`,
 		"Suggests commands; you press Type", "The agent never types into a pane. Nothing reaches one until you accept it. Destructive commands need ⇧⇥.",
 		"Secrets are redacted, the vault stays closed", "No passwords, keys or snippets leave it. Secret-looking values in a pane are redacted before sending.",
-		"Back", "Set up later", "Open Keel")
+		"Back", "Set up later", "Open Slime")
 	r.click(t, "Back")
 	if r.w.first.step != stepHosts {
 		t.Error("Back from step 3 did not return to step 2")
@@ -368,10 +368,10 @@ func TestFirstRunSkipAndBack(t *testing.T) {
 func TestFirstRunNoSSHConfigAndAReadFailure(t *testing.T) {
 	fb := &fakeBackend{hosts: testHosts, preview: keelclient.SSHPreview{Path: "~/.ssh/config"}}
 	r := atHosts(t, fb)
-	r.texts(t, "Keel found no ~/.ssh/config. Add hosts later with New host.")
+	r.texts(t, "Slime found no ~/.ssh/config. Add hosts later with New host.")
 	fb2 := &fakeBackend{hosts: testHosts, previewErr: &keelclient.StatusError{Code: 500, Msg: "boom"}}
 	r2 := atHosts(t, fb2)
-	r2.texts(t, "Keel could not read ~/.ssh/config: boom")
+	r2.texts(t, "Slime could not read ~/.ssh/config: boom")
 	// No table: only Skip, and Add hosts is off.
 	r2.click(t, "Add hosts")
 	if len(fb2.imports) != 0 {
@@ -380,7 +380,7 @@ func TestFirstRunNoSSHConfigAndAReadFailure(t *testing.T) {
 }
 
 func TestFirstRunOpenKeelEndsTheFirstRunAndOpensTheWorkspace(t *testing.T) {
-	for _, button := range []string{"Open Keel", "Set up later"} {
+	for _, button := range []string{"Open Slime", "Set up later"} {
 		fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
 		r := atHosts(t, fb)
 		r.click(t, "Skip, add hosts later")
@@ -435,7 +435,7 @@ func TestPaletteImportOpensStep2AloneAndEndsInTheWindow(t *testing.T) {
 	if f == nil || f.flow != flowImport || f.step != stepHosts {
 		t.Fatalf("first %v", f)
 	}
-	r.texts(t, "Import hosts", "Keel found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed.", "Cancel", "Add 1 host")
+	r.texts(t, "Import hosts", "Slime found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed.", "Cancel", "Add 1 host")
 	if r.has("Back") || r.has("Setup progress") || r.has("Skip, add hosts later") {
 		t.Error("first run's own controls show in the import")
 	}
@@ -483,7 +483,7 @@ func TestVaultErrorsUseTheServersWords(t *testing.T) {
 	if got := vaultError(errors.New("dial tcp: refused")); got != "dial tcp: refused" {
 		t.Error(got)
 	}
-	for in, want := range map[string]string{"~/keel/keel.vault": "~/keel", `C:\k\keel.vault`: `C:\k`, "keel.vault": "keel.vault", "": "the Keel data folder"} {
+	for in, want := range map[string]string{"~/keel/keel.vault": "~/keel", `C:\k\keel.vault`: `C:\k`, "keel.vault": "keel.vault", "": "the Slime data folder"} {
 		if got := dataFolder(in); got != want {
 			t.Errorf("dataFolder(%q) = %q, want %q", in, got, want)
 		}
@@ -511,7 +511,7 @@ func TestFirstRunStep3StartsOnNotNowWithTheSwitchOnAndSendsOnlyTheSwitch(t *test
 	if r.has("Gemini API key input") {
 		t.Fatal("the key field shows with Not now chosen")
 	}
-	r.click(t, "Open Keel")
+	r.click(t, "Open Slime")
 	if len(fb.agent.keys) != 0 || len(fb.convs.saves) != 1 || fb.convs.saves[0].Suggestions == nil || *fb.convs.saves[0].Suggestions != "on" || fb.firstRunDone != 1 {
 		t.Fatalf("keys %d, saves %+v, done %d", len(fb.agent.keys), fb.convs.saves, fb.firstRunDone)
 	}
@@ -526,10 +526,10 @@ func TestFirstRunStep3GeminiNeedsAKeyThenSendsItOnceAndEmptiesTheField(t *testin
 	if !r.tt.Focused("Gemini API key input") {
 		t.Error("choosing Gemini did not give the key field the keyboard")
 	}
-	r.click(t, "Open Keel")
+	r.click(t, "Open Slime")
 	r.texts(t, "Paste your key, or choose Not now.")
 	if r.w.first == nil || fb.firstRunDone != 0 || len(fb.agent.keys) != 0 {
-		t.Fatal("Open Keel went on without a key")
+		t.Fatal("Open Slime went on without a key")
 	}
 	r.tt.Type(fakeFirstRunKey)
 	r.tt.Frame()
@@ -537,7 +537,7 @@ func TestFirstRunStep3GeminiNeedsAKeyThenSendsItOnceAndEmptiesTheField(t *testin
 		t.Error("the key is drawn")
 	}
 	r.click(t, "Suggest commands for # lines and when I ask switch")
-	r.click(t, "Open Keel")
+	r.click(t, "Open Slime")
 	if len(fb.agent.keys) != 1 || fb.agent.keys[0].Provider != "gemini" || fb.agent.keys[0].Key != fakeFirstRunKey {
 		t.Fatalf("the key was sent %d times", len(fb.agent.keys))
 	}
@@ -554,7 +554,7 @@ func TestFirstRunStep3ARefusedKeyStaysOnTheStepAndIsTypedAgain(t *testing.T) {
 	r.tt.Frame()
 	r.tt.Type(fakeFirstRunKey)
 	r.tt.Frame()
-	r.click(t, "Open Keel")
+	r.click(t, "Open Slime")
 	r.tt.Frame()
 	r.texts(t, "The vault is locked. Unlock it, then try again.")
 	if r.w.first == nil || r.w.first.agentKey != "" || fb.firstRunDone != 0 || len(fb.convs.saves) != 0 {

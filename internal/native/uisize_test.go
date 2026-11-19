@@ -97,7 +97,7 @@ func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 		}
 	}
 	r.click(t, "Terminal font picker")
-	for _, label := range []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono", "Ships with Keel", "macOS", "Windows", "The system's monospace font"} {
+	for _, label := range []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono", "Ships with Slime", "macOS", "Windows", "The system's monospace font"} {
 		if !slices.Contains(r.tt.Menu(), label) && !r.tt.HasText(label) {
 			t.Errorf("the font menu has no %q: %v", label, r.tt.Menu())
 		}

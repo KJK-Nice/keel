@@ -232,7 +232,7 @@ func init() {
 		{id: "share", run: (*workspace).openShare, pal: &palSpec{section: "Terminal", title: "Share session (join link)"}},
 		{id: "share.stop", run: (*workspace).stopShare, pal: &palSpec{section: "Terminal", title: "Stop sharing this session"}},
 		// This asks first, as Settings · Runtime does.
-		{id: "runtime.stop", run: (*workspace).askStopRuntime, menu: &menuSpec{"Stop", "Stop Keel runtime", 1}, pal: &palSpec{section: "Terminal", title: "Stop Keel runtime"}},
+		{id: "runtime.stop", run: (*workspace).askStopRuntime, menu: &menuSpec{"Stop", "Stop Slime runtime", 1}, pal: &palSpec{section: "Terminal", title: "Stop Slime runtime"}},
 	}
 }
 

@@ -143,7 +143,7 @@ func runbookStepsLine(rb keelclient.Runbook) string {
 	return fmt.Sprintf("%s · %d change state", n, changes)
 }
 
-// runbookStepKind is a step's kind on the page: Check, Read-only, Destructive or Changes (Keel's own rating of the saved
+// runbookStepKind is a step's kind on the page: Check, Read-only, Destructive or Changes (Slime's own rating of the saved
 // command), with the badge colour.
 func runbookStepKind(command, risk string) (label, kind string) {
 	if command == "" {

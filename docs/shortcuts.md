@@ -27,7 +27,7 @@ On macOS the tab strip lives in the window titlebar, beside the traffic lights. 
 | ⌘J | Ctrl+J | Join session |
 | ⌘, | Ctrl+, | Settings |
 | ⌘+ / ⌘- / ⌘0 | Ctrl++ / Ctrl+- / Ctrl+0 | Terminal text bigger / smaller (10–22px) / reset to 12 |
-| ⌘⇧W | Ctrl+Shift+W | Close the window (sessions stay in `keel serve`; on macOS Keel stays in the menu bar, ⌘Q quits) |
+| ⌘⇧W | Ctrl+Shift+W | Close the window (sessions stay in `keel serve`; on macOS Slime stays in the menu bar, ⌘Q quits) |
 | ⌥1 … ⌥6 | Alt+1 … Alt+6 | On the New tab page: open a recent host |
 
 Drag tabs to reorder; numbered shortcuts follow the current order.
@@ -36,7 +36,7 @@ Drag tabs to reorder; numbered shortcuts follow the current order.
 
 **⌘T** opens the **New tab page** (also what an empty window shows). Its one input takes a saved host (filters the cards), `user@host:port`, an `ssh://` URL or a pasted `ssh …` command; below it are the six most recent hosts (**⌥1**–**⌥6** open them), Quick connect, Join session, New host, and Recently closed.
 
-A pasted command is parsed, never run: Keel shows what it kept and which options it left out (`-o ProxyCommand`, `LocalCommand`, `StrictHostKeyChecking=no`, `-L/-R/-D`, `-W`, a trailing remote command, `-J` jump hosts, which are not supported yet; `-i` becomes a note and the key file is not read), then offers a prefilled **New host** or **Connect once**.
+A pasted command is parsed, never run: Slime shows what it kept and which options it left out (`-o ProxyCommand`, `LocalCommand`, `StrictHostKeyChecking=no`, `-L/-R/-D`, `-W`, a trailing remote command, `-J` jump hosts, which are not supported yet; `-i` becomes a note and the key file is not read), then offers a prefilled **New host** or **Connect once**.
 
 The window always keeps a tab: with none left it shows a New tab. **⌘⇧T** reopens to the same host; the list is kept in the browser's storage as host id, title and time.
 
@@ -48,12 +48,12 @@ Palette actions that would type into a live session (**Type snippet**) always sh
 
 ## Sessions
 
-- Open a host: new session tab. Close tab = kill that PTY. Close the window = detach (sessions stay in `keel serve`; reopen Keel to attach, and they come back as tabs, with the tab pages you had open).
+- Open a host: new session tab. Close tab = kill that PTY. Close the window = detach (sessions stay in `keel serve`; reopen Slime to attach, and they come back as tabs, with the tab pages you had open).
 - SSH hosts keepalive every 30s (edit host to change or turn off) and auto-reconnect on a drop. `exit` on the remote shell stays dead; **Reconnect** on the pane brings it back.
 - Keys typed while a pane is still connecting or reconnecting are dropped, not saved for later: the first thing that comes up may be a password or host key prompt. An approved Type (snippet, agent proposal, group run) at that moment fails and says nothing was typed; press it again once the pane is connected.
 - **Split →** / **Split ↓** spawn another PTY to the same host.
 - **Sync** broadcasts keystrokes (and approved snippet typing) to every driving pane in that tab.
-- File → **Stop Keel runtime** (or `keel serve stop`) kills leftover sessions and the daemon.
+- File → **Stop Slime runtime** (or `keel serve stop`) kills leftover sessions and the daemon.
 
 ## Settings
 

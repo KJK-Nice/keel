@@ -103,7 +103,7 @@ func (s *Server) withAuth(next http.Handler) http.Handler {
 
 // errClaudeCodeOff is what keel mcp passes on to Claude Code while the
 // user has not turned Claude Code on in Settings · Agent.
-const errClaudeCodeOff = `Claude Code is off in Keel: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`
+const errClaudeCodeOff = `Claude Code is off in Slime: turn on "Allow Claude Code (keel mcp)" in Settings · Agent`
 
 // mcpAllowed checks the user's "Allow Claude Code (keel mcp)" switch
 // (store.AgentSettings.ClaudeCode, off by default) and answers the request

@@ -70,7 +70,7 @@ func (t *Tracker) Feed(b []byte, base uint64) {
 // (a drop, a reconnect): a sequence or prompt in progress belongs to the
 // old shell, and a command still open is closed at at (the stream offset
 // now) as abandoned, with no exit status. Without that, the old shell's
-// running command would go on "running" over Keel's reconnect note and the
+// running command would go on "running" over Slime's reconnect note and the
 // new shell's banner. Records stay.
 func (t *Tracker) Reset(at uint64) {
 	t.p.Reset()

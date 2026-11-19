@@ -419,7 +419,7 @@ func (w *workspace) askForgetKey() {
 	name, host := d.saved.Name, d.key.Hostname
 	w.askConfirm(&confirmDialog{
 		title:   "Forget host key?",
-		message: "Keel forgets the saved key for " + name + " (" + host + "). The next connect shows the server's key and asks you to trust it again.",
+		message: "Slime forgets the saved key for " + name + " (" + host + "). The next connect shows the server's key and asks you to trust it again.",
 		action:  "Forget key",
 		run:     func() { w.forgetKey(d) },
 	})
@@ -481,7 +481,7 @@ func testText(res keelclient.TestResult) (state, short, detail string) {
 	case "auth":
 		return "dead", "Authentication failed", where + "the server refused the password or key. " + res.Message
 	case keelclient.HostKeyUnknown:
-		return "connecting", "Host key unknown", where + res.Hostname + " presented a key Keel has not seen. Compare it with the server's own fingerprint before you trust it."
+		return "connecting", "Host key unknown", where + res.Hostname + " presented a key Slime has not seen. Compare it with the server's own fingerprint before you trust it."
 	case keelclient.HostKeyMismatch:
 		return "dead", "Host key changed", where + res.Hostname + " presented a different key than the one saved. Only replace it if you know the server was reinstalled."
 	case "timeout":

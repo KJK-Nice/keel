@@ -73,7 +73,7 @@ func selEntries(themeLabel string) []pickEntry {
 // termColors is the pane's copy of the Colors preferences.
 type termColors struct{ selBg, selText string }
 
-// theme is the terminal theme p draws with: Keel's, its selection as the preferences say, and its cursor the driver's
+// theme is the terminal theme p draws with: Slime's, its selection as the preferences say, and its cursor the driver's
 // colour while someone else drives (presence.go).
 func (p *pane) theme() *terminal.Theme {
 	t := terminalTheme()

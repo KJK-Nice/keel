@@ -89,7 +89,7 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 		sendDetect: func(seq int, line string) { _ = p.conn.SuggestDetect(seq, line) },
 		sendSuggest: func(seq int, line string) {
 			if err := p.conn.SuggestAsk(seq, line); err != nil { // not asked: never leave the card loading
-				p.sg.m.OnSuggest(seq, false, nil, "Keel could not ask for a suggestion.", "send")
+				p.sg.m.OnSuggest(seq, false, nil, "Slime could not ask for a suggestion.", "send")
 			}
 		},
 		insert: func(sug *keelclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {

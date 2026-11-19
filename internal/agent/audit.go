@@ -200,7 +200,7 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 // exit status, the cwd and where the output starts and ends come from the
 // remote's own output, and a program (cat of a crafted file) can print
 // fake ones. So the excerpt never uses a prompt-like "$ " that would read
-// as Keel's own statement. And the excerpt always covers at least the
+// as Slime's own statement. And the excerpt always covers at least the
 // pane's plain tail (the last lines setting): what the marked parts do not
 // show of it is shown first, as the pane's earlier text, raw. So marks a
 // program printed (a fake end, then a fake command and output) cannot

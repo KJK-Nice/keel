@@ -81,7 +81,7 @@ func parseName(args []string) string {
 	return name
 }
 
-const helpText = `Keel — local SSH workspace
+const helpText = `Slime — local SSH workspace
 
 keel opens a desktop window (native, MyGo + libghostty). Closing the window
 detaches; PTYs keep running in a background keel serve process. Closing a
@@ -103,7 +103,7 @@ Internet follow (no LAN) needs a public signaling server:
   KEEL_SIGNAL=https://… keel  # or for one run (wins over the saved server)
   make build KEEL_SIGNAL=https://…   or bake a default into the build
 
-  Host: Share. Other Keel: Join session, paste the link.
+  Host: Share. Other Slime: Join session, paste the link.
   Two apps on one Mac: KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
 
 Environment:
@@ -119,5 +119,5 @@ and SHA-256 checked on first run, or found beside the binary). Build:
   make build
   make build KEEL_SIGNAL=https://your-signal.example
 
-make build also packages the app with mygo build (build/darwin-*/Keel.app on macOS) — open that, or run ./bin/keel.
+make build also packages the app with mygo build (build/darwin-*/Slime.app on macOS) — open that, or run ./bin/keel.
 `

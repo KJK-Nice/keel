@@ -23,7 +23,7 @@ license_files() {
 	find "$1" -maxdepth 1 -type f \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname 'notice*' \) | sort
 }
 
-printf 'Keel includes the third-party software below, under the licenses that follow.\n' >"$tmp/notices"
+printf 'Slime includes the third-party software below, under the licenses that follow.\n' >"$tmp/notices"
 
 section "Go (the standard library and runtime)"
 cat "$(go env GOROOT)/LICENSE" >>"$tmp/notices"
@@ -43,7 +43,7 @@ while IFS="$(printf '\t')" read -r mod dir; do
 done <"$tmp/modules"
 
 # libghostty-vt, the terminal engine of the native window (MyGo's terminal plugin downloads it, SHA-256 pinned, and
-# Keel.app and the Linux archives carry it). Its source is a Ghostty commit named in the plugin's manifest; the
+# Slime.app and the Linux archives carry it). Its source is a Ghostty commit named in the plugin's manifest; the
 # license is read at that commit.
 mygo=$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)
 ghostty=$(sed -n 's#.*"source": "https://github.com/ghostty-org/ghostty/tree/\([0-9a-f]*\)".*#\1#p' "$mygo/plugins/terminal/mygo-plugin.json" | head -1)

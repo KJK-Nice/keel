@@ -554,7 +554,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 			case offerNone:
 				cardNote(c, "agent-info", haze, "No pane named for this command. Copy it instead.")
 			case offerPlaceholder:
-				cardNote(c, "alert", signal, "It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Keel will not type it: edit it to the real value or an environment variable first.")
+				cardNote(c, "alert", signal, "It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Slime will not type it: edit it to the real value or an environment variable first.")
 			}
 			if st := rec.status; st != nil {
 				col, glyph := flare, "alert"

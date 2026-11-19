@@ -298,7 +298,7 @@ func TestTheTraceDrawsTheNotebookLinesOfKeelServe(t *testing.T) {
 	}
 	r.ask(t, "q")
 	if miss := r.lacks("Sent the titles of 3 notebooks (not private)", "Sent notebook Deploy (2048 bytes, 2 redacted)", "Read notebook Backups (10 bytes, 0 redacted) · the agent asked",
-		"Not sent · a private notebook (the agent cannot read it)", "Skipped a notebook · it was deleted", "Stopped reading notebooks · Keel's limit for one question"); len(miss) > 0 {
+		"Not sent · a private notebook (the agent cannot read it)", "Skipped a notebook · it was deleted", "Stopped reading notebooks · Slime's limit for one question"); len(miss) > 0 {
 		t.Fatalf("missing %q in %q", miss, r.tt.Texts())
 	}
 }

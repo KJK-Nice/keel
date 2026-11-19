@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Keel Ansible draft</title>
+<title>Slime Ansible draft</title>
 <script src="./support.js"></script>
 <link rel="stylesheet" href="ds/keel/tokens.css">
 <link rel="stylesheet" href="ds/keel/components/bundle.css">
@@ -130,7 +130,7 @@ ansible [core 2.17.5]
 
 <div style="display: flex; align-items: flex-start; gap: 8px; padding: 0 2px">
 <svg class="kw-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--ink-faint); margin-top: 2px"><use href="#i-shield"></use></svg>
-<span class="k-help">Keel does not run Ansible. Save the files and run ansible-playbook yourself. No keys or tokens are written into them.</span>
+<span class="k-help">Slime does not run Ansible. Save the files and run ansible-playbook yourself. No keys or tokens are written into them.</span>
 </div>
 </div>
 <div class="kw-composer">
@@ -151,7 +151,7 @@ ansible [core 2.17.5]
 class Component extends DCLogic {
   renderVals() {
     const playbook = [
-      '# Drafted by the Keel agent from the runbook',
+      '# Drafted by the Slime agent from the runbook',
       '# "Rolling restart kubelet on workers". Review before use.',
       '- name: Rolling restart kubelet on workers',
       '  hosts: worker',

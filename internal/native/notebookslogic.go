@@ -18,7 +18,7 @@ import (
 
 const (
 	placeholderRefused = "Not typed: this block holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Edit it to the real value or an environment variable first."
-	agentEditReview    = "The agent edited this notebook. Check what changed before you type a command from it: Keel kept the version before the edit."
+	agentEditReview    = "The agent edited this notebook. Check what changed before you type a command from it: Slime kept the version before the edit."
 )
 
 // byAgent is Notebook.LastBy and Notebook.Source of the agent's work (a constant: guard_test.go keeps the quoted key).

@@ -167,7 +167,7 @@ func TestUsesLineAndCapturesNamesOnlyCapturedValuesNeverShown(t *testing.T) { //
 	if mask, text, state := captureView(&keelclient.CaptureView{Name: "t", State: "captured", Bytes: 23}); mask != "••••••••••••" || text != "23 bytes" || state != "captured" {
 		t.Errorf("captured: %q %q %q", mask, text, state)
 	}
-	for state, want := range map[string]string{"blocked": "vault", "too-short": "too short to keep from the agent", "full": "Restart Keel to clear them"} {
+	for state, want := range map[string]string{"blocked": "vault", "too-short": "too short to keep from the agent", "full": "Restart Slime to clear them"} {
 		if _, text, _ := captureView(&keelclient.CaptureView{State: state}); !strings.Contains(text, want) {
 			t.Errorf("%s says %q", state, text)
 		}
@@ -250,10 +250,10 @@ func TestExportQueryAndTheDryRunHint(t *testing.T) { // "exportQuery and the dry
 }
 
 func TestTraceCountsValuesWithheldApartFromRedactions(t *testing.T) { // "trace: values sent as {{name}} are counted apart from redactions"
-	if got := traceText(keelclient.TraceStep{Status: "read", Host: "cp-1", Lines: 40, Redactions: map[string]int{"captured": 2}}); got != "Read cp-1 · last 40 lines · 2 values withheld by Keel" {
+	if got := traceText(keelclient.TraceStep{Status: "read", Host: "cp-1", Lines: 40, Redactions: map[string]int{"captured": 2}}); got != "Read cp-1 · last 40 lines · 2 values withheld by Slime" {
 		t.Errorf("trace %q", got)
 	}
-	if got := traceText(keelclient.TraceStep{Status: "read", Host: "cp-1", Lines: 1, Redactions: map[string]int{"aws_key": 1, "variable": 1}}); got != "Read cp-1 · last 1 line · 1 redacted · 1 value withheld by Keel" {
+	if got := traceText(keelclient.TraceStep{Status: "read", Host: "cp-1", Lines: 1, Redactions: map[string]int{"aws_key": 1, "variable": 1}}); got != "Read cp-1 · last 1 line · 1 redacted · 1 value withheld by Slime" {
 		t.Errorf("trace %q", got)
 	}
 }

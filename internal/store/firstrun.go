@@ -8,7 +8,7 @@ type VaultState struct {
 	// Mode is how keel.vault is unlocked: "keychain" (the wrapping key is
 	// in the OS keychain), "passphrase" (scrypt), or "" before it exists.
 	Mode string `json:"mode"`
-	// FirstRun is true until the first-run screens finish, on a store Keel
+	// FirstRun is true until the first-run screens finish, on a store Slime
 	// seeded itself, unless KEEL_VAULT_PASSPHRASE opened the vault (a
 	// scripted setup has no first run).
 	FirstRun bool `json:"firstRun"`

@@ -405,8 +405,8 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 	}
 	// Stop asks first; Cancel changes nothing.
 	e.click("Stop runtime…")
-	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Keel runtime?") }, "the confirm")
-	if !e.tt.HasText("This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again.") {
+	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Slime runtime?") }, "the confirm")
+	if !e.tt.HasText("This ends the 1 running session and every port forward, then closes keel serve. Reopen Slime to start it again.") {
 		t.Errorf("the confirm says %v", e.tt.Texts())
 	}
 	e.click("Cancel")
@@ -416,14 +416,14 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 	}
 	// Confirm: the daemon stops answering within 5 s, and the window says so.
 	e.click("Stop runtime…")
-	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Keel runtime?") }, "the confirm")
+	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Slime runtime?") }, "the confirm")
 	e.click("Stop runtime")
 	deadline := time.Now().Add(5 * time.Second)
 	e.pump(func() bool { return !health() }, "keel serve to stop answering")
 	if time.Now().After(deadline) {
 		t.Error("keel serve took more than 5 s to stop")
 	}
-	e.pump(func() bool { return e.tt.HasText("Keel runtime stopped") }, "the Keel runtime stopped toast")
+	e.pump(func() bool { return e.tt.HasText("Slime runtime stopped") }, "the Slime runtime stopped toast")
 	e.shot("TestE2ESettingsRuntimeStop")
 }
 

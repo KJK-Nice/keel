@@ -30,7 +30,7 @@ func testPreview() keelclient.SSHPreview {
 			{Path: pathDB, Display: "~/.ssh/id_db", Name: "id_db", Exists: true, Encrypted: true, UsedBy: []string{"db"}},
 			{Path: pathBad, Display: "~/.ssh/gone", Name: "gone", Problem: "file not found"},
 		},
-		Notes: []keelclient.ConfigNote{{Source: "~/.ssh/config:14", Text: "Match block skipped: Keel imports Host blocks only"}},
+		Notes: []keelclient.ConfigNote{{Source: "~/.ssh/config:14", Text: "Match block skipped: Slime imports Host blocks only"}},
 	}
 }
 
@@ -118,10 +118,10 @@ func TestImportNotesMergeConfigAndHostNotesWithProxyNotesLeftToTheViaColumn(t *t
 
 func TestImportLeadAndResultText(t *testing.T) {
 	p := testPreview()
-	if got := leadText(p); got != "Keel found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed." {
+	if got := leadText(p); got != "Slime found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed." {
 		t.Error(got)
 	}
-	if got := leadText(keelclient.SSHPreview{Path: "~/.ssh/config"}); got != "Keel found no ~/.ssh/config. Add hosts later with New host." {
+	if got := leadText(keelclient.SSHPreview{Path: "~/.ssh/config"}); got != "Slime found no ~/.ssh/config. Add hosts later with New host." {
 		t.Error(got)
 	}
 	two := []keelclient.Host{{}, {}}

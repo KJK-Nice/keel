@@ -56,7 +56,7 @@ func TestNewHostDialogHasEveryGroupAndLabel(t *testing.T) {
 		"New host", "General", "Label", "Folder", "Color", "Tags", "Connection", "Hostname / IP", "Port", "Username", "Jump host",
 		"Connects to this saved host first, with its own key or password from the vault. One hop.",
 		"Authentication", "Password", "Private key", "Identity", "Local shell",
-		"Host key", "Not saved", "Trusted on first connect; Keel asks again if it changes.",
+		"Host key", "Not saved", "Trusted on first connect; Slime asks again if it changes.",
 		"Session", "Startup command",
 		"Typed once with Enter when a session opens. Not typed again on reconnect, nor for people who join. Do not put secrets here.",
 		"Keepalive", "Keepalive interval (sec)", "Auto reconnect",
@@ -95,7 +95,7 @@ func TestEditHostDialogHasDeleteAndTheSavedValues(t *testing.T) {
 	r.w.editHost(h)
 	r.tt.Frame()
 	for _, s := range []string{"Edit host", "Delete host", "Trusted", "ED25519", "SHA256:xyz", "Forget host key",
-		"Saved for 10.0.0.3:2222. Keel refuses a different key until you replace it."} {
+		"Saved for 10.0.0.3:2222. Slime refuses a different key until you replace it."} {
 		if !r.tt.HasText(s) {
 			t.Errorf("Edit host: no %q", s)
 		}
@@ -354,7 +354,7 @@ func TestEachTestOutcomeRendersItsText(t *testing.T) {
 		{keelclient.TestResult{OK: true, Kind: "ok", LatencyMs: 12}, "Connected in 12 ms", ""},
 		{keelclient.TestResult{Kind: "auth", Message: "no more methods"}, "Authentication failed", "the server refused the password or key. no more methods"},
 		{keelclient.TestResult{Kind: "unknown-host", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:fp", KeyType: "ssh-ed25519", TrustToken: "tt"}, "Host key unknown",
-			"10.0.0.9:22 presented a key Keel has not seen. Compare it with the server's own fingerprint before you trust it."},
+			"10.0.0.9:22 presented a key Slime has not seen. Compare it with the server's own fingerprint before you trust it."},
 		{keelclient.TestResult{Kind: "host-key-mismatch", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:new", Expected: "SHA256:old", KeyType: "ecdsa-sha2-nistp256", TrustToken: "tt"}, "Host key changed",
 			"10.0.0.9:22 presented a different key than the one saved. Only replace it if you know the server was reinstalled."},
 		{keelclient.TestResult{Kind: "timeout", Message: "i/o timeout"}, "Timed out", "no answer within 10 seconds. i/o timeout"},
@@ -569,7 +569,7 @@ func TestForgetHostKeyAsksFirst(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "Forget host key")
 	if len(r.fb.forgot) != 0 || !r.tt.HasText("Forget host key?") ||
-		!r.tt.HasText("Keel forgets the saved key for api-1 (10.0.0.1:22). The next connect shows the server's key and asks you to trust it again.") {
+		!r.tt.HasText("Slime forgets the saved key for api-1 (10.0.0.1:22). The next connect shows the server's key and asks you to trust it again.") {
 		t.Fatal("no confirm, or it forgot already")
 	}
 	r.click(t, "Cancel")

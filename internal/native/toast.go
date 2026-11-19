@@ -11,7 +11,7 @@ import (
 
 // Toasts sit at the bottom right, show the newest three, keep each for 5 s, and draw a
 // failure with a status icon. MyGo keeps the queue, the timers (they stop while the pointer rests on a toast) and
-// the limit of three; this draws them with the Keel tokens. An action toast is a
+// the limit of three; this draws them with the Slime tokens. An action toast is a
 // title and one button that runs and closes it.
 
 const (

@@ -269,12 +269,12 @@ func (w *workspace) askStopRuntime() {
 	if p := w.settingsPage(); p != nil && p.rt != nil {
 		n = p.rt.Sessions
 	}
-	w.askConfirm(&confirmDialog{title: "Stop the Keel runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
+	w.askConfirm(&confirmDialog{title: "Stop the Slime runtime?", message: stopMessage(n), action: "Stop runtime", run: w.stopRuntime})
 }
 
 // staleRuntimeNotice is the warning shown when keel serve is from another build.
-const staleRuntimeNotice = "The Keel runtime that's running is from a different build than this app, so you're seeing its version of Keel. " +
-	"Stop the runtime and reopen Keel to update. Open sessions will end."
+const staleRuntimeNotice = "The Slime runtime that's running is from a different build than this app, so you're seeing its version of Slime. " +
+	"Stop the runtime and reopen Slime to update. Open sessions will end."
 
 // runtimeIsStale: a window opened without a build id never warns; a runtime that reports none is older.
 func runtimeIsStale(appBuild, runtimeBuild string) bool {
@@ -301,7 +301,7 @@ func (w *workspace) stopRuntime() {
 			w.warn(errText("stop runtime", err))
 			return
 		}
-		w.say("Keel runtime stopped")
+		w.say("Slime runtime stopped")
 	})
 }
 

@@ -671,8 +671,8 @@ func TestLockedOrUnsetVaultMakesNoOtherCall(t *testing.T) {
 		fb := &fakeBackend{vault: c.v, hosts: testHosts}
 		r := newRig(t, fb)
 		r.tt.Frame()
-		if c.unlock != r.tt.HasText("Unlock your vault") || c.unlock == r.tt.HasText("Welcome to Keel") {
-			t.Errorf("%+v: unlock screen %v, first run %v", c.v, r.tt.HasText("Unlock your vault"), r.tt.HasText("Welcome to Keel"))
+		if c.unlock != r.tt.HasText("Unlock your vault") || c.unlock == r.tt.HasText("Welcome to Slime") {
+			t.Errorf("%+v: unlock screen %v, first run %v", c.v, r.tt.HasText("Unlock your vault"), r.tt.HasText("Welcome to Slime"))
 		}
 		if !slices.Equal(fb.calls, []string{"vault"}) {
 			t.Errorf("%+v: calls %v", c.v, fb.calls)
@@ -1148,7 +1148,7 @@ func TestLoadPrefs(t *testing.T) {
 	}
 }
 
-// A keel-native.json as v0.2.1 wrote it, with every key it knew, a key a newer Keel may add and the retired windowShadow:
+// A keel-native.json as v0.2.1 wrote it, with every key it knew, a key a newer Slime may add and the retired windowShadow:
 // it loads with the same values, the next save keeps the unknown key and drops windowShadow, and what is written loads the same.
 func TestPrefsFileOfV021LoadsKeepsUnknownKeysAndRoundTrips(t *testing.T) {
 	dir := t.TempDir()

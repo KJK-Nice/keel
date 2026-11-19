@@ -10,7 +10,7 @@ import (
 	"keel/internal/store"
 )
 
-// recorder drains a fake bridge's input (what Keel typed into the PTY).
+// recorder drains a fake bridge's input (what Slime typed into the PTY).
 type recorder struct {
 	mu  sync.Mutex
 	buf strings.Builder

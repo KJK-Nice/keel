@@ -210,7 +210,7 @@ func choiceCard(c *ui.Context, name string, on, disabled bool, title, badgeText,
 func (w *workspace) vaultStep(c *ui.Context, f *firstRun) {
 	kc := firstRunKeychain()
 	setup := f.vault.NeedsSetup
-	head(c, true, "Welcome to Keel", "Keel keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.")
+	head(c, true, "Welcome to Slime", "Slime keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.")
 	ui.Column(c).FillWidth().Gap(space2 + space0_5).Label("How to unlock the vault").Children(func() {
 		choiceCard(c, "Unlock with "+kc, f.usesKeychain(), !f.usesKeychain(), "Unlock with "+kc, "Recommended", keychainDesc(f, kc))
 		if choiceCard(c, "Use a passphrase", !f.usesKeychain(), f.usesKeychain(), "Use a passphrase", "", passDesc(f, kc)) && setup {
@@ -234,7 +234,7 @@ func (w *workspace) vaultStep(c *ui.Context, f *firstRun) {
 			if f.passErr != "" {
 				ui.Row(c).Label("passphrase error").Children(func() { caption(c, f.passErr, flare) })
 			}
-			help(c, "Keel can't recover the vault if you lose the passphrase.")
+			help(c, "Slime can't recover the vault if you lose the passphrase.")
 		})
 	}
 	box(c).Children(func() {
@@ -248,8 +248,8 @@ func (w *workspace) vaultStep(c *ui.Context, f *firstRun) {
 	})
 	if setup && f.existing {
 		box(c).Label("existing vault").Children(func() {
-			help(c, "To use a keel.vault you already have: quit Keel, run keel serve stop, put that keel.vault and its keel.json in "+
-				dataFolder(f.vault.Path)+", then open Keel. It opens with the keychain or passphrase that made it. Keel does not change a vault it cannot open.")
+			help(c, "To use a keel.vault you already have: quit Slime, run keel serve stop, put that keel.vault and its keel.json in "+
+				dataFolder(f.vault.Path)+", then open Slime. It opens with the keychain or passphrase that made it. Slime does not change a vault it cannot open.")
 		})
 	}
 	f.foot(func() {
@@ -528,7 +528,7 @@ func (w *workspace) importKeys(c *ui.Context, f *firstRun, p keelclient.SSHPrevi
 				}
 			})
 		}
-		help(c, "Each key is off until you turn it on. The files in ~/.ssh stay where they are; Keel only reads them. A copied key becomes a Keychain identity, encrypted in the vault with its passphrase. Hosts whose key stays off are added with password sign-in; edit them to pick a key.")
+		help(c, "Each key is off until you turn it on. The files in ~/.ssh stay where they are; Slime only reads them. A copied key becomes a Keychain identity, encrypted in the vault with its passphrase. Hosts whose key stays off are added with password sign-in; edit them to pick a key.")
 	})
 }
 
@@ -603,7 +603,7 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 		if textBtn(c, "Set up later", btnDefault) {
 			w.act(func() { w.finishFirstRun(f) })
 		}
-		if bigPrimary(c, "Open Keel", !f.busy) {
+		if bigPrimary(c, "Open Slime", !f.busy) {
 			w.act(func() { w.openKeel(f) })
 		}
 	})

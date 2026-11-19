@@ -264,7 +264,7 @@ func TestTheRunbookListOffersRunbooksWithStepsAndTheirRoles(t *testing.T) {
 func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	r := groupRig(t)
 	r.fb.grp.files = []keelclient.ExportFile{
-		{Name: "inventory.ini", Kind: "inventory", Lines: 3, Content: "[infra]\npg-1\n# old_pw: left out: its value is also in Keel's vault\n"},
+		{Name: "inventory.ini", Kind: "inventory", Lines: 3, Content: "[infra]\npg-1\n# old_pw: left out: its value is also in Slime's vault\n"},
 		{Name: "playbooks/restart.yml", Kind: "playbook", Lines: 2, Content: "- hosts: infra\n"},
 	}
 	p := r.openGroup(t, "Infra")
@@ -275,7 +275,7 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	if q := r.fb.grp.ansibleQs[len(r.fb.grp.ansibleQs)-1]; q.Format != "ini" || q.RunbookID != "" || !q.User || q.Jump {
 		t.Errorf("first query %+v", q)
 	}
-	for _, s := range []string{groupExportHelp, "inventory.ini", "playbooks/restart.yml", "3 lines · INI · from this folder's roles and variables", "# old_pw: left out: its value is also in Keel's vault", "Try it first: ansible-playbook -i inventory.ini playbooks/restart.yml --check", groupExportSafe} {
+	for _, s := range []string{groupExportHelp, "inventory.ini", "playbooks/restart.yml", "3 lines · INI · from this folder's roles and variables", "# old_pw: left out: its value is also in Slime's vault", "Try it first: ansible-playbook -i inventory.ini playbooks/restart.yml --check", groupExportSafe} {
 		if !r.tt.HasText(s) {
 			t.Errorf("the drawer lacks %q: %v", s, r.tt.Texts())
 		}

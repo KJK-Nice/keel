@@ -21,7 +21,7 @@ import (
 
 const (
 	joinTitle = "Join a session"
-	joinDesc  = "Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault."
+	joinDesc  = "Paste the Share link from the other Slime. You follow until they pass control. You never see their hosts or vault."
 )
 
 type joinDialog struct {
