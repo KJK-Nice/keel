@@ -1,20 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- In-app mark (splash, favicon, tray): the slime of Keel.icon, flat, for 16–64 px. Dock icon is Keel.icon via genicon.go. -->
+  <!-- In-app mark (splash, favicon, tray header): Keel.icon's slime, flat and a little larger, for 16–64 px. Dock icon is Keel.icon via genicon.go. -->
   <defs>
-    <path id="dome" d="M982 560C984 580 986 602 984 622C982 642 979 664 972 683C965 702 954 721 940 737C926 753 908 767 891 779C874 791 855 800 836 808C817 816 797 822 779 827C761 832 744 836 727 840C710 844 694 846 678 848C662 850 648 852 633 853C618 854 605 855 591 856C577 857 564 857 551 857C538 857 525 858 512 858C499 858 486 857 473 856C460 855 447 855 434 853C421 851 407 848 393 846C379 844 366 842 351 840C336 838 320 835 304 831C288 827 272 822 255 817C238 812 220 806 202 798C184 790 165 782 147 771C129 760 110 747 96 732C82 717 70 699 61 681C52 663 46 642 43 622C40 602 40 580 41 560C42 540 47 519 51 499C55 479 60 460 67 441C74 422 82 403 91 385C100 367 110 350 121 334C132 318 144 302 157 287C170 272 183 258 197 245C211 232 227 220 243 209C259 198 275 189 292 180C309 171 327 163 345 157C363 151 382 146 400 142C418 138 437 135 456 133C475 131 493 130 512 130C531 130 549 132 568 134C587 136 606 140 624 144C642 148 660 154 678 160C696 166 713 174 730 182C747 190 764 200 780 210C796 220 812 232 827 245C842 258 855 272 868 287C881 302 892 318 903 334C914 350 923 368 932 386C941 404 949 422 956 441C963 460 968 479 972 499C976 519 980 540 982 560Z"/>
-    <clipPath id="clip"><use href="#dome"/></clipPath>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2=".7">
+      <stop offset="0" stop-color="#d02fd0"/>
+      <stop offset="1" stop-color="#3885ff"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a6dcf8"/>
+      <stop offset="1" stop-color="#55bef0"/>
+    </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="7.2" fill="#ffffff"/>
-  <g transform="translate(1.36 2.39) scale(.02854)">
-    <use href="#dome" fill="#5ccdff"/>
-    <g clip-path="url(#clip)">
-      <path d="M0 470C70 470 110 520 150 565C215 640 330 692 512 700C690 702 780 662 840 592C880 545 915 490 1024 450V1024H0Z" fill="#1a6cc6"/>
-      <ellipse cx="270" cy="275" rx="105" ry="58" transform="rotate(-27 270 275)" fill="#ffffff"/>
-    </g>
-    <use href="#dome" fill="none" stroke="#12304a" stroke-width="40"/>
-    <g fill="none" stroke="#12304a" stroke-width="85" stroke-linecap="round">
-      <path d="M215 466C250 455 290 460 325 476"/>
-      <path d="M530 490C570 480 620 490 660 510"/>
-    </g>
+  <rect width="32" height="32" rx="7.2" fill="url(#ground)"/>
+  <g transform="translate(16 16.5) scale(.036) translate(-512 -512)">
+    <path fill="url(#body)" d="M511.6 220C718 220 890 380 890 592C890 748 734 804 511.6 804C313.2 804 134.8 732 134.8 592C134.8 380 305.2 220 511.6 220Z"/>
+    <g fill="none" stroke="#12304a" stroke-width="56" stroke-linecap="round"><path d="M267.6 488.8C294 481.6 334 485.6 366 499.2"/> <path d="M517.2 508.8C550 501.6 602 509.6 636.4 528"/> </g>
   </g>
 </svg>

@@ -78,8 +78,8 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 The mark is a resting slime: a blue dome seen from slightly above with two closed eyes. It is the one place Keel uses blue outside the palette; it is not a token and nothing else in the UI takes its colours.
 
 - `packaging/macos/Keel.icon` is the Dock icon, an Icon Composer document of two flat layers (body, face) on a pink-to-blue gradient ground (the system dark ground in dark mode). Icon Composer draws the glass, rim and shadow, so the layers carry none. `make macos-icon` exports `icon.png` and `Keel.icns` from it.
-- `packaging/macos/icon.svg` is the small mark (splash, favicon, 16 to 64 px): the same slime with a darker band low on its body, one highlight and no mouth. `internal/native/macos/app-icon.png` is it at 32 px.
-- `internal/native/macos/tray-template.png` is the menu bar template: the dome in black with the eyes cut out.
+- `packaging/macos/icon.svg` is the small mark (splash, favicon, 16 to 64 px): the Dock slime on the same gradient ground, flat, a little larger and without the mouth. `internal/native/macos/app-icon.png` is it at 32 px.
+- `internal/native/macos/tray-template.png` is the menu bar template: the Dock slime's dome in black with the eyes cut out.
 
 Use the marks as supplied; do not recolor them brass or redraw them.
 
