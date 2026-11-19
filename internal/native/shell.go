@@ -18,7 +18,7 @@ import (
 //go:embed macos/tray-template.png
 var trayIcon []byte
 
-// appIcon is packaging/macos/icon.png at 32 px: the tray menu's header shows it at 16pt.
+// appIcon is packaging/macos/icon.svg at 32 px: the tray menu's header shows it at 16pt.
 //
 //go:embed macos/app-icon.png
 var appIcon []byte

@@ -75,7 +75,13 @@ Every text token holds 4.5:1 on the grounds its usage note names, in both themes
 
 ## Logo
 
-`assets/Logos/keel-mark.svg` is the in-app mark (splash, favicon): a dark hexagonal hull with a slit, on a white rounded square. `keel-app-icon.png` is the macOS Dock icon. Use the mark as supplied; do not recolor it brass or redraw it.
+The mark is a resting slime: a blue dome seen from slightly above, a darker band low on its body, and two closed eyes. It is the one place Keel uses blue outside the palette; it is not a token and nothing else in the UI takes its colours.
+
+- `packaging/macos/Keel.icon` is the Dock icon, an Icon Composer document of three flat layers (body, band, face) on a white ground (dark ground in dark mode). Icon Composer draws the glass, rim and shadow, so the layers carry none. `make macos-icon` exports `icon.png` and `Keel.icns` from it.
+- `packaging/macos/icon.svg` is the small mark (splash, favicon, 16 to 64 px): the same slime in two flat blues with one highlight and no mouth. `internal/native/macos/app-icon.png` is it at 32 px.
+- `internal/native/macos/tray-template.png` is the menu bar template: the dome in black with the eyes cut out.
+
+Use the marks as supplied; do not recolor them brass or redraw them.
 
 ## Choosing a value
 
