@@ -1,15 +1,20 @@
 {
   "fill" : {
-    "solid" : "srgb:1.00000,1.00000,1.00000,1.00000"
-  },
-  "fill-specializations" : [
-    {
-      "appearance" : "dark",
-      "value" : {
-        "solid" : "srgb:0.07000,0.09000,0.12000,1.00000"
+    "linear-gradient" : [
+      "display-p3:0.80293,0.18799,0.80602,1.00000",
+      "srgb:0.21876,0.52169,1.00000,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 1
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.3
       }
     }
-  ],
+  },
   "groups" : [
     {
       "layers" : [
@@ -31,9 +36,41 @@
     {
       "layers" : [
         {
+          "blend-mode-specializations" : [
+            {
+              "value" : "darken"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : "lighten"
+            }
+          ],
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:0.33333,0.74510,0.94118,1.00000",
+            "orientation" : {
+              "start" : {
+                "x" : 0.5,
+                "y" : 0
+              },
+              "stop" : {
+                "x" : 0.5,
+                "y" : 0.7
+              }
+            }
+          },
           "glass" : true,
+          "hidden" : false,
           "image-name" : "slime-body.svg",
-          "name" : "slime-body"
+          "name" : "slime-body",
+          "opacity-specializations" : [
+            {
+              "value" : 1
+            },
+            {
+              "appearance" : "dark",
+              "value" : 1
+            }
+          ]
         }
       ],
       "shadow" : {
@@ -47,9 +84,6 @@
     }
   ],
   "supported-platforms" : {
-    "circles" : [
-      "watchOS"
-    ],
     "squares" : "shared"
   }
 }
