@@ -71,8 +71,8 @@ func allowClaudeCode(t *testing.T, st *store.Store) {
 // cookie do not open /api/mcp/; a request with an Origin (a page) is
 // refused there even with the token.
 func TestMCPRoutesTakeOnlyTheirOwnToken(t *testing.T) {
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"keel/internal/authtoken"
+	"keel/internal/env"
 	"keel/internal/paths"
 	"keel/internal/wire"
 )
@@ -25,7 +26,7 @@ type Client struct {
 	addr, token string
 	http        *http.Client
 	slow        *http.Client // no timeout of its own: Ask (agent.go)
-	// Name is who this client says it is on a session socket; "" is KEEL_NAME, else the user name. Set it before
+	// Name is who this client says it is on a session socket; "" is SLIME_NAME, else the user name. Set it before
 	// the first Spawn or Attach.
 	Name string
 }
@@ -244,8 +245,8 @@ func (c *Client) name() string {
 	if c.Name != "" {
 		return c.Name
 	}
-	for _, k := range []string{"KEEL_NAME", "USER"} {
-		if v := os.Getenv(k); v != "" {
+	for _, v := range []string{env.Get("NAME"), os.Getenv("USER")} {
+		if v != "" {
 			return v
 		}
 	}

@@ -12,7 +12,7 @@ The answer can carry command proposals: Slime shows the exact bytes and a Read-o
 
 The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are saved encrypted in the vault and kept for the period set in Settings · Agent · Keep conversations (7, 30 or 90 days, 1 year, or "Only while open", which saves nothing).
 
-`KEEL_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `keel serve` refuses to start with the variable set to `fake`.
+`SLIME_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `keel serve` refuses to start with the variable set to `fake`.
 
 ## Model providers
 
@@ -44,7 +44,7 @@ Or in a project's `.mcp.json`:
 { "mcpServers": { "keel": { "command": "/Applications/Slime.app/Contents/MacOS/Slime", "args": ["mcp"] } } }
 ```
 
-Set `KEEL_ADDR` / `KEEL_DATA` in the server's `env` if your Slime uses others.
+Set `SLIME_ADDR` / `SLIME_DATA` in the server's `env` if your Slime uses others.
 
 | Tool | What it does |
 |---|---|
@@ -55,7 +55,7 @@ Set `KEEL_ADDR` / `KEEL_DATA` in the server's `env` if your Slime uses others.
 
 There is no tool that types: Claude Code cannot run anything in a pane. Proposals appear in the agent panel's conversation list (reopen the list to see new ones); with **Keep conversations** set to "Only while the panel is open", the conversation is not listed, so keep history on to use it.
 
-`keel mcp` sends its own token, `keel-mcp.token` in `KEEL_DATA` (made by `keel serve` on start). It opens `/api/mcp/` only, never the vault or the rest of the API, and the UI's token does not open `/api/mcp/`. That keeps keel mcp to its routes, but it is not a sandbox: any program running as you, Claude Code's shell commands included, can read `KEEL_DATA` (and `keel-serve.token` in it). Deny it in Claude Code's permissions, for example in `~/.claude/settings.json`:
+`keel mcp` sends its own token, `keel-mcp.token` in `SLIME_DATA` (made by `keel serve` on start). It opens `/api/mcp/` only, never the vault or the rest of the API, and the UI's token does not open `/api/mcp/`. That keeps keel mcp to its routes, but it is not a sandbox: any program running as you, Claude Code's shell commands included, can read `SLIME_DATA` (and `keel-serve.token` in it). Deny it in Claude Code's permissions, for example in `~/.claude/settings.json`:
 
 ```json
 { "permissions": { "deny": ["Read(~/Library/Application Support/keel/**)"] } }

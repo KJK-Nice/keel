@@ -396,12 +396,12 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
 	r.texts(t, "signal server must be an https or wss URL")
-	// KEEL_SIGNAL wins for the run, and says so; the field still holds the saved server.
+	// SLIME_SIGNAL wins for the run, and says so; the field still holds the saved server.
 	fb.signalErr = nil
 	fb.runtime = keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://saved.example"}
 	r.w.loadSettings()
 	r.tt.Frame()
-	r.texts(t, "KEEL_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set.")
+	r.texts(t, "SLIME_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set.")
 }
 
 func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
@@ -409,7 +409,7 @@ func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
 	r := settingsRig(t, fb)
 	r.section(t, "Vault & security")
 	r.texts(t, "Passwords, key passphrases and the agent key are encrypted in the vault file. Nothing here shows a secret.",
-		"Vault", "State", "Unlocked", "Unlocked with", "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Slime asks for the passphrase.",
+		"Vault", "State", "Unlocked", "Unlocked with", "Passphrase", "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase.",
 		"Vault file", "/scratch/data/keel.vault", "Copy path", "Safety", "The agent never sees vault contents", "A lost passphrase cannot be recovered")
 	r.click(t, "Copy path")
 	if r.tt.Clipboard() != "/scratch/data/keel.vault" || !r.tt.HasText("Copied") {

@@ -15,21 +15,23 @@ keel version         # the version this binary was released as (dev when built f
 
 ## Environment variables
 
+Each variable also works under its name from before the rename, `KEEL_` in place of `SLIME_`; the `SLIME_` one wins when both are set.
+
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `KEEL_ADDR` | `127.0.0.1:47241` | Where `keel serve` binds (loopback) |
-| `KEEL_DATA` | OS config dir `/keel` | `keel.json`, `keel.vault`, pid, logs |
-| `KEEL_NAME` | `$USER` | Display name |
-| `KEEL_SIGNAL` | (unset) | Public URL of `keel-signal` for internet join ([Sharing](sharing.md)) for this run. It wins over the server saved in Settings · Sharing, which wins over one baked in with `make build KEEL_SIGNAL=…`. |
-| `KEEL_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable (a scripted setup: no first-run screens) |
-| `KEEL_KEYRING` | (unset) | `off`: never read or write the OS keychain item (`keel`/`vault`), as if the keychain did not answer. For tests and machines without a keychain |
-| `KEEL_SSH_DIR` | `~/.ssh` | Where the host import reads `config` and the keys it names; `~` in that config is the folder above it. Tests point it at a fixture |
+| `SLIME_ADDR` | `127.0.0.1:47241` | Where `keel serve` binds (loopback) |
+| `SLIME_DATA` | OS config dir `/keel` | `keel.json`, `keel.vault`, pid, logs |
+| `SLIME_NAME` | `$USER` | Display name |
+| `SLIME_SIGNAL` | (unset) | Public URL of `keel-signal` for internet join ([Sharing](sharing.md)) for this run. It wins over the server saved in Settings · Sharing, which wins over one baked in with `make build SLIME_SIGNAL=…`. |
+| `SLIME_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable (a scripted setup: no first-run screens) |
+| `SLIME_KEYRING` | (unset) | `off`: never read or write the OS keychain item (`keel`/`vault`), as if the keychain did not answer. For tests and machines without a keychain |
+| `SLIME_SSH_DIR` | `~/.ssh` | Where the host import reads `config` and the keys it names; `~` in that config is the folder above it. Tests point it at a fixture |
 
 ## Loopback API
 
-`keel serve` listens on loopback only and answers only requests whose `Host` is `127.0.0.1`, `::1` or `localhost`, so a web page that rebinds its own domain to 127.0.0.1 is refused. `keel serve` serves a JSON/WebSocket API and no web page: any other path answers 404. `/api/` and `/ws/` (except `/api/health`) need the token in `keel-serve.token` (mode 0600 in `KEEL_DATA`), sent as the `X-Keel-Token` header by the window and by `keel serve stop`; it is the only credential (no cookie, no query parameter), and a request with an `Origin` that is not the server's own loopback address is refused. Before handing over the token, the app asks the server to prove it holds it (HMAC of a random nonce), so another program that grabbed the port gets nothing.
+`keel serve` listens on loopback only and answers only requests whose `Host` is `127.0.0.1`, `::1` or `localhost`, so a web page that rebinds its own domain to 127.0.0.1 is refused. `keel serve` serves a JSON/WebSocket API and no web page: any other path answers 404. `/api/` and `/ws/` (except `/api/health`) need the token in `keel-serve.token` (mode 0600 in `SLIME_DATA`), sent as the `X-Keel-Token` header by the window and by `keel serve stop`; it is the only credential (no cookie, no query parameter), and a request with an `Origin` that is not the server's own loopback address is refused. Before handing over the token, the app asks the server to prove it holds it (HMAC of a random nonce), so another program that grabbed the port gets nothing.
 
-`/api/mcp/` (keel mcp, [Agent](agent.md)) takes a different token, `keel-mcp.token` (mode 0600 in `KEEL_DATA`), in `X-Keel-MCP-Token`, and nothing else: not the UI's token or cookie, and not a request with an `Origin`. That token opens no other route. `/api/health?mcpNonce=` proves the server holds it, as `?nonce=` does for the UI's; keel mcp checks that proof before every request and follows no redirect. While Settings · Agent → "Allow Claude Code (keel mcp)" is off (the default), every `/api/mcp/` route answers 403.
+`/api/mcp/` (keel mcp, [Agent](agent.md)) takes a different token, `keel-mcp.token` (mode 0600 in `SLIME_DATA`), in `X-Keel-MCP-Token`, and nothing else: not the UI's token or cookie, and not a request with an `Origin`. That token opens no other route. `/api/health?mcpNonce=` proves the server holds it, as `?nonce=` does for the UI's; keel mcp checks that proof before every request and follows no redirect. While Settings · Agent → "Allow Claude Code (keel mcp)" is off (the default), every `/api/mcp/` route answers 403.
 
 ## Upgrading
 

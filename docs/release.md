@@ -8,7 +8,7 @@ Releases are cut from `main` by pushing a tag; `.github/workflows/release.yml` d
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-The workflow runs `scripts/release.sh` for each target; the script is the source of what is built, and it fails, before anything is published, when the tag and `mygo.json` disagree. A tag with a hyphen (`vX.Y.Z-rc.1`) is a pre-release. Release builds bake in no `KEEL_SIGNAL`. The release is published with the install notes of `.github/release-notes.md` (its "What's new" section is the release's own: rewrite it for each tag) and notes generated from the merged PRs. A PR that changes the release tooling (`mygo.json`, `packaging/`, the Makefile, the scripts, the workflow) runs the same builds as a dry run and keeps the files as workflow artifacts. Locally, `sh scripts/release.sh vX.Y.Z macos|linux|signal` builds into `dist/`; it never uploads.
+The workflow runs `scripts/release.sh` for each target; the script is the source of what is built, and it fails, before anything is published, when the tag and `mygo.json` disagree. A tag with a hyphen (`vX.Y.Z-rc.1`) is a pre-release. Release builds bake in no `SLIME_SIGNAL`. The release is published with the install notes of `.github/release-notes.md` (its "What's new" section is the release's own: rewrite it for each tag) and notes generated from the merged PRs. A PR that changes the release tooling (`mygo.json`, `packaging/`, the Makefile, the scripts, the workflow) runs the same builds as a dry run and keeps the files as workflow artifacts. Locally, `sh scripts/release.sh vX.Y.Z macos|linux|signal` builds into `dist/`; it never uploads.
 
 ## Release files
 
@@ -38,7 +38,7 @@ Repository secrets (Settings, Secrets and variables, Actions). Names only here; 
 | `APPLE_APP_PASSWORD` | an app-specific password of that Apple ID (account.apple.com, Sign-In and Security) |
 | `MYGO_UPDATER_PRIVATE_KEY` | the secret key of `mygo keygen` (`mygo-update.key`) that signs the in-app updates; required for a tagged release (see Auto-updates) |
 
-The job puts the certificate and the notary credentials (the keychain profile `notary`, which `mygo.json` names) in a keychain that lives as long as the job, passes the identity to `scripts/release.sh` as `KEEL_SIGN_IDENTITY`, and MyGo signs `Slime.app` and its libghostty-vt with the hardened runtime and the entitlements of `packaging/macos/entitlements.plist`, submits the disk image to Apple's notary service, waits and staples the ticket. An App Store Connect API key works in place of the Apple ID (`notarytool store-credentials --key --key-id --issuer`); the workflow step would change with it.
+The job puts the certificate and the notary credentials (the keychain profile `notary`, which `mygo.json` names) in a keychain that lives as long as the job, passes the identity to `scripts/release.sh` as `SLIME_SIGN_IDENTITY`, and MyGo signs `Slime.app` and its libghostty-vt with the hardened runtime and the entitlements of `packaging/macos/entitlements.plist`, submits the disk image to Apple's notary service, waits and staples the ticket. An App Store Connect API key works in place of the Apple ID (`notarytool store-credentials --key --key-id --issuer`); the workflow step would change with it.
 
 Windows has no Slime build, so MyGo's Windows secrets (`MYGO_WINDOWS_CERTIFICATE_PASSWORD`) are not used.
 

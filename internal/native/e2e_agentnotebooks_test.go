@@ -16,7 +16,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notebooks and the agent against a real keel serve with the fake provider (KEEL_AGENT_PROVIDER=fake, made-up key only; no
+// Notebooks and the agent against a real keel serve with the fake provider (SLIME_AGENT_PROVIDER=fake, made-up key only; no
 // model is reached). The questions are: "read / edit / drop the notebook <title in
 // lower case>" makes the fake read, edit (keel-edit-me becomes keel-edited-by-agent) or propose deleting it, and "write this
 // up" makes it create a notebook (named agentDraftName) with a shell fence. The daemon decides everything; these tests look

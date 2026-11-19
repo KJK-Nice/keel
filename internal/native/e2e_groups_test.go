@@ -19,7 +19,7 @@ import (
 )
 
 // Folders, the Group page and group runs against a real keel serve that answers from its in-process fake
-// (KEEL_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider or calls keel mcp's
+// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider or calls keel mcp's
 // routes. Hosts are Local Shells (authType local) made through the API, each in its own scratch /bin/sh; every command a run
 // types is a harmless echo and every value made up. A group run proposes nothing without a pane open, so each scenario opens
 // the hosts' sessions as a person does, by clicking them.

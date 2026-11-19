@@ -11,7 +11,7 @@ import (
 )
 
 // Scripted is the test provider `keel serve` uses when started with
-// KEEL_AGENT_PROVIDER=fake (end-to-end tests only). It sends nothing
+// SLIME_AGENT_PROVIDER=fake (end-to-end tests only). It sends nothing
 // anywhere and has no way to: it builds a canned reply from the request it
 // is given, in this process, and keeps only the last few requests in
 // memory for Go tests to inspect.
@@ -137,7 +137,7 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 			body += "\n\n![chart](" + LeakImageURL + ")"
 		}
 		if strings.Contains(question, "placeholder") {
-			body += "\n\n## Sign in\nSet the token first:\n\n```sh\nexport KEEL_TOKEN=[secret:1]\n```"
+			body += "\n\n## Sign in\nSet the token first:\n\n```sh\nexport SLIME_TOKEN=[secret:1]\n```"
 		}
 		raw, _ := json.Marshal(map[string]string{"title": "keel-notebook-e2e draft", "body": body})
 		b.WriteString(" Here is a write-up as a notebook draft:\n\n```keel-notebook\n" + string(raw) + "\n```\n")

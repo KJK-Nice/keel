@@ -203,7 +203,7 @@ func keychainDesc(f *firstRun, keychain string) string {
 	case f.usesKeychain():
 		return "The vault key lives in your login keychain. Slime opens without asking."
 	case f.vault.KeyringOff:
-		return "Slime was started with KEEL_KEYRING=off, so it does not use the keychain."
+		return "Slime was started with SLIME_KEYRING=off, so it does not use the keychain."
 	case f.vault.NeedsSetup:
 		return keychain + " didn't answer, so Slime can't keep the vault key there. Use a passphrase, or allow Slime in " + keychain + " and open Slime again."
 	}

@@ -71,7 +71,7 @@ func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
 	case v.Mode == "keychain":
 		return kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run keel serve stop and open Slime again.", true
 	case v.KeyringOff:
-		return "Slime was started with KEEL_KEYRING=off, so it needs your passphrase.", false
+		return "Slime was started with SLIME_KEYRING=off, so it needs your passphrase.", false
 	}
 	return kc + " doesn't hold this vault's key, so Slime needs your passphrase.", false
 }

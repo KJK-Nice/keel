@@ -9,10 +9,10 @@ import (
 )
 
 func TestKeyringOffNeverAsksTheKeychain(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
 	// No TestVault here: the variable alone keeps the keychain away.
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_KEYRING", "off")
 	st, err := New(filepath.Join(t.TempDir(), "keel.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -30,9 +30,9 @@ func TestKeyringOffNeverAsksTheKeychain(t *testing.T) {
 }
 
 func TestFirstRunOnlyOnSeededStores(t *testing.T) {
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
 	path := filepath.Join(t.TempDir(), "keel.json")
 	st, err := New(path, TestVault())
 	if err != nil {
@@ -58,7 +58,7 @@ func TestFirstRunOnlyOnSeededStores(t *testing.T) {
 	if err := os.WriteFile(old, []byte(`{"version":3,"hosts":[],"knownHosts":{}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "p")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "p")
 	st2, err := New(old, TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestFirstRunOnlyOnSeededStores(t *testing.T) {
 	if st2.VaultState().FirstRun {
 		t.Fatal("an existing keel.json must not start a first run")
 	}
-	// KEEL_VAULT_PASSPHRASE on a fresh store is a scripted setup: no first run.
+	// SLIME_VAULT_PASSPHRASE on a fresh store is a scripted setup: no first run.
 	st3, err := New(filepath.Join(t.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		t.Fatal(err)

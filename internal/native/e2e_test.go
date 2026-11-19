@@ -62,7 +62,7 @@ func freePort(t *testing.T) int {
 	}
 }
 
-// e2ePass is the scratch vault passphrase of these tests (KEEL_VAULT_PASSPHRASE of a daemon, typed by the one
+// e2ePass is the scratch vault passphrase of these tests (SLIME_VAULT_PASSPHRASE of a daemon, typed by the one
 // that tests Unlock). It opens nothing but a vault under .scratch-native; no test prints it.
 const e2ePass = "native-e2e-scratch"
 
@@ -98,11 +98,11 @@ func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...s
 	}
 	dataDir := filepath.Join(dir, "data")
 	addr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
-	// KEEL_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from keel serve's in-process fake and
+	// SLIME_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from keel serve's in-process fake and
 	// nothing is sent to a model provider, whatever key a scenario stores (only ever a made-up one).
-	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir, "KEEL_KEYRING=off", "SHELL=/bin/sh", "KEEL_AGENT_PROVIDER=fake")
+	env := append(os.Environ(), "SLIME_ADDR="+addr, "SLIME_DATA="+dataDir, "SLIME_KEYRING=off", "SHELL=/bin/sh", "SLIME_AGENT_PROVIDER=fake")
 	if passphrase {
-		env = append(env, "KEEL_VAULT_PASSPHRASE="+e2ePass)
+		env = append(env, "SLIME_VAULT_PASSPHRASE="+e2ePass)
 	}
 	env = append(env, extraEnv...)
 	logf, err := os.Create(filepath.Join(dir, name+".log"))
@@ -689,7 +689,7 @@ func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 	}
 	out := filepath.Join(filepath.Dir(dataDir), "sshtest.json")
 	cmd := exec.Command(bin, "-out", out)
-	cmd.Env = append(os.Environ(), "KEEL_KEYRING=off")
+	cmd.Env = append(os.Environ(), "SLIME_KEYRING=off")
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -1668,7 +1668,7 @@ func TestE2EUnlock(t *testing.T) {
 	if e.tt.HasText("Welcome to Slime") || e.tt.HasText("Filter hosts") {
 		t.Fatal("First run or the workspace shows with the Unlock screen")
 	}
-	if !e.tt.HasText("Slime was started with KEEL_KEYRING=off, so it needs your passphrase.") || !e.tt.Focused("Vault passphrase") {
+	if !e.tt.HasText("Slime was started with SLIME_KEYRING=off, so it needs your passphrase.") || !e.tt.Focused("Vault passphrase") {
 		t.Error("the banner of a vault opened without the keychain, or the focused field, is missing")
 	}
 	e.settle(300 * time.Millisecond)

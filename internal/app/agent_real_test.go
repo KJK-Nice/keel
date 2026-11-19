@@ -14,12 +14,12 @@ const fakePkg = "keel/internal/agent/provider/providertest"
 
 func TestFakeProviderIsRefusedWithoutItsTag(t *testing.T) {
 	if _, _, _, err := agentProviders("fake"); err == nil || !strings.Contains(err.Error(), "keelfake") {
-		t.Fatalf("KEEL_AGENT_PROVIDER=fake in a build without the tag: err = %v, want a refusal naming the tag", err)
+		t.Fatalf("SLIME_AGENT_PROVIDER=fake in a build without the tag: err = %v, want a refusal naming the tag", err)
 	}
 	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
 		f, j, fake, err := agentProviders(v)
 		if err != nil || fake || f == nil || j == nil {
-			t.Errorf("KEEL_AGENT_PROVIDER=%q: fake=%v err=%v, want the real clients", v, fake, err)
+			t.Errorf("SLIME_AGENT_PROVIDER=%q: fake=%v err=%v, want the real clients", v, fake, err)
 		}
 	}
 }

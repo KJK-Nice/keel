@@ -20,7 +20,7 @@ import (
 	"keel/internal/native/joinpeer"
 )
 
-// Share and Join end to end. The owner is a window on a scratch keel serve with KEEL_SIGNAL on a loopback
+// Share and Join end to end. The owner is a window on a scratch keel serve with SLIME_SIGNAL on a loopback
 // keel-signal; the joiner is a second window on its own scratch keel serve, as a second machine would be. The joiner's
 // peers have no ICE server (e2eJoiner) and the signal server is loopback. The one request that leaves the machine is
 // the STUN binding request keel serve's own share hub makes after Allow (internal/share/hub.go acceptPeer), which
@@ -125,7 +125,7 @@ func startSignal(t *testing.T, dir string) string {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(bin)
-	cmd.Env = append(os.Environ(), "KEEL_SIGNAL_ADDR="+addr)
+	cmd.Env = append(os.Environ(), "SLIME_SIGNAL_ADDR="+addr)
 	cmd.Stdout, cmd.Stderr = logf, logf
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func newShareE2E(t *testing.T, withSignal bool) *shareE2E {
 	env := []string{"PATH=" + noPasteboard(t, dir)}
 	if withSignal {
 		r.sig = startSignal(t, dir)
-		env = append(env, "KEEL_SIGNAL="+r.sig)
+		env = append(env, "SLIME_SIGNAL="+r.sig)
 	}
 	addrA, _ := startServeAt(t, dir, "serve-a", true, env...)
 	dirB := filepath.Join(dir, "b")

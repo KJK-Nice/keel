@@ -12,7 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// The agent panel against a real keel serve that answers from its in-process fake (KEEL_AGENT_PROVIDER=fake, set for
+// The agent panel against a real keel serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake, set for
 // every daemon by startServeAt): nothing here reaches a model provider, and the only key ever stored is made up. What
 // the scenarios prove is what reaches the PTY and when: nothing before the approved Type, then exactly the proposal's
 // bytes, and the log rows keel serve writes (agent.read, agent.suggest, and agent.type only after approval).

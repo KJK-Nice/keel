@@ -258,7 +258,7 @@ func TestTheClosedFoldersComeBackAfterARestart(t *testing.T) {
 	if _, ok := w2.tt.Find("host laptop"); !ok {
 		t.Error("a loose host is gone")
 	}
-	// No data folder (a test, or KEEL_DATA unset): nothing is written and nothing breaks.
+	// No data folder (a test, or SLIME_DATA unset): nothing is written and nothing breaks.
 	r2 := folderRig(t)
 	r2.click(t, "folder Infra")
 }

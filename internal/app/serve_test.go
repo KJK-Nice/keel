@@ -70,7 +70,7 @@ func TestWriteReadRemovePid(t *testing.T) {
 }
 
 func TestRunServeHealthAndStop(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -146,7 +146,7 @@ func TestBadTokenIsRefusedWithoutLeak(t *testing.T) {
 }
 
 func TestSpawnAndAttachQuery(t *testing.T) {
-	t.Setenv("KEEL_NAME", "tester")
+	t.Setenv("SLIME_NAME", "tester")
 	f := newFake(t)
 	spawn(t, f)
 	f.mu.Lock()

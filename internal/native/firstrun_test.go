@@ -56,7 +56,7 @@ func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 	r.texts(t, "Vault", "Hosts", "Agent", "Welcome to Slime",
 		"Slime keeps your SSH sessions running after you close the window. First, a vault for host passwords and keys. It is encrypted on this machine and never leaves it.",
 		"Unlock with "+kc, "Recommended",
-		"Slime was started with KEEL_KEYRING=off, so it does not use the keychain.",
+		"Slime was started with SLIME_KEYRING=off, so it does not use the keychain.",
 		"Use a passphrase", "You type it each time keel serve starts. Pick this on shared machines or when there is no keychain.",
 		"Passphrase", "Repeat passphrase", "Slime can't recover the vault if you lose the passphrase.",
 		"Vault file", "~/keel/keel.vault", "Encryption", "age, with a key made from your passphrase (scrypt)",
@@ -68,7 +68,7 @@ func TestFirstRunStep1WordsWhenTheVaultNeedsSetup(t *testing.T) {
 	if !slices.Equal(fb.calls, []string{"vault"}) {
 		t.Errorf("calls %v", fb.calls)
 	}
-	// Without KEEL_KEYRING=off the keychain card says it could not keep the key there.
+	// Without SLIME_KEYRING=off the keychain card says it could not keep the key there.
 	fb2 := setupBackend()
 	fb2.vault.KeyringOff = false
 	r2 := firstRunRig(t, fb2)
@@ -170,7 +170,7 @@ func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 	// A passphrase vault says so on its passphrase card.
 	fb2 := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "passphrase", KeyringOff: true}, preview: testPreview()}
 	r2 := firstRunRig(t, fb2)
-	r2.texts(t, "Slime was started with KEEL_KEYRING=off, so it does not use the keychain.", "age, with a key made from your passphrase (scrypt)")
+	r2.texts(t, "Slime was started with SLIME_KEYRING=off, so it does not use the keychain.", "age, with a key made from your passphrase (scrypt)")
 }
 
 func atHosts(t *testing.T, fb *fakeBackend) *rig {

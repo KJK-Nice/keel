@@ -53,7 +53,7 @@ func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
 		keychainFn bool
 	}{
 		{keelclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run keel serve stop and open Slime again.", false, false},
-		{keelclient.Vault{Locked: true, KeyringOff: true}, "Slime was started with KEEL_KEYRING=off, so it needs your passphrase.", true, false},
+		{keelclient.Vault{Locked: true, KeyringOff: true}, "Slime was started with SLIME_KEYRING=off, so it needs your passphrase.", true, false},
 		{keelclient.Vault{Locked: true}, kc + " doesn't hold this vault's key, so Slime needs your passphrase.", true, true},
 	} {
 		fb := &fakeBackend{vault: c.v}

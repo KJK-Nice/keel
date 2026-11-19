@@ -32,4 +32,4 @@ Saved on the Port forwarding page (Vault sidebar → Forwards → Manage forward
 
 ## Logs
 
-Logs (Vault sidebar footer) is an append-only event log (`keel.log` under `KEEL_DATA`). Connect/spawn/kill, tunnel start/stop, and vault unlock are recorded. Secrets are never written.
+Logs (Vault sidebar footer) is an append-only event log (`keel.log` under `SLIME_DATA`). Connect/spawn/kill, tunnel start/stop, and vault unlock are recorded. Secrets are never written.

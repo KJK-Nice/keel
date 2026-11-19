@@ -15,7 +15,7 @@ import (
 )
 
 // First-run host import (docs/ui-redesign.md §5.15) over HTTP. The import
-// itself, reading ~/.ssh/config (KEEL_SSH_DIR in keel serve) and adding
+// itself, reading ~/.ssh/config (SLIME_SSH_DIR in keel serve) and adding
 // the hosts the user picks, is internal/hostimport.
 
 func (s *Server) WithSSHDir(dir string) *Server {

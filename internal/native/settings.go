@@ -9,6 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"keel/internal/env"
 	"keel/internal/native/keelclient"
 )
 
@@ -213,13 +214,13 @@ func (w *workspace) setDisplayName(v string) {
 }
 
 // defaultName is the name used when no custom one is set: the one keel app was started with (Options.Name), else
-// KEEL_NAME, else the user name (cmd/keel parseName).
+// SLIME_NAME, else the user name (cmd/keel parseName).
 func defaultName() string {
 	if launchName != "" {
 		return launchName
 	}
-	for _, k := range []string{"KEEL_NAME", "USER"} {
-		if v := os.Getenv(k); v != "" {
+	for _, v := range []string{env.Get("NAME"), os.Getenv("USER")} {
+		if v != "" {
 			return v
 		}
 	}

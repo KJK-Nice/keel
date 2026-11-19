@@ -99,7 +99,7 @@ func TestErrorPolicyCarriesTheRefusedHostKey(t *testing.T) {
 // 500 before (deleteHost, deleteSnippet, upsertNotebook). withVault stops a
 // request before it reaches them, so the handlers are called directly.
 func TestHandlersAnswerLockedWith423(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestAgentRoutesSayWhyTheAgentIsUnavailable(t *testing.T) {
 // The routes that answer while the vault is locked are the ones Handler
 // registered as such, and no other.
 func TestLockedVaultExemptionsComeFromTheRouteTable(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestLockedVaultExemptionsComeFromTheRouteTable(t *testing.T) {
 // Close stops the agent's retention timer, which ran until the process
 // ended.
 func TestCloseStopsRetention(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(dir+"/keel.json", store.TestVault())
 	if err != nil {

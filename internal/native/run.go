@@ -124,7 +124,7 @@ func liveBodyT(p *pane, transparent bool) {
 
 // Options say which keel serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
 // what keel app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
-// Name is the display name keel app was started with (--name, else KEEL_NAME, else the user name); "" leaves it to
+// Name is the display name keel app was started with (--name, else SLIME_NAME, else the user name); "" leaves it to
 // the environment (keel-native parses no flags).
 type Options struct {
 	Addr, DataDir, AppBuild string

@@ -18,7 +18,7 @@ import (
 
 // Notebooks against a real keel serve and a real shell (Local Shell): the document is shown rendered and edited as plain
 // Markdown, kept byte for byte, and a fence reaches the shell only through the snippet paths. Every command is a harmless
-// echo, df or uptime; the daemon is the test's own (KEEL_KEYRING=off, the fake agent provider).
+// echo, df or uptime; the daemon is the test's own (SLIME_KEYRING=off, the fake agent provider).
 
 // apiNotebook makes a notebook on the daemon the way another client would, and waits for the window to list it.
 func (e *win) apiNotebook(name, md string) string {

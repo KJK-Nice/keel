@@ -15,8 +15,8 @@ import (
 
 func jumpImportFixture(t *testing.T, cfg string) importFixture {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
 	t.Setenv("USER", "tester")
 	root := t.TempDir()
 	sshDir := filepath.Join(root, "home", ".ssh")

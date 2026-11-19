@@ -11,7 +11,7 @@ import (
 // The vault's test seams stay out of production code: no variable lowers
 // the scrypt cost, the store does not ask whether it runs in a test, only
 // tests pass TestVault, and every store a test opens takes it (or sets
-// KEEL_KEYRING=off on the line above), so no test reaches the OS keychain.
+// SLIME_KEYRING=off on the line above), so no test reaches the OS keychain.
 func TestVaultSeamsAreForTestsOnly(t *testing.T) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -45,7 +45,7 @@ func TestVaultSeamsAreForTestsOnly(t *testing.T) {
 		}
 		src := string(b)
 		inStore := strings.HasPrefix(rel, "internal/store/")
-		if strings.Contains(src, "KEEL_VAULT_"+"FAST") {
+		if strings.Contains(src, "SLIME_VAULT_"+"FAST") {
 			t.Errorf("%s names the retired variable that lowered the scrypt cost", rel)
 		}
 		if !strings.HasSuffix(rel, "_test.go") {
@@ -66,7 +66,7 @@ func TestVaultSeamsAreForTestsOnly(t *testing.T) {
 			if !opens || strings.Contains(l, "TestVault()") {
 				continue
 			}
-			if i > 0 && strings.TrimSpace(lines[i-1]) == `t.Setenv("KEEL_KEYRING", "off")` {
+			if i > 0 && strings.TrimSpace(lines[i-1]) == `t.Setenv("SLIME_KEYRING", "off")` {
 				continue
 			}
 			t.Errorf("%s:%d opens a store without TestVault(): %s", rel, i+1, strings.TrimSpace(l))

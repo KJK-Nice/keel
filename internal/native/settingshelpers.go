@@ -65,7 +65,7 @@ func vaultMode(v keelclient.Vault) (label, help string) {
 		return "OS keychain", "The key that opens the vault is kept in your operating system's keychain. No passphrase to type."
 	case "passphrase":
 		if v.KeyringOff {
-			return "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Slime asks for the passphrase."
+			return "Passphrase", "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase."
 		}
 		return "Passphrase", "Slime asks for the passphrase when it starts."
 	}
@@ -80,7 +80,7 @@ func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
 	relay := "Join links go through this server. It never sees the terminal or the key in the link's #fragment."
 	switch info.SignalSource {
 	case "env":
-		return saved, placeholder, "KEEL_SIGNAL is set for this run, so Slime uses " + url + ". The server saved here is used when it is not set."
+		return saved, placeholder, "SLIME_SIGNAL is set for this run, so Slime uses " + url + ". The server saved here is used when it is not set."
 	case "settings":
 		return saved, placeholder, relay
 	case "build":

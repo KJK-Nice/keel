@@ -22,8 +22,8 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// First run, Keychain and Logs against a scratch keel serve. Every daemon has KEEL_KEYRING=off, its own
-// KEEL_DATA under .scratch-native/e2e and, for the import, KEEL_SSH_DIR at a copy of tests/fixtures/ssh-home/.ssh
+// First run, Keychain and Logs against a scratch keel serve. Every daemon has SLIME_KEYRING=off, its own
+// SLIME_DATA under .scratch-native/e2e and, for the import, SLIME_SSH_DIR at a copy of tests/fixtures/ssh-home/.ssh
 // with two keys made here: the real ~/.ssh and the OS keychain are never touched. The passphrases and the identity
 // password below are scratch values; no test prints them and the checks at the end of each scenario look for them
 // in what the window drew.
@@ -92,12 +92,12 @@ func sshFixtureDir(t *testing.T, dir string) string {
 }
 
 // startFirstRunServe starts a daemon with no vault and no passphrase in its environment, so that it needs setup,
-// with KEEL_SSH_DIR at the fixture.
+// with SLIME_SSH_DIR at the fixture.
 func startFirstRunServe(t *testing.T) (addr, dir, dataDir string) {
 	t.Helper()
 	dir = scratchDir(t)
 	ssh := sshFixtureDir(t, dir)
-	addr, _ = startServeAt(t, dir, "serve", false, "KEEL_SSH_DIR="+ssh)
+	addr, _ = startServeAt(t, dir, "serve", false, "SLIME_SSH_DIR="+ssh)
 	return addr, dir, filepath.Join(dir, "data")
 }
 
@@ -184,7 +184,7 @@ func TestE2EFirstRun(t *testing.T) {
 		t.Fatal("the workspace shows under First run")
 	}
 	for _, s := range []string{"Vault", "Hosts", "Agent", "Passphrase", "Repeat passphrase", "I already have a keel.vault…", "Create vault",
-		"Slime was started with KEEL_KEYRING=off, so it does not use the keychain."} {
+		"Slime was started with SLIME_KEYRING=off, so it does not use the keychain."} {
 		if !e.tt.HasText(s) {
 			t.Errorf("step 1 has no %q", s)
 		}

@@ -13,8 +13,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Theme, UI size, the terminal font and splits that fit, against a scratch keel serve (every daemon has KEEL_KEYRING=off and
-// its own KEEL_DATA under .scratch-native/e2e, on a loopback port the kernel chose).
+// Theme, UI size, the terminal font and splits that fit, against a scratch keel serve (every daemon has SLIME_KEYRING=off and
+// its own SLIME_DATA under .scratch-native/e2e, on a loopback port the kernel chose).
 
 // openSettings shows the Settings page (⌘,) and waits for its Appearance section.
 func (e *win) openSettings() {

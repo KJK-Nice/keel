@@ -4,30 +4,32 @@ ADDR ?= 127.0.0.1:47241
 STATICCHECK_VERSION := v0.8.2
 GOVULNCHECK_VERSION := v1.9.0
 # Release builds stamp the version into `keel version`:
-#   make package KEEL_VERSION=vX.Y.Z
+#   make package SLIME_VERSION=vX.Y.Z
 # (the packages carry the version of mygo.json; scripts/release.sh checks the two agree)
-KEEL_VERSION ?= dev
-KEEL_X := -X main.version=$(KEEL_VERSION)
+# SLIME_VERSION, SLIME_SIGNAL and SLIME_SIGN were KEEL_* before the rename; the old names still work.
+SLIME_VERSION ?= $(or $(KEEL_VERSION),dev)
+SLIME_SIGNAL ?= $(KEEL_SIGNAL)
+SLIME_X := -X main.version=$(SLIME_VERSION)
 # Finder-launched Slime.app has no shell env. Bake the public signal URL:
-#   make build KEEL_SIGNAL=https://keel-signal-production.up.railway.app
-ifneq ($(strip $(KEEL_SIGNAL)),)
-KEEL_X += -X keel/internal/share.DefaultSignal=$(KEEL_SIGNAL)
+#   make build SLIME_SIGNAL=https://keel-signal-production.up.railway.app
+ifneq ($(strip $(SLIME_SIGNAL)),)
+SLIME_X += -X keel/internal/share.DefaultSignal=$(SLIME_SIGNAL)
 endif
-KEEL_LDFLAGS := -ldflags "$(KEEL_X)"
+SLIME_LDFLAGS := -ldflags "$(SLIME_X)"
 # Slime is pure Go (the native window is MyGo, purego): no cgo, so a build needs no C toolchain and carries no
 # macOS deployment target of its own.
 # make app opens the native window.
 app:
-	CGO_ENABLED=0 KEEL_ADDR=$(ADDR) go run $(KEEL_LDFLAGS) ./cmd/keel app
+	CGO_ENABLED=0 SLIME_ADDR=$(ADDR) go run $(SLIME_LDFLAGS) ./cmd/keel app
 
-# The one recipe that builds ./cmd/keel into KEEL_OUT, with the build tags in KEEL_TAGS (none for a normal build; the
+# The one recipe that builds ./cmd/keel into SLIME_OUT, with the build tags in SLIME_TAGS (none for a normal build; the
 # test builds below set them for their own target only). bin/keel is the plain binary for development (no bundle:
 # libghostty-vt downloads into the user cache on first run).
-KEEL_TAGS ?=
-KEEL_OUT ?= bin/keel
+SLIME_TAGS ?=
+SLIME_OUT ?= bin/keel
 keel-binary:
-	rm -f $(KEEL_OUT)
-	CGO_ENABLED=0 go build $(KEEL_LDFLAGS) $(if $(KEEL_TAGS),-tags $(KEEL_TAGS)) -o $(KEEL_OUT) ./cmd/keel
+	rm -f $(SLIME_OUT)
+	CGO_ENABLED=0 go build $(SLIME_LDFLAGS) $(if $(SLIME_TAGS),-tags $(SLIME_TAGS)) -o $(SLIME_OUT) ./cmd/keel
 
 # The helper binaries next to bin/keel: the signaling server and the test SSH server.
 helpers:
@@ -46,12 +48,12 @@ THIRD_PARTY_NOTICES:
 # The shipped app, made by mygo build (docs/native.md "Packaging"): build/<os>-<arch>/ holds Slime.app and its disk
 # image on macOS, the binary, tar.gz and .deb on Linux. PLATFORM is mygo's -platform list (default: this machine's;
 # darwin/universal, linux/amd64, linux/arm64 are the release ones, scripts/release.sh). Signed ad hoc and not
-# notarized unless KEEL_SIGN names a Developer ID identity. The bundle id stays app.keel.desktop (mygo.json): the
+# notarized unless SLIME_SIGN names a Developer ID identity. The bundle id stays app.keel.desktop (mygo.json): the
 # Keychain items and the user defaults of Slime are tied to it.
 PLATFORM ?=
-KEEL_SIGN ?=
+SLIME_SIGN ?= $(KEEL_SIGN)
 package: THIRD_PARTY_NOTICES
-	MYGO_LDFLAGS="$(KEEL_X)" go tool mygo build $(if $(PLATFORM),-platform $(PLATFORM)) $(if $(KEEL_SIGN),-sign "$(KEEL_SIGN)",-skip-notarize)
+	MYGO_LDFLAGS="$(SLIME_X)" go tool mygo build $(if $(PLATFORM),-platform $(PLATFORM)) $(if $(SLIME_SIGN),-sign "$(SLIME_SIGN)",-skip-notarize)
 
 macos-icon:
 	cd packaging/macos && go run genicon.go
@@ -61,17 +63,17 @@ signal:
 
 # The native client end to end: the real view and terminal under MyGo's
 # ui.Tester against a scratch keel serve it starts. PNGs: .scratch-native/e2e/.
-# The tag keelfake links the agent's test provider (KEEL_AGENT_PROVIDER=fake), which no other build has: this
+# The tag keelfake links the agent's test provider (SLIME_AGENT_PROVIDER=fake), which no other build has: this
 # bin/keel is a test binary, and make build replaces it.
-native-e2e: KEEL_TAGS = keelfake
+native-e2e: SLIME_TAGS = keelfake
 native-e2e: keel-binary helpers
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
 # bin/keel-e2e is the test build the automation suite drives: its first tag opens MyGo's automation socket
 # (internal/native.CheckAutomationEnv guards it) and the second links the fake agent provider. No release path passes
 # either tag.
-native-automation-build: KEEL_TAGS = keelautomation,keelfake
-native-automation-build: KEEL_OUT = bin/keel-e2e
+native-automation-build: SLIME_TAGS = keelautomation,keelfake
+native-automation-build: SLIME_OUT = bin/keel-e2e
 native-automation-build: keel-binary
 
 # Drives the built app from outside through MyGo's automation socket. Opens real windows briefly.

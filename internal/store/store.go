@@ -18,6 +18,7 @@ import (
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"
 
+	"keel/internal/env"
 	"keel/internal/limits"
 	"keel/internal/paths"
 	"keel/internal/randid"
@@ -396,10 +397,10 @@ type Store struct {
 	// pending holds the secrets an old keel.json had in the clear while an
 	// existing keel.vault is locked; Unlock adds them to the vault.
 	pending map[string]hostSecret
-	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
+	// fromEnv is set when SLIME_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
 	fromEnv bool
-	// keyringOff is KEEL_KEYRING=off, or TestVault: the OS keychain is never
+	// keyringOff is SLIME_KEYRING=off, or TestVault: the OS keychain is never
 	// asked. scryptWork is 0 (age's own work factor) outside tests. Both are
 	// set once, in New.
 	keyringOff bool
@@ -476,7 +477,7 @@ func New(path string, opts ...Option) (*Store, error) {
 		path:       path,
 		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
 		secrets:    map[string]hostSecret{},
-		keyringOff: os.Getenv(envKeyring) == "off",
+		keyringOff: env.Get(envKeyring) == "off",
 		keychain:   osKeychain{},
 		now:        time.Now,
 	}

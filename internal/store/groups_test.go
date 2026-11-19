@@ -168,7 +168,7 @@ func legacyGroupsStore(t *testing.T) *Store {
 	if err := os.WriteFile(path, []byte(legacyGroupsFile), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -242,7 +242,7 @@ func TestLegacyGroupsSavedAtUnlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)

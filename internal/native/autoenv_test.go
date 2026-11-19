@@ -157,14 +157,14 @@ func TestCheckAutomationEnv(t *testing.T) {
 	}{
 		{"off without a socket", "", "", true},
 		{"scratch data, private dir", filepath.Join(private, "a.sock"), scratch, true},
-		{"no KEEL_DATA", filepath.Join(private, "a.sock"), "", false},
+		{"no SLIME_DATA", filepath.Join(private, "a.sock"), "", false},
 		{"default data dir", filepath.Join(private, "a.sock"), def, false},
 		{"default data dir, other spelling", filepath.Join(private, "a.sock"), def + "/../" + filepath.Base(def), false},
 		{"open socket dir", filepath.Join(open, "a.sock"), scratch, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv("MYGO_AUTOMATION", c.sock)
-			t.Setenv("KEEL_DATA", c.data)
+			t.Setenv("SLIME_DATA", c.data)
 			if err := CheckAutomationEnv(); (err == nil) != c.ok {
 				t.Fatalf("CheckAutomationEnv = %v, want ok=%v", err, c.ok)
 			}
@@ -173,13 +173,13 @@ func TestCheckAutomationEnv(t *testing.T) {
 }
 
 func TestDefaultDataDirMatchesPaths(t *testing.T) {
-	t.Setenv("KEEL_DATA", "")
+	t.Setenv("SLIME_DATA", "")
 	want := paths.DataDir()
-	t.Setenv("KEEL_DATA", "/somewhere/else")
+	t.Setenv("SLIME_DATA", "/somewhere/else")
 	if got := defaultDataDir(); got != want {
 		t.Errorf("defaultDataDir = %q, want %q", got, want)
 	}
-	if os.Getenv("KEEL_DATA") != "/somewhere/else" {
-		t.Error("defaultDataDir changed KEEL_DATA")
+	if os.Getenv("SLIME_DATA") != "/somewhere/else" {
+		t.Error("defaultDataDir changed SLIME_DATA")
 	}
 }

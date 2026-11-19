@@ -23,7 +23,7 @@ import (
 
 func hostCheckServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {

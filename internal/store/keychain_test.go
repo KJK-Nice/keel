@@ -47,7 +47,7 @@ var errDenied = errors.New("keychain access denied")
 // A keychain read that fails for any reason but "not found" must never
 // make a new key: that would overwrite the item every data dir shares.
 func TestKeychainReadErrorNeverReplacesTheKey(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	ident, err := age.GenerateX25519Identity()
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestKeychainReadErrorNeverReplacesTheKey(t *testing.T) {
 // A keychain vault whose key could not be read at start unlocks by asking
 // the keychain again; a passphrase cannot open it.
 func TestKeychainVaultUnlocksByRetryingTheKeychain(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	k := &fakeKeychain{}
 	path := filepath.Join(t.TempDir(), "keel.json")
 	st, err := New(path, TestVault(), withFakeKeychain(k))

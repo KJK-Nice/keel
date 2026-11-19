@@ -33,7 +33,7 @@ func TestNormalizeSignal(t *testing.T) {
 	}
 }
 
-// KEEL_SIGNAL beats the server saved in Settings, which beats the one built
+// SLIME_SIGNAL beats the server saved in Settings, which beats the one built
 // in.
 func TestHubSignalSources(t *testing.T) {
 	old := DefaultSignal

@@ -12,12 +12,12 @@
 # workflow is the one exception). `keel version` prints the tag (MYGO_LDFLAGS -X main.version).
 # LICENSE and THIRD_PARTY_NOTICES (scripts/notices.sh) go into every package and archive. The list is the variable
 # $shipped below; mygo.json ("resources") has to repeat it, since MyGo reads that file and not this script.
-# KEEL_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
+# SLIME_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
 # keychain profile "notary"; without it the app is signed ad hoc and not notarized, and the log says so.
 # MYGO_UPDATER_PRIVATE_KEY (the secret of mygo keygen; mygo.json holds its public key) signs the in-app updates:
 # mygo build then writes update-<platform>.json, the app archive and deltas, which the release must carry for
 # "Check for Updates…" (docs/release.md). A tagged release fails without it; a pull request dry run goes on without.
-# No KEEL_SIGNAL is baked in: Share stays off until the user enters a keel-signal in Settings · Sharing
+# No SLIME_SIGNAL is baked in: Share stays off until the user enters a keel-signal in Settings · Sharing
 # (docs/sharing.md).
 set -eu
 
@@ -76,11 +76,12 @@ package() {
 	[ -f THIRD_PARTY_NOTICES ] || sh scripts/notices.sh THIRD_PARTY_NOTICES
 	rm -rf build
 	platforms=$1
-	if [ -n "${KEEL_SIGN_IDENTITY:-}" ]; then
-		echo "release: signing with the Developer ID in KEEL_SIGN_IDENTITY and notarizing (keychain profile notary)"
-		set -- -sign "$KEEL_SIGN_IDENTITY"
+	SLIME_SIGN_IDENTITY=${SLIME_SIGN_IDENTITY:-${KEEL_SIGN_IDENTITY:-}} # its name before the rename still works
+	if [ -n "${SLIME_SIGN_IDENTITY:-}" ]; then
+		echo "release: signing with the Developer ID in SLIME_SIGN_IDENTITY and notarizing (keychain profile notary)"
+		set -- -sign "$SLIME_SIGN_IDENTITY"
 	else
-		echo "release: no KEEL_SIGN_IDENTITY: the macOS app is signed ad hoc and not notarized (Gatekeeper blocks it on other Macs until the user allows it)"
+		echo "release: no SLIME_SIGN_IDENTITY: the macOS app is signed ad hoc and not notarized (Gatekeeper blocks it on other Macs until the user allows it)"
 		set -- -skip-notarize
 	fi
 	MYGO_LDFLAGS="-X main.version=$tag" go tool mygo build -platform "$platforms" "$@"

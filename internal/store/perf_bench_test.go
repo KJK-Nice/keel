@@ -14,7 +14,7 @@ import (
 // notebooks of 20 cells (~2 KB each), so saves rewrite a realistic keel.json.
 func benchStore(b *testing.B) (*Store, Notebook) {
 	b.Helper()
-	b.Setenv("KEEL_VAULT_PASSPHRASE", "bench-vault-pass")
+	b.Setenv("SLIME_VAULT_PASSPHRASE", "bench-vault-pass")
 	st, err := New(filepath.Join(b.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		b.Fatal(err)

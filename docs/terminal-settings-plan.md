@@ -80,5 +80,5 @@ The plugin imports MyGo's `internal/*` packages, so it cannot be forked on its o
 
 ## Checks for each step
 
-`make test`, `make lint`, `make native-e2e` (with `KEEL_KEYRING=off`), and `make native-automation` when a step
+`make test`, `make lint`, `make native-e2e` (with `SLIME_KEYRING=off`), and `make native-automation` when a step
 touches key handling (step 4). Every new preference has a test that it is saved and applied to an open pane.

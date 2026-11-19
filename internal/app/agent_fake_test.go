@@ -8,7 +8,7 @@ import "testing"
 func TestOnlyFakeSelectsTheFake(t *testing.T) {
 	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
 		if _, _, fake, err := agentProviders(v); fake || err != nil {
-			t.Errorf("KEEL_AGENT_PROVIDER=%q: fake=%v err=%v", v, fake, err)
+			t.Errorf("SLIME_AGENT_PROVIDER=%q: fake=%v err=%v", v, fake, err)
 		}
 	}
 	fac, judge, fake, err := agentProviders("fake")

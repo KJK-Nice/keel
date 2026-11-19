@@ -50,7 +50,7 @@ type Server struct {
 	build     string
 	// mcpToken is keel mcp's token: it alone opens /api/mcp/ (auth.go).
 	mcpToken string
-	// sshDir is ~/.ssh (KEEL_SSH_DIR), read by the first-run host import.
+	// sshDir is ~/.ssh (SLIME_SSH_DIR), read by the first-run host import.
 	sshDir string
 	// The agent panel (agentask.go). agent is nil without a log.
 	agent        *service.Service
@@ -366,7 +366,7 @@ func (s *Server) runtimeInfo(w http.ResponseWriter, _ *http.Request) {
 
 // signalInfo is the signal server for Settings · Sharing: the one in use
 // (signalURL), where it comes from (signalSource: env, settings, build or
-// ""), and the one saved in Settings (signalSaved), which KEEL_SIGNAL
+// ""), and the one saved in Settings (signalSaved), which SLIME_SIGNAL
 // overrides for the run.
 func (s *Server) signalInfo() map[string]any {
 	return map[string]any{

@@ -33,7 +33,7 @@ func trustKey(st *Store, hostname, keyType, fingerprint string, replace bool) er
 
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := New(filepath.Join(t.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -269,7 +269,7 @@ func TestMigratePlaintextSecrets(t *testing.T) {
 	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -291,10 +291,10 @@ func TestMigratePlaintextSecrets(t *testing.T) {
 }
 
 func TestLockedUntilSetup(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_KEYRING", "off")
 	st, err := New(filepath.Join(t.TempDir(), "keel.json"), TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -609,9 +609,9 @@ func TestSetupRefusesExistingVault(t *testing.T) {
 
 	// Reopen without the passphrase: the existing scrypt vault is locked but
 	// does not need setup. Setup must not overwrite it.
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_KEYRING", "off")
 	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)

@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+
+	"keel/internal/env"
 )
 
 const DefaultListen = "127.0.0.1:47241"
@@ -21,7 +23,7 @@ func LocalUser() string {
 }
 
 func Addr() string {
-	if v := os.Getenv("KEEL_ADDR"); v != "" {
+	if v := env.Get("ADDR"); v != "" {
 		return v
 	}
 	return DefaultListen
@@ -43,7 +45,7 @@ func MCPTokenFile(dataDir string) string {
 }
 
 func DataDir() string {
-	if v := os.Getenv("KEEL_DATA"); v != "" {
+	if v := env.Get("DATA"); v != "" {
 		return v
 	}
 	dir, err := os.UserConfigDir()
@@ -58,10 +60,10 @@ func DataDir() string {
 }
 
 // SSHDir is the folder whose config the first-run import reads: ~/.ssh,
-// or KEEL_SSH_DIR (tests point it at a fixture so they never read the real
+// or SLIME_SSH_DIR (tests point it at a fixture so they never read the real
 // one). ~ in that config stands for the folder above it.
 func SSHDir() string {
-	if v := os.Getenv("KEEL_SSH_DIR"); v != "" {
+	if v := env.Get("SSH_DIR"); v != "" {
 		return v
 	}
 	home, err := os.UserHomeDir()

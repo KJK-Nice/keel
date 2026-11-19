@@ -7,7 +7,7 @@ import (
 
 // Runtime is GET /api/runtime (Settings · Runtime, Sharing and About): keel serve's own status. It holds no secret.
 // SignalSource is env, settings, build or "": where the signal server in use (SignalURL) comes from; SignalSaved is the
-// one saved in Settings, which KEEL_SIGNAL overrides for the run.
+// one saved in Settings, which SLIME_SIGNAL overrides for the run.
 type Runtime struct {
 	Build        string `json:"build"`
 	PID          int    `json:"pid"`

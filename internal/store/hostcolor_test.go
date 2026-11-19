@@ -20,7 +20,7 @@ func TestLegacyHexHostColorReadsAsToken(t *testing.T) {
 	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := New(path, TestVault())
 	if err != nil {
 		t.Fatal(err)

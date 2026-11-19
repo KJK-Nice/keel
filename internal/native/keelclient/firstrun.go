@@ -11,7 +11,7 @@ import (
 )
 
 // First run: the vault, the ssh config import and the agent step's text. The server reads the ssh config
-// (KEEL_SSH_DIR in keel serve); this client never reads ~/.ssh. Passphrases leave in the one request that needs
+// (SLIME_SSH_DIR in keel serve); this client never reads ~/.ssh. Passphrases leave in the one request that needs
 // them, are not kept, and never appear in an error or in %v, %+v or %#v.
 
 // ErrVaultExists is a vault that already exists (409 from POST /api/vault/setup).

@@ -234,12 +234,12 @@ func TestGuardRefusesTheDefaultDataDir(t *testing.T) {
 	for name, data := range map[string]string{"unset": "", "default": def} {
 		env := []string{}
 		for _, kv := range r.env("MYGO_AUTOMATION="+r.sock, "HOME="+home) {
-			if !strings.HasPrefix(kv, "KEEL_DATA=") {
+			if !strings.HasPrefix(kv, "SLIME_DATA=") {
 				env = append(env, kv)
 			}
 		}
 		if data != "" {
-			env = append(env, "KEEL_DATA="+data)
+			env = append(env, "SLIME_DATA="+data)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		cmd := exec.CommandContext(ctx, r.bin, "app")

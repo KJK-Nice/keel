@@ -41,7 +41,7 @@ func TestVaultModeText(t *testing.T) {
 	if l, _ := vaultMode(keelclient.Vault{Mode: "keychain"}); l != "OS keychain" {
 		t.Error(l)
 	}
-	if _, h := vaultMode(keelclient.Vault{Mode: "passphrase", KeyringOff: true}); h != "The OS keychain is off for this run (KEEL_KEYRING=off), so Slime asks for the passphrase." {
+	if _, h := vaultMode(keelclient.Vault{Mode: "passphrase", KeyringOff: true}); h != "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase." {
 		t.Error(h)
 	}
 	if l, h := vaultMode(keelclient.Vault{Mode: "passphrase"}); l != "Passphrase" || h != "Slime asks for the passphrase when it starts." {
@@ -62,7 +62,7 @@ func TestSignalFields(t *testing.T) {
 		t.Errorf("saved: %q %q", v, help)
 	}
 	v, _, help = signalFields(keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://x.example"})
-	if v != "https://x.example" || help != "KEEL_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set." {
+	if v != "https://x.example" || help != "SLIME_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set." {
 		t.Errorf("env: %q %q", v, help)
 	}
 	v, ph, help = signalFields(keelclient.Runtime{SignalURL: "https://baked.example", SignalSource: "build"})

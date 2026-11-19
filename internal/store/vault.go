@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+
+	"keel/internal/env"
 
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"
@@ -15,10 +16,10 @@ import (
 // EnvPassphrase names the variable that unlocks or creates the vault at
 // start. It holds a secret: SecretEnv lists it, and a local shell never
 // inherits a listed variable (internal/session).
-const EnvPassphrase = "KEEL_VAULT_PASSPHRASE"
+const EnvPassphrase = "SLIME_VAULT_PASSPHRASE"
 
-// SecretEnv is every KEEL_* variable whose value is a secret.
-var SecretEnv = []string{EnvPassphrase}
+// SecretEnv is every SLIME_* variable whose value is a secret.
+var SecretEnv = env.Names("VAULT_PASSPHRASE")
 
 const (
 	keyringService = "keel"
@@ -27,7 +28,7 @@ const (
 	// it neither reads nor writes the "keel"/"vault" item, as if the
 	// keychain did not answer. Unset (the default) keeps today's behavior.
 	// Tests use it so a scratch vault never touches the user's keychain.
-	envKeyring = "KEEL_KEYRING"
+	envKeyring = "KEYRING"
 
 	vaultScrypt = "scrypt"
 	vaultX25519 = "x25519"
@@ -40,7 +41,7 @@ var (
 	// would otherwise re-key (and, while locked, overwrite) the existing vault.
 	ErrVaultExists = errors.New("vault already exists; unlock it instead")
 
-	errKeyringOff = errors.New("OS keychain is off (KEEL_KEYRING=off)")
+	errKeyringOff = errors.New("OS keychain is off (SLIME_KEYRING=off)")
 )
 
 // Option changes how New builds a Store.
@@ -48,7 +49,7 @@ type Option func(*Store)
 
 // TestVault is for tests, and every test's store takes it
 // (vault_guard_test.go): the store never asks the OS keychain, whatever
-// KEEL_KEYRING says, and wraps a passphrase vault with a cheap scrypt work
+// SLIME_KEYRING says, and wraps a passphrase vault with a cheap scrypt work
 // factor. go-keyring shells out to /usr/bin/security on macOS, which
 // endpoint security flags as credential access (INC-777162).
 func TestVault() Option {
@@ -71,7 +72,7 @@ type vaultFile struct {
 }
 
 func envPass() string {
-	return os.Getenv(EnvPassphrase)
+	return env.Get("VAULT_PASSPHRASE")
 }
 
 func encryptVault(secrets map[string]hostSecret, recipients ...age.Recipient) ([]byte, error) {

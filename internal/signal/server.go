@@ -31,7 +31,7 @@ const (
 	roomBurst    = 6
 	roomInterval = 10 * time.Second
 	// maxRoomsPerClient bounds the live rooms one client key may hold; it
-	// applies when KEEL_SIGNAL_CLIENT_IP says who a client is.
+	// applies when SLIME_SIGNAL_CLIENT_IP says who a client is.
 	maxRoomsPerClient = 8
 )
 

@@ -6,7 +6,7 @@ import "strings"
 // secret lives here: the signal server only relays a share's handshake.
 type ShareSettings struct {
 	// SignalURL is the keel-signal server for internet join links, used
-	// when KEEL_SIGNAL is not set for the run (share.Hub). httpapi checks
+	// when SLIME_SIGNAL is not set for the run (share.Hub). httpapi checks
 	// it with share.NormalizeSignal before it is saved.
 	SignalURL string `json:"signalURL,omitempty"`
 }

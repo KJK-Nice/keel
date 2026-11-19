@@ -12,7 +12,7 @@ import (
 
 // lockDataDir takes an exclusive, non-blocking flock on dataDir's
 // keel-serve.lock. The listening port only keeps two daemons off the same
-// KEEL_ADDR; two daemons with different addresses but the same KEEL_DATA
+// SLIME_ADDR; two daemons with different addresses but the same SLIME_DATA
 // would otherwise overwrite each other's keel.json and keel.vault. The
 // kernel drops the lock when the process exits, even on a crash.
 func lockDataDir(dataDir string) (release func(), err error) {

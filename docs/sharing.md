@@ -8,7 +8,7 @@ Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling 
 
 ```bash
 ./bin/keel-signal
-# or: KEEL_SIGNAL_ADDR=:8080 ./bin/keel-signal
+# or: SLIME_SIGNAL_ADDR=:8080 ./bin/keel-signal
 ```
 
 2. On the host desktop, open **Settings → Sharing** and enter the server's URL under **Signal server** (for example `https://your-signal.example`), then press Enter. keel serve saves it in `keel.json` and uses it for the next share; shares already running keep their link. Clear the field to turn Share off.
@@ -17,12 +17,12 @@ Two other ways set the server, for scripts and builds:
 
 ```bash
 # for one run, from a shell (wins over the saved server):
-KEEL_SIGNAL=https://your-signal.example ./bin/keel
-# built into the app (used when nothing is saved and KEEL_SIGNAL is unset):
-make build KEEL_SIGNAL=https://your-signal.example
+SLIME_SIGNAL=https://your-signal.example ./bin/keel
+# built into the app (used when nothing is saved and SLIME_SIGNAL is unset):
+make build SLIME_SIGNAL=https://your-signal.example
 ```
 
-Order: `KEEL_SIGNAL` for the run, then the server saved in Settings, then the one built in. Release builds have none built in. Settings · Sharing says which one is in use.
+Order: `SLIME_SIGNAL` for the run, then the server saved in Settings, then the one built in. Release builds have none built in. Settings · Sharing says which one is in use.
 
 ## Share and join
 
@@ -59,7 +59,7 @@ Update `keel-signal` before Slime itself: it has to pass the new `mac` field thr
 
 Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. A write to a peer that does not read is dropped after 10 seconds. Only the client that created a room (it gets a host key) can host it.
 
-With `KEEL_SIGNAL_CLIENT_IP` set, one client may also hold at most 8 live rooms at a time (further creates get 429); without it neither per-client limit applies, so set it on a public server. Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `keel-signal` where the client address is, with `KEEL_SIGNAL_CLIENT_IP`:
+With `SLIME_SIGNAL_CLIENT_IP` set, one client may also hold at most 8 live rooms at a time (further creates get 429); without it neither per-client limit applies, so set it on a public server. Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `keel-signal` where the client address is, with `SLIME_SIGNAL_CLIENT_IP`:
 
 | Value | Use when |
 | --- | --- |
@@ -76,7 +76,7 @@ STUN uses `stun.l.google.com:19302`. Some home NATs still need TURN; that is not
 Two Slime windows on one Mac: the second instance needs its own port and data dir:
 
 ```bash
-KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
+SLIME_ADDR=127.0.0.1:47243 SLIME_DATA=/tmp/keel-join ./bin/keel
 ```
 
 `open Slime.app` does not pass those env vars.

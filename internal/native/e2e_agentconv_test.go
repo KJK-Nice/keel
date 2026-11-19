@@ -19,7 +19,7 @@ import (
 )
 
 // Saved conversations, the Agent page and Settings · Agent against a real keel serve that answers from its in-process fake
-// (KEEL_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider, no test calls keel
+// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider, no test calls keel
 // mcp's routes, and the only key ever stored is made up.
 
 func (e *win) convList() keelclient.ConversationList {

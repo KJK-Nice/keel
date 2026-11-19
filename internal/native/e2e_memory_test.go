@@ -13,7 +13,7 @@ import (
 	"keel/internal/native/keelclient"
 )
 
-// Notes for the agent and runbooks against a real keel serve that answers from its in-process fake (KEEL_AGENT_PROVIDER=fake,
+// Notes for the agent and runbooks against a real keel serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake,
 // set for every daemon by startServeAt): nothing here reaches a model provider or calls keel mcp's routes. "remember" in a
 // question makes the fake propose a note, "save this as a runbook" a runbook, and a runbook in use makes it say which step is
 // current while keel serve itself proposes the step (internal/agent/provider/providertest/scripted.go). Every command is a

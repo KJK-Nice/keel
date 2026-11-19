@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// In-pane suggestions against a real keel serve (KEEL_AGENT_PROVIDER=fake: the fake model and the fake Jev answer in
+// In-pane suggestions against a real keel serve (SLIME_AGENT_PROVIDER=fake: the fake model and the fake Jev answer in
 // process, nothing is sent anywhere) and a real shell (Local Shell, /bin/sh).
 //
 // What these prove: a noticed line, the card, an insert that leaves the command on the prompt line with its output absent

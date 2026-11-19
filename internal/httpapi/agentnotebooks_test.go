@@ -292,7 +292,7 @@ func TestNotebookPlaceholderFenceRefused(t *testing.T) {
 	waitJSON(t, conn, "ready")
 	bridge := f.bridge(t, f.webID)
 	got := readPTY(bridge)
-	cmd := "export KEEL_TOKEN=[secret:1]\n"
+	cmd := "export SLIME_TOKEN=[secret:1]\n"
 	if err := conn.WriteJSON(map[string]any{"type": "inject-challenge", "command": cmd}); err != nil {
 		t.Fatal(err)
 	}

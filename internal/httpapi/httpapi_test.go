@@ -52,7 +52,7 @@ func (f *fakeBridge) Close() error {
 
 func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestHostTagsAPI(t *testing.T) {
 }
 
 func TestRuntimeStop(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -261,10 +261,10 @@ func TestRuntimeStop(t *testing.T) {
 }
 
 func TestVaultLockBlocksAPI(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_KEYRING", "off")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -685,7 +685,7 @@ func TestNotebookAPI(t *testing.T) {
 }
 
 func TestSessionReconnect(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -853,7 +853,7 @@ func TestSessionWSHostIDWithoutUpgradeSpawnsNothing(t *testing.T) {
 }
 
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -1468,7 +1468,7 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 }
 
 func TestRuntimeInfo(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)

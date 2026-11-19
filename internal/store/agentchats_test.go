@@ -75,8 +75,8 @@ func TestAgentChatsNeedTheVault(t *testing.T) {
 	if err := st.PutAgentChat(sampleChat("conv-0001", time.Now())); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_KEYRING", "off")
 	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)

@@ -9,10 +9,10 @@ type VaultState struct {
 	// in the OS keychain), "passphrase" (scrypt), or "" before it exists.
 	Mode string `json:"mode"`
 	// FirstRun is true until the first-run screens finish, on a store Slime
-	// seeded itself, unless KEEL_VAULT_PASSPHRASE opened the vault (a
+	// seeded itself, unless SLIME_VAULT_PASSPHRASE opened the vault (a
 	// scripted setup has no first run).
 	FirstRun bool `json:"firstRun"`
-	// KeyringOff is KEEL_KEYRING=off: the OS keychain is never asked.
+	// KeyringOff is SLIME_KEYRING=off: the OS keychain is never asked.
 	KeyringOff bool   `json:"keyringOff"`
 	Path       string `json:"path"`
 }

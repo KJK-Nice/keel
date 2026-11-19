@@ -6,11 +6,12 @@ import (
 	"os"
 	"time"
 
+	"keel/internal/env"
 	"keel/internal/signal"
 )
 
 func main() {
-	addr := os.Getenv("KEEL_SIGNAL_ADDR")
+	addr := env.Get("SIGNAL_ADDR")
 	if addr == "" {
 		port := os.Getenv("PORT")
 		if port == "" {
@@ -19,12 +20,12 @@ func main() {
 		addr = ":" + port
 	}
 	sig := signal.New()
-	clientIP := os.Getenv("KEEL_SIGNAL_CLIENT_IP")
+	clientIP := env.Get("SIGNAL_CLIENT_IP")
 	if err := sig.SetClientIP(clientIP); err != nil {
 		log.Fatal(err)
 	}
 	if clientIP == "" {
-		log.Printf("per-address room rate limit off; set KEEL_SIGNAL_CLIENT_IP (remote or xff:N) to enable it")
+		log.Printf("per-address room rate limit off; set SLIME_SIGNAL_CLIENT_IP (remote or xff:N) to enable it")
 	}
 	srv := &http.Server{
 		Addr:              addr,

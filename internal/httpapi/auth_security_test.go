@@ -22,8 +22,8 @@ import (
 // that is not a loopback name with the right token. No refusal redirects or sets a cookie. Only GET /api/health is open.
 func TestEveryRouteTakesOnlyItsOwnCredential(t *testing.T) {
 	routes := loadTypedAPI(t).routes(t) // before HOME moves: the go command keeps its module cache there
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	t.Setenv("HOME", dir) // a handler the positive check runs finds no file of the user's
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())

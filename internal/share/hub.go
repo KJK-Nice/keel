@@ -24,7 +24,7 @@ import (
 )
 
 type Hub struct {
-	// The signal server comes from, strongest first: env (KEEL_SIGNAL for
+	// The signal server comes from, strongest first: env (SLIME_SIGNAL for
 	// this run, or New's argument), saved (Settings · Sharing, SetSaved)
 	// and build (DefaultSignal). saved changes at run time, under mu.
 	env, saved, build string
@@ -121,7 +121,7 @@ func New(signalURL string, rt *runtime.Runtime) *Hub {
 	}
 }
 
-// ForServe makes keel serve's hub: on signalURL (KEEL_SIGNAL, read by the
+// ForServe makes keel serve's hub: on signalURL (SLIME_SIGNAL, read by the
 // caller) when it is set, falling back to the saved server (SetSaved) and
 // then DefaultSignal.
 func ForServe(signalURL string, rt *runtime.Runtime) *Hub {
@@ -219,7 +219,7 @@ func (h *Hub) JoinURL(sessionID string) string {
 func (h *Hub) Share(sessionID string) (string, error) {
 	signal := h.URL()
 	if signal == "" {
-		return "", errors.New("set a signal server in Settings · Sharing (or KEEL_SIGNAL) to share")
+		return "", errors.New("set a signal server in Settings · Sharing (or SLIME_SIGNAL) to share")
 	}
 	sess, err := h.rt.Get(sessionID)
 	if err != nil {

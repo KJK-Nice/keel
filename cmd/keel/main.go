@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"keel/internal/app"
+	"keel/internal/env"
 	"keel/internal/paths"
 )
 
@@ -18,7 +19,7 @@ func init() {
 }
 
 // version is the release this binary was built as, set by the release
-// build: make build KEEL_VERSION=vX.Y.Z (-X main.version).
+// build: make build SLIME_VERSION=vX.Y.Z (-X main.version).
 var version = "dev"
 
 func main() {
@@ -63,7 +64,7 @@ func main() {
 }
 
 func parseName(args []string) string {
-	name := os.Getenv("KEEL_NAME")
+	name := env.Get("NAME")
 	if name == "" {
 		name = paths.LocalUser()
 	}
@@ -100,24 +101,25 @@ Internet follow (no LAN) needs a public signaling server:
 
   keel-signal                 # listen :47242
   Settings · Sharing · Signal server: its URL (saved; host copies a join link from Share)
-  KEEL_SIGNAL=https://… keel  # or for one run (wins over the saved server)
-  make build KEEL_SIGNAL=https://…   or bake a default into the build
+  SLIME_SIGNAL=https://… keel  # or for one run (wins over the saved server)
+  make build SLIME_SIGNAL=https://…   or bake a default into the build
 
   Host: Share. Other Slime: Join session, paste the link.
-  Two apps on one Mac: KEEL_ADDR=127.0.0.1:47243 KEEL_DATA=/tmp/keel-join ./bin/keel
+  Two apps on one Mac: SLIME_ADDR=127.0.0.1:47243 SLIME_DATA=/tmp/keel-join ./bin/keel
 
 Environment:
-  KEEL_ADDR       local bind of keel serve (default 127.0.0.1:47241)
-  KEEL_DATA       data directory (default: OS config dir / keel)
-  KEEL_NAME       display name (keel app --name sets it for the run)
-  KEEL_SIGNAL     public URL of keel-signal for this run (overrides Settings · Sharing)
-  KEEL_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
+  SLIME_ADDR       local bind of keel serve (default 127.0.0.1:47241)
+  SLIME_DATA       data directory (default: OS config dir / keel)
+  SLIME_NAME       display name (keel app --name sets it for the run)
+  SLIME_SIGNAL     public URL of keel-signal for this run (overrides Settings · Sharing)
+  SLIME_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
+  (each also works under its old name, KEEL_*)
 
 The window is native (MyGo, pure Go; libghostty-vt terminals, fetched
 and SHA-256 checked on first run, or found beside the binary). Build:
 
   make build
-  make build KEEL_SIGNAL=https://your-signal.example
+  make build SLIME_SIGNAL=https://your-signal.example
 
 make build also packages the app with mygo build (build/darwin-*/Slime.app on macOS) — open that, or run ./bin/keel.
 `

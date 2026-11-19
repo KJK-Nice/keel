@@ -14,30 +14,30 @@ func TestPidFile(t *testing.T) {
 }
 
 func TestAddrDefaultIsLoopback(t *testing.T) {
-	t.Setenv("KEEL_ADDR", "")
-	_ = os.Unsetenv("KEEL_ADDR")
+	t.Setenv("SLIME_ADDR", "")
+	_ = os.Unsetenv("SLIME_ADDR")
 	if Addr() != DefaultListen {
 		t.Fatalf("Addr() = %q", Addr())
 	}
 }
 
 func TestAddrOverride(t *testing.T) {
-	t.Setenv("KEEL_ADDR", "0.0.0.0:9")
+	t.Setenv("SLIME_ADDR", "0.0.0.0:9")
 	if Addr() != "0.0.0.0:9" {
 		t.Fatalf("Addr() = %q", Addr())
 	}
 }
 
 func TestDataDirOverride(t *testing.T) {
-	t.Setenv("KEEL_DATA", "/tmp/keel-test-data")
+	t.Setenv("SLIME_DATA", "/tmp/keel-test-data")
 	if DataDir() != "/tmp/keel-test-data" {
 		t.Fatalf("DataDir() = %q", DataDir())
 	}
 }
 
 func TestDataDirUsesConfig(t *testing.T) {
-	t.Setenv("KEEL_DATA", "")
-	_ = os.Unsetenv("KEEL_DATA")
+	t.Setenv("SLIME_DATA", "")
+	_ = os.Unsetenv("SLIME_DATA")
 	got := DataDir()
 	cfg, err := os.UserConfigDir()
 	if err != nil {

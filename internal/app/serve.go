@@ -22,6 +22,7 @@ import (
 	"keel/internal/applog"
 	"keel/internal/authtoken"
 	"keel/internal/buildid"
+	"keel/internal/env"
 	"keel/internal/httpapi"
 	"keel/internal/paths"
 	"keel/internal/runtime"
@@ -33,12 +34,12 @@ import (
 // agentProviderEnv set to "fake" swaps every provider for the in-process
 // test fake, in a build with the tag keelfake only (agent_fake.go). It
 // exists for end-to-end tests.
-const agentProviderEnv = "KEEL_AGENT_PROVIDER"
+const agentProviderEnv = "SLIME_AGENT_PROVIDER"
 
 // serveConfig is what keel serve takes from its environment and its build.
 // RunServe reads it once; nothing below reads the environment for these.
 type serveConfig struct {
-	// signal is KEEL_SIGNAL: the signal server for this run.
+	// signal is SLIME_SIGNAL: the signal server for this run.
 	signal       string
 	agentFactory service.Factory
 	agentJudge   service.JudgeFactory
@@ -47,11 +48,11 @@ type serveConfig struct {
 }
 
 func RunServe(addr, dataDir string) error {
-	factory, judge, fake, err := agentProviders(os.Getenv(agentProviderEnv))
+	factory, judge, fake, err := agentProviders(env.Get("AGENT_PROVIDER"))
 	if err != nil {
 		return err
 	}
-	return runServe(addr, dataDir, serveConfig{signal: os.Getenv("KEEL_SIGNAL"), agentFactory: factory, agentJudge: judge, agentFake: fake})
+	return runServe(addr, dataDir, serveConfig{signal: env.Get("SIGNAL"), agentFactory: factory, agentJudge: judge, agentFake: fake})
 }
 
 func runServe(addr, dataDir string, cfg serveConfig) error {
@@ -78,7 +79,7 @@ func runServe(addr, dataDir string, cfg serveConfig) error {
 	}
 	rt := runtime.New(st, runtime.DefaultOpener(st))
 	hub := share.ForServe(cfg.signal, rt)
-	// Settings · Sharing's server; KEEL_SIGNAL still wins for this run.
+	// Settings · Sharing's server; SLIME_SIGNAL still wins for this run.
 	hub.SetSaved(st.SignalURL())
 	logs := applog.New(filepath.Join(dataDir, "keel.log"))
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
@@ -315,7 +316,7 @@ func spawnServe(addr, dataDir string) error {
 		return err
 	}
 	defer f.Close()
-	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir)
+	env := append(os.Environ(), "SLIME_ADDR="+addr, "SLIME_DATA="+dataDir)
 	return startDetached(exe, []string{"serve"}, env, f)
 }
 

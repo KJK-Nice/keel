@@ -23,7 +23,7 @@ import (
 )
 
 // Port forwarding, the sidebar's Panes section, Settings and toasts against a scratch keel serve. Every daemon has
-// KEEL_KEYRING=off and its own KEEL_DATA under .scratch-native/e2e. Every listener (the daemon, the SSH fixture, each
+// SLIME_KEYRING=off and its own SLIME_DATA under .scratch-native/e2e. Every listener (the daemon, the SSH fixture, each
 // forward's local port, the test's own target) is on 127.0.0.1 and on a port the kernel chose. No forward binds anything
 // else.
 

@@ -79,8 +79,8 @@ type importFixture struct {
 
 func newImportFixture(t *testing.T) importFixture {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
 	t.Setenv("USER", "tester")
 	root := t.TempDir()
 	sshDir := filepath.Join(root, "home", ".ssh")
@@ -352,12 +352,12 @@ func TestSSHConfigMissing(t *testing.T) {
 	}
 }
 
-// KEEL_KEYRING=off without a passphrase: the vault needs setup, /api/vault
+// SLIME_KEYRING=off without a passphrase: the vault needs setup, /api/vault
 // says so while every other route is locked, and import is locked too.
 func TestVaultStateAndFirstRun(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
+	t.Setenv("SLIME_KEYRING", "off")
 	dir := t.TempDir()
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
