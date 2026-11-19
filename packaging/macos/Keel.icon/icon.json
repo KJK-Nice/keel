@@ -32,11 +32,6 @@
       "layers" : [
         {
           "glass" : true,
-          "image-name" : "slime-band.svg",
-          "name" : "slime-band"
-        },
-        {
-          "glass" : true,
           "image-name" : "slime-body.svg",
           "name" : "slime-body"
         }
