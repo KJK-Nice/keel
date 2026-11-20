@@ -421,9 +421,10 @@ type workspace struct {
 	filter         string
 	sidebar        bool
 	sideSash       sashState
-	sideListH      ui.Handle  // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
-	queued         []ui.Toast // toasts asked for, handed to MyGo by the next frame (toast.go)
-	blocked        string     // a message that replaces the workspace (locked vault, no slime serve)
+	sideListH      ui.Handle           // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
+	queued         []ui.Toast          // toasts asked for, handed to MyGo by the next frame (toast.go)
+	marquees       map[string]*marquee // the scrolling titles of the toasts showing, by toast ID (toast.go)
+	blocked        string              // a message that replaces the workspace (locked vault, no slime serve)
 	gate           *unlockGate
 	first          *firstRun // the First run screens (or the palette's host import), over the whole window
 	closed         bool
