@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/native/sshparse"
 )
 
@@ -47,12 +47,12 @@ func (w *workspace) submitQuick() {
 		q.err = "Could not parse user@host"
 		return
 	}
-	h := keelclient.NewHost{
+	h := slimeclient.NewHost{
 		Name: r.User + "@" + r.Host, Group: "Quick connect", Address: r.Host, Port: r.Port, Username: r.User,
-		AuthType: keelclient.AuthPassword, Password: q.password, Color: quickColor,
+		AuthType: slimeclient.AuthPassword, Password: q.password, Color: quickColor,
 	}
 	w.quick = nil // the password leaves the dialog with the request
-	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved keelclient.Host, err error) {
+	call(w, func(c context.Context) (slimeclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved slimeclient.Host, err error) {
 		if err != nil {
 			w.fail("quick connect", err)
 			return

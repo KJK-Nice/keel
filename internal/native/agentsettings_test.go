@@ -11,7 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Settings · Agent (docs/ui-redesign.md §5.9) on the fake backend: each control shows what slime serve holds and sends the
@@ -26,13 +26,13 @@ type keyFlag = struct {
 
 func agentSettingsBackend() *fakeBackend {
 	fb := settingsBackend()
-	fb.agent.providers = []keelclient.AgentProvider{
+	fb.agent.providers = []slimeclient.AgentProvider{
 		{ID: "gemini", Name: "Google Gemini", ShortName: "Gemini", Kind: "model", KeyLabel: "Gemini API key", Models: []string{"gm-1", "gm-2"},
 			Warning: "On the free tier of the Gemini API, Google may use the content you submit.", TermsURL: "https://ai.google.dev/terms", KeyHelpURL: "https://aistudio.google.com/apikey"},
 		{ID: "anthropic", Name: "Anthropic Claude", ShortName: "Claude", Kind: "model", KeyLabel: "Anthropic API key", Models: []string{"cl-1"}},
 		{ID: "jev", Name: "TypeSafe Jev", Kind: "detector", KeyLabel: "Jev API key"},
 	}
-	s := keelclient.AgentSettings{Keys: map[string]keyFlag{"gemini": {true}}}
+	s := slimeclient.AgentSettings{Keys: map[string]keyFlag{"gemini": {true}}}
 	s.Settings.Provider, s.Settings.Model, s.Settings.Detection, s.Settings.Suggestions, s.Settings.HistorySuggestions = "gemini", "gm-1", "auto", "on", "on"
 	s.Settings.DefaultScope, s.Settings.ScrollbackLines, s.Settings.HistoryDays = "focused", 200, 30
 	s.Settings.Redact.Secrets = true
@@ -51,7 +51,7 @@ func agentSettingsRig(t *testing.T) *rig {
 }
 
 // fields names the fields a patch sends.
-func fields(p keelclient.AgentSettingsPatch) (out []string) {
+func fields(p slimeclient.AgentSettingsPatch) (out []string) {
 	v := reflect.ValueOf(p)
 	for i := 0; i < v.NumField(); i++ {
 		if !v.Field(i).IsNil() {
@@ -61,7 +61,7 @@ func fields(p keelclient.AgentSettingsPatch) (out []string) {
 	return out
 }
 
-func (r *rig) lastSave(t *testing.T) keelclient.AgentSettingsPatch {
+func (r *rig) lastSave(t *testing.T) slimeclient.AgentSettingsPatch {
 	t.Helper()
 	if len(r.fb.convs.saves) == 0 {
 		t.Fatal("nothing was saved")
@@ -102,18 +102,18 @@ func TestSettingsAgentControlsShowKeelServesValueAndSendOnlyWhatChanged(t *testi
 	for _, c := range []struct {
 		name string
 		want []string
-		chk  func(p keelclient.AgentSettingsPatch) bool
+		chk  func(p slimeclient.AgentSettingsPatch) bool
 	}{
-		{"Suggest commands switch", []string{"Suggestions"}, func(p keelclient.AgentSettingsPatch) bool { return *p.Suggestions == "off" }},
-		{"Suggest from this pane's scrollback switch", []string{"HistorySuggestions"}, func(p keelclient.AgentSettingsPatch) bool { return *p.HistorySuggestions == "off" }},
-		{"Redact IP addresses switch", []string{"Redact"}, func(p keelclient.AgentSettingsPatch) bool {
-			return *p.Redact == keelclient.AgentRedact{Secrets: true, IPs: true}
+		{"Suggest commands switch", []string{"Suggestions"}, func(p slimeclient.AgentSettingsPatch) bool { return *p.Suggestions == "off" }},
+		{"Suggest from this pane's scrollback switch", []string{"HistorySuggestions"}, func(p slimeclient.AgentSettingsPatch) bool { return *p.HistorySuggestions == "off" }},
+		{"Redact IP addresses switch", []string{"Redact"}, func(p slimeclient.AgentSettingsPatch) bool {
+			return *p.Redact == slimeclient.AgentRedact{Secrets: true, IPs: true}
 		}},
-		{"Redact hostnames switch", []string{"Redact"}, func(p keelclient.AgentSettingsPatch) bool {
-			return *p.Redact == keelclient.AgentRedact{Secrets: true, IPs: true, Hostnames: true}
+		{"Redact hostnames switch", []string{"Redact"}, func(p slimeclient.AgentSettingsPatch) bool {
+			return *p.Redact == slimeclient.AgentRedact{Secrets: true, IPs: true, Hostnames: true}
 		}},
-		{"Default panes per conversation Every pane in the tab", []string{"DefaultScope"}, func(p keelclient.AgentSettingsPatch) bool { return *p.DefaultScope == "tab" }},
-		{"Default panes per conversation Panes I pick each time", []string{"DefaultScope"}, func(p keelclient.AgentSettingsPatch) bool { return *p.DefaultScope == "pick" }},
+		{"Default panes per conversation Every pane in the tab", []string{"DefaultScope"}, func(p slimeclient.AgentSettingsPatch) bool { return *p.DefaultScope == "tab" }},
+		{"Default panes per conversation Panes I pick each time", []string{"DefaultScope"}, func(p slimeclient.AgentSettingsPatch) bool { return *p.DefaultScope == "pick" }},
 	} {
 		n := len(r.fb.convs.saves)
 		r.click(t, c.name)
@@ -307,7 +307,7 @@ func TestSettingsAgentKeyFieldIsMaskedSentOnceAndNeverKept(t *testing.T) {
 		}
 	}
 	// A refused key: the card says why, the field is empty, the key is not in the words.
-	r.fb.agent.keyErr = &keelclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}
+	r.fb.agent.keyErr = &slimeclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}
 	r.click(t, "Change key Google Gemini")
 	r.settle()
 	r.click(t, "Gemini API key input")

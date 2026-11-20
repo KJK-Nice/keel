@@ -199,7 +199,7 @@ func alreadySaved(saved []store.Host, h sshconfig.Host) bool {
 }
 
 // Request names what the user picked. It carries no addresses or paths of
-// its own: Import parses the config again, so a request cannot make keel
+// its own: Import parses the config again, so a request cannot make slime
 // serve read a file the config does not name.
 type Request struct {
 	Hosts []string `json:"hosts"`

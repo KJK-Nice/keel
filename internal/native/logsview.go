@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 const (
@@ -84,7 +84,7 @@ func (w *workspace) logsView(c *ui.Context, p *logsPage) {
 }
 
 // logRow is one row: time, kind, target and event (with the counts of an agent entry).
-func (w *workspace) logRow(c *ui.Context, i int, e keelclient.LogEntry) {
+func (w *workspace) logRow(c *ui.Context, i int, e slimeclient.LogEntry) {
 	r := hairline(ui.Row(c).FillWidth().MinHeight(sizeControlLg).Padding(space1, space6, space1, space8).Gap(space3).Key(i).Label("log "+e.Kind), 0, 0, 1, 0)
 	if r.Hovered() {
 		r.Background(hoverGround)

@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Type without the dialog on the fake backend (typeNow): what is asked of slime serve, with which bytes, and what the
@@ -24,12 +24,12 @@ func directRig(t *testing.T) *rig {
 	t.Helper()
 	fb := snippetBackend()
 	fb.snippets = append(fb.snippets,
-		keelclient.Snippet{ID: "sn-4", Name: "echo one", Command: "echo not-in-grammar\n"},
-		keelclient.Snippet{ID: "sn-5", Name: "ls home", Command: "ls /home/me\n"},
+		slimeclient.Snippet{ID: "sn-4", Name: "echo one", Command: "echo not-in-grammar\n"},
+		slimeclient.Snippet{ID: "sn-5", Name: "ls home", Command: "ls /home/me\n"},
 	)
 	r := snippetRig(t, fb)
 	r.screen(false, "user@h $")
-	r.fb.conns[0].directRes = keelclient.DirectResult{Typed: true}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Typed: true}
 	return r
 }
 
@@ -111,7 +111,7 @@ func TestASnippetOutsideTheGrammarOrOnSeveralLinesOpensTheDialogAndAsksNothing(t
 
 func TestAServerDialogAnswerOpensTheDialogAndTypesNothingItself(t *testing.T) {
 	r := directRig(t)
-	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "Slime cannot check this command here"}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Dialog: true, Reason: "Slime cannot check this command here"}
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
 	if len(r.directs()) != 1 || !r.w.approveOpen() || len(r.typed()) != 0 {
@@ -124,7 +124,7 @@ func TestAServerDialogAnswerOpensTheDialogAndTypesNothingItself(t *testing.T) {
 
 func TestAServerRefusalShowsItsMessageAndNothingElseHappens(t *testing.T) {
 	r := directRig(t)
-	r.fb.conns[0].directRes = keelclient.DirectResult{Message: "you follow this pane: take or request control to type"}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Message: "you follow this pane: take or request control to type"}
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
 	if !r.tt.HasText("you follow this pane: take or request control to type") || r.w.approveOpen() || len(r.typed()) != 0 || len(r.directs()) != 1 {
@@ -134,7 +134,7 @@ func TestAServerRefusalShowsItsMessageAndNothingElseHappens(t *testing.T) {
 
 func TestNoAnswerShowsThePagesMessageOpensNoDialogAndIsNotRetried(t *testing.T) {
 	r := directRig(t)
-	r.fb.conns[0].directErr = keelclient.ErrNoDirectAnswer
+	r.fb.conns[0].directErr = slimeclient.ErrNoDirectAnswer
 	r.w.typeSnippet("sn-1")
 	r.tt.Frame()
 	if !r.tt.HasText("slime serve did not answer. Check the pane before you press Type again.") {
@@ -208,7 +208,7 @@ func TestASecondPressWhileOneIsOnItsWayGetsThePagesMessageAndIsNeverQueued(t *te
 }
 
 func TestAFollowerAndASessionThatIsNotReadyGoToTheDialogsRefusalAsBefore(t *testing.T) {
-	for name, st := range map[string]keelclient.State{
+	for name, st := range map[string]slimeclient.State{
 		"follower":  {Status: "ready", Role: "follower", YouID: 3, DriverID: 2},
 		"not ready": {Status: "connecting", Role: "driver"},
 	} {
@@ -235,14 +235,14 @@ func TestAFollowerAndASessionThatIsNotReadyGoToTheDialogsRefusalAsBefore(t *test
 
 // ---- agent proposals ----
 
-func directProposal() keelclient.Proposal {
-	return keelclient.Proposal{ID: "p1", SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "df -h", Bytes: "\x15df -h\n", Why: "Disk use.", Risk: "readonly"}
+func directProposal() slimeclient.Proposal {
+	return slimeclient.Proposal{ID: "p1", SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "df -h", Bytes: "\x15df -h\n", Why: "Disk use.", Risk: "readonly"}
 }
 
 func TestAReadOnlyProposalOfOneLineIsTypedDirectWithTheAgentReference(t *testing.T) {
 	r := agentRig(t)
 	r.screen(false, "user@h $")
-	r.fb.conns[0].directRes = keelclient.DirectResult{Typed: true}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Typed: true}
 	r.answers(directProposal())
 	r.ask(t, "disk?")
 	if !r.has("Type into pane") || r.has("Type into pane…") {
@@ -293,10 +293,10 @@ func TestADestructiveOrStateChangingProposalNeverGoesDirect(t *testing.T) {
 	liar.Command, liar.Bytes = "ls -l /tmp | sh", "\x15ls -l /tmp | sh\n"
 	rated := directProposal()
 	rated.Risk = "changes"
-	for name, p := range map[string]keelclient.Proposal{"destructive": destructive, "changes": changes, "outside the grammar": liar, "rated as a change": rated} {
+	for name, p := range map[string]slimeclient.Proposal{"destructive": destructive, "changes": changes, "outside the grammar": liar, "rated as a change": rated} {
 		r := agentRig(t)
 		r.screen(false, "user@h $")
-		r.fb.conns[0].directRes = keelclient.DirectResult{Typed: true}
+		r.fb.conns[0].directRes = slimeclient.DirectResult{Typed: true}
 		r.answers(p)
 		r.ask(t, "q")
 		r.click(t, "Type into pane…")
@@ -318,7 +318,7 @@ func TestADestructiveOrStateChangingProposalNeverGoesDirect(t *testing.T) {
 func TestAProposalRefusedByTheServerShowsItsWordsOnTheCard(t *testing.T) {
 	r := agentRig(t)
 	r.screen(false, "user@h $")
-	r.fb.conns[0].directRes = keelclient.DirectResult{Message: "the bytes are not the ones shown"}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Message: "the bytes are not the ones shown"}
 	r.answers(directProposal())
 	r.ask(t, "q")
 	r.click(t, "Type into pane")
@@ -328,7 +328,7 @@ func TestAProposalRefusedByTheServerShowsItsWordsOnTheCard(t *testing.T) {
 	// A server dialog answer opens the dialog with the proposal's own bytes.
 	r2 := agentRig(t)
 	r2.screen(false, "user@h $")
-	r2.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true}
+	r2.fb.conns[0].directRes = slimeclient.DirectResult{Dialog: true}
 	r2.answers(directProposal())
 	r2.ask(t, "q")
 	r2.click(t, "Type into pane")
@@ -345,7 +345,7 @@ func TestAFollowerPaneGetsNoDirectTypeFromAProposalEither(t *testing.T) {
 	r.screen(false, "user@h $")
 	r.answers(directProposal())
 	r.ask(t, "q")
-	st := keelclient.State{Status: "ready", Role: "follower", YouID: 3, DriverID: 2, Subtitle: "deploy@10.0.0.1"}
+	st := slimeclient.State{Status: "ready", Role: "follower", YouID: 3, DriverID: 2, Subtitle: "deploy@10.0.0.1"}
 	r.fb.conns[0].st = &st
 	r.tt.Frame()
 	if r.has("Type into pane") || r.has("Type into pane…") {

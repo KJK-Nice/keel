@@ -32,7 +32,7 @@ import (
 )
 
 // agentProviderEnv set to "fake" swaps every provider for the in-process
-// test fake, in a build with the tag keelfake only (agent_fake.go). It
+// test fake, in a build with the tag slimefake only (agent_fake.go). It
 // exists for end-to-end tests.
 const agentProviderEnv = "SLIME_AGENT_PROVIDER"
 

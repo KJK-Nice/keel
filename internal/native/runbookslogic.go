@@ -7,7 +7,7 @@ import (
 	"unicode"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -20,7 +20,7 @@ const maxRunbookSteps = limits.MaxRunbookSteps
 type rbSource struct{ label, long string }
 
 // srcAgent names the runbook source of the agent's proposals. It is a constant because guard_test.go keeps the quoted key
-// of an agent reference for keelclient/inject.go.
+// of an agent reference for slimeclient/inject.go.
 const srcAgent = "agent"
 
 var rbSources = map[string]rbSource{
@@ -38,7 +38,7 @@ func sourceOf(source string) rbSource {
 }
 
 // runbookSourceBadge is the small badge on a list row: its label, and whether it is the plain (user) one.
-func runbookSourceBadge(rb keelclient.Runbook) (label, kind string) {
+func runbookSourceBadge(rb slimeclient.Runbook) (label, kind string) {
 	switch rb.Source {
 	case "conversation", "notebook":
 		return sourceOf(rb.Source).label, "haze"
@@ -50,7 +50,7 @@ func runbookSourceBadge(rb keelclient.Runbook) (label, kind string) {
 
 // runbookSourceLine is the detail's Source: "Written by you · Oct 12", "From the conversation “nginx 502” · Oct 15",
 // "Proposed by the agent after reading panes · Oct 15".
-func runbookSourceLine(rb keelclient.Runbook) string {
+func runbookSourceLine(rb slimeclient.Runbook) string {
 	head := sourceOf(rb.Source).long
 	if (rb.Source == "conversation" || rb.Source == "notebook") && rb.SourceRef != "" {
 		head += " “" + rb.SourceRef + "”"
@@ -63,11 +63,11 @@ func runbookSourceLine(rb keelclient.Runbook) string {
 
 // runbookNeedsReview is a runbook that was not written by the user and is not turned on yet: the page asks for a review
 // before Agent may pick.
-func runbookNeedsReview(rb keelclient.Runbook) bool {
+func runbookNeedsReview(rb slimeclient.Runbook) bool {
 	return rb.Source != "" && rb.Source != "user" && !rb.AgentMayPick
 }
 
-func runbookReviewText(rb keelclient.Runbook) string {
+func runbookReviewText(rb slimeclient.Runbook) string {
 	var from string
 	switch rb.Source {
 	case srcAgent:
@@ -105,7 +105,7 @@ func runbookReviewText(rb keelclient.Runbook) string {
 }
 
 // runbookUsedLabel is "Last used on prod-db-02 · today 09:15", or "Never used".
-func runbookUsedLabel(rb keelclient.Runbook, now time.Time) string {
+func runbookUsedLabel(rb slimeclient.Runbook, now time.Time) string {
 	if rb.LastUsedAt == nil {
 		return "Never used"
 	}
@@ -121,7 +121,7 @@ func runbookUsedLabel(rb keelclient.Runbook, now time.Time) string {
 }
 
 // runbookStepsLine is "4 steps · all read-only" or "3 steps · 1 changes state".
-func runbookStepsLine(rb keelclient.Runbook) string {
+func runbookStepsLine(rb slimeclient.Runbook) string {
 	changes, commands := 0, 0
 	for _, s := range rb.Steps {
 		if s.Command != "" {
@@ -156,12 +156,12 @@ func runbookStepKind(command, risk string) (label, kind string) {
 }
 
 // filterRunbooks narrows the list by name, Use when, hosts and step titles: every word must be in one of them.
-func filterRunbooks(list []keelclient.Runbook, q string) []keelclient.Runbook {
+func filterRunbooks(list []slimeclient.Runbook, q string) []slimeclient.Runbook {
 	words := strings.Fields(strings.ToLower(q))
 	if len(words) == 0 {
 		return list
 	}
-	var out []keelclient.Runbook
+	var out []slimeclient.Runbook
 	for _, rb := range list {
 		hay := []string{rb.Name, rb.When}
 		hay = append(hay, rb.Hosts...)
@@ -190,7 +190,7 @@ type rbPane struct {
 
 // runbookFitsPane is slime serve's rule for offering a runbook: no hosts, or a pane whose host's folder or one of its tags
 // is listed (any case).
-func runbookFitsPane(rb keelclient.Runbook, p *rbPane) bool {
+func runbookFitsPane(rb slimeclient.Runbook, p *rbPane) bool {
 	if len(rb.Hosts) == 0 {
 		return true
 	}
@@ -212,7 +212,7 @@ func runbookFitsPane(rb keelclient.Runbook, p *rbPane) bool {
 
 // runbookOfferFor says whether a runbook can be started for the panes in scope, and why not ("Not offered: no nginx host
 // in scope").
-func runbookOfferFor(rb keelclient.Runbook, panes []rbPane) (ok bool, reason string) {
+func runbookOfferFor(rb slimeclient.Runbook, panes []rbPane) (ok bool, reason string) {
 	var list []rbPane
 	for _, p := range panes {
 		if p.readable {
@@ -246,7 +246,7 @@ type rbEditStep struct {
 	id, title, description, command, expect string
 	role                                    string
 	oneHost                                 bool
-	captures                                []keelclient.StepCapture
+	captures                                []slimeclient.StepCapture
 }
 
 type rbEdit struct {
@@ -259,10 +259,10 @@ type rbEdit struct {
 
 // toRunbookInput is the editor's state as POST/PUT /api/agent/runbooks takes it. Empty steps (no title and no command)
 // are dropped. slime serve takes the source from its own record of the draft.
-func toRunbookInput(ed rbEdit) keelclient.RunbookInput {
-	steps := []keelclient.RunbookStepInput{}
+func toRunbookInput(ed rbEdit) slimeclient.RunbookInput {
+	steps := []slimeclient.RunbookStepInput{}
 	for _, s := range ed.steps {
-		st := keelclient.RunbookStepInput{
+		st := slimeclient.RunbookStepInput{
 			ID: s.id, Title: cleanLine(s.title), Description: cleanLine(s.description),
 			Command: strings.TrimSpace(strings.ReplaceAll(s.command, "\r\n", "\n")), Expect: cleanLine(s.expect),
 			Role: strings.ToLower(strings.TrimSpace(s.role)), OneHost: s.oneHost, Captures: cleanCaptures(s.captures),
@@ -277,11 +277,11 @@ func toRunbookInput(ed rbEdit) keelclient.RunbookInput {
 			hosts = append(hosts, h)
 		}
 	}
-	return keelclient.RunbookInput{Name: cleanLine(ed.name), When: cleanLine(ed.when), Hosts: hosts, AgentMayPick: ed.agentMayPick, Steps: steps, DraftID: ed.draftID}
+	return slimeclient.RunbookInput{Name: cleanLine(ed.name), When: cleanLine(ed.when), Hosts: hosts, AgentMayPick: ed.agentMayPick, Steps: steps, DraftID: ed.draftID}
 }
 
 // checkRunbookInput says what must change before a save, or "" when it can be saved.
-func checkRunbookInput(in keelclient.RunbookInput) string {
+func checkRunbookInput(in slimeclient.RunbookInput) string {
 	switch {
 	case in.Name == "":
 		return "Name the runbook."
@@ -330,7 +330,7 @@ func moveItem[T any](items []T, i, delta int) []T {
 
 // ---- a runbook in use in a conversation ----
 
-func currentStep(run *keelclient.ChatRunbook) int {
+func currentStep(run *slimeclient.ChatRunbook) int {
 	if run == nil {
 		return -1
 	}
@@ -344,7 +344,7 @@ func currentStep(run *keelclient.ChatRunbook) int {
 
 type runRow struct{ state, mark, note string }
 
-func stepRow(run *keelclient.ChatRunbook, i int, now time.Time) runRow {
+func stepRow(run *slimeclient.ChatRunbook, i int, now time.Time) runRow {
 	st := run.Steps[i]
 	cur := currentStep(run)
 	exit := ""
@@ -419,7 +419,7 @@ type runStepRef struct {
 
 // nextAction says what the run card offers: never a later step before this one. live says whether a proposal id is still a
 // live card.
-func nextAction(run *keelclient.ChatRunbook, live func(id string) bool) runAction {
+func nextAction(run *slimeclient.ChatRunbook, live func(id string) bool) runAction {
 	if run == nil {
 		return runAction{kind: "none"}
 	}
@@ -451,7 +451,7 @@ func nextAction(run *keelclient.ChatRunbook, live func(id string) bool) runActio
 
 // waitingForShell is true while a typed step has no result: the window reads the run again for the exit status the pane's
 // shell reports.
-func waitingForShell(run *keelclient.ChatRunbook) bool {
+func waitingForShell(run *slimeclient.ChatRunbook) bool {
 	if run == nil || run.Status != wire.RunActive {
 		return false
 	}
@@ -463,7 +463,7 @@ func waitingForShell(run *keelclient.ChatRunbook) bool {
 	return false
 }
 
-func runWhyLine(run *keelclient.ChatRunbook) string {
+func runWhyLine(run *slimeclient.ChatRunbook) string {
 	if run.PickedBy == "agent" {
 		if run.Why != "" {
 			return "Why: " + run.Why
@@ -484,11 +484,11 @@ func startQuestion(name string) string {
 // ---- a runbook the agent proposes ----
 
 // runbookProposalWarn is any proposal from an answer that read a pane: its steps may hold text from terminal output.
-func runbookProposalWarn(p keelclient.RunbookProposal) bool {
+func runbookProposalWarn(p slimeclient.RunbookProposal) bool {
 	return p.FromPane || len(p.PanesRead) > 0
 }
 
-func runbookProposalWarning(p keelclient.RunbookProposal) string {
+func runbookProposalWarning(p slimeclient.RunbookProposal) string {
 	where := ""
 	if p.FromPane && p.SeenIn != "" {
 		where = " Some of it matches pane " + p.SeenIn + "."
@@ -496,7 +496,7 @@ func runbookProposalWarning(p keelclient.RunbookProposal) string {
 	return "This runbook was written after reading terminal output." + where + " Check every step before saving: a saved runbook can be offered to the agent, and text in a pane can be written to mislead it."
 }
 
-func runbookProposalDone(p keelclient.RunbookProposal) string {
+func runbookProposalDone(p slimeclient.RunbookProposal) string {
 	switch p.Status {
 	case wire.CardSaved:
 		return "Saved to Runbooks. The agent may not pick it until you review it and turn it on."

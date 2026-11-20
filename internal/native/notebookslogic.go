@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown/parser"
 
 	"slime/internal/cmdrule"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The pure rules of notebooks (docs/ui-redesign.md §18): the words and states the screens show, pinned by
@@ -25,7 +25,7 @@ const (
 const byAgent = "agent"
 
 // privateLabel is the meta line's toggle.
-func privateLabel(nb keelclient.Notebook) string {
+func privateLabel(nb slimeclient.Notebook) string {
 	if nb.Private {
 		return "Private"
 	}
@@ -35,7 +35,7 @@ func privateLabel(nb keelclient.Notebook) string {
 // ---- sorting and previews ----
 
 // sortedNotebooks is the list the sidebar and the page show: pinned first, then newest, then name.
-func sortedNotebooks(nbs []keelclient.Notebook) []keelclient.Notebook {
+func sortedNotebooks(nbs []slimeclient.Notebook) []slimeclient.Notebook {
 	out := slices.Clone(nbs)
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Pinned != out[j].Pinned {
@@ -50,7 +50,7 @@ func sortedNotebooks(nbs []keelclient.Notebook) []keelclient.Notebook {
 }
 
 // notebookPreview is a row's second line: the first non-empty line of the text.
-func notebookPreview(nb keelclient.Notebook) string {
+func notebookPreview(nb slimeclient.Notebook) string {
 	for _, cell := range nb.Cells {
 		line := strings.TrimSpace(cell.Body)
 		if line == "" {
@@ -67,7 +67,7 @@ func notebookPreview(nb keelclient.Notebook) string {
 }
 
 // notebookName is a notebook's name as a row shows it.
-func notebookName(nb keelclient.Notebook) string {
+func notebookName(nb slimeclient.Notebook) string {
 	if nb.Name == "" {
 		return "Notebook"
 	}
@@ -209,7 +209,7 @@ var eventLabel = map[string]string{
 type versionRow struct{ Who, What, When, Summary string }
 
 // versionLabel is a version's who and what.
-func versionLabel(v keelclient.NotebookVersion, now time.Time) versionRow {
+func versionLabel(v slimeclient.NotebookVersion, now time.Time) versionRow {
 	who := "You"
 	if v.By == byAgent {
 		who = "Agent"
@@ -245,7 +245,7 @@ func whenText(at, now time.Time) string {
 }
 
 // versionText is a version's text.
-func versionText(v keelclient.NotebookVersion) string { return v.Markdown() }
+func versionText(v slimeclient.NotebookVersion) string { return v.Markdown() }
 
 // diffLine is a line of a diff: op is "same", "add" or "del".
 type diffLine struct{ Op, Text string }

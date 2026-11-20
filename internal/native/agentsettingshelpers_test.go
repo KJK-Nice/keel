@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-var testGemini = keelclient.AgentProvider{ID: "gemini", Name: "Google Gemini", Kind: "model", KeyLabel: "Gemini API key", Models: []string{"a", "b"}}
+var testGemini = slimeclient.AgentProvider{ID: "gemini", Name: "Google Gemini", Kind: "model", KeyLabel: "Gemini API key", Models: []string{"a", "b"}}
 
 func TestLinksMustBeHttps(t *testing.T) {
 	for in, want := range map[string]string{"javascript:alert(1)": "", "http://x.test": "", "https://x.test/a": "https://x.test/a", "": ""} {
@@ -60,9 +60,9 @@ func TestHistoryLinesAndModels(t *testing.T) {
 }
 
 func TestModelsOfEveryModelProviderLabelledWithTheProviderAndTheProviderEachPicks(t *testing.T) {
-	claude := keelclient.AgentProvider{ID: "anthropic", Name: "Anthropic Claude", ShortName: "Claude", Kind: "model", Models: []string{"c1", "c2"}}
-	jev := keelclient.AgentProvider{ID: "jev", Name: "TypeSafe Jev", Kind: "detector", KeyLabel: "Jev API key"}
-	items := modelItems([]keelclient.AgentProvider{testGemini, claude, jev}, "gemini", "a")
+	claude := slimeclient.AgentProvider{ID: "anthropic", Name: "Anthropic Claude", ShortName: "Claude", Kind: "model", Models: []string{"c1", "c2"}}
+	jev := slimeclient.AgentProvider{ID: "jev", Name: "TypeSafe Jev", Kind: "detector", KeyLabel: "Jev API key"}
+	items := modelItems([]slimeclient.AgentProvider{testGemini, claude, jev}, "gemini", "a")
 	var shape [][2]string
 	for _, it := range items {
 		shape = append(shape, [2]string{it.value, it.provider})
@@ -74,13 +74,13 @@ func TestModelsOfEveryModelProviderLabelledWithTheProviderAndTheProviderEachPick
 		t.Errorf("labels %q %q", items[0].label, items[2].label)
 	}
 	// A custom model stays first, under the saved provider.
-	custom := modelItems([]keelclient.AgentProvider{testGemini, claude}, "anthropic", "x")
+	custom := modelItems([]slimeclient.AgentProvider{testGemini, claude}, "anthropic", "x")
 	if custom[0] != (modelItem{"x", "x · Claude", "anthropic"}) {
 		t.Errorf("custom %+v", custom[0])
 	}
 	// One model provider: bare model names.
 	var labels []string
-	for _, it := range modelItems([]keelclient.AgentProvider{testGemini, jev}, "gemini", "a") {
+	for _, it := range modelItems([]slimeclient.AgentProvider{testGemini, jev}, "gemini", "a") {
 		labels = append(labels, it.label)
 	}
 	if !reflect.DeepEqual(labels, []string{"a", "b"}) {
@@ -89,10 +89,10 @@ func TestModelsOfEveryModelProviderLabelledWithTheProviderAndTheProviderEachPick
 }
 
 func TestAKeyErrorNeverCarriesTheRequest(t *testing.T) {
-	if got := keyError(&keelclient.StatusError{Code: 423}); got != "The vault is locked. Unlock it, then try again." {
+	if got := keyError(&slimeclient.StatusError{Code: 423}); got != "The vault is locked. Unlock it, then try again." {
 		t.Error(got)
 	}
-	if got := keyError(&keelclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}); got != "the key is empty, too long, or has spaces" {
+	if got := keyError(&slimeclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}); got != "the key is empty, too long, or has spaces" {
 		t.Error(got)
 	}
 	if got := keyError(errors.New("PUT /api/agent/keys/gemini: connection refused")); got != "Could not save the key." {

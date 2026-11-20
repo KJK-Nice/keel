@@ -329,7 +329,7 @@ func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 }
 
 // fakeWiring is the one file that links the test fakes, and only in a build
-// with the tag keelfake.
+// with the tag slimefake.
 const fakeWiring = "internal/app/agent_fake.go"
 
 // A release binary holds no test provider: providertest is imported by
@@ -355,8 +355,8 @@ func TestFakeProviderIsLinkedOnlyByTheTaggedFile(t *testing.T) {
 				continue
 			}
 			found = true
-			if !strings.HasPrefix(string(f.src), "//go:build keelfake\n") {
-				t.Errorf("%s imports providertest without //go:build keelfake on its first line", f.rel)
+			if !strings.HasPrefix(string(f.src), "//go:build slimefake\n") {
+				t.Errorf("%s imports providertest without //go:build slimefake on its first line", f.rel)
 			}
 		}
 	}

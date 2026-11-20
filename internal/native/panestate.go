@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -32,7 +32,7 @@ func textBtnAs(c *ui.Context, name, shown string, kind btnKind) bool {
 }
 
 // failHeadline is the banner's headline for a session that is down.
-func failHeadline(st keelclient.State) string {
+func failHeadline(st slimeclient.State) string {
 	switch {
 	case st.Status == wire.StatusExited:
 		return "Session ended"
@@ -42,7 +42,7 @@ func failHeadline(st keelclient.State) string {
 	return "Connection failed"
 }
 
-func failEndpoint(h keelclient.Host, st keelclient.State) string {
+func failEndpoint(h slimeclient.Host, st slimeclient.State) string {
 	if h.IsLocal() {
 		if st.Subtitle != "" {
 			return st.Subtitle
@@ -54,13 +54,13 @@ func failEndpoint(h keelclient.Host, st keelclient.State) string {
 
 // connectLog is the connecting lines followed by what slime serve reported (State.Log): the lines a failed or connecting
 // pane lists and Copy logs copies.
-func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
-	var seed []keelclient.LogLine
+func connectLog(h slimeclient.Host, st slimeclient.State) []slimeclient.LogLine {
+	var seed []slimeclient.LogLine
 	if h.IsLocal() {
-		seed = []keelclient.LogLine{{Kind: "user", Text: "Starting a local shell"}}
+		seed = []slimeclient.LogLine{{Kind: "user", Text: "Starting a local shell"}}
 	} else {
 		addr, p := `"`+h.Address+`"`, `"`+strconv.Itoa(h.SSHPort())+`"`
-		seed = []keelclient.LogLine{
+		seed = []slimeclient.LogLine{
 			{Kind: "user", Text: "Starting a new connection to: " + addr + " port " + p},
 			{Kind: "work", Text: "Starting address resolution of " + addr},
 			{Kind: "work", Text: "Address resolution finished"},
@@ -71,7 +71,7 @@ func connectLog(h keelclient.Host, st keelclient.State) []keelclient.LogLine {
 }
 
 // logText is the text Copy logs copies: the lines, one to a line.
-func logText(lines []keelclient.LogLine) string {
+func logText(lines []slimeclient.LogLine) string {
 	var out []string
 	for _, l := range lines {
 		if l.Text != "" {
@@ -86,7 +86,7 @@ func logText(lines []keelclient.LogLine) string {
 
 // connectLogView is .pane-fail-log: over the pane's body while the session is down or connecting, a row per line with its
 // glyph (person for what the user asked, gear for a step, a frown for a failure; a failure is in the flare colour).
-func (w *workspace) connectLogView(c *ui.Context, p *pane, st keelclient.State) {
+func (w *workspace) connectLogView(c *ui.Context, p *pane, st slimeclient.State) {
 	if p.remote || !(st.Status == wire.StatusError || st.Status == wire.StatusExited || (st.Status == wire.StatusConnecting && !p.host.IsLocal())) {
 		return
 	}
@@ -129,7 +129,7 @@ func (w *workspace) bannerRow(c *ui.Context, name string, soft, fg ui.Color, hea
 }
 
 // paneBanners draws the banners of a pane, between its bar and its body.
-func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st keelclient.State) {
+func (w *workspace) paneBanners(c *ui.Context, t *tab, p *pane, st slimeclient.State) {
 	if p.remote { // a joined tab has its own banner and no host to reconnect or edit
 		w.joinBanner(c, t, p, st)
 		return
@@ -248,9 +248,9 @@ func (w *workspace) hostKeyDialog(c *ui.Context) {
 
 // hostKeyModal is #hostkey-modal: the offered key and Abort / Trust and connect (Replace for a changed key). It
 // reports that the dialog went away; onTrust runs when Trust and connect was clicked, and only then.
-func hostKeyModal(c *ui.Context, k keelclient.HostKey, onTrust func()) (closed bool) {
+func hostKeyModal(c *ui.Context, k slimeclient.HostKey, onTrust func()) (closed bool) {
 	open := true
-	mismatch := k.Kind == keelclient.HostKeyMismatch
+	mismatch := k.Kind == slimeclient.HostKeyMismatch
 	title, hint := "Unknown host key", "Trust this key once to connect. Slime will reject a different key later."
 	trust := btnPrimary
 	if mismatch {

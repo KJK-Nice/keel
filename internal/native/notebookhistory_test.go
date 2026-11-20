@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // History and Recently deleted, in the window, and the palette's notebook items.
@@ -17,9 +17,9 @@ import (
 func nbHistoryRig(t *testing.T) *rig {
 	t.Helper()
 	r := nbRig(t, "line a\nline b\n")
-	r.fb.nb.history["nb1"] = []keelclient.NotebookVersion{
-		{ID: "v2", NotebookID: "nb1", Name: "Deploy", By: "agent", Event: "before-agent-edit", Summary: "Adds a step", At: time.Now().Add(-2 * time.Minute), Cells: []keelclient.NotebookCell{{ID: "c", Body: "line a"}}},
-		{ID: "v1", NotebookID: "nb1", Name: "Deploy", By: "user", Event: "session", At: time.Now().Add(-90 * time.Minute), Cells: []keelclient.NotebookCell{{ID: "c", Body: "line a\nline b\nline c"}}},
+	r.fb.nb.history["nb1"] = []slimeclient.NotebookVersion{
+		{ID: "v2", NotebookID: "nb1", Name: "Deploy", By: "agent", Event: "before-agent-edit", Summary: "Adds a step", At: time.Now().Add(-2 * time.Minute), Cells: []slimeclient.NotebookCell{{ID: "c", Body: "line a"}}},
+		{ID: "v1", NotebookID: "nb1", Name: "Deploy", By: "user", Event: "session", At: time.Now().Add(-90 * time.Minute), Cells: []slimeclient.NotebookCell{{ID: "c", Body: "line a\nline b\nline c"}}},
 	}
 	return r
 }
@@ -122,9 +122,9 @@ func TestAnEmptyHistoryAndAnEmptyTrashSaySo(t *testing.T) {
 
 func TestRecentlyDeletedRestoresAndDeletesForeverAfterAsking(t *testing.T) {
 	r := nbRig(t, "kept\n", "gone one\n")
-	r.fb.nb.trash = []keelclient.NotebookVersion{
-		{ID: "t2", NotebookID: "nb2", Name: "Backups", Event: "deleted", KeptAt: time.Now().Add(-time.Hour), Cells: []keelclient.NotebookCell{{Body: "gone one\nand more"}}},
-		{ID: "t3", NotebookID: "nb3", Name: "Old", Event: "deleted", KeptAt: time.Now().Add(-48 * time.Hour), Cells: []keelclient.NotebookCell{{Body: "older"}}},
+	r.fb.nb.trash = []slimeclient.NotebookVersion{
+		{ID: "t2", NotebookID: "nb2", Name: "Backups", Event: "deleted", KeptAt: time.Now().Add(-time.Hour), Cells: []slimeclient.NotebookCell{{Body: "gone one\nand more"}}},
+		{ID: "t3", NotebookID: "nb3", Name: "Old", Event: "deleted", KeptAt: time.Now().Add(-48 * time.Hour), Cells: []slimeclient.NotebookCell{{Body: "older"}}},
 	}
 	r.fb.nb.list = r.fb.nb.list[:1]
 	r.w.reloadNotebooks()

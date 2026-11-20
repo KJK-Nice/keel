@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// The leaf packages are imported by the window and by slime serve, so each may import only the keel packages listed here.
+// The leaf packages are imported by the window and by slime serve, so each may import only the slime packages listed here.
 func TestLeavesImportOnlyTheirListedKeelPackages(t *testing.T) {
 	for dir, allowed := range map[string][]string{
 		"wire":      nil,

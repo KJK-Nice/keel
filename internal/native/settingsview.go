@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Settings page. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
@@ -556,8 +556,8 @@ func (w *workspace) aboutSection(p *settingsPage) settingsSection {
 		groups: []prefGroup{
 			{title: "Version", rows: []prefRow{stat("Version", version), stat("Build", build)}},
 			{title: "Links", rows: []prefRow{
-				link("Source", "https://github.com/KJK-Nice/keel", "Copy link"),
-				link("README", "https://github.com/KJK-Nice/keel#readme", "Copy link"),
+				link("Source", "https://github.com/KJK-Nice/slime", "Copy link"),
+				link("README", "https://github.com/KJK-Nice/slime#readme", "Copy link"),
 			}},
 		}}
 }
@@ -570,9 +570,9 @@ func pidText(p *settingsPage) string {
 }
 
 // keelRuntime is what GET /api/runtime said, or nothing yet.
-func keelRuntime(p *settingsPage) keelclient.Runtime {
+func keelRuntime(p *settingsPage) slimeclient.Runtime {
 	if p.rt == nil {
-		return keelclient.Runtime{}
+		return slimeclient.Runtime{}
 	}
 	return *p.rt
 }
@@ -595,9 +595,9 @@ func (w *workspace) termPreview(c *ui.Context) {
 		ui.Text(c, s).TextColor(col).FontSize(size).FontWeight(weight).Font(tf.Family).FontFeatures(features...).Height(row).SingleLine()
 	}
 	ui.Column(c).FillWidth().Padding(space3).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
-		ln("guest@keel:~ $ make test && make lint", ink, wt)
+		ln("guest@slime:~ $ make test && make lint", ink, wt)
 		ui.Row(c).Height(row).AlignItems(ui.Center).Children(func() { // a prompt and the cursor of new panes
-			ui.Text(c, "guest@keel:~ $ ").TextColor(ink).FontSize(size).FontWeight(wt).Font(tf.Family).SingleLine()
+			ui.Text(c, "guest@slime:~ $ ").TextColor(ink).FontSize(size).FontWeight(wt).Font(tf.Family).SingleLine()
 			tf.Size = size
 			cw := gridFor(tf, 1).cw // the terminal's cell
 			cur := ui.Box(c).Background(ink).Label("cursor preview " + w.prefs.CursorStyle)

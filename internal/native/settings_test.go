@@ -11,15 +11,15 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Settings on the fake backend: the nav, each section's controls, the sliders that repaint, the signal field and Stop.
 
 func settingsBackend() *fakeBackend {
 	fb := okBackend()
-	fb.runtime = keelclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: true}
-	fb.vault = keelclient.Vault{Mode: "passphrase", KeyringOff: true, Path: "/scratch/data/keel.vault"}
+	fb.runtime = slimeclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: true}
+	fb.vault = slimeclient.Vault{Mode: "passphrase", KeyringOff: true, Path: "/scratch/data/keel.vault"}
 	return fb
 }
 
@@ -272,7 +272,7 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	r.section(t, "Terminal")
 	r.texts(t, "Typography", "Text size", "Weight", "Line height", "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", "Input", "Copy on select", "Copy terminal selection to the clipboard.",
 		"Right-click in the terminal", "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
-		"Paste", "Menu", "Nothing", "guest@keel:~ $ make test && make lint")
+		"Paste", "Menu", "Nothing", "guest@slime:~ $ make test && make lint")
 	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
 		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
@@ -354,7 +354,7 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	r.section(t, "Sharing")
 	r.texts(t, "Share a session by link. Nobody joins without your say, and the keyboard stays with you until you pass it.",
 		"You", "Display name", "Shown to people in sessions you share and join. Empty uses the default.",
-		"Signal server", "Server for internet join links", "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you.",
+		"Signal server", "Server for internet join links", "Share is off until you enter a slime-signal server: one you run yourself, or one someone runs for you.",
 		"Access", "Joining needs your approval", "Control stays with you", "Always on")
 	// The display name: trimmed, at most 40 characters, kept in keel-native.json, empty uses the default.
 	r.fill(t, "Display name input", "  Ann  ")
@@ -391,14 +391,14 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	}
 	r.texts(t, "Signal server removed")
 	// slime serve's refusal is shown in its own words; the field keeps what was typed.
-	fb.signalErr = &keelclient.StatusError{Code: 400, Msg: "signal server must be an https or wss URL"}
+	fb.signalErr = &slimeclient.StatusError{Code: 400, Msg: "signal server must be an https or wss URL"}
 	r.fill(t, "Signal server input", "ftp://nope")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
 	r.texts(t, "signal server must be an https or wss URL")
 	// SLIME_SIGNAL wins for the run, and says so; the field still holds the saved server.
 	fb.signalErr = nil
-	fb.runtime = keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://saved.example"}
+	fb.runtime = slimeclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://saved.example"}
 	r.w.loadSettings()
 	r.tt.Frame()
 	r.texts(t, "SLIME_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set.")
@@ -415,7 +415,7 @@ func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
 	if r.tt.Clipboard() != "/scratch/data/keel.vault" || !r.tt.HasText("Copied") {
 		t.Errorf("clipboard %q", r.tt.Clipboard())
 	}
-	fb.vault = keelclient.Vault{Mode: "keychain", Locked: true}
+	fb.vault = slimeclient.Vault{Mode: "keychain", Locked: true}
 	r.w.loadSettings()
 	r.tt.Frame()
 	r.texts(t, "Locked", "OS keychain", "The key that opens the vault is kept in your operating system's keychain. No passphrase to type.")
@@ -494,9 +494,9 @@ func TestSettingsAboutAndSearch(t *testing.T) {
 	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "About Slime")
-	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/keel", "README", "Copy link")
+	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/slime", "README", "Copy link")
 	r.click(t, "Copy link")
-	if !strings.HasPrefix(r.tt.Clipboard(), "https://github.com/KJK-Nice/keel") {
+	if !strings.HasPrefix(r.tt.Clipboard(), "https://github.com/KJK-Nice/slime") {
 		t.Errorf("clipboard %q", r.tt.Clipboard())
 	}
 	// Search reads every section's rows, titles, descriptions and key caps; with none the section comes back.

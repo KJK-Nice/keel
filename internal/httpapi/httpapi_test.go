@@ -523,7 +523,7 @@ func assertInjectNonceOneShotReplay(t *testing.T) {
 // the client sent. (The socket's own rules, live keys and the nonce
 // challenge, are checked where they now live: internal/sessionsock's
 // TestTheSocketsWritePathsBySource. The native client's are
-// internal/native/guard_test.go and keelclient/noforgedapproval_test.go.)
+// internal/native/guard_test.go and slimeclient/noforgedapproval_test.go.)
 func TestTheWindowsInjectsConsumeAServerTicket(t *testing.T) {
 	for file, min := range map[string]int{"httpapi.go": 3, "typedirect.go": 1} {
 		src, err := os.ReadFile(file)

@@ -6,9 +6,9 @@
 
 **A local SSH workspace with an encrypted vault, live session sharing, and an agent that asks before it types.**
 
-[![CI](https://github.com/KJK-Nice/keel/actions/workflows/test.yml/badge.svg)](https://github.com/KJK-Nice/keel/actions/workflows/test.yml)
+[![CI](https://github.com/KJK-Nice/slime/actions/workflows/test.yml/badge.svg)](https://github.com/KJK-Nice/slime/actions/workflows/test.yml)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-555)
-![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/keel)
+![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/slime)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 <img src="docs/images/hero-light.png" alt="Slime: the Vault sidebar with hosts beside a terminal tab" width="80%">
@@ -32,7 +32,7 @@
 
 ## Install
 
-Download the latest build from **[Releases](https://github.com/KJK-Nice/keel/releases/latest)**.
+Download the latest build from **[Releases](https://github.com/KJK-Nice/slime/releases/latest)**.
 
 What each release holds (file names, platforms, signing) is in [docs/release.md](docs/release.md).
 
@@ -41,10 +41,10 @@ What each release holds (file names, platforms, signing) is in [docs/release.md]
 **Linux**, x86_64 (`amd64`) or arm64 (the window is Slime's own, so there is no WebKit to install; it needs GTK 3, and the package carries libghostty-vt beside the binary):
 
 ```bash
-# Debian, Ubuntu: installs /opt/keel, the `slime` command and a menu entry
+# Debian, Ubuntu: installs /opt/slime, the `slime` command and a menu entry
 sudo apt install ./keel_*_amd64.deb                # or the arm64 one
-# any distribution: unpack the .tar.gz into a folder of its own and run keel there
-mkdir keel && tar -xzf keel-*-linux-amd64.tar.gz -C keel && ./keel/keel   # or the arm64 one
+# any distribution: unpack the .tar.gz into a folder of its own and run slime there
+mkdir slime && tar -xzf slime-*-linux-amd64.tar.gz -C slime && ./slime/slime   # or the arm64 one
 ```
 
 The Linux window has not been run by the maintainer yet (`docs/native.md`). Windows is not supported yet. Each release lists its files' checksums in `SHA256SUMS`; `slime version` prints the version you run.
@@ -54,7 +54,7 @@ The Linux window has not been run by the maintainer yet (`docs/native.md`). Wind
 With Go (the version in `go.mod`):
 
 ```bash
-git clone https://github.com/KJK-Nice/keel.git && cd keel
+git clone https://github.com/KJK-Nice/slime.git && cd slime
 make build
 ./bin/slime            # macOS: or open build/darwin-*/Slime.app (make build packages it)
 ```
@@ -75,7 +75,7 @@ Close the window whenever you like: sessions keep running in `slime serve` until
 |---|---|
 | [Vault](docs/vault.md) | Hosts, keychain identities, first run and `~/.ssh/config` import, unlock, port forwarding, logs |
 | [Tabs, splits and shortcuts](docs/shortcuts.md) | Every key, the New tab page, the command palette, settings |
-| [Sharing](docs/sharing.md) | Share and join, passing control, running `keel-signal`, the security model |
+| [Sharing](docs/sharing.md) | Share and join, passing control, running `slime-signal`, the security model |
 | [Shell integration](docs/shell-integration.md) | OSC 133 snippets for bash, zsh and fish |
 | [Agent](docs/agent.md) | The agent panel and its rules |
 | [Runtime and configuration](docs/runtime.md) | `slime serve`, environment variables, the loopback API, upgrading |

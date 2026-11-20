@@ -1,4 +1,4 @@
-// Package joinpeer is the joiner's side of a share for keel-native: it reads a join link, checks the host's WebRTC peer
+// Package joinpeer is the joiner's side of a share for slime-native: it reads a join link, checks the host's WebRTC peer
 // against the key in the link, and gives the window a connection that reads the host's terminal and writes what the
 // window allows. The link, the MAC and the signal URL are internal/sharelink's, the same code slime serve's share hub uses.
 //

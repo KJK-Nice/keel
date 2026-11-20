@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -70,9 +70,9 @@ func roleOf(id, ownerID, driverID uint64) wire.Role {
 
 func kindLabel(kind string) string {
 	switch kind {
-	case keelclient.KindJoined:
+	case slimeclient.KindJoined:
 		return "joined by link"
-	case keelclient.KindWindow:
+	case slimeclient.KindWindow:
 		return "Slime window"
 	}
 	return ""
@@ -106,7 +106,7 @@ func initials(name string) string {
 }
 
 // sharePeople lists who is attached, you first, then whoever drives, then by arrival.
-func sharePeople(st keelclient.State, now time.Time) []person {
+func sharePeople(st slimeclient.State, now time.Time) []person {
 	rows := make([]person, 0, len(st.Attached))
 	for _, c := range st.Attached {
 		isYou := st.YouID != 0 && c.ID == st.YouID
@@ -132,7 +132,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 		if name == "" {
 			name = "guest"
 		}
-		row := person{id: c.ID, name: name, initials: initials(name), you: isYou, role: roleOf(c.ID, st.OwnerID, st.DriverID), sub: sub, viaLink: c.Kind == keelclient.KindJoined, at: at}
+		row := person{id: c.ID, name: name, initials: initials(name), you: isYou, role: roleOf(c.ID, st.OwnerID, st.DriverID), sub: sub, viaLink: c.Kind == slimeclient.KindJoined, at: at}
 		if isYou {
 			row.name = "You"
 		}
@@ -157,7 +157,7 @@ func sharePeople(st keelclient.State, now time.Time) []person {
 }
 
 // clientName is a client's name, or "Someone".
-func clientName(attached []keelclient.Peer, id uint64) string {
+func clientName(attached []slimeclient.Peer, id uint64) string {
 	for _, c := range attached {
 		if c.ID == id && c.Name != "" {
 			return c.Name
@@ -168,12 +168,12 @@ func clientName(attached []keelclient.Peer, id uint64) string {
 
 type seat struct{ owner, driving bool }
 
-func seatOf(st keelclient.State) seat {
+func seatOf(st slimeclient.State) seat {
 	return seat{owner: st.OwnerID != 0 && st.OwnerID == st.YouID, driving: st.Driving()}
 }
 
 // followState says who owns and who drives, by name, and whether that is you.
-func followState(st keelclient.State) (owner, driver string, driving bool, host string) {
+func followState(st slimeclient.State) (owner, driver string, driving bool, host string) {
 	owner = "the host"
 	if st.OwnerID != 0 {
 		owner = clientName(st.Attached, st.OwnerID)
@@ -335,10 +335,10 @@ func (w *workspace) drainEvents() {
 	}
 }
 
-func (w *workspace) onEvent(p *pane, ev keelclient.Event) {
+func (w *workspace) onEvent(p *pane, ev slimeclient.Event) {
 	st := p.conn.Snapshot()
 	switch ev.Kind {
-	case keelclient.EventJoinRequest:
+	case slimeclient.EventJoinRequest:
 		if ev.PeerID != "" && !w.hasPrompt(p, "join\n"+ev.PeerID) {
 			name := ev.Message
 			if name == "" {
@@ -346,15 +346,15 @@ func (w *workspace) onEvent(p *pane, ev keelclient.Event) {
 			}
 			w.prompts = append(w.prompts, &sharePrompt{p: p, peerID: ev.PeerID, name: name})
 		}
-	case keelclient.EventJoinResolved:
+	case slimeclient.EventJoinResolved:
 		w.dropPrompt(p, "join\n"+ev.PeerID)
-	case keelclient.EventJoinFailed:
+	case slimeclient.EventJoinFailed:
 		msg := ev.Message
 		if msg == "" {
 			msg = "A viewer could not be connected"
 		}
 		w.warn(msg)
-	case keelclient.EventControlRequest:
+	case slimeclient.EventControlRequest:
 		if s := seatOf(st); ev.FromID != st.YouID && (s.driving || s.owner) {
 			if !w.hasPrompt(p, fmt.Sprintf("control\n%d", ev.FromID)) {
 				w.prompts = append(w.prompts, &sharePrompt{p: p, control: true, fromID: ev.FromID, name: clientName(st.Attached, ev.FromID)})
@@ -362,11 +362,11 @@ func (w *workspace) onEvent(p *pane, ev keelclient.Event) {
 		} else if ev.Message != "" {
 			w.say(ev.Message)
 		}
-	case keelclient.EventNotice: // a joined share's plain toast (host left)
+	case slimeclient.EventNotice: // a joined share's plain toast (host left)
 		w.say(ev.Message)
-	case keelclient.EventNoticeError:
+	case slimeclient.EventNoticeError:
 		w.warn(ev.Message)
-	case keelclient.EventControlNote:
+	case slimeclient.EventControlNote:
 		w.dropControlPrompts(p)
 		w.say(ev.Message)
 	}

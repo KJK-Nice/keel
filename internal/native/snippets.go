@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Snippets (docs/ui-redesign.md §5.12): saved commands: a name and a command
@@ -63,7 +63,7 @@ func snippetPreview(text string) (lines []string, summary string) {
 }
 
 // snippetFirstLine is the first line, with " …" when there are more.
-func snippetFirstLine(s keelclient.Snippet) string {
+func snippetFirstLine(s slimeclient.Snippet) string {
 	line := strings.TrimSpace(s.Command)
 	if i := strings.IndexByte(line, '\n'); i >= 0 {
 		return strings.TrimSpace(line[:i]) + " …"
@@ -72,12 +72,12 @@ func snippetFirstLine(s keelclient.Snippet) string {
 }
 
 // paletteHint is the first line of the command.
-func paletteHint(s keelclient.Snippet) string {
+func paletteHint(s slimeclient.Snippet) string {
 	return strings.Split(strings.TrimSpace(s.Command), "\n")[0]
 }
 
 // snippetName is menus.go sideSnippetName: a snippet with no name is "Snippet".
-func snippetName(s keelclient.Snippet) string {
+func snippetName(s slimeclient.Snippet) string {
 	if s.Name == "" {
 		return "Snippet"
 	}
@@ -85,22 +85,22 @@ func snippetName(s keelclient.Snippet) string {
 }
 
 // snippetMatches is the filter of the page and of the sidebar: name and command, any case.
-func snippetMatches(s keelclient.Snippet, q string) bool {
+func snippetMatches(s slimeclient.Snippet, q string) bool {
 	q = strings.ToLower(strings.TrimSpace(q))
 	return q == "" || strings.Contains(strings.ToLower(s.Name+" "+s.Command), q)
 }
 
-func (w *workspace) snippet(id string) (keelclient.Snippet, bool) {
+func (w *workspace) snippet(id string) (slimeclient.Snippet, bool) {
 	for _, s := range w.snippets {
 		if s.ID == id {
 			return s, true
 		}
 	}
-	return keelclient.Snippet{}, false
+	return slimeclient.Snippet{}, false
 }
 
 // shownSnippets is the page's list under its filter.
-func (w *workspace) shownSnippets(q string) (out []keelclient.Snippet) {
+func (w *workspace) shownSnippets(q string) (out []slimeclient.Snippet) {
 	for _, s := range w.snippets {
 		if snippetMatches(s, q) {
 			out = append(out, s)
@@ -110,18 +110,18 @@ func (w *workspace) shownSnippets(q string) (out []keelclient.Snippet) {
 }
 
 // currentSnippet is the selected snippet, else the first.
-func (w *workspace) currentSnippet(p *snippetsPage) (keelclient.Snippet, bool) {
+func (w *workspace) currentSnippet(p *snippetsPage) (slimeclient.Snippet, bool) {
 	if s, ok := w.snippet(p.selected); ok {
 		return s, true
 	}
 	if len(w.snippets) > 0 {
 		return w.snippets[0], true
 	}
-	return keelclient.Snippet{}, false
+	return slimeclient.Snippet{}, false
 }
 
 // sync reads the selected snippet into the editor, unless the user has edited this one. The command is shown without its last newline.
-func (e *snippetEditor) sync(s keelclient.Snippet) {
+func (e *snippetEditor) sync(s slimeclient.Snippet) {
 	if e.id == s.ID && e.dirty() {
 		return
 	}
@@ -172,12 +172,12 @@ func (w *workspace) saveEditor() {
 		return
 	}
 	agent := e.agent // the page always sends the switch
-	in := keelclient.SnippetInput{ID: e.id, Name: strings.TrimSpace(e.name), Command: e.command, AgentUsable: &agent}
+	in := slimeclient.SnippetInput{ID: e.id, Name: strings.TrimSpace(e.name), Command: e.command, AgentUsable: &agent}
 	if !strings.HasSuffix(in.Command, "\n") {
 		in.Command += "\n"
 	}
 	e.saving, e.err = true, ""
-	call(w, func(c context.Context) (keelclient.Snippet, error) { return w.be.SaveSnippet(c, in) }, func(saved keelclient.Snippet, err error) {
+	call(w, func(c context.Context) (slimeclient.Snippet, error) { return w.be.SaveSnippet(c, in) }, func(saved slimeclient.Snippet, err error) {
 		e.saving = false
 		if err != nil {
 			e.err = hostError(err)
@@ -206,7 +206,7 @@ type snippetDialog struct {
 func (w *workspace) newSnippet() { w.snipDlg = &snippetDialog{focus: true} }
 
 // editSnippet is the row menu's Edit: the dialog holds the command as saved, newline and all.
-func (w *workspace) editSnippet(s keelclient.Snippet) {
+func (w *workspace) editSnippet(s slimeclient.Snippet) {
 	w.snipDlg = &snippetDialog{id: s.ID, name: s.Name, command: s.Command, focus: true}
 }
 
@@ -218,7 +218,7 @@ func (w *workspace) saveSnippetDialog() {
 	if d == nil || d.saving {
 		return
 	}
-	in := keelclient.SnippetInput{ID: d.id, Name: strings.TrimSpace(d.name), Command: d.command}
+	in := slimeclient.SnippetInput{ID: d.id, Name: strings.TrimSpace(d.name), Command: d.command}
 	if in.Command != "" && !strings.HasSuffix(in.Command, "\n") {
 		in.Command += "\n"
 	}
@@ -227,7 +227,7 @@ func (w *workspace) saveSnippetDialog() {
 		return
 	}
 	d.saving, d.err = true, ""
-	call(w, func(c context.Context) (keelclient.Snippet, error) { return w.be.SaveSnippet(c, in) }, func(saved keelclient.Snippet, err error) {
+	call(w, func(c context.Context) (slimeclient.Snippet, error) { return w.be.SaveSnippet(c, in) }, func(saved slimeclient.Snippet, err error) {
 		d.saving = false
 		if err != nil {
 			d.err = hostError(err)
@@ -247,11 +247,11 @@ func (w *workspace) saveSnippetDialog() {
 // ---- delete ----
 
 // askDeleteSnippet is Delete: it asks first.
-func (w *workspace) askDeleteSnippet(s keelclient.Snippet) {
+func (w *workspace) askDeleteSnippet(s slimeclient.Snippet) {
 	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete snippet “" + s.Name + "”?", action: "Remove", run: func() { w.deleteSnippet(s) }})
 }
 
-func (w *workspace) deleteSnippet(s keelclient.Snippet) {
+func (w *workspace) deleteSnippet(s slimeclient.Snippet) {
 	callErr(w, func(c context.Context) error { return w.be.DeleteSnippet(c, s.ID) }, func(err error) {
 		if err != nil {
 			w.fail("delete snippet", err)

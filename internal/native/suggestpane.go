@@ -6,13 +6,13 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // In-pane suggestions in the window (docs/ui-redesign.md §5.5): the glue between a pane's terminal, its
 // suggestion machine (suggest.go) and slime serve.
 //
-// Nothing here builds a frame or writes a byte. The questions go through keelclient SuggestDetect and SuggestAsk, the
+// Nothing here builds a frame or writes a byte. The questions go through slimeclient SuggestDetect and SuggestAsk, the
 // insert through SuggestInsert (insertSuggestion, below, is its one caller) and the put-back of the user's words through
 // RestoreWords (restoreWords, its one caller); guard_test.go keeps each so. slime serve decides everything: whether a line
 // is noticed, which command is offered, whether ⇥ may insert it, and it writes the bytes (Ctrl-U and the command, never
@@ -92,7 +92,7 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 				p.sg.m.OnSuggest(seq, false, nil, "Slime could not ask for a suggestion.", "send")
 			}
 		},
-		insert: func(sug *keelclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {
+		insert: func(sug *slimeclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {
 			w.suggestInsert(p, sug, i, shift, words, done)
 		},
 		restore: func(words string) { w.restoreWords(p, words) },
@@ -122,7 +122,7 @@ func (w *workspace) suggestMode() sugMode {
 }
 
 // noteSuggestSettings takes the settings slime serve answered with, or the ones the Settings page just changed.
-func (w *workspace) noteSuggestSettings(s keelclient.AgentSettings) {
+func (w *workspace) noteSuggestSettings(s slimeclient.AgentSettings) {
 	w.sugSet = sugSettings{s.Settings.Suggestions, s.Settings.Detection}
 	w.suggestSettingsChanged()
 }
@@ -148,7 +148,7 @@ func (w *workspace) suggestSettingsChanged() {
 
 // refreshSuggestSettings reads the agent settings again, for the machines (the window's start, an unlock, a changed rev).
 func (w *workspace) refreshSuggestSettings() {
-	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
+	call(w, w.be.AgentSettings, func(s slimeclient.AgentSettings, err error) {
 		if err != nil {
 			w.stale()
 			return
@@ -219,11 +219,11 @@ func (w *workspace) suggestFrame(c *ui.Context) {
 			for _, ev := range p.conn.SuggestEvents() {
 				m := w.suggestMachine(p)
 				switch ev.Kind {
-				case keelclient.SuggestDetected:
+				case slimeclient.SuggestDetected:
 					m.OnDetect(ev.Seq, ev.Plain, ev.Source)
-				case keelclient.SuggestAnswered:
+				case slimeclient.SuggestAnswered:
 					m.OnSuggest(ev.Seq, ev.OK, ev.Suggestion, ev.Message, ev.Reason)
-				case keelclient.SuggestRated:
+				case slimeclient.SuggestRated:
 					m.OnRisk(ev.ID, ev.Options)
 				}
 			}
@@ -251,7 +251,7 @@ func (w *workspace) suggestFrame(c *ui.Context) {
 
 // suggestInsert is the machine's insert: right before the write, the pane must still be at a prompt with the words the
 // suggestion was for and no dialog holding the keyboard; otherwise the card is dropped and nothing is written.
-func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int, shift bool, words string, done func(insertResult)) {
+func (w *workspace) suggestInsert(p *pane, sug *slimeclient.Suggestion, index int, shift bool, words string, done func(insertResult)) {
 	if !w.canSuggest(p) {
 		done(insertResult{Message: "You follow this pane. Suggestions are for the driver."})
 		return
@@ -260,13 +260,13 @@ func (w *workspace) suggestInsert(p *pane, sug *keelclient.Suggestion, index int
 		done(insertResult{Dropped: true})
 		return
 	}
-	w.insertSuggestion(p, keelclient.SuggestionRef{ID: sug.ID, Option: index, Shift: shift}, done)
+	w.insertSuggestion(p, slimeclient.SuggestionRef{ID: sug.ID, Option: index, Shift: shift}, done)
 }
 
 // insertSuggestion is the user's ⇥ / ⇧⇥ on a card: the one caller of SuggestInsert. The reference names the suggestion,
-// the option and ⇧ as the key was pressed; the bytes are slime serve's own, which keelclient keeps. Off the window's
+// the option and ⇧ as the key was pressed; the bytes are slime serve's own, which slimeclient keeps. Off the window's
 // thread: slime serve answers within 4 s.
-func (w *workspace) insertSuggestion(p *pane, ref keelclient.SuggestionRef, done func(insertResult)) {
+func (w *workspace) insertSuggestion(p *pane, ref slimeclient.SuggestionRef, done func(insertResult)) {
 	conn := p.conn
 	callErr(w, func(c context.Context) error { return conn.SuggestInsert(c, ref) }, func(err error) {
 		if err != nil {

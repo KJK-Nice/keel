@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Saved conversations (docs/ui-redesign.md §5.4.1, the panel's title button) and the Agent tab page's use of the same
@@ -100,10 +100,10 @@ func (w *workspace) agentPageShown() bool {
 // loadConversations reads the saved conversations (GET /api/agent/conversations).
 func (w *workspace) loadConversations() {
 	a := w.agent
-	callOnce(w, &a.listLoading, nil, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+	callOnce(w, &a.listLoading, nil, w.be.Conversations, func(l slimeclient.ConversationList, err error) {
 		if err != nil {
 			a.list.sessions = nil
-			var se *keelclient.StatusError
+			var se *slimeclient.StatusError
 			if errors.As(err, &se) && se.Code == 423 {
 				a.list.err = msgListLocked
 			} else {
@@ -148,10 +148,10 @@ func (w *workspace) resumeConversation(id string) {
 	a.resumedSeq++
 	seq := a.resumedSeq
 	callIf(w, func() bool { return a.resumedSeq == seq }, // another resume, or a new conversation, began meanwhile
-		func(c context.Context) (keelclient.Transcript, error) { return w.be.Conversation(c, id) },
-		func(t keelclient.Transcript, err error) {
+		func(c context.Context) (slimeclient.Transcript, error) { return w.be.Conversation(c, id) },
+		func(t slimeclient.Transcript, err error) {
 			if err != nil {
-				var se *keelclient.StatusError
+				var se *slimeclient.StatusError
 				if errors.As(err, &se) && se.Code == 404 {
 					w.warn(msgConvGone)
 				} else {
@@ -165,7 +165,7 @@ func (w *workspace) resumeConversation(id string) {
 }
 
 // showTranscript makes the transcript the window's conversation: in memory only.
-func (w *workspace) showTranscript(t keelclient.Transcript) {
+func (w *workspace) showTranscript(t slimeclient.Transcript) {
 	a := w.agent
 	w.closeSessions()
 	if a.busy != nil {
@@ -266,7 +266,7 @@ func (w *workspace) deleteConversation(id string) {
 			w.warn(errText("delete the conversation", err))
 			return
 		}
-		a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s keelclient.ConversationSummary) bool { return s.ID == id })
+		a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s slimeclient.ConversationSummary) bool { return s.ID == id })
 		if id == a.conv {
 			w.newAgentConversation()
 			a.focusInput = false
@@ -307,8 +307,8 @@ func (w *workspace) proposeAgain(id string) {
 		return
 	}
 	conv := a.conv
-	callIf(w, func() bool { return a.conv == conv }, func(c context.Context) (keelclient.Proposal, error) { return w.be.ProposeAgain(c, conv, id) },
-		func(p keelclient.Proposal, err error) {
+	callIf(w, func() bool { return a.conv == conv }, func(c context.Context) (slimeclient.Proposal, error) { return w.be.ProposeAgain(c, conv, id) },
+		func(p slimeclient.Proposal, err error) {
 			if err != nil {
 				w.warn(errText("propose again", err))
 				return

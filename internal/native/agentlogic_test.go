@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 var testAgentPanes = []agentPane{
@@ -107,17 +107,17 @@ func TestRiskBadges(t *testing.T) {
 
 func TestTraceLinesSaySayWhatWasRead(t *testing.T) {
 	for _, c := range []struct {
-		step keelclient.TraceStep
+		step slimeclient.TraceStep
 		want string
 	}{
-		{keelclient.TraceStep{Status: "read", Host: "prod-db-01", Lines: 120}, "Read prod-db-01 · last 120 lines"},
-		{keelclient.TraceStep{Status: "read", Host: "web", Lines: 1, Redactions: map[string]int{"password_prompt": 1, "aws_key": 2}}, "Read web · last 1 line · 3 redacted"},
-		{keelclient.TraceStep{Status: "read", Host: "web", Lines: 2, Command: "exit 2"}, "Read web · last command, exit 2 · 2 lines of output"},
-		{keelclient.TraceStep{Status: "read", Host: "web", Lines: 1, Command: "still running", Redactions: map[string]int{"secret": 1}}, "Read web · last command, still running · 1 line of output · 1 redacted"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "not-readable", Host: "box"}, "Skipped box · the agent can't read this host"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "not-open"}, "Skipped a pane · it is closed"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "other", Host: "box"}, "Skipped box · could not read it"},
-		{keelclient.TraceStep{Status: "notes", NoteKind: "host", Host: "web", Notes: 2}, "Used host notes · web (2)"},
+		{slimeclient.TraceStep{Status: "read", Host: "prod-db-01", Lines: 120}, "Read prod-db-01 · last 120 lines"},
+		{slimeclient.TraceStep{Status: "read", Host: "web", Lines: 1, Redactions: map[string]int{"password_prompt": 1, "aws_key": 2}}, "Read web · last 1 line · 3 redacted"},
+		{slimeclient.TraceStep{Status: "read", Host: "web", Lines: 2, Command: "exit 2"}, "Read web · last command, exit 2 · 2 lines of output"},
+		{slimeclient.TraceStep{Status: "read", Host: "web", Lines: 1, Command: "still running", Redactions: map[string]int{"secret": 1}}, "Read web · last command, still running · 1 line of output · 1 redacted"},
+		{slimeclient.TraceStep{Status: "skipped", Reason: "not-readable", Host: "box"}, "Skipped box · the agent can't read this host"},
+		{slimeclient.TraceStep{Status: "skipped", Reason: "not-open"}, "Skipped a pane · it is closed"},
+		{slimeclient.TraceStep{Status: "skipped", Reason: "other", Host: "box"}, "Skipped box · could not read it"},
+		{slimeclient.TraceStep{Status: "notes", NoteKind: "host", Host: "web", Notes: 2}, "Used host notes · web (2)"},
 	} {
 		if got := traceText(c.step); got != c.want {
 			t.Errorf("%q, want %q", got, c.want)
@@ -126,21 +126,21 @@ func TestTraceLinesSaySayWhatWasRead(t *testing.T) {
 }
 
 func TestTypeIsOfferedOnlyToTheDriverOfAnOpenLocalPane(t *testing.T) {
-	p := keelclient.Proposal{SessionID: "s1"}
+	p := slimeclient.Proposal{SessionID: "s1"}
 	if got := typeOffer(p, &testAgentPanes[0]); got != offerType {
 		t.Errorf("driver: %q", got)
 	}
 	for name, c := range map[string]struct {
-		p    keelclient.Proposal
+		p    slimeclient.Proposal
 		pane *agentPane
 		want string
 	}{
-		"following": {keelclient.Proposal{SessionID: "s4"}, &testAgentPanes[3], offerFollowing},
-		"joined":    {keelclient.Proposal{SessionID: "r1"}, &testAgentPanes[4], offerFollowing},
-		"closed":    {keelclient.Proposal{SessionID: "gone"}, nil, offerClosed},
-		"no pane":   {keelclient.Proposal{}, &testAgentPanes[0], offerNone},
-		"expired":   {keelclient.Proposal{SessionID: "s1", Expired: true}, &testAgentPanes[0], offerExpired},
-		"secret":    {keelclient.Proposal{SessionID: "s1", Placeholders: true}, &testAgentPanes[0], offerPlaceholder},
+		"following": {slimeclient.Proposal{SessionID: "s4"}, &testAgentPanes[3], offerFollowing},
+		"joined":    {slimeclient.Proposal{SessionID: "r1"}, &testAgentPanes[4], offerFollowing},
+		"closed":    {slimeclient.Proposal{SessionID: "gone"}, nil, offerClosed},
+		"no pane":   {slimeclient.Proposal{}, &testAgentPanes[0], offerNone},
+		"expired":   {slimeclient.Proposal{SessionID: "s1", Expired: true}, &testAgentPanes[0], offerExpired},
+		"secret":    {slimeclient.Proposal{SessionID: "s1", Placeholders: true}, &testAgentPanes[0], offerPlaceholder},
 	} {
 		if got := typeOffer(c.p, c.pane); got != c.want {
 			t.Errorf("%s: %q, want %q", name, got, c.want)
@@ -152,7 +152,7 @@ func TestTypeIsOfferedOnlyToTheDriverOfAnOpenLocalPane(t *testing.T) {
 }
 
 func TestDestructiveOrChangesOnProductionNeedsShift(t *testing.T) {
-	de := keelclient.Proposal{SessionID: "s2", NeedsShift: true, Risk: "destructive"}
+	de := slimeclient.Proposal{SessionID: "s2", NeedsShift: true, Risk: "destructive"}
 	if got := typeOffer(de, &testAgentPanes[1]); got != offerShift {
 		t.Fatalf("offer %q", got)
 	}
@@ -162,10 +162,10 @@ func TestDestructiveOrChangesOnProductionNeedsShift(t *testing.T) {
 	if ok, _ := typeGate(de, &testAgentPanes[1], true); !ok {
 		t.Error("⇧ + Type is refused")
 	}
-	if shiftReason(de) != "Destructive" || shiftReason(keelclient.Proposal{Risk: "changes"}) != "Changes state on a production host" {
+	if shiftReason(de) != "Destructive" || shiftReason(slimeclient.Proposal{Risk: "changes"}) != "Changes state on a production host" {
 		t.Error("the reasons are not the app's")
 	}
-	if ok, _ := typeGate(keelclient.Proposal{SessionID: "s1"}, &testAgentPanes[0], false); !ok {
+	if ok, _ := typeGate(slimeclient.Proposal{SessionID: "s1"}, &testAgentPanes[0], false); !ok {
 		t.Error("a plain proposal is refused")
 	}
 }

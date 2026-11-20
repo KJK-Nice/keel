@@ -10,16 +10,16 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Saved conversations in the panel (docs/ui-redesign.md §5.4.1) on the fake backend: the list, rename, delete, resume
 // and expired proposals. Nothing here reaches a model provider, and a proposal reaches a session only through typeNow
 // or Approve before type.
 
-func savedList() keelclient.ConversationList {
+func savedList() slimeclient.ConversationList {
 	now := time.Now()
-	return keelclient.ConversationList{HistoryDays: 30, Sessions: []keelclient.ConversationSummary{
+	return slimeclient.ConversationList{HistoryDays: 30, Sessions: []slimeclient.ConversationSummary{
 		{ID: "c-today", Title: "Why is pg-2 lagging", Hosts: []string{"prod-db-01"}, UpdatedAt: now, Turns: 2, Proposals: 2},
 		{ID: "c-yday", Title: "TLS cert", Hosts: []string{"ceph-rgw-1"}, UpdatedAt: now.Add(-24 * time.Hour), Turns: 1, Proposals: 1},
 		{ID: "c-old", Title: "Disk full", Hosts: []string{"gitlab-runner-3"}, UpdatedAt: now.Add(-10 * 24 * time.Hour), Turns: 1, Proposals: 0},
@@ -32,10 +32,10 @@ func savedRig(t *testing.T) *rig {
 	r := agentRig(t)
 	diagWindow(t, r) // issue #140: on a failure, what differs from macOS (linuxdiag_test.go)
 	r.fb.convs.list = savedList()
-	r.fb.convs.transcr = map[string]keelclient.Transcript{
-		"c-today": {ID: "c-today", Title: "Why is pg-2 lagging", CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-30 * time.Minute), Saved: true, Turns: []keelclient.SavedTurn{
-			{At: time.Now().Add(-time.Hour), Question: "why is replication slow", Answer: "The replica is behind.", Trace: []keelclient.TraceStep{{Host: "api-1", Status: "read", Lines: 14}},
-				Proposals: []keelclient.Proposal{{ID: "old1", SessionID: "s1", Host: "api-1", Command: "df -h", Bytes: "\x15df -h\n", Risk: "readonly", Expired: true}}},
+	r.fb.convs.transcr = map[string]slimeclient.Transcript{
+		"c-today": {ID: "c-today", Title: "Why is pg-2 lagging", CreatedAt: time.Now().Add(-time.Hour), UpdatedAt: time.Now().Add(-30 * time.Minute), Saved: true, Turns: []slimeclient.SavedTurn{
+			{At: time.Now().Add(-time.Hour), Question: "why is replication slow", Answer: "The replica is behind.", Trace: []slimeclient.TraceStep{{Host: "api-1", Status: "read", Lines: 14}},
+				Proposals: []slimeclient.Proposal{{ID: "old1", SessionID: "s1", Host: "api-1", Command: "df -h", Bytes: "\x15df -h\n", Risk: "readonly", Expired: true}}},
 		}},
 	}
 	return r

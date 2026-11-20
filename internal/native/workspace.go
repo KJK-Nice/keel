@@ -14,8 +14,8 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/native/joinpeer"
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -28,167 +28,167 @@ const (
 // attachWorkers is how many saved sessions start attaches at once.
 var attachWorkers = 4
 
-// session is what a pane needs of a slime serve connection (*keelclient.Conn, or a fake in tests).
+// session is what a pane needs of a slime serve connection (*slimeclient.Conn, or a fake in tests).
 type session interface {
 	io.ReadWriteCloser
 	Resize(cols, rows int) error
 	SessionID() string
-	Snapshot() keelclient.State
+	Snapshot() slimeclient.State
 	TakeControl() error
 	RequestControl() error
 	GrantControl(peerID uint64) error // the driver or the owner makes that attached client the driver
-	Events() []keelclient.Event       // what the share hub and the runtime announced since the last call
+	Events() []slimeclient.Event      // what the share hub and the runtime announced since the last call
 	OnChange(fn func())
-	// ApprovedInject types bytes the user approved (keelclient/inject.go): a snippet's, or with a non-nil agent
+	// ApprovedInject types bytes the user approved (slimeclient/inject.go): a snippet's, or with a non-nil agent
 	// an agent proposal's, which slime serve checks again and answers. Only the Approve before type dialog's Type
 	// action calls it.
-	ApprovedInject(ctx context.Context, command string, agent *keelclient.AgentRef, opts ...keelclient.InjectOption) error
+	ApprovedInject(ctx context.Context, command string, agent *slimeclient.AgentRef, opts ...slimeclient.InjectOption) error
 	// DirectType asks slime serve to type a plainly read-only one-line command without the dialog and without Enter
-	// (keelclient/inject.go). Only typeNow (typenow.go) calls it.
-	DirectType(ctx context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error)
-	// In-pane suggestions (keelclient/inject.go, suggestpane.go). SuggestDetect and SuggestAsk are questions and write
+	// (slimeclient/inject.go). Only typeNow (typenow.go) calls it.
+	DirectType(ctx context.Context, command string, ref slimeclient.DirectRef, agent *slimeclient.AgentRef) (slimeclient.DirectResult, error)
+	// In-pane suggestions (slimeclient/inject.go, suggestpane.go). SuggestDetect and SuggestAsk are questions and write
 	// nothing; SuggestEvents hands over slime serve's answers. SuggestInsert (only insertSuggestion calls it) and
 	// RestoreWords (only restoreWords) are the two that put bytes on the prompt line.
 	SuggestDetect(seq int, line string) error
 	SuggestAsk(seq int, line string) error
-	SuggestEvents() []keelclient.SuggestEvent
-	SuggestInsert(ctx context.Context, ref keelclient.SuggestionRef) error
+	SuggestEvents() []slimeclient.SuggestEvent
+	SuggestInsert(ctx context.Context, ref slimeclient.SuggestionRef) error
 	RestoreWords(words string) error
 }
 
 type backend interface {
-	Vault(ctx context.Context) (keelclient.Vault, error)
-	Hosts(ctx context.Context) ([]keelclient.Host, error)
-	Sessions(ctx context.Context) ([]keelclient.Session, error)
+	Vault(ctx context.Context) (slimeclient.Vault, error)
+	Hosts(ctx context.Context) ([]slimeclient.Host, error)
+	Sessions(ctx context.Context) ([]slimeclient.Session, error)
 	Spawn(hostID string, cols, rows int) (session, error)
 	Attach(sessionID string, cols, rows int) (session, error)
 	Kill(ctx context.Context, id string) error
 	Reconnect(ctx context.Context, id string) error
-	TrustHostKey(ctx context.Context, k keelclient.HostKey, replace bool) error
-	CreateHost(ctx context.Context, h keelclient.NewHost) (keelclient.Host, error)
+	TrustHostKey(ctx context.Context, k slimeclient.HostKey, replace bool) error
+	CreateHost(ctx context.Context, h slimeclient.NewHost) (slimeclient.Host, error)
 
 	Unlock(ctx context.Context, passphrase string) error
-	SaveHost(ctx context.Context, h keelclient.HostDetail) (keelclient.Host, error)
+	SaveHost(ctx context.Context, h slimeclient.HostDetail) (slimeclient.Host, error)
 	DeleteHost(ctx context.Context, id string) error
-	DuplicateHost(ctx context.Context, id string) (keelclient.Host, error)
-	TestHost(ctx context.Context, h keelclient.HostDetail) (keelclient.TestResult, error)
-	HostKey(ctx context.Context, id string) (keelclient.KnownKey, error)
+	DuplicateHost(ctx context.Context, id string) (slimeclient.Host, error)
+	TestHost(ctx context.Context, h slimeclient.HostDetail) (slimeclient.TestResult, error)
+	HostKey(ctx context.Context, id string) (slimeclient.KnownKey, error)
 	ForgetHostKey(ctx context.Context, id string) error
 	SetAgentReadable(ctx context.Context, id string, readable bool) error
-	Identities(ctx context.Context) ([]keelclient.Identity, error)
-	Groups(ctx context.Context) ([]keelclient.Group, error)
+	Identities(ctx context.Context) ([]slimeclient.Identity, error)
+	Groups(ctx context.Context) ([]slimeclient.Group, error)
 
 	// Folders (folders.go): slime serve keeps them; the window reads them again after every write.
-	SaveGroup(ctx context.Context, g keelclient.Group) (keelclient.Group, error)
+	SaveGroup(ctx context.Context, g slimeclient.Group) (slimeclient.Group, error)
 	DeleteGroup(ctx context.Context, id string) error
 	MoveHosts(ctx context.Context, ids []string, groupID string) error
-	GroupMembers(ctx context.Context, id string) (keelclient.GroupInfo, error)
+	GroupMembers(ctx context.Context, id string) (slimeclient.GroupInfo, error)
 
 	// The Group page (grouppage.go): roles, variables and the Ansible export. slime serve keeps and builds all of it.
-	SetGroupRole(ctx context.Context, id, hostID, role string) (keelclient.Group, error)
-	SetGroupVar(ctx context.Context, id, name, value string) (keelclient.Group, error)
-	GroupAnsible(ctx context.Context, id string, q keelclient.AnsibleQuery) ([]keelclient.ExportFile, error)
+	SetGroupRole(ctx context.Context, id, hostID, role string) (slimeclient.Group, error)
+	SetGroupVar(ctx context.Context, id, name, value string) (slimeclient.Group, error)
+	GroupAnsible(ctx context.Context, id string, q slimeclient.AnsibleQuery) ([]slimeclient.ExportFile, error)
 
 	// Group runs (grouprun.go): slime serve holds the run and makes every proposal; none of these writes to a session. A
 	// proposal is typed only by the group approve dialog's Type action, through the one ApprovedInject call.
-	StartGroupRun(ctx context.Context, runbookID, groupID, mode string) (keelclient.GroupRun, error)
-	GroupRun(ctx context.Context, id string) (keelclient.GroupRun, error)
-	StopGroupRun(ctx context.Context, id string) (keelclient.GroupRun, error)
-	SetGroupRunMode(ctx context.Context, id, mode string) (keelclient.GroupRun, error)
-	ProposeGroupStep(ctx context.Context, id string, panes []string) (keelclient.GroupRun, error)
-	FillGroupStep(ctx context.Context, id string, proposalIDs []string) ([]keelclient.GroupFill, error)
-	MarkGroupStep(ctx context.Context, id, stepID, hostID, action string) (keelclient.GroupRun, error)
+	StartGroupRun(ctx context.Context, runbookID, groupID, mode string) (slimeclient.GroupRun, error)
+	GroupRun(ctx context.Context, id string) (slimeclient.GroupRun, error)
+	StopGroupRun(ctx context.Context, id string) (slimeclient.GroupRun, error)
+	SetGroupRunMode(ctx context.Context, id, mode string) (slimeclient.GroupRun, error)
+	ProposeGroupStep(ctx context.Context, id string, panes []string) (slimeclient.GroupRun, error)
+	FillGroupStep(ctx context.Context, id string, proposalIDs []string) ([]slimeclient.GroupFill, error)
+	MarkGroupStep(ctx context.Context, id, stepID, hostID, action string) (slimeclient.GroupRun, error)
 
 	// First run and the pages.
 	SetupVault(ctx context.Context, passphrase string) error
-	SSHConfigPreview(ctx context.Context) (keelclient.SSHPreview, error)
-	SSHConfigImport(ctx context.Context, req keelclient.ImportRequest) (keelclient.ImportResult, error)
+	SSHConfigPreview(ctx context.Context) (slimeclient.SSHPreview, error)
+	SSHConfigImport(ctx context.Context, req slimeclient.ImportRequest) (slimeclient.ImportResult, error)
 	FirstRunDone(ctx context.Context) error
-	SaveIdentity(ctx context.Context, in keelclient.IdentityInput) (keelclient.Identity, error)
+	SaveIdentity(ctx context.Context, in slimeclient.IdentityInput) (slimeclient.Identity, error)
 	DeleteIdentity(ctx context.Context, id string) error
-	Logs(ctx context.Context, limit int) ([]keelclient.LogEntry, error)
+	Logs(ctx context.Context, limit int) ([]slimeclient.LogEntry, error)
 
 	// Snippets (they are typed only through Approve before type).
-	Snippets(ctx context.Context) ([]keelclient.Snippet, error)
-	SaveSnippet(ctx context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error)
+	Snippets(ctx context.Context) ([]slimeclient.Snippet, error)
+	SaveSnippet(ctx context.Context, in slimeclient.SnippetInput) (slimeclient.Snippet, error)
 	DeleteSnippet(ctx context.Context, id string) error
 
 	// Notebooks (notebooks.go): slime serve keeps them; the window holds the list and the open documents in memory only.
 	// A fence is typed only through the snippet paths (notebooktype.go); none of these writes to a session.
-	Notebooks(ctx context.Context) ([]keelclient.Notebook, error)
-	CreateNotebook(ctx context.Context, in keelclient.NotebookSave) (keelclient.Notebook, error)
-	SaveNotebook(ctx context.Context, id string, in keelclient.NotebookSave) (keelclient.SavedNotebook, error)
-	PatchNotebook(ctx context.Context, id string, name *string, pinned *bool) (keelclient.Notebook, error)
+	Notebooks(ctx context.Context) ([]slimeclient.Notebook, error)
+	CreateNotebook(ctx context.Context, in slimeclient.NotebookSave) (slimeclient.Notebook, error)
+	SaveNotebook(ctx context.Context, id string, in slimeclient.NotebookSave) (slimeclient.SavedNotebook, error)
+	PatchNotebook(ctx context.Context, id string, name *string, pinned *bool) (slimeclient.Notebook, error)
 	DeleteNotebook(ctx context.Context, id string, permanent bool) error
-	PutNotebookPrivacy(ctx context.Context, id string, private bool) (keelclient.Notebook, error)
-	MarkNotebookReviewed(ctx context.Context, id string) (keelclient.Notebook, error)
-	NotebookHistory(ctx context.Context, id string) ([]keelclient.NotebookVersion, error)
-	NotebookVersion(ctx context.Context, id, vid string) (keelclient.NotebookVersion, error)
-	RestoreNotebookVersion(ctx context.Context, id, vid string, rev int) (keelclient.Notebook, error)
+	PutNotebookPrivacy(ctx context.Context, id string, private bool) (slimeclient.Notebook, error)
+	MarkNotebookReviewed(ctx context.Context, id string) (slimeclient.Notebook, error)
+	NotebookHistory(ctx context.Context, id string) ([]slimeclient.NotebookVersion, error)
+	NotebookVersion(ctx context.Context, id, vid string) (slimeclient.NotebookVersion, error)
+	RestoreNotebookVersion(ctx context.Context, id, vid string, rev int) (slimeclient.Notebook, error)
 	PurgeNotebookVersion(ctx context.Context, id, vid string) error
-	DeletedNotebooks(ctx context.Context) ([]keelclient.NotebookVersion, error)
-	DeletedNotebook(ctx context.Context, vid string) (keelclient.NotebookVersion, error)
-	RestoreDeletedNotebook(ctx context.Context, vid string) (keelclient.Notebook, error)
+	DeletedNotebooks(ctx context.Context) ([]slimeclient.NotebookVersion, error)
+	DeletedNotebook(ctx context.Context, vid string) (slimeclient.NotebookVersion, error)
+	RestoreDeletedNotebook(ctx context.Context, vid string) (slimeclient.Notebook, error)
 	PurgeDeletedNotebook(ctx context.Context, vid string) error
 
 	// Port forwarding.
-	Tunnels(ctx context.Context) ([]keelclient.Tunnel, error)
-	SaveTunnel(ctx context.Context, in keelclient.TunnelInput) (keelclient.Tunnel, error)
+	Tunnels(ctx context.Context) ([]slimeclient.Tunnel, error)
+	SaveTunnel(ctx context.Context, in slimeclient.TunnelInput) (slimeclient.Tunnel, error)
 	DeleteTunnel(ctx context.Context, id string) error
-	StartTunnel(ctx context.Context, id string) (keelclient.Tunnel, error)
-	StopTunnel(ctx context.Context, id string) (keelclient.Tunnel, error)
+	StartTunnel(ctx context.Context, id string) (slimeclient.Tunnel, error)
+	StopTunnel(ctx context.Context, id string) (slimeclient.Tunnel, error)
 
 	// Settings.
-	Runtime(ctx context.Context) (keelclient.Runtime, error)
-	SetSignal(ctx context.Context, url string) (keelclient.Runtime, error)
+	Runtime(ctx context.Context) (slimeclient.Runtime, error)
+	SetSignal(ctx context.Context, url string) (slimeclient.Runtime, error)
 	StopRuntime(ctx context.Context) error
 
 	// The agent panel (agent.go): slime serve reads the panes named in an ask and answers; nothing here types.
-	AgentSettings(ctx context.Context) (keelclient.AgentSettings, error)
-	AgentProviders(ctx context.Context) ([]keelclient.AgentProvider, error)
-	SetAgentKey(ctx context.Context, in keelclient.AgentKeyInput) error
-	Ask(ctx context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error)
-	EditProposal(ctx context.Context, conversationID, proposalID, command string) (keelclient.Proposal, error)
+	AgentSettings(ctx context.Context) (slimeclient.AgentSettings, error)
+	AgentProviders(ctx context.Context) ([]slimeclient.AgentProvider, error)
+	SetAgentKey(ctx context.Context, in slimeclient.AgentKeyInput) error
+	Ask(ctx context.Context, req slimeclient.AskRequest) (slimeclient.AskResponse, error)
+	EditProposal(ctx context.Context, conversationID, proposalID, command string) (slimeclient.Proposal, error)
 
 	// Saved conversations and Settings · Agent (agentconv.go, agentsettings.go): read into memory, never kept on disk.
-	Conversations(ctx context.Context) (keelclient.ConversationList, error)
-	Conversation(ctx context.Context, id string) (keelclient.Transcript, error)
+	Conversations(ctx context.Context) (slimeclient.ConversationList, error)
+	Conversation(ctx context.Context, id string) (slimeclient.Transcript, error)
 	RenameConversation(ctx context.Context, id, title string) (string, error)
 	DeleteConversation(ctx context.Context, id string) error
 	DeleteAllConversations(ctx context.Context) error
-	ProposeAgain(ctx context.Context, conversationID, proposalID string) (keelclient.Proposal, error)
-	SaveAgentSettings(ctx context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error)
+	ProposeAgain(ctx context.Context, conversationID, proposalID string) (slimeclient.Proposal, error)
+	SaveAgentSettings(ctx context.Context, p slimeclient.AgentSettingsPatch) (slimeclient.AgentSettings, error)
 	DeleteAgentKey(ctx context.Context, provider string) error
 
 	// Notes for the agent and runbooks (notes.go, runbooks.go): slime serve keeps and redacts them; the client holds them in
 	// memory only. A proposal is kept only by SaveProposedNote and SaveProposedRunbook, which the cards' Save buttons call.
-	Notes(ctx context.Context) (keelclient.NoteList, error)
-	SaveNote(ctx context.Context, in keelclient.NoteInput) (keelclient.SavedNote, error)
+	Notes(ctx context.Context) (slimeclient.NoteList, error)
+	SaveNote(ctx context.Context, in slimeclient.NoteInput) (slimeclient.SavedNote, error)
 	DeleteNote(ctx context.Context, id string) error
 	DeleteAllNotes(ctx context.Context) (int, error)
-	SaveProposedNote(ctx context.Context, conversationID, noteID, text string) (keelclient.SavedNote, error)
-	UndoProposedNote(ctx context.Context, conversationID, noteID string) (keelclient.NoteProposal, error)
-	DismissProposedNote(ctx context.Context, conversationID, noteID string) (keelclient.NoteProposal, error)
-	Runbooks(ctx context.Context) (keelclient.RunbookList, error)
-	SaveRunbook(ctx context.Context, id string, in keelclient.RunbookInput) (keelclient.SavedRunbook, error)
+	SaveProposedNote(ctx context.Context, conversationID, noteID, text string) (slimeclient.SavedNote, error)
+	UndoProposedNote(ctx context.Context, conversationID, noteID string) (slimeclient.NoteProposal, error)
+	DismissProposedNote(ctx context.Context, conversationID, noteID string) (slimeclient.NoteProposal, error)
+	Runbooks(ctx context.Context) (slimeclient.RunbookList, error)
+	SaveRunbook(ctx context.Context, id string, in slimeclient.RunbookInput) (slimeclient.SavedRunbook, error)
 	DeleteRunbook(ctx context.Context, id string) error
-	SetRunbookPick(ctx context.Context, id string, on bool) (keelclient.Runbook, error)
-	DraftRunbook(ctx context.Context, conversationID string) (keelclient.RunbookDraft, error)
-	RunbookState(ctx context.Context, conversationID string) (keelclient.RunState, error)
-	StepAction(ctx context.Context, conversationID, stepID, action string) (keelclient.RunState, error)
-	StopRunbook(ctx context.Context, conversationID string) (keelclient.RunState, error)
-	MoveRunbook(ctx context.Context, conversationID string) (keelclient.RunState, error)
-	SaveProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.SavedRunbook, error)
-	UndoProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
-	DismissProposedRunbook(ctx context.Context, conversationID, id string) (keelclient.RunbookProposal, error)
-	DraftRunbookOfNotebook(ctx context.Context, notebookID string) (keelclient.RunbookDraft, error)
+	SetRunbookPick(ctx context.Context, id string, on bool) (slimeclient.Runbook, error)
+	DraftRunbook(ctx context.Context, conversationID string) (slimeclient.RunbookDraft, error)
+	RunbookState(ctx context.Context, conversationID string) (slimeclient.RunState, error)
+	StepAction(ctx context.Context, conversationID, stepID, action string) (slimeclient.RunState, error)
+	StopRunbook(ctx context.Context, conversationID string) (slimeclient.RunState, error)
+	MoveRunbook(ctx context.Context, conversationID string) (slimeclient.RunState, error)
+	SaveProposedRunbook(ctx context.Context, conversationID, id string) (slimeclient.SavedRunbook, error)
+	UndoProposedRunbook(ctx context.Context, conversationID, id string) (slimeclient.RunbookProposal, error)
+	DismissProposedRunbook(ctx context.Context, conversationID, id string) (slimeclient.RunbookProposal, error)
+	DraftRunbookOfNotebook(ctx context.Context, notebookID string) (slimeclient.RunbookDraft, error)
 
 	// What the agent did to notebooks (agentnotebooks.go): each is a request slime serve acts on and answers; this client
 	// changes no notebook itself.
-	UndoNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
-	PostNotebookDeleteConfirm(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
-	DismissNotebookProposal(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
-	RestoreNotebookChange(ctx context.Context, conversationID, id string) (keelclient.NotebookAction, error)
+	UndoNotebookChange(ctx context.Context, conversationID, id string) (slimeclient.NotebookAction, error)
+	PostNotebookDeleteConfirm(ctx context.Context, conversationID, id string) (slimeclient.NotebookAction, error)
+	DismissNotebookProposal(ctx context.Context, conversationID, id string) (slimeclient.NotebookAction, error)
+	RestoreNotebookChange(ctx context.Context, conversationID, id string) (slimeclient.NotebookAction, error)
 
 	// Share (share.go): the owner's side. The answer to a join request is AdmitShare, called only by Allow and Deny.
 	Share(ctx context.Context, sessionID string) (string, error)
@@ -196,8 +196,8 @@ type backend interface {
 	StopShare(ctx context.Context, sessionID string) error
 }
 
-// clientBackend adapts *keelclient.Client, whose Spawn and Attach return *Conn.
-type clientBackend struct{ *keelclient.Client }
+// clientBackend adapts *slimeclient.Client, whose Spawn and Attach return *Conn.
+type clientBackend struct{ *slimeclient.Client }
 
 func (b clientBackend) Spawn(hostID string, cols, rows int) (session, error) {
 	c, err := b.Client.Spawn(hostID, cols, rows)
@@ -217,7 +217,7 @@ func (b clientBackend) Attach(id string, cols, rows int) (session, error) {
 
 type pane struct {
 	id   string
-	host keelclient.Host
+	host slimeclient.Host
 	conn session
 	sid  string // session id when known before the ready frame (an attached session)
 
@@ -270,7 +270,7 @@ type pane struct {
 
 	note string // what the failure banner says instead of the session's message (a re-attach found the session gone)
 
-	declined keelclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
+	declined slimeclient.HostKey // the host-key offer the user cancelled or answered: its dialog stays closed
 
 	nb *notebookPane // set for a notebook pane (notebooks.go): it has no session, and conn is a stub that refuses everything
 
@@ -380,19 +380,19 @@ type workspace struct {
 	capAlpha  float32   // 0 hides the caps, 1 shows them
 	capsBase  []ui.Key  // keys already down when the hold began: stale, not a use of it
 
-	hosts          []keelclient.Host
-	snippets       []keelclient.Snippet
-	notebooks      []keelclient.Notebook // GET /api/notebooks (notebooks.go)
-	nbDlg          *nbDialog             // Rename notebook, History, Recently deleted (notebookdialogs.go)
-	sideSeg        string                // the sidebar's section: "hosts" or "snippets"
+	hosts          []slimeclient.Host
+	snippets       []slimeclient.Snippet
+	notebooks      []slimeclient.Notebook // GET /api/notebooks (notebooks.go)
+	nbDlg          *nbDialog              // Rename notebook, History, Recently deleted (notebookdialogs.go)
+	sideSeg        string                 // the sidebar's section: "hosts" or "snippets"
 	snipQuery      string
 	snipH          ui.Handle
 	snipDlg        *snippetDialog
-	folders        []keelclient.Group // the vault's folders, as GET /api/groups lists them (folders.go)
+	folders        []slimeclient.Group // the vault's folders, as GET /api/groups lists them (folders.go)
 	folderDlg      *folderDialog
-	folderRen      *folderRename       // the folder whose name is being edited in the tree
-	tunnels        []keelclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
-	tunReading     bool                // the 2 s read of them is in flight
+	folderRen      *folderRename        // the folder whose name is being edited in the tree
+	tunnels        []slimeclient.Tunnel // the forwards, as GET /api/tunnels lists them (forwards.go)
+	tunReading     bool                 // the 2 s read of them is in flight
 	fwdQuery       string
 	paneQuery      string
 	prefs          prefsDoc                          // keel-native.json, loaded once (prefs.go); its setters write it back
@@ -576,7 +576,7 @@ func (w *workspace) start() {
 		tunnels, _ := w.be.Tunnels(c)             // a failed read leaves none: the 2 s read and the next change fill them in
 		notebooks, nbReadErr := w.be.Notebooks(c) // a failed read leaves none: the next change reads them again
 		type attached struct {
-			host keelclient.Host
+			host slimeclient.Host
 			conn session
 			sid  string
 		}
@@ -600,7 +600,7 @@ func (w *workspace) start() {
 					errs[i] = err
 					return
 				}
-				h := keelclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
+				h := slimeclient.Host{ID: s.HostID, Name: s.Title, Color: s.Color}
 				if k, ok := hostByID(hosts, s.HostID); ok {
 					h = k
 				}
@@ -654,7 +654,7 @@ func (w *workspace) start() {
 	})
 }
 
-func (w *workspace) newPane(h keelclient.Host, conn session) *pane {
+func (w *workspace) newPane(h slimeclient.Host, conn session) *pane {
 	w.seq++
 	p := &pane{id: strconv.Itoa(w.seq), host: h, conn: conn, fontSize: float32(w.prefs.TermSize), font: w.prefs.termFont(), colors: termColors{w.prefs.SelectionBg, w.prefs.SelectionText}, contrast: contrastRatio(w.prefs.Contrast), copyOnSelect: w.prefs.CopyOnSelect, copyFlash: w.prefs.CopyFlash, rightClick: w.prefs.RightClick,
 		cursor: cursorStyleOf(w.prefs.CursorStyle), noBlink: !w.prefs.CursorBlink, optionAsAlt: w.prefs.OptionKey == optionAlt}
@@ -721,7 +721,7 @@ func (w *workspace) split(t *tab, target string, d layout.Dir) {
 	w.splitOn(t, target, p.host, d)
 }
 
-func (w *workspace) splitOn(t *tab, target string, h keelclient.Host, d layout.Dir) {
+func (w *workspace) splitOn(t *tab, target string, h slimeclient.Host, d layout.Dir) {
 	if t.panes[target] == nil {
 		return
 	}
@@ -815,7 +815,7 @@ func (w *workspace) reattach(p *pane, sid string) {
 		if err != nil {
 			return nil, err
 		}
-		if !slices.ContainsFunc(list, func(s keelclient.Session) bool { return s.ID == sid }) {
+		if !slices.ContainsFunc(list, func(s slimeclient.Session) bool { return s.ID == sid }) {
 			return nil, nil
 		}
 		return w.be.Attach(sid, cols, rows)
@@ -851,11 +851,11 @@ func (w *workspace) failed(what string, do func(context.Context) error) {
 
 // trustHostKey is the host key dialog's trust button and nothing else: it sends back exactly the offer the
 // server made for p's session, then reconnects.
-func (w *workspace) trustHostKey(p *pane, k keelclient.HostKey) {
+func (w *workspace) trustHostKey(p *pane, k slimeclient.HostKey) {
 	p.declined = k // the dialog closes now; a new offer opens it again
 	sid := p.sessionID()
 	w.failed("trust host key", func(c context.Context) error {
-		err := w.be.TrustHostKey(c, k, k.Kind == keelclient.HostKeyMismatch)
+		err := w.be.TrustHostKey(c, k, k.Kind == slimeclient.HostKeyMismatch)
 		if err == nil && sid != "" {
 			err = w.be.Reconnect(c, sid)
 		}
@@ -954,7 +954,7 @@ func (w *workspace) closeWindow() {
 
 type hostGroup struct {
 	name  string
-	hosts []keelclient.Host
+	hosts []slimeclient.Host
 }
 
 const ungrouped = "Ungrouped"
@@ -962,7 +962,7 @@ const ungrouped = "Ungrouped"
 // groups is the host tree for the current filter: groups and hosts by name, no group last.
 func (w *workspace) groups() []hostGroup {
 	q := strings.ToLower(strings.TrimSpace(w.filter))
-	by := map[string][]keelclient.Host{}
+	by := map[string][]slimeclient.Host{}
 	for _, h := range w.hosts {
 		if q != "" && !strings.Contains(strings.ToLower(h.Name+"\x00"+h.Address+"\x00"+h.Username), q) {
 			continue

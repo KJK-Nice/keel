@@ -34,8 +34,8 @@ slime-binary:
 
 # The helper binaries next to bin/slime: the signaling server and the test SSH server.
 helpers:
-	go build -o bin/keel-signal ./cmd/keel-signal
-	go build -o bin/keel-sshtest ./cmd/keel-sshtest
+	go build -o bin/slime-signal ./cmd/slime-signal
+	go build -o bin/slime-sshtest ./cmd/slime-sshtest
 
 # make package builds the shipped app next to bin/slime.
 build: slime-binary helpers
@@ -60,21 +60,21 @@ macos-icon:
 	cd packaging/macos && go run genicon.go
 
 signal:
-	go run ./cmd/keel-signal
+	go run ./cmd/slime-signal
 
 # The native client end to end: the real view and terminal under MyGo's
 # ui.Tester against a scratch slime serve it starts. PNGs: .scratch-native/e2e/.
-# The tag keelfake links the agent's test provider (SLIME_AGENT_PROVIDER=fake), which no other build has: this
+# The tag slimefake links the agent's test provider (SLIME_AGENT_PROVIDER=fake), which no other build has: this
 # bin/slime is a test binary, and make build replaces it.
-native-e2e: SLIME_TAGS = keelfake
+native-e2e: SLIME_TAGS = slimefake
 native-e2e: slime-binary helpers
 	go test -tags nativee2e -count=1 -run 'TestE2E' ./internal/native/
 
-# bin/keel-e2e is the test build the automation suite drives: its first tag opens MyGo's automation socket
+# bin/slime-e2e is the test build the automation suite drives: its first tag opens MyGo's automation socket
 # (internal/native.CheckAutomationEnv guards it) and the second links the fake agent provider. No release path passes
 # either tag.
-native-automation-build: SLIME_TAGS = keelautomation,keelfake
-native-automation-build: SLIME_OUT = bin/keel-e2e
+native-automation-build: SLIME_TAGS = slimeautomation,slimefake
+native-automation-build: SLIME_OUT = bin/slime-e2e
 native-automation-build: slime-binary
 
 # Drives the built app from outside through MyGo's automation socket. Opens real windows briefly.

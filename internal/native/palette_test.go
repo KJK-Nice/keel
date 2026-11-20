@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // ---- the model: matching, ordering, cursor, highlight ----
@@ -108,7 +108,7 @@ func TestPaletteHighlight(t *testing.T) {
 
 // palRig is two tabs (the first split) and three hosts.
 func palRig(t *testing.T) *rig {
-	fb := &fakeBackend{hosts: []keelclient.Host{
+	fb := &fakeBackend{hosts: []slimeclient.Host{
 		{ID: "h-api", Name: "api-1", Group: "production", Address: "10.0.0.1", Username: "deploy", AuthType: "key"},
 		{ID: "h-web", Name: "staging-web", Group: "staging", Address: "10.1.0.1", Username: "ci", AuthType: "password", Port: 2222},
 		{ID: "h-local", Name: "Local Shell", Address: "localhost", Username: "me", AuthType: "local"},

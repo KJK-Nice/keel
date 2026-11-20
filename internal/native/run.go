@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/authtoken"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/paths"
 )
 
@@ -125,7 +125,7 @@ func liveBodyT(p *pane, transparent bool) {
 // Options say which slime serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
 // what slime app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
 // Name is the display name slime app was started with (--name, else SLIME_NAME, else the user name); "" leaves it to
-// the environment (keel-native parses no flags).
+// the environment (slime-native parses no flags).
 type Options struct {
 	Addr, DataDir, AppBuild string
 	Name                    string
@@ -146,7 +146,7 @@ func RunWith(o Options) error {
 	if err != nil {
 		return fmt.Errorf("read the slime serve token (is slime serve running?): %w", err)
 	}
-	cl := keelclient.NewAt(o.Addr, tok)
+	cl := slimeclient.NewAt(o.Addr, tok)
 	cl.Name, launchName = o.Name, o.Name
 	pr := loadPrefs(o.DataDir)
 	registerFonts()
@@ -206,7 +206,7 @@ func blurOnce(win *mygo.Window, radius int) func() {
 	return func() {
 		go func() {
 			if err := setWindowBlur(win, radius); err != nil {
-				once.Do(func() { fmt.Fprintln(os.Stderr, "keel-native: window blur:", err) })
+				once.Do(func() { fmt.Fprintln(os.Stderr, "slime-native: window blur:", err) })
 			}
 		}()
 	}

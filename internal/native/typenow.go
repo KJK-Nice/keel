@@ -7,10 +7,10 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/cmdrule"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// Type without the dialog (docs/ui-redesign.md §6 rule 13): the one function that asks keelclient.DirectType to type, and
+// Type without the dialog (docs/ui-redesign.md §6 rule 13): the one function that asks slimeclient.DirectType to type, and
 // the only caller of it. Every entry point of a snippet (the palette row, the sidebar row, the page's button and its row
 // menu) and of an agent proposal's card goes through typeNow; guard_test.go keeps that true.
 //
@@ -53,22 +53,22 @@ func (w *workspace) typeNow(p *pane, s typeSource) {
 		s.dialog()
 		return
 	case p.typing:
-		w.warn(keelclient.ErrDirectBusy.Error())
+		w.warn(slimeclient.ErrDirectBusy.Error())
 		return
 	}
-	ref := keelclient.DirectRef{Kind: "snippet", SnippetID: s.snippetID, AltScreen: alt, PromptLine: promptLine}
-	var agent *keelclient.AgentRef
+	ref := slimeclient.DirectRef{Kind: "snippet", SnippetID: s.snippetID, AltScreen: alt, PromptLine: promptLine}
+	var agent *slimeclient.AgentRef
 	if s.notebookID != "" {
 		ref.Kind, ref.SnippetID, ref.NotebookID = "notebook", "", s.notebookID
 	}
 	if s.proposal != "" {
 		ref.Kind, ref.SnippetID = "agent", ""
-		agent = &keelclient.AgentRef{ConversationID: s.conv, ProposalID: s.proposal, Shift: s.shift}
+		agent = &slimeclient.AgentRef{ConversationID: s.conv, ProposalID: s.proposal, Shift: s.shift}
 	}
 	target := orElse(s.target, orElse(p.title(), p.conn.Snapshot().Subtitle))
 	conn, line := p.conn, s.line
 	p.typing = true
-	call(w, func(c context.Context) (keelclient.DirectResult, error) { return conn.DirectType(c, line, ref, agent) }, func(res keelclient.DirectResult, err error) {
+	call(w, func(c context.Context) (slimeclient.DirectResult, error) { return conn.DirectType(c, line, ref, agent) }, func(res slimeclient.DirectResult, err error) {
 		p.typing = false
 		msg := ""
 		switch {

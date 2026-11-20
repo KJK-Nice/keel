@@ -10,7 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Notes for the agent and runbooks against a real slime serve that answers from its in-process fake (SLIME_AGENT_PROVIDER=fake,
@@ -21,7 +21,7 @@ import (
 
 const e2eNoteSecret = "native-e2e-fake-note-secret-7391" // a made-up password; no test prints it
 
-func (e *win) serverNotes() []keelclient.Note {
+func (e *win) serverNotes() []slimeclient.Note {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -32,7 +32,7 @@ func (e *win) serverNotes() []keelclient.Note {
 	return l.Notes
 }
 
-func (e *win) serverRunbooks() []keelclient.Runbook {
+func (e *win) serverRunbooks() []slimeclient.Runbook {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -198,7 +198,7 @@ func TestE2ENoteWithSecretIsRedactedOnSave(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	e.putAgentKey()
 	c, cancel := ctx()
-	if _, err := e.cl.SaveIdentity(c, keelclient.IdentityInput{Name: "e2e made-up password", Username: "nobody", Kind: "password", Password: e2eNoteSecret}); err != nil {
+	if _, err := e.cl.SaveIdentity(c, slimeclient.IdentityInput{Name: "e2e made-up password", Username: "nobody", Kind: "password", Password: e2eNoteSecret}); err != nil {
 		cancel()
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestE2EYourNotesAndDeleteAll(t *testing.T) {
 	e.putAgentKey()
 	h, _ := e.hostNamed("Local Shell")
 	c, cancel := ctx()
-	if _, err := e.cl.SaveNote(c, keelclient.NoteInput{HostID: h.ID, Text: "keel-note-e2e: a host note"}); err != nil {
+	if _, err := e.cl.SaveNote(c, slimeclient.NoteInput{HostID: h.ID, Text: "keel-note-e2e: a host note"}); err != nil {
 		cancel()
 		t.Fatal(err)
 	}

@@ -1,4 +1,4 @@
-// Package buildid names a Slime build, so the window can tell when the keel
+// Package buildid names a Slime build, so the window can tell when the slime
 // serve it connects to came from a different build.
 //
 // slime serve outlives the window (sessions keep running). After an upgrade

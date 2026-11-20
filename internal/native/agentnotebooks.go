@@ -5,7 +5,7 @@ import (
 	"errors"
 	"slices"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -20,20 +20,20 @@ import (
 
 // agentNbProp is a notebook card on the thread: what slime serve holds, and what the card is doing.
 type agentNbProp struct {
-	p    keelclient.NotebookProposal
+	p    slimeclient.NotebookProposal
 	busy bool
 	err  string
 }
 
 // registerNbProp adds a card to the conversation. The notebook it carries (Record) is not kept with the card.
-func (a *agentPanel) registerNbProp(p keelclient.NotebookProposal) {
+func (a *agentPanel) registerNbProp(p slimeclient.NotebookProposal) {
 	p.Record = nil
 	a.nbProps[p.ID] = &agentNbProp{p: p}
 }
 
 // notebookChanged shows a notebook as slime serve has it: the list takes it, an open pane with no typing loads it, and one
 // with typing keeps it and says so once when the agent made the change.
-func (w *workspace) notebookChanged(rec keelclient.Notebook) {
+func (w *workspace) notebookChanged(rec slimeclient.Notebook) {
 	w.rememberNotebook(rec)
 	w.followNotebooks()
 }
@@ -41,7 +41,7 @@ func (w *workspace) notebookChanged(rec keelclient.Notebook) {
 // ---- attaching ----
 
 // attachedNotebooks are the attached notebooks that still exist, in the order they were attached.
-func (w *workspace) attachedNotebooks() (out []keelclient.Notebook) {
+func (w *workspace) attachedNotebooks() (out []slimeclient.Notebook) {
 	for _, id := range w.agent.attached {
 		if nb, ok := w.notebook(id); ok {
 			out = append(out, nb)
@@ -150,7 +150,7 @@ func (w *workspace) nbFlushAll(done func()) {
 
 // nbCardMessage is what a card says when slime serve refuses its action.
 func nbCardMessage(err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) && se.Code == 410 {
 		return "Slime no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted."
 	}
@@ -182,7 +182,7 @@ func (w *workspace) nbPropAction(id, action string) {
 	conv, was := a.conv, rec.p
 	rec.busy, rec.err = true, ""
 	w.nbFlushAll(func() {
-		call(w, func(c context.Context) (res keelclient.NotebookAction, err error) {
+		call(w, func(c context.Context) (res slimeclient.NotebookAction, err error) {
 			switch action {
 			case actUndo:
 				return w.be.UndoNotebookChange(c, conv, id)
@@ -194,7 +194,7 @@ func (w *workspace) nbPropAction(id, action string) {
 				return w.be.RestoreNotebookChange(c, conv, id)
 			}
 			return res, errors.New("unknown card action")
-		}, func(res keelclient.NotebookAction, err error) {
+		}, func(res slimeclient.NotebookAction, err error) {
 			rec.busy = false
 			if a.conv != conv {
 				return
@@ -229,12 +229,12 @@ func (w *workspace) undoAgentEdit(id string) {
 		if !ok {
 			return
 		}
-		call(w, func(c context.Context) ([]keelclient.NotebookVersion, error) { return w.be.NotebookHistory(c, id) }, func(vs []keelclient.NotebookVersion, err error) {
+		call(w, func(c context.Context) ([]slimeclient.NotebookVersion, error) { return w.be.NotebookHistory(c, id) }, func(vs []slimeclient.NotebookVersion, err error) {
 			if err != nil {
 				w.warn(nbErr(err, "Could not undo"))
 				return
 			}
-			i := slices.IndexFunc(vs, func(v keelclient.NotebookVersion) bool { return v.Event == "before-agent-edit" })
+			i := slices.IndexFunc(vs, func(v slimeclient.NotebookVersion) bool { return v.Event == "before-agent-edit" })
 			if i < 0 {
 				w.warn("Slime has no version from before the agent's edit. Open History to choose one.")
 				return
@@ -252,9 +252,9 @@ func (w *workspace) undoAgentEdit(id string) {
 }
 
 func (w *workspace) restoreBeforeAgentEdit(id, vid string, rev int) {
-	call(w, func(c context.Context) (keelclient.Notebook, error) {
+	call(w, func(c context.Context) (slimeclient.Notebook, error) {
 		return w.be.RestoreNotebookVersion(c, id, vid, rev)
-	}, func(saved keelclient.Notebook, err error) {
+	}, func(saved slimeclient.Notebook, err error) {
 		if err != nil {
 			w.warn(nbErr(err, "Could not undo"))
 			return

@@ -11,7 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/native/joinpeer"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 const joinTestLink = "http://127.0.0.1:9/join?room=r1#k=" + shareTestKey
@@ -33,7 +33,7 @@ func newJoinRig(t *testing.T) *joinRig {
 		if jr.err != nil {
 			return nil, jr.err
 		}
-		c := &fakeConn{st: &keelclient.State{}}
+		c := &fakeConn{st: &slimeclient.State{}}
 		jr.conns = append(jr.conns, c)
 		return c, nil
 	}
@@ -51,9 +51,9 @@ func (jr *joinRig) join(t *testing.T, link string) {
 	jr.tt.Frame()
 }
 
-func following() *keelclient.State {
-	return &keelclient.State{Status: "ready", Role: "follower", Title: "Local Shell", YouID: 2, DriverID: 1, OwnerID: 1,
-		Attached: []keelclient.Peer{{ID: 1, Name: "Ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: "webrtc", Role: "follower"}}}
+func following() *slimeclient.State {
+	return &slimeclient.State{Status: "ready", Role: "follower", Title: "Local Shell", YouID: 2, DriverID: 1, OwnerID: 1,
+		Attached: []slimeclient.Peer{{ID: 1, Name: "Ann", Kind: slimeclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: "webrtc", Role: "follower"}}}
 }
 
 func TestJoinDialogHasTheAppsWordsAndTheAppsErrors(t *testing.T) {
@@ -149,8 +149,8 @@ func TestJoiningOpensAFollowingTabWithTheAppsBannerAndNothingElse(t *testing.T) 
 	}
 	jr.click(t, "tab Local Shell · joined")
 	// After a hand-over: driving.
-	jr.conns[0].st = &keelclient.State{Status: "ready", Role: "driver", Title: "Local Shell", YouID: 2, DriverID: 2, OwnerID: 1,
-		Attached: []keelclient.Peer{{ID: 1, Name: "Ann", Kind: keelclient.KindWindow}, {ID: 2, Name: "me", Kind: "webrtc"}}}
+	jr.conns[0].st = &slimeclient.State{Status: "ready", Role: "driver", Title: "Local Shell", YouID: 2, DriverID: 2, OwnerID: 1,
+		Attached: []slimeclient.Peer{{ID: 1, Name: "Ann", Kind: slimeclient.KindWindow}, {ID: 2, Name: "me", Kind: "webrtc"}}}
 	jr.tt.Frame()
 	if !jr.has("banner Driving Ann's session on Local Shell · you have control") || jr.has("Ask for control") || jr.has("role You follow") || !jr.has("role Driving") {
 		t.Errorf("driving: %q", jr.tt.Texts())
@@ -194,7 +194,7 @@ func TestAskForControlLeaveAndTheFollowNotice(t *testing.T) {
 
 func TestAJoinedTabIsNotSavedAndTakesNoSnippetOrSplit(t *testing.T) {
 	jr := newJoinRig(t)
-	jr.fb.snippets = []keelclient.Snippet{{ID: "sn1", Name: "df", Command: "df -h"}}
+	jr.fb.snippets = []slimeclient.Snippet{{ID: "sn1", Name: "df", Command: "df -h"}}
 	jr.w.snippets = jr.fb.snippets
 	jr.join(t, joinTestLink)
 	jr.conns[0].st = following()
@@ -233,7 +233,7 @@ func TestPastingTheSameLinkAgainShowsTheTabAndAFailedOneJoinsAgain(t *testing.T)
 		t.Fatalf("joins %d tabs %d: the same link opens no second tab", len(jr.links), jr.w.tabCount())
 	}
 	// A denied or lost join shows its error and Leave; pasting the link again retries in a new tab.
-	jr.conns[0].st = &keelclient.State{Status: "error", Message: "The host declined your request to join."}
+	jr.conns[0].st = &slimeclient.State{Status: "error", Message: "The host declined your request to join."}
 	jr.tt.Frame()
 	if !jr.tt.HasText("The host declined your request to join.") || !jr.has("Leave") || jr.has("Reconnect") || jr.has("Edit host") {
 		t.Errorf("error banner: %q", jr.tt.Texts())
@@ -287,7 +287,7 @@ func TestJoinSessionIsOnThePaletteTheSidebarMenuAndTheNewTabPage(t *testing.T) {
 func TestJoinNoticesAreToastsAndNeverTerminalOutput(t *testing.T) {
 	jr := newJoinRig(t)
 	jr.join(t, joinTestLink)
-	jr.conns[0].events = []keelclient.Event{{Kind: keelclient.EventNotice, Message: "Host left"}, {Kind: keelclient.EventNoticeError, Message: "Signaling failed"}}
+	jr.conns[0].events = []slimeclient.Event{{Kind: slimeclient.EventNotice, Message: "Host left"}, {Kind: slimeclient.EventNoticeError, Message: "Signaling failed"}}
 	jr.conns[0].onChange()
 	jr.tt.Frame()
 	jr.tt.Frame()
@@ -301,7 +301,7 @@ func TestOnlyAJoinedPaneIsRemoteAndItsSessionIsNeverKilledOrReconnected(t *testi
 	jr.join(t, joinTestLink)
 	p := jr.w.focusedPane()
 	jr.conns[0].id = "s-of-the-host" // even if a frame named the host's session, it is not ours to act on
-	jr.conns[0].st = &keelclient.State{Status: "error", Message: "x"}
+	jr.conns[0].st = &slimeclient.State{Status: "error", Message: "x"}
 	jr.w.reconnect(p)
 	jr.w.closePane(jr.w.activeTab(), p.id)
 	if len(jr.fb.killed) != 0 || len(jr.fb.reconnected) != 0 {

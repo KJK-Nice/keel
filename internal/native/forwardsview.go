@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -23,7 +23,7 @@ const (
 var fwdChips = [][2]string{{tunnelAll, "All"}, {tunnelRunning, "Running"}, {tunnelStopped, "Stopped"}}
 
 // tunnelMenu is Start or Stop, Copy local address, Edit, Delete.
-func (w *workspace) tunnelMenu(c *ui.Context, t keelclient.Tunnel) func(m *ui.Menu) {
+func (w *workspace) tunnelMenu(c *ui.Context, t slimeclient.Tunnel) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if tunnelState(t).on {
 			if menuItem(m, "Stop").Chosen() {
@@ -50,7 +50,7 @@ func (w *workspace) tunnelMenu(c *ui.Context, t keelclient.Tunnel) func(m *ui.Me
 
 // tunnelSwitch is the switch of a row: on while the forward runs or connects. A click starts or stops it; the
 // state shown is the server's, which the next read confirms.
-func (w *workspace) tunnelSwitch(c *ui.Context, t keelclient.Tunnel) {
+func (w *workspace) tunnelSwitch(c *ui.Context, t slimeclient.Tunnel) {
 	on := tunnelState(t).on
 	sw := on
 	ui.Switch(c, &sw).Label(t.Name + " on").Shrink(0)
@@ -139,7 +139,7 @@ func sideMatches(text, q string) bool {
 
 // forwardRow is the name, the -L / -R / -D badge, the route (and the Every interface badge), the host it
 // goes through, the state (with Retry after a failure), the switch and the row menu.
-func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
+func (w *workspace) forwardRow(c *ui.Context, t slimeclient.Tunnel) {
 	st := tunnelState(t)
 	r := hairline(ui.Row(c).FillWidth().MinHeight(sizeControlLg).Padding(space1, space6, space1, space8).Gap(space3).AlignItems(ui.Center).Key(t.ID).Label("forward "+t.Name), 0, 0, 1, 0)
 	if r.Hovered() {
@@ -170,7 +170,7 @@ func (w *workspace) forwardRow(c *ui.Context, t keelclient.Tunnel) {
 // ---- the sidebar's Forwards section ----
 
 // shownSideTunnels is the section's rows under its filter (name, host name, destination host).
-func (w *workspace) shownSideTunnels() (out []keelclient.Tunnel) {
+func (w *workspace) shownSideTunnels() (out []slimeclient.Tunnel) {
 	for _, t := range w.tunnels {
 		if sideMatches(t.Name+" "+w.tunnelHostName(t.HostID)+" "+t.DestHost, w.fwdQuery) {
 			out = append(out, t)
@@ -203,7 +203,7 @@ func (w *workspace) sidebarForwards(c *ui.Context) {
 	})
 }
 
-func (w *workspace) sideForwardRow(c *ui.Context, t keelclient.Tunnel) {
+func (w *workspace) sideForwardRow(c *ui.Context, t slimeclient.Tunnel) {
 	st := tunnelState(t)
 	// The item that opens the page, then the switch and the menu beside it (they are not inside the item).
 	r := ui.Row(c).FillWidth().Height(sizeRow).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(t.ID)

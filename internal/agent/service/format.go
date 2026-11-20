@@ -161,7 +161,7 @@ var keelBlocks = map[string]*regexp.Regexp{
 func blockOf(fence string) *regexp.Regexp {
 	re, ok := keelBlocks[fence]
 	if !ok {
-		panic("agent: no keel block " + fence)
+		panic("agent: no slime block " + fence)
 	}
 	return re
 }

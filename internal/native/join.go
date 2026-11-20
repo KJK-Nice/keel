@@ -7,8 +7,8 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/native/joinpeer"
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 	"slime/internal/sharelink"
 	"slime/internal/wire"
 )
@@ -90,7 +90,7 @@ open:
 			case w.closed:
 				conn.Close()
 			default:
-				p := w.newPane(keelclient.Host{Name: joinedFallback, Address: strings.TrimPrefix(strings.TrimPrefix(l.Origin, "https://"), "http://")}, conn)
+				p := w.newPane(slimeclient.Host{Name: joinedFallback, Address: strings.TrimPrefix(strings.TrimPrefix(l.Origin, "https://"), "http://")}, conn)
 				p.remote, p.joinKey = true, k
 				t := &tab{root: layout.Leaf(p.id), panes: map[string]*pane{p.id: p}, focused: p.id, remote: true}
 				w.tabs = append(w.tabs, t)
@@ -123,7 +123,7 @@ func (w *workspace) joinedActive() bool {
 // when a follower types. Feedback only: nothing was sent.
 const followNotice = "Typing is off while you follow"
 
-func (w *workspace) noteBlocked(p *pane, st keelclient.State) {
+func (w *workspace) noteBlocked(p *pane, st slimeclient.State) {
 	if st.Blocked == p.blockedSeen {
 		return
 	}

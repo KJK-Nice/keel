@@ -19,7 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/crypto/ssh"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // First run, Keychain and Logs against a scratch slime serve. Every daemon has SLIME_KEYRING=off, its own
@@ -101,7 +101,7 @@ func startFirstRunServe(t *testing.T) (addr, dir, dataDir string) {
 	return addr, dir, filepath.Join(dir, "data")
 }
 
-func (e *win) vault() keelclient.Vault {
+func (e *win) vault() slimeclient.Vault {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -129,7 +129,7 @@ func (e *win) hostNames() []string {
 	return out
 }
 
-func (e *win) identities() []keelclient.Identity {
+func (e *win) identities() []slimeclient.Identity {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -141,7 +141,7 @@ func (e *win) identities() []keelclient.Identity {
 }
 
 // logEntries is GET /api/logs.
-func (e *win) logEntries() []keelclient.LogEntry {
+func (e *win) logEntries() []slimeclient.LogEntry {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()

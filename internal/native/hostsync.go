@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Keeping the host list current. The native client has no event stream, so it reads the hosts
@@ -16,7 +16,7 @@ const pollEvery = 3 * time.Second
 // setHosts replaces the host list. The filter, the collapsed groups and the open tabs are not touched; a pane
 // takes its host's new name and colour, and a pane whose host was deleted keeps its session and its last known
 // host.
-func (w *workspace) setHosts(hosts []keelclient.Host) {
+func (w *workspace) setHosts(hosts []slimeclient.Host) {
 	w.hosts = hosts
 	for _, t := range w.tabs {
 		for _, p := range t.panes {
@@ -28,20 +28,20 @@ func (w *workspace) setHosts(hosts []keelclient.Host) {
 }
 
 // hostByID is the host with that id, as the list holds it.
-func hostByID(hosts []keelclient.Host, id string) (keelclient.Host, bool) {
+func hostByID(hosts []slimeclient.Host, id string) (slimeclient.Host, bool) {
 	for _, h := range hosts {
 		if h.ID == id {
 			return h, true
 		}
 	}
-	return keelclient.Host{}, false
+	return slimeclient.Host{}, false
 }
 
 // reloadHosts reads the hosts again.
 func (w *workspace) reloadHosts() {
 	type read struct {
-		hosts   []keelclient.Host
-		folders []keelclient.Group
+		hosts   []slimeclient.Host
+		folders []slimeclient.Group
 		ferr    error
 	}
 	call(w, func(c context.Context) (r read, err error) {
@@ -66,7 +66,7 @@ func (w *workspace) stale() { w.rev = "" }
 
 // reloadSnippets reads the snippets again.
 func (w *workspace) reloadSnippets() {
-	call(w, w.be.Snippets, func(snippets []keelclient.Snippet, err error) {
+	call(w, w.be.Snippets, func(snippets []slimeclient.Snippet, err error) {
 		if err != nil {
 			w.stale()
 			w.fail("snippets", err)
@@ -86,7 +86,7 @@ func (w *workspace) pollTick() {
 // pollOnce reads the vault state. A changed rev reads the hosts again, once; a vault that is locked again puts
 // the Unlock screen over the window (sessions and tabs stay); an unlocked one (by another window) takes it away.
 func (w *workspace) pollOnce() {
-	callOnce(w, &w.polling, nil, w.be.Vault, func(v keelclient.Vault, err error) {
+	callOnce(w, &w.polling, nil, w.be.Vault, func(v slimeclient.Vault, err error) {
 		if err != nil { // slime serve not answering is not news: the sessions say so themselves
 			return
 		}

@@ -26,8 +26,8 @@ import (
 
 	"slime/internal/authtoken"
 	"slime/internal/native/joinpeer"
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 const e2eWait = 15 * time.Second
@@ -156,7 +156,7 @@ type countingBackend struct {
 	sessions int
 }
 
-func (c *countingBackend) Sessions(ctx context.Context) ([]keelclient.Session, error) {
+func (c *countingBackend) Sessions(ctx context.Context) ([]slimeclient.Session, error) {
 	c.sessions++
 	return c.backend.Sessions(ctx)
 }
@@ -166,7 +166,7 @@ type win struct {
 	t     *testing.T
 	w     *workspace
 	tt    *ui.Tester
-	cl    *keelclient.Client
+	cl    *slimeclient.Client
 	addr  string
 	token string
 	posts chan func()
@@ -187,7 +187,7 @@ func newWinH(t *testing.T, addr, dataDir string, wrap func(backend) backend, hei
 	if err != nil {
 		t.Fatal("read token: ", err)
 	}
-	e := &win{t: t, addr: addr, token: tok, cl: keelclient.NewAt(addr, tok), posts: make(chan func(), 4096)}
+	e := &win{t: t, addr: addr, token: tok, cl: slimeclient.NewAt(addr, tok), posts: make(chan func(), 4096)}
 	var be backend = clientBackend{e.cl}
 	if wrap != nil {
 		be = wrap(be)
@@ -277,7 +277,7 @@ func (e *win) typeLine(s string) {
 	e.key(0, ui.KeyEnter)
 }
 
-func (e *win) sessions() []keelclient.Session {
+func (e *win) sessions() []slimeclient.Session {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -625,14 +625,14 @@ func pumpAll(t *testing.T, wins []*win, cond func() bool, what string) {
 }
 
 // snap is the first pane's last report in the active tab.
-func (e *win) snap() keelclient.State {
+func (e *win) snap() slimeclient.State {
 	if p := e.w.focusedPane(); p != nil {
 		return p.conn.Snapshot()
 	}
-	return keelclient.State{}
+	return slimeclient.State{}
 }
 
-// sshFixture is a keel-sshtest (a throwaway SSH server on loopback) and the saved host that points at it.
+// sshFixture is a slime-sshtest (a throwaway SSH server on loopback) and the saved host that points at it.
 type sshFixture struct {
 	cmd         *exec.Cmd
 	done        chan struct{}
@@ -650,9 +650,9 @@ type sshFixture struct {
 	}
 }
 
-// startSSH runs bin/keel-sshtest, creates a password host for its target on the daemon through
+// startSSH runs bin/slime-sshtest, creates a password host for its target on the daemon through
 // POST /api/hosts (the client itself never creates hosts) and returns the fixture. The password is
-// read from the file keel-sshtest writes and goes only into that request.
+// read from the file slime-sshtest writes and goes only into that request.
 func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 	t.Helper()
 	f := startSSHOnly(t, dataDir)
@@ -678,12 +678,12 @@ func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 	return f
 }
 
-// startSSHOnly runs bin/keel-sshtest and reads its target; no host is saved. The password is in the fixture,
+// startSSHOnly runs bin/slime-sshtest and reads its target; no host is saved. The password is in the fixture,
 // for a test that types it into a field. It is never printed or logged.
 func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 	t.Helper()
 	root := repoRoot(t)
-	bin := filepath.Join(root, "bin", "keel-sshtest")
+	bin := filepath.Join(root, "bin", "slime-sshtest")
 	if _, err := os.Stat(bin); err != nil {
 		t.Fatalf("%s is missing: run make native-e2e (it builds it)", bin)
 	}
@@ -709,7 +709,7 @@ func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 			break
 		}
 		if time.Now().After(end) {
-			t.Fatal("keel-sshtest did not write its file")
+			t.Fatal("slime-sshtest did not write its file")
 		}
 	}
 	os.Remove(out) // it holds the fixture's password in the clear: it stays only in memory, never in a file of the run
@@ -783,7 +783,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	}
 
 	// A (the owner) passes control to B with a control frame, not a PTY write.
-	conn := a.w.focusedPane().conn.(*keelclient.Conn)
+	conn := a.w.focusedPane().conn.(*slimeclient.Conn)
 	if err := conn.GrantControl(b.snap().YouID); err != nil {
 		t.Fatal(err)
 	}
@@ -1582,7 +1582,7 @@ func TestE2EPastedSSHCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var saved []keelclient.Host
+	var saved []slimeclient.Host
 	for _, h := range hosts {
 		if h.Group == "Quick connect" {
 			saved = append(saved, h)
@@ -1617,7 +1617,7 @@ func (e *win) raw(method, path string, body any) (int, string) {
 	return resp.StatusCode, string(b)
 }
 
-func (e *win) hostNamed(name string) (keelclient.Host, bool) {
+func (e *win) hostNamed(name string) (slimeclient.Host, bool) {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -1630,7 +1630,7 @@ func (e *win) hostNamed(name string) (keelclient.Host, bool) {
 			return h, true
 		}
 	}
-	return keelclient.Host{}, false
+	return slimeclient.Host{}, false
 }
 
 func (e *win) texts() string { return strings.Join(e.tt.Texts(), "\n") }

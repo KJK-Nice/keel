@@ -1,4 +1,4 @@
-//go:build keelfake
+//go:build slimefake
 
 package app
 

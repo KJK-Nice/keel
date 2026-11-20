@@ -7,8 +7,8 @@ import (
 	"unicode"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -214,7 +214,7 @@ func (t *tab) dot() string {
 	return "idle"
 }
 
-func hostSubtitle(h keelclient.Host) string {
+func hostSubtitle(h slimeclient.Host) string {
 	if h.IsLocal() {
 		return "this machine"
 	}
@@ -331,7 +331,7 @@ func (w *workspace) paletteItems() []palItem {
 
 // openHostInSplit is ⌥↵ on a host: a session on h in a split right of the focused pane, or in a new tab when
 // no session tab is showing.
-func (w *workspace) openHostInSplit(h keelclient.Host) {
+func (w *workspace) openHostInSplit(h slimeclient.Host) {
 	t := w.tab()
 	if t == nil || t.isNew() || t.panes[t.focused] == nil {
 		w.openHost(h)

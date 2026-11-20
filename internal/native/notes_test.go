@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Notes for the agent on the fake backend: each list and action sends its request; a proposal is kept only by its
@@ -155,7 +155,7 @@ func TestANoteThatCannotBeSavedSendsNothingAndSaysWhy(t *testing.T) {
 
 func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 	r := agentSettingsRig(t)
-	r.fb.mem.notes = []keelclient.Note{{ID: "nx", HostID: "h-api", Text: "a host note", Source: "user"}}
+	r.fb.mem.notes = []slimeclient.Note{{ID: "nx", HostID: "h-api", Text: "a host note", Source: "user"}}
 	r.w.loadAgentSettings()
 	r.tt.Frame()
 	if !r.tt.HasText("No notes. Add how you like to work, e.g. Prefer journalctl over tail -f.") {
@@ -196,14 +196,14 @@ func TestSettingsAgentYourNotesAndDeleteAllAsksFirst(t *testing.T) {
 
 // ---- the notes the agent proposes ----
 
-func noteProposal() keelclient.NoteProposal {
-	return keelclient.NoteProposal{ID: "np1", For: "host", HostID: "h-api", Host: "api-1", Text: "backups run at 02:00", From: "conversation", Status: "open"}
+func noteProposal() slimeclient.NoteProposal {
+	return slimeclient.NoteProposal{ID: "np1", For: "host", HostID: "h-api", Host: "api-1", Text: "backups run at 02:00", From: "conversation", Status: "open"}
 }
 
-func (r *rig) answersNotes(ns ...keelclient.NoteProposal) {
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Notes: ns,
-			Trace: []keelclient.TraceStep{{Host: "api-1", Status: "notes", NoteKind: "host", Notes: 2}, {SessionID: "s1", Host: "api-1", Status: "read", Lines: 9}}}, nil
+func (r *rig) answersNotes(ns ...slimeclient.NoteProposal) {
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Notes: ns,
+			Trace: []slimeclient.TraceStep{{Host: "api-1", Status: "notes", NoteKind: "host", Notes: 2}, {SessionID: "s1", Host: "api-1", Status: "read", Lines: 9}}}, nil
 	}
 }
 
@@ -278,7 +278,7 @@ func TestANoteFromPaneOutputOrAboutYouIsWarnedAndOnlySaveAnywaySaves(t *testing.
 	r := agentRig(t)
 	p := noteProposal()
 	p.FromPane, p.SeenIn, p.From = true, "db-2", "pane"
-	r.answersNotes(p, keelclient.NoteProposal{ID: "np2", For: "user", Text: "I like short answers", From: "user", Status: "open", PanesRead: []string{"api-1"}})
+	r.answersNotes(p, slimeclient.NoteProposal{ID: "np2", For: "user", Text: "I like short answers", From: "user", Status: "open", PanesRead: []string{"api-1"}})
 	r.ask(t, "remember from the pane")
 	if miss := r.lacks("From pane output", "Seen in pane db-2 · terminal output", noteFromPaneWarning, "Seen in pane db-2; it would be saved to the notes of api-1.",
 		"Your notes · every host", "The agent read terminal output for this answer, and this note may come from it, not from you. A note about you is sent with questions on every host the agent may read. Save it only if you would have written it yourself.",
@@ -312,8 +312,8 @@ func TestAResumedConversationShowsItsNotesAndRunbooksCards(t *testing.T) {
 	r := agentRig(t)
 	saved := noteProposal()
 	saved.Status, saved.NoteID = "saved", "n9"
-	r.w.showTranscript(keelclient.Transcript{ID: "c-saved-1", Title: "Notes", Turns: []keelclient.SavedTurn{{Question: "remember it", Answer: "ok", Notes: []keelclient.NoteProposal{saved},
-		Runbooks: []keelclient.RunbookProposal{{ID: "bp1", Name: "Disk", Status: "dismissed"}}}}})
+	r.w.showTranscript(slimeclient.Transcript{ID: "c-saved-1", Title: "Notes", Turns: []slimeclient.SavedTurn{{Question: "remember it", Answer: "ok", Notes: []slimeclient.NoteProposal{saved},
+		Runbooks: []slimeclient.RunbookProposal{{ID: "bp1", Name: "Disk", Status: "dismissed"}}}}})
 	r.tt.Frame()
 	if miss := r.lacks("Saved to host notes · api-1", "Dismissed. Nothing was saved."); len(miss) > 0 {
 		t.Errorf("missing %q", miss)

@@ -46,7 +46,7 @@ type pageKind struct {
 }
 
 // The pages' names, as the saved workspace keeps them. pageAgent is a constant also so that no source line holds the
-// quoted key that guard_test.go keeps for keelclient/inject.go.
+// quoted key that guard_test.go keeps for slimeclient/inject.go.
 const (
 	pageKeychain  = "keychain"
 	pageForwards  = "forwards"

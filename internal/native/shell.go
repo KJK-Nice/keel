@@ -9,7 +9,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The app shell around the window: the menu bar, the menu bar item (tray) and keeping Slime there when the window is
@@ -214,7 +214,7 @@ func (s *shell) startTray() {
 		s.w.work(func() {
 			c, cancel := ctx()
 			defer cancel()
-			_, err := s.w.be.SaveAgentSettings(c, keelclient.AgentSettingsPatch{ClaudeCode: &on})
+			_, err := s.w.be.SaveAgentSettings(c, slimeclient.AgentSettingsPatch{ClaudeCode: &on})
 			s.w.post(func() {
 				if err != nil {
 					s.w.warn(errText("Claude Code", err))

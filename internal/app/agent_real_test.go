@@ -1,4 +1,4 @@
-//go:build !keelfake
+//go:build !slimefake
 
 package app
 
@@ -13,7 +13,7 @@ import (
 const fakePkg = "slime/internal/agent/provider/providertest"
 
 func TestFakeProviderIsRefusedWithoutItsTag(t *testing.T) {
-	if _, _, _, err := agentProviders("fake"); err == nil || !strings.Contains(err.Error(), "keelfake") {
+	if _, _, _, err := agentProviders("fake"); err == nil || !strings.Contains(err.Error(), "slimefake") {
 		t.Fatalf("SLIME_AGENT_PROVIDER=fake in a build without the tag: err = %v, want a refusal naming the tag", err)
 	}
 	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
@@ -28,7 +28,7 @@ func TestFakeProviderIsRefusedWithoutItsTag(t *testing.T) {
 func TestRunServeRefusesTheFakeWithoutItsTag(t *testing.T) {
 	t.Setenv(agentProviderEnv, "fake")
 	dir := filepath.Join(t.TempDir(), "data")
-	if err := RunServe("127.0.0.1:0", dir); err == nil || !strings.Contains(err.Error(), "keelfake") {
+	if err := RunServe("127.0.0.1:0", dir); err == nil || !strings.Contains(err.Error(), "slimefake") {
 		t.Fatalf("RunServe = %v, want a refusal", err)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
@@ -66,13 +66,13 @@ func TestFakeProviderIsLinkedOnlyWithItsTag(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs go list")
 	}
-	for _, pkg := range []string{"./cmd/slime", "./cmd/keel-native"} {
+	for _, pkg := range []string{"./cmd/slime", "./cmd/slime-native"} {
 		if linksFake(t, pkg, "") {
-			t.Errorf("%s without keelfake links %s", pkg, fakePkg)
+			t.Errorf("%s without slimefake links %s", pkg, fakePkg)
 		}
 	}
-	if !linksFake(t, "./cmd/slime", "keelfake") {
-		t.Errorf("./cmd/slime with keelfake does not link %s", fakePkg)
+	if !linksFake(t, "./cmd/slime", "slimefake") {
+		t.Errorf("./cmd/slime with slimefake does not link %s", fakePkg)
 	}
 }
 
@@ -92,16 +92,16 @@ func TestNoReleasePathPassesTheFakeTag(t *testing.T) {
 				target = strings.TrimSpace(l[:i])
 			}
 		}
-		if strings.Contains(l, "keelfake") && l[0] != '#' {
+		if strings.Contains(l, "slimefake") && l[0] != '#' {
 			seen[target] = true
 			if !allowed[target] {
-				t.Errorf("Makefile target %q passes the tag keelfake: %s", target, l)
+				t.Errorf("Makefile target %q passes the tag slimefake: %s", target, l)
 			}
 		}
 	}
 	for name := range allowed {
 		if !seen[name] {
-			t.Errorf("Makefile target %q does not build with the tag keelfake", name)
+			t.Errorf("Makefile target %q does not build with the tag slimefake", name)
 		}
 	}
 	scripts, _ := filepath.Glob(filepath.Join(root, "scripts", "*"))
@@ -111,8 +111,8 @@ func TestNoReleasePathPassesTheFakeTag(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if strings.Contains(string(b), "keelfake") {
-			t.Errorf("%s names the tag keelfake", p)
+		if strings.Contains(string(b), "slimefake") {
+			t.Errorf("%s names the tag slimefake", p)
 		}
 	}
 }

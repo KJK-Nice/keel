@@ -111,7 +111,7 @@ type NoteProposal struct {
 	Status     string     `json:"status"` // "open" | "saved" | "dismissed"
 	NoteID     string     `json:"noteId,omitempty"`
 	ProposedAt *time.Time `json:"proposedAt,omitempty"`
-	// Expired is set on a proposal from a saved conversation that keel
+	// Expired is set on a proposal from a saved conversation that slime
 	// serve no longer holds: it can be read, not saved.
 	Expired bool `json:"expired,omitempty"`
 	// PanesRead names the hosts whose panes were read for the answer that

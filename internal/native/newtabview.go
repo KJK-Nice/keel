@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/native/sshparse"
 )
 
@@ -161,7 +161,7 @@ func (w *workspace) section(c *ui.Context, head, note string, bodyFn func()) {
 }
 
 // card is one recent host: its tile, name and address, the live count and the ⌥ number.
-func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
+func (w *workspace) card(c *ui.Context, t *tab, h slimeclient.Host) {
 	p := t.start
 	r := ui.Row(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(surface)).Label("start card " + h.Name).Cursor(ui.CursorPointer)
 	border := line

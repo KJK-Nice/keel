@@ -12,8 +12,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 // newRigIn is newRig with a data dir for the saved workspace.
@@ -48,9 +48,9 @@ func shape(t *tab) string {
 	return f(t.root)
 }
 
-func sessionsOf(fb *fakeBackend) (out []keelclient.Session) {
+func sessionsOf(fb *fakeBackend) (out []slimeclient.Session) {
 	for _, c := range fb.conns {
-		out = append(out, keelclient.Session{ID: c.id, HostID: "h-api"})
+		out = append(out, slimeclient.Session{ID: c.id, HostID: "h-api"})
 	}
 	return
 }
@@ -143,7 +143,7 @@ func TestRestorePrunesAndAppendsUnknownSessions(t *testing.T) {
 		{Layout: leaf("gone2"), Title: "dead"},
 		{Title: "x", Layout: &savedNode{Dir: "row", A: leaf("s2"), B: leaf("s1")}}, // s1 is already placed
 	}})
-	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}, {ID: "s3", HostID: "h-api"}, {ID: "s9", HostID: "h-api"}}}
+	fb := &fakeBackend{hosts: testHosts, sessions: []slimeclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}, {ID: "s3", HostID: "h-api"}, {ID: "s9", HostID: "h-api"}}}
 	r := newRigIn(t, fb, dir)
 	var got []string
 	for _, tb := range r.w.allTabs() {
@@ -171,7 +171,7 @@ func TestAFailedAttachAtStartKeepsTheSavedWorkspace(t *testing.T) {
 	dir := t.TempDir()
 	writeDoc(t, dir, savedDoc{V: 1, Tabs: []savedTab{{Layout: &savedNode{Dir: "row", Ratio: 0.5, A: leaf("s1"), B: leaf("s2")}}}})
 	before, _ := os.ReadFile(filepath.Join(dir, savedFile))
-	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}},
+	fb := &fakeBackend{hosts: testHosts, sessions: []slimeclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}},
 		attachErr: map[string]error{"s2": errors.New("daemon restarting")}}
 	r := newRigIn(t, fb, dir)
 	r.tt.Frame()
@@ -183,7 +183,7 @@ func TestAFailedAttachAtStartKeepsTheSavedWorkspace(t *testing.T) {
 }
 
 func TestAPollStartsAWindowWhoseFirstReadFailed(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}}, hostsErr: errors.New("booting")}
+	fb := &fakeBackend{hosts: testHosts, sessions: []slimeclient.Session{{ID: "s1", HostID: "h-api"}}, hostsErr: errors.New("booting")}
 	r := newRigIn(t, fb, t.TempDir())
 	if r.w.live || r.w.tabCount() != 0 {
 		t.Fatal("the first start was meant to fail")
@@ -205,7 +205,7 @@ func TestBadOrOtherVersionFilesAreIgnored(t *testing.T) {
 	} {
 		dir := t.TempDir()
 		os.WriteFile(filepath.Join(dir, savedFile), []byte(body), 0o600)
-		fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
+		fb := &fakeBackend{hosts: testHosts, sessions: []slimeclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
 		r := newRigIn(t, fb, dir)
 		var got []string
 		for _, tb := range r.w.allTabs() {
@@ -223,7 +223,7 @@ func TestBadOrOtherVersionFilesAreIgnored(t *testing.T) {
 
 func TestSavedFileHoldsOnlyIdsTitlesAndLayout(t *testing.T) {
 	dir := t.TempDir()
-	hosts := []keelclient.Host{{ID: "h-secret", Name: "prod-db", Address: "10.9.8.7", Username: "root-user", AuthType: "password", Group: "secret-group"}}
+	hosts := []slimeclient.Host{{ID: "h-secret", Name: "prod-db", Address: "10.9.8.7", Username: "root-user", AuthType: "password", Group: "secret-group"}}
 	r := newRigIn(t, &fakeBackend{hosts: hosts}, dir)
 	r.click(t, "host prod-db")
 	r.w.splitFocused(layout.Row)
@@ -308,7 +308,7 @@ func TestSavingFollowsChangesAndWaitsForTheStart(t *testing.T) {
 	locked := t.TempDir()
 	writeDoc(t, locked, savedDoc{V: 1, Tabs: []savedTab{{Layout: leaf("s1")}}})
 	before, _ := os.ReadFile(filepath.Join(locked, savedFile))
-	l := newRigIn(t, &fakeBackend{vault: keelclient.Vault{Locked: true}}, locked)
+	l := newRigIn(t, &fakeBackend{vault: slimeclient.Vault{Locked: true}}, locked)
 	l.tt.Frame()
 	l.w.closeWindow()
 	if after, _ := os.ReadFile(filepath.Join(locked, savedFile)); string(after) != string(before) {
@@ -327,7 +327,7 @@ func TestSavedWorkspaceFixtureComesBackAndSavesTheSame(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, savedFile), want, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	fb := &fakeBackend{hosts: testHosts, sessions: []keelclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
+	fb := &fakeBackend{hosts: testHosts, sessions: []slimeclient.Session{{ID: "s1", HostID: "h-api"}, {ID: "s2", HostID: "h-api"}}}
 	r := newRigIn(t, fb, dir)
 	var names []string
 	for _, tb := range r.w.allTabs() {

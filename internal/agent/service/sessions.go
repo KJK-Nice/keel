@@ -185,7 +185,7 @@ func (s *Service) savedChat(id string) (store.AgentChat, error) {
 	return c, nil
 }
 
-// Transcript returns a conversation for the panel: from memory when keel
+// Transcript returns a conversation for the panel: from memory when slime
 // serve holds it (so it works with history off too), else from the vault.
 // Proposals that are not live in memory are Expired.
 func (s *Service) Transcript(id string) (Transcript, error) {

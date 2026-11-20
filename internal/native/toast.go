@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Toasts sit at the bottom right, show the newest three, keep each for 5 s, and draw a
@@ -37,7 +37,7 @@ func (w *workspace) sayAction(msg, action string, run func()) {
 
 // errText is what a toast says for a failed call: the server's own reason, else what failed and why.
 func errText(what string, err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) && se.Msg != "" {
 		return se.Msg
 	}

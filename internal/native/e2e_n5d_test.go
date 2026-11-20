@@ -19,7 +19,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/authtoken"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Port forwarding, the sidebar's Panes section, Settings and toasts against a scratch slime serve. Every daemon has
@@ -92,10 +92,10 @@ func dialPong(port int) (string, error) {
 }
 
 // tunnelsOnServer is GET /api/tunnels.
-func (e *win) tunnelsOnServer() []keelclient.Tunnel {
+func (e *win) tunnelsOnServer() []slimeclient.Tunnel {
 	e.t.Helper()
 	_, body := e.raw("GET", "/api/tunnels", nil)
-	var out []keelclient.Tunnel
+	var out []slimeclient.Tunnel
 	if err := json.Unmarshal([]byte(body), &out); err != nil {
 		e.t.Fatal(err)
 	}
@@ -103,13 +103,13 @@ func (e *win) tunnelsOnServer() []keelclient.Tunnel {
 }
 
 // tunnelNamed is the forward with that name on the daemon.
-func (e *win) tunnelNamed(name string) (keelclient.Tunnel, bool) {
+func (e *win) tunnelNamed(name string) (slimeclient.Tunnel, bool) {
 	for _, tn := range e.tunnelsOnServer() {
 		if tn.Name == name {
 			return tn, true
 		}
 	}
-	return keelclient.Tunnel{}, false
+	return slimeclient.Tunnel{}, false
 }
 
 // openForwardsPage opens the Port forwarding page the way a person does: the sidebar's Forwards section, then Manage forwards.
@@ -217,7 +217,7 @@ func TestE2EForwardFailureShows(t *testing.T) {
 	addr, dir := startServe(t, true)
 	f := startSSHOnly(t, dir)
 	addJumpHost(t, addr, dir, f)
-	jump, ok := (&win{t: t, addr: addr, cl: keelclient.NewAt(addr, mustToken(t, dir))}).hostNamed("e2e-jump")
+	jump, ok := (&win{t: t, addr: addr, cl: slimeclient.NewAt(addr, mustToken(t, dir))}).hostNamed("e2e-jump")
 	if !ok {
 		t.Fatal("the host was not saved")
 	}

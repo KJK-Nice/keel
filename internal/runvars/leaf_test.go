@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// runvars is imported by the window and by slime serve: it may import no keel package but wire.
+// runvars is imported by the window and by slime serve: it may import no slime package but wire.
 func TestStaysALeaf(t *testing.T) {
 	files, _ := filepath.Glob("*.go")
 	for _, name := range files {

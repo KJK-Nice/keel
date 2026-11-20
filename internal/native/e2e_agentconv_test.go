@@ -15,14 +15,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Saved conversations, the Agent page and Settings · Agent against a real slime serve that answers from its in-process fake
-// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider, no test calls keel
+// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider, no test calls slime
 // mcp's routes, and the only key ever stored is made up.
 
-func (e *win) convList() keelclient.ConversationList {
+func (e *win) convList() slimeclient.ConversationList {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -81,7 +81,7 @@ func (e *win) openRecent() {
 	e.pump(func() bool { return e.hasLabel("dialog Recent conversations") }, "Recent conversations")
 }
 
-func (e *win) titleOf(l keelclient.ConversationList, part string) keelclient.ConversationSummary {
+func (e *win) titleOf(l slimeclient.ConversationList, part string) slimeclient.ConversationSummary {
 	e.t.Helper()
 	for _, s := range l.Sessions {
 		if strings.Contains(s.Title, part) {
@@ -89,7 +89,7 @@ func (e *win) titleOf(l keelclient.ConversationList, part string) keelclient.Con
 		}
 	}
 	e.t.Fatalf("no saved conversation titled with %q: %+v", part, l.Sessions)
-	return keelclient.ConversationSummary{}
+	return slimeclient.ConversationSummary{}
 }
 
 func TestE2EAgentConversationsSavedAndResumed(t *testing.T) {
@@ -390,28 +390,28 @@ func TestE2EAgentDeleteAll(t *testing.T) {
 type recBackend struct {
 	backend
 	mu      sync.Mutex
-	patches []keelclient.AgentSettingsPatch
+	patches []slimeclient.AgentSettingsPatch
 	calls   []string
 }
 
-func (r *recBackend) SaveAgentSettings(ctx context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error) {
+func (r *recBackend) SaveAgentSettings(ctx context.Context, p slimeclient.AgentSettingsPatch) (slimeclient.AgentSettings, error) {
 	r.mu.Lock()
 	r.patches, r.calls = append(r.patches, p), append(r.calls, "PUT /api/agent/settings")
 	r.mu.Unlock()
 	return r.backend.SaveAgentSettings(ctx, p)
 }
 
-func (r *recBackend) SetAgentKey(ctx context.Context, in keelclient.AgentKeyInput) error {
+func (r *recBackend) SetAgentKey(ctx context.Context, in slimeclient.AgentKeyInput) error {
 	r.mu.Lock()
 	r.calls = append(r.calls, "PUT /api/agent/keys/"+in.Provider)
 	r.mu.Unlock()
 	return r.backend.SetAgentKey(ctx, in)
 }
 
-func (r *recBackend) saved() []keelclient.AgentSettingsPatch {
+func (r *recBackend) saved() []slimeclient.AgentSettingsPatch {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]keelclient.AgentSettingsPatch(nil), r.patches...)
+	return append([]slimeclient.AgentSettingsPatch(nil), r.patches...)
 }
 
 func TestE2EAgentSettings(t *testing.T) {
@@ -474,7 +474,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	e.pump(func() bool { return e.serverSettings().Settings.ClaudeCode && e.w.agentVal().Settings.ClaudeCode }, "Claude Code on")
 	e.click("Allow Claude Code (slime mcp) switch")
 	e.pump(func() bool { return !e.serverSettings().Settings.ClaudeCode }, "Claude Code off")
-	var claude []keelclient.AgentSettingsPatch
+	var claude []slimeclient.AgentSettingsPatch
 	for _, p := range rec.saved() {
 		if p.ClaudeCode != nil {
 			claude = append(claude, p)
@@ -494,7 +494,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	}
 
 	// A fake key through the Anthropic card: masked, sent once, then Connected, and in no log, pref, shot text or screen.
-	var d keelclient.AgentProvider
+	var d slimeclient.AgentProvider
 	for _, x := range e.w.agentState().provs {
 		if x.ID == "anthropic" {
 			d = x

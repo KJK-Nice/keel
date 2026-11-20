@@ -13,7 +13,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Notebooks and the agent against a real slime serve with the fake provider (SLIME_AGENT_PROVIDER=fake, made-up key only; no
@@ -56,7 +56,7 @@ func (e *win) trashNames() (out []string) {
 		e.t.Fatalf("GET /api/notebook-trash: %d %s", code, body)
 	}
 	var res struct {
-		Versions []keelclient.NotebookVersion `json:"versions"`
+		Versions []slimeclient.NotebookVersion `json:"versions"`
 	}
 	if err := json.Unmarshal([]byte(body), &res); err != nil {
 		e.t.Fatal(err)
@@ -77,14 +77,14 @@ func (e *win) serverHas(id string) bool {
 	return false
 }
 
-func (e *win) serverByName(name string) (keelclient.Notebook, bool) {
+func (e *win) serverByName(name string) (slimeclient.Notebook, bool) {
 	e.t.Helper()
 	for _, n := range e.serverNotebooks() {
 		if n.Name == name {
 			return n, true
 		}
 	}
-	return keelclient.Notebook{}, false
+	return slimeclient.Notebook{}, false
 }
 
 func (e *win) setupAgentNB() string {
@@ -246,9 +246,9 @@ type nbSaveFail struct {
 	on atomic.Bool
 }
 
-func (b *nbSaveFail) SaveNotebook(ctx context.Context, id string, in keelclient.NotebookSave) (keelclient.SavedNotebook, error) {
+func (b *nbSaveFail) SaveNotebook(ctx context.Context, id string, in slimeclient.NotebookSave) (slimeclient.SavedNotebook, error) {
 	if b.on.Load() {
-		return keelclient.SavedNotebook{}, &keelclient.StatusError{Code: 503, Msg: "slime serve is busy"}
+		return slimeclient.SavedNotebook{}, &slimeclient.StatusError{Code: 503, Msg: "slime serve is busy"}
 	}
 	return b.backend.SaveNotebook(ctx, id, in)
 }
@@ -439,7 +439,7 @@ func TestE2ERunbookDraftFromANotebook(t *testing.T) {
 		if code != 200 {
 			e.t.Fatalf("GET runbooks: %d %s", code, body)
 		}
-		var l keelclient.RunbookList
+		var l slimeclient.RunbookList
 		if err := json.Unmarshal([]byte(body), &l); err != nil {
 			e.t.Fatal(err)
 		}

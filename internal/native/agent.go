@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The agent panel (docs/ui-redesign.md §5.4): ask about the panes in scope, read the trace, and type a
@@ -17,7 +17,7 @@ import (
 //
 // What this file does and does not do:
 //   - slime serve reads the panes. An ask sends the question and the session ids of the panes in scope, and nothing else
-//     (keelclient.AskRequest has no field for pane text). This client reads no scrollback for the agent.
+//     (slimeclient.AskRequest has no field for pane text). This client reads no scrollback for the agent.
 //   - Nothing here writes to a session. A card's Type into pane goes to typeNow (typenow.go). A read-only one-line proposal
 //     slime serve agrees to is typed with no dialog and no Enter, the command alone with the reference to the proposal; any
 //     other opens the Approve before type dialog (approve.go) with the proposal's bytes, as slime serve holds them, whose
@@ -38,7 +38,7 @@ type agentStatus struct {
 }
 
 type agentProp struct {
-	p       keelclient.Proposal
+	p       slimeclient.Proposal
 	status  *agentStatus
 	editing bool
 	edit    string // the edit field; never typed anywhere, only sent to slime serve by Save command
@@ -61,7 +61,7 @@ type agentTurn struct {
 
 	done         bool // the answer is in (an ask that finished, or a saved turn)
 	saved, again bool
-	trace        []keelclient.TraceStep
+	trace        []slimeclient.TraceStep
 	answer, cut  string
 	testProvider bool
 	props        []string
@@ -80,17 +80,17 @@ type agentPanel struct {
 	scopeAuto bool // the scope follows the setting until the user picks
 	picker    bool
 
-	settings      *keelclient.AgentSettings
+	settings      *slimeclient.AgentSettings
 	keyConfigured *bool // nil until the settings are read
-	provider      *keelclient.AgentProvider
-	provs         []keelclient.AgentProvider // the providers Settings · Agent draws cards for (agentsettings.go)
+	provider      *slimeclient.AgentProvider
+	provs         []slimeclient.AgentProvider // the providers Settings · Agent draws cards for (agentsettings.go)
 	loading       bool
 	loadTried     bool // the first read for a panel that was open at start
 
 	turns []*agentTurn
 	props map[string]*agentProp
 
-	// Notes and runbooks the agent proposed, and the runbook in use (notes.go, runbooks.go). Everything here is read from keel
+	// Notes and runbooks the agent proposed, and the runbook in use (notes.go, runbooks.go). Everything here is read from slime
 	// serve into memory; a proposal is kept only by its card's Save.
 	notes map[string]*agentNote
 	books map[string]*agentBook
@@ -275,8 +275,8 @@ func (w *workspace) setAgentOpen(open bool) {
 func (w *workspace) loadAgent() {
 	a := w.agent
 	type read struct {
-		s    keelclient.AgentSettings
-		prov *keelclient.AgentProvider
+		s    slimeclient.AgentSettings
+		prov *slimeclient.AgentProvider
 	}
 	callOnce(w, &a.loading, nil, func(c context.Context) (r read, err error) {
 		if r.s, err = w.be.AgentSettings(c); err == nil && !r.s.KeyConfigured() {
@@ -290,7 +290,7 @@ func (w *workspace) loadAgent() {
 		}
 		return r, err
 	}, func(r read, err error) {
-		var se *keelclient.StatusError
+		var se *slimeclient.StatusError
 		switch {
 		case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
 		case err != nil:
@@ -336,14 +336,14 @@ func (w *workspace) agentAskRunbook(question, runbookID string) bool {
 	conv := a.conv
 	// Typing in a notebook saves first, so the agent reads it; the ask then names the notebooks still not saved (§18).
 	w.nbFlushAll(func() {
-		w.sendAsk(c, cancel, turn, keelclient.AskRequest{ConversationID: conv, Question: q, Panes: panes, RunbookID: runbookID})
+		w.sendAsk(c, cancel, turn, slimeclient.AskRequest{ConversationID: conv, Question: q, Panes: panes, RunbookID: runbookID})
 	})
 	return true
 }
 
 // sendAsk sends the ask once the notebooks are saved. It names the attached notebooks by id (never their text) and the ones
 // with typing not saved yet.
-func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *agentTurn, req keelclient.AskRequest) {
+func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *agentTurn, req slimeclient.AskRequest) {
 	a := w.agent
 	conv, runbookID := req.ConversationID, req.RunbookID
 	if w.closed || a.conv != conv { // a new conversation started while the notebooks saved
@@ -367,7 +367,7 @@ func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *
 				turn.stopped = true
 			case err != nil:
 				turn.err = err
-				var se *keelclient.StatusError
+				var se *slimeclient.StatusError
 				if errors.As(err, &se) && se.Code == 412 {
 					k := false
 					a.keyConfigured, a.provider = &k, nil
@@ -412,7 +412,7 @@ func (w *workspace) sendAsk(c context.Context, cancel context.CancelFunc, turn *
 	})
 }
 
-func typedStatus(p keelclient.Proposal) *agentStatus {
+func typedStatus(p slimeclient.Proposal) *agentStatus {
 	if p.TypedAt == nil || p.Expired {
 		return nil
 	}
@@ -463,12 +463,12 @@ func (w *workspace) saveAgentKey() {
 	if a.provider != nil && a.provider.ShortName != "" {
 		short = a.provider.ShortName
 	}
-	in := keelclient.AgentKeyInput{Provider: pid, Key: key}
+	in := slimeclient.AgentKeyInput{Provider: pid, Key: key}
 	key = ""
 	a.keyBusy, a.keyErr = true, ""
 	call(w, func(c context.Context) (struct{}, error) {
 		err := w.be.SetAgentKey(c, in)
-		in = keelclient.AgentKeyInput{}
+		in = slimeclient.AgentKeyInput{}
 		return struct{}{}, err
 	}, func(_ struct{}, err error) {
 		a.keyBusy = false
@@ -496,7 +496,7 @@ func (w *workspace) editAgentProposal(id string) {
 	}
 	command, conv := rec.edit, a.conv
 	rec.saving = true
-	call(w, func(c context.Context) (keelclient.Proposal, error) { return w.be.EditProposal(c, conv, id, command) }, func(p keelclient.Proposal, err error) {
+	call(w, func(c context.Context) (slimeclient.Proposal, error) { return w.be.EditProposal(c, conv, id, command) }, func(p slimeclient.Proposal, err error) {
 		rec.saving = false
 		if a.conv != conv {
 			return

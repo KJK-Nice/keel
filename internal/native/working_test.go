@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // loading.Blocks means "the model is working". It shows while an ask is in flight and stops on an answer, an
@@ -18,14 +18,14 @@ const workingLabel = "Agent is working"
 
 // slowAsk starts an ask that holds until release is called; the work runs on its own goroutine, and what it posts back is
 // run by finish on the test's goroutine.
-func slowAsk(t *testing.T, r *rig, reply keelclient.AskResponse, err error) (release func(), finish func()) {
+func slowAsk(t *testing.T, r *rig, reply slimeclient.AskResponse, err error) (release func(), finish func()) {
 	t.Helper()
 	posts := make(chan func(), 8)
 	r.w.work = func(fn func()) { go fn() }
 	r.w.post = func(fn func()) { posts <- fn }
 	hold := make(chan struct{})
 	started := make(chan struct{})
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
 		close(started)
 		<-hold
 		reply.ConversationID = req.ConversationID
@@ -56,7 +56,7 @@ func TestBlocksShowWhileTheModelWorksAndStopOnAnswerErrorAndTimeout(t *testing.T
 		err  error
 	}{{"answer", nil}, {"error", errors.New("the provider said no")}, {"timeout", context.DeadlineExceeded}} {
 		r := agentRig(t)
-		release, finish := slowAsk(t, r, keelclient.AskResponse{Answer: "done"}, c.err)
+		release, finish := slowAsk(t, r, slimeclient.AskResponse{Answer: "done"}, c.err)
 		if !r.has(workingLabel) {
 			t.Errorf("%s: no %q while the ask is in flight: %v", c.name, workingLabel, r.tt.Texts())
 		}

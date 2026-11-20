@@ -11,7 +11,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Tab pages, the Keychain page and the Logs page on the fake backend. The secrets here are made up.
@@ -26,7 +26,7 @@ func keychainBackend() *fakeBackend {
 	fb.hosts[0].AuthType, fb.hosts[0].IdentityID = "identity", "i-key" // pg-primary uses deploy key
 	fb.hosts[1].AuthType, fb.hosts[1].IdentityID = "identity", "i-key" // so does api-1
 	created := time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
-	fb.identities = []keelclient.Identity{
+	fb.identities = []slimeclient.Identity{
 		{ID: "i-key", Name: "deploy key", Kind: "key", Username: "deploy", CreatedAt: created, HasPrivateKey: true, HasPassphrase: true},
 		{ID: "i-key2", Name: "plain key", Kind: "key", HasPrivateKey: true},
 		{ID: "i-pw", Name: "ops password", Kind: "password", Username: "ops", HasPassword: true},
@@ -146,7 +146,7 @@ func TestPageTabHasItsNameAndIconCannotBeRenamedAndClosesWithCmdW(t *testing.T) 
 
 func TestPageTabsAreReorderedWithTheOthers(t *testing.T) {
 	fb := keychainBackend()
-	fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+	fb.sessions = []slimeclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r := pageRig(t, fb)
 	r.w.showPage("keychain")
 	r.w.showPage("logs")
@@ -167,7 +167,7 @@ func TestPageTabsAreReorderedWithTheOthers(t *testing.T) {
 func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *testing.T) {
 	dir := t.TempDir()
 	fb := keychainBackend()
-	fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+	fb.sessions = []slimeclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r := newRigIn(t, fb, dir)
 	r.w.showPage("logs")
 	r.w.showPage("keychain")
@@ -189,7 +189,7 @@ func TestPageTabsAreSavedWithoutContentAndComeBackInOrderAfterTheSessions(t *tes
 	}
 	// A new window opens both pages after the session, in order, with the session active.
 	fb2 := keychainBackend()
-	fb2.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+	fb2.sessions = []slimeclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r2 := newRigIn(t, fb2, dir)
 	if got := tabNames(r2); !slices.Equal(got, []string{"api-1", "Logs", "Keychain"}) || r2.w.active != 0 {
 		t.Fatalf("tabs %v active %d", got, r2.w.active)
@@ -279,7 +279,7 @@ func TestKeychainPageEmptyAndFilteredStates(t *testing.T) {
 func TestKeychainPageNeverRendersASecret(t *testing.T) {
 	fb := keychainBackend()
 	// Even a server that sent secrets cannot put one in an Identity: it has no field for it.
-	var in keelclient.Identity
+	var in slimeclient.Identity
 	if err := in.UnmarshalJSON([]byte(`{"id":"x","name":"n","kind":"key","privateKey":"` + scratchPEM + `","passphrase":"` + scratchPassword + `","password":"` + scratchPassword + `"}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestEditIdentityKeepsBlankSecretsOutAndClearsThemOnClose(t *testing.T) {
 
 func TestIdentitySaveRefusalStaysInTheDialogWithTheServersWords(t *testing.T) {
 	fb := keychainBackend()
-	fb.identSaveErr = &keelclient.StatusError{Code: 400, Msg: "kind must be password or key"}
+	fb.identSaveErr = &slimeclient.StatusError{Code: 400, Msg: "kind must be password or key"}
 	r := pageRig(t, fb)
 	r.w.showPage("keychain")
 	r.tt.Frame()
@@ -514,7 +514,7 @@ func TestHostDialogIdentityPickerReadsTheIdentitiesAgainEachTimeItOpens(t *testi
 	}
 }
 
-func identityNames(ids []keelclient.Identity) (out []string) {
+func identityNames(ids []slimeclient.Identity) (out []string) {
 	for _, id := range ids {
 		out = append(out, id.Name)
 	}
@@ -526,7 +526,7 @@ func identityNames(ids []keelclient.Identity) (out []string) {
 func logsBackend() *fakeBackend {
 	fb := okBackend()
 	day := time.Date(2026, 3, 4, 15, 4, 5, 0, time.Local)
-	fb.logs = []keelclient.LogEntry{ // the server's order: newest first
+	fb.logs = []slimeclient.LogEntry{ // the server's order: newest first
 		{Time: day.Add(3 * time.Second), Kind: "host", Message: "host deleted", HostID: "h-api"},
 		{Time: day.Add(2 * time.Second), Kind: "agent.read", Message: "agent read 12 lines", HostID: "h-pg", Lines: 12, Bytes: 300, Redactions: map[string]int{"token": 2, "key": 1}, Source: "jev"},
 		{Time: day.Add(1 * time.Second), Kind: "session", Message: "session opened", HostID: "h-web"},
@@ -621,7 +621,7 @@ func TestLogsPageShowsNewLinesEveryTwoSecondsOnlyWhileItIsTheSelectedTab(t *test
 	r.w.showPage("logs")
 	r.tt.Frame()
 	n = fb.logsCalls
-	fb.logs = append([]keelclient.LogEntry{{Time: time.Now(), Kind: "vault", Message: "vault unlocked"}}, fb.logs...)
+	fb.logs = append([]slimeclient.LogEntry{{Time: time.Now(), Kind: "vault", Message: "vault unlocked"}}, fb.logs...)
 	r.w.logsTick() // no Refresh
 	r.tt.Frame()
 	if fb.logsCalls != n+1 || !r.tt.HasText("vault unlocked") {
@@ -649,7 +649,7 @@ func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("calls %d", n)
 	}
-	fb.logs = append([]keelclient.LogEntry{{Time: time.Now(), Kind: "vault", Message: "vault unlocked"}}, fb.logs...)
+	fb.logs = append([]slimeclient.LogEntry{{Time: time.Now(), Kind: "vault", Message: "vault unlocked"}}, fb.logs...)
 	r.click(t, "Refresh")
 	if fb.logsCalls != n+1 || !r.tt.HasText("vault unlocked") {
 		t.Fatalf("Refresh: calls %d", fb.logsCalls)
@@ -666,7 +666,7 @@ func TestLogsPageReadsAgainOnRefreshOnSelectAndWhenTheRevChanges(t *testing.T) {
 		t.Errorf("a rev change did not read the log again: %d", fb.logsCalls)
 	}
 	// A failure is shown, not swallowed.
-	if got := logTarget(nil, keelclient.LogEntry{HostID: "gone"}); got != "—" {
+	if got := logTarget(nil, slimeclient.LogEntry{HostID: "gone"}); got != "—" {
 		t.Errorf("target of a deleted host %q", got)
 	}
 }
@@ -681,13 +681,13 @@ func TestLogGroups(t *testing.T) {
 	if !logBadgeFailed("Error") || !logBadgeFailed("fail") || !logBadgeFailed("denied") || logBadgeFailed("vault") {
 		t.Error("badge")
 	}
-	if got := logFactsTitle(keelclient.LogEntry{Redactions: map[string]int{"token": 2, "key": 1}}); got != "Redacted: key 1, token 2" {
+	if got := logFactsTitle(slimeclient.LogEntry{Redactions: map[string]int{"token": 2, "key": 1}}); got != "Redacted: key 1, token 2" {
 		t.Error(got)
 	}
-	if got := logFacts(keelclient.LogEntry{Lines: 1, Bytes: 1}); !slices.Equal(got, []string{"1 line", "1 byte"}) {
+	if got := logFacts(slimeclient.LogEntry{Lines: 1, Bytes: 1}); !slices.Equal(got, []string{"1 line", "1 byte"}) {
 		t.Error(got)
 	}
-	if got := logFacts(keelclient.LogEntry{Kind: "vault"}); got != nil {
+	if got := logFacts(slimeclient.LogEntry{Kind: "vault"}); got != nil {
 		t.Errorf("an entry with no counts has facts %v", got)
 	}
 }

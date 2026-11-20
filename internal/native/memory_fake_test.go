@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The notes and runbooks half of fakeBackend: what the window asks of slime serve, recorded, and answered as the test says.
@@ -15,7 +15,7 @@ import (
 const fakeSecret = "fake-password-do-not-use"
 
 type fakeMemory struct {
-	notes    []keelclient.Note
+	notes    []slimeclient.Note
 	noteSeq  int
 	noteErr  error
 	noteReqs []string // "add host:text", "edit id:text", "delete id", "delete-all"
@@ -25,15 +25,15 @@ type fakeMemory struct {
 	propReqs []string // "save conv/id:text", "undo conv/id", "dismiss conv/id" (notes) and "save-book …"
 	propErr  error
 
-	runbooks []keelclient.Runbook
+	runbooks []slimeclient.Runbook
 	rbSeq    int
 	rbReqs   []string // "post name", "put id name", "delete id", "pick id on", "draft conv"
-	rbSaved  []keelclient.RunbookInput
+	rbSaved  []slimeclient.RunbookInput
 	rbErr    error
-	draft    keelclient.RunbookDraft
+	draft    slimeclient.RunbookDraft
 	draftErr error
 
-	run       *keelclient.ChatRunbook
+	run       *slimeclient.ChatRunbook
 	noRunbook bool
 	stateGets int
 	actions   []string // "conv/step:action"
@@ -47,15 +47,15 @@ func (f *fakeBackend) redactFake(s string) (string, int) {
 	return strings.ReplaceAll(s, fakeSecret, "[secret:1]"), n
 }
 
-func (f *fakeBackend) Notes(context.Context) (keelclient.NoteList, error) {
+func (f *fakeBackend) Notes(context.Context) (slimeclient.NoteList, error) {
 	f.rec("notes")
 	if f.mem.noteErr != nil {
-		return keelclient.NoteList{}, f.mem.noteErr
+		return slimeclient.NoteList{}, f.mem.noteErr
 	}
-	return keelclient.NoteList{Notes: append([]keelclient.Note{}, f.mem.notes...), Unreadable: f.mem.unread}, nil
+	return slimeclient.NoteList{Notes: append([]slimeclient.Note{}, f.mem.notes...), Unreadable: f.mem.unread}, nil
 }
 
-func (f *fakeBackend) SaveNote(_ context.Context, in keelclient.NoteInput) (keelclient.SavedNote, error) {
+func (f *fakeBackend) SaveNote(_ context.Context, in slimeclient.NoteInput) (slimeclient.SavedNote, error) {
 	f.rec("save note")
 	text, n := f.redactFake(in.Text)
 	if in.ID != "" {
@@ -63,10 +63,10 @@ func (f *fakeBackend) SaveNote(_ context.Context, in keelclient.NoteInput) (keel
 		for i := range f.mem.notes {
 			if f.mem.notes[i].ID == in.ID {
 				f.mem.notes[i].Text = text
-				return keelclient.SavedNote{Note: f.mem.notes[i], Redacted: n}, nil
+				return slimeclient.SavedNote{Note: f.mem.notes[i], Redacted: n}, nil
 			}
 		}
-		return keelclient.SavedNote{}, &keelclient.StatusError{Code: 404, Status: "404 Not Found"}
+		return slimeclient.SavedNote{}, &slimeclient.StatusError{Code: 404, Status: "404 Not Found"}
 	}
 	if in.GroupID != "" { // a folder's note (§17): about every host in it, never also a host's
 		f.mem.noteReqs = append(f.mem.noteReqs, "add group:"+in.GroupID+":"+in.Text)
@@ -74,18 +74,18 @@ func (f *fakeBackend) SaveNote(_ context.Context, in keelclient.NoteInput) (keel
 		f.mem.noteReqs = append(f.mem.noteReqs, "add "+in.HostID+":"+in.Text)
 	}
 	if f.mem.noteErr != nil {
-		return keelclient.SavedNote{}, f.mem.noteErr
+		return slimeclient.SavedNote{}, f.mem.noteErr
 	}
 	f.mem.noteSeq++
-	note := keelclient.Note{ID: fmt.Sprintf("n%d", f.mem.noteSeq), HostID: in.HostID, GroupID: in.GroupID, Text: text, Source: "user"}
+	note := slimeclient.Note{ID: fmt.Sprintf("n%d", f.mem.noteSeq), HostID: in.HostID, GroupID: in.GroupID, Text: text, Source: "user"}
 	f.mem.notes = append(f.mem.notes, note)
-	return keelclient.SavedNote{Note: note, Redacted: n}, nil
+	return slimeclient.SavedNote{Note: note, Redacted: n}, nil
 }
 
 func (f *fakeBackend) DeleteNote(_ context.Context, id string) error {
 	f.rec("delete note")
 	f.mem.noteReqs = append(f.mem.noteReqs, "delete "+id)
-	var keep []keelclient.Note
+	var keep []slimeclient.Note
 	for _, n := range f.mem.notes {
 		if n.ID != id {
 			keep = append(keep, n)
@@ -103,57 +103,57 @@ func (f *fakeBackend) DeleteAllNotes(context.Context) (int, error) {
 	return n, nil
 }
 
-func (f *fakeBackend) SaveProposedNote(_ context.Context, conv, id, text string) (keelclient.SavedNote, error) {
+func (f *fakeBackend) SaveProposedNote(_ context.Context, conv, id, text string) (slimeclient.SavedNote, error) {
 	f.rec("save proposed note")
 	f.mem.propReqs = append(f.mem.propReqs, "save "+conv+"/"+id+":"+text)
 	if f.mem.propErr != nil {
-		return keelclient.SavedNote{}, f.mem.propErr
+		return slimeclient.SavedNote{}, f.mem.propErr
 	}
 	kept, n := f.redactFake(text)
 	if kept == "" {
 		kept = "proposed text"
 	}
 	f.mem.noteSeq++
-	note := keelclient.Note{ID: fmt.Sprintf("n%d", f.mem.noteSeq), Text: kept, Source: "agent"}
+	note := slimeclient.Note{ID: fmt.Sprintf("n%d", f.mem.noteSeq), Text: kept, Source: "agent"}
 	f.mem.notes = append(f.mem.notes, note)
-	return keelclient.SavedNote{Note: note, Redacted: n, Proposal: &keelclient.NoteProposal{ID: id, For: "host", HostID: "h-api", Host: "api-1", Status: "saved", NoteID: note.ID, Text: kept}}, nil
+	return slimeclient.SavedNote{Note: note, Redacted: n, Proposal: &slimeclient.NoteProposal{ID: id, For: "host", HostID: "h-api", Host: "api-1", Status: "saved", NoteID: note.ID, Text: kept}}, nil
 }
 
-func (f *fakeBackend) UndoProposedNote(_ context.Context, conv, id string) (keelclient.NoteProposal, error) {
+func (f *fakeBackend) UndoProposedNote(_ context.Context, conv, id string) (slimeclient.NoteProposal, error) {
 	f.rec("undo proposed note")
 	f.mem.propReqs = append(f.mem.propReqs, "undo "+conv+"/"+id)
 	f.mem.notes = nil
-	return keelclient.NoteProposal{ID: id, For: "host", HostID: "h-api", Host: "api-1", Status: "open", Text: "proposed text"}, nil
+	return slimeclient.NoteProposal{ID: id, For: "host", HostID: "h-api", Host: "api-1", Status: "open", Text: "proposed text"}, nil
 }
 
-func (f *fakeBackend) DismissProposedNote(_ context.Context, conv, id string) (keelclient.NoteProposal, error) {
+func (f *fakeBackend) DismissProposedNote(_ context.Context, conv, id string) (slimeclient.NoteProposal, error) {
 	f.rec("dismiss proposed note")
 	f.mem.propReqs = append(f.mem.propReqs, "dismiss "+conv+"/"+id)
-	return keelclient.NoteProposal{ID: id, For: "host", HostID: "h-api", Host: "api-1", Status: "dismissed", Text: "proposed text"}, nil
+	return slimeclient.NoteProposal{ID: id, For: "host", HostID: "h-api", Host: "api-1", Status: "dismissed", Text: "proposed text"}, nil
 }
 
 // ---- runbooks ----
 
-func (f *fakeBackend) Runbooks(context.Context) (keelclient.RunbookList, error) {
+func (f *fakeBackend) Runbooks(context.Context) (slimeclient.RunbookList, error) {
 	f.rec("runbooks")
-	return keelclient.RunbookList{Runbooks: append([]keelclient.Runbook{}, f.mem.runbooks...)}, nil
+	return slimeclient.RunbookList{Runbooks: append([]slimeclient.Runbook{}, f.mem.runbooks...)}, nil
 }
 
-func (f *fakeBackend) SaveRunbook(_ context.Context, id string, in keelclient.RunbookInput) (keelclient.SavedRunbook, error) {
+func (f *fakeBackend) SaveRunbook(_ context.Context, id string, in slimeclient.RunbookInput) (slimeclient.SavedRunbook, error) {
 	f.rec("save runbook")
 	f.mem.rbSaved = append(f.mem.rbSaved, in)
 	if f.mem.rbErr != nil {
-		return keelclient.SavedRunbook{}, f.mem.rbErr
+		return slimeclient.SavedRunbook{}, f.mem.rbErr
 	}
 	redacted := 0
-	rb := keelclient.Runbook{ID: id, Name: in.Name, When: in.When, Hosts: in.Hosts, AgentMayPick: in.AgentMayPick, Source: "user"}
+	rb := slimeclient.Runbook{ID: id, Name: in.Name, When: in.When, Hosts: in.Hosts, AgentMayPick: in.AgentMayPick, Source: "user"}
 	if in.DraftID != "" {
 		rb.Source, rb.SourceRef = f.mem.draft.Source, f.mem.draft.SourceRef
 	}
 	for i, s := range in.Steps {
 		cmd, n := f.redactFake(s.Command)
 		redacted += n
-		rb.Steps = append(rb.Steps, keelclient.RunbookStep{ID: fmt.Sprintf("st%d", i+1), Title: s.Title, Description: s.Description, Command: cmd, Expect: s.Expect, Risk: "readonly", Role: s.Role, OneHost: s.OneHost, Captures: s.Captures})
+		rb.Steps = append(rb.Steps, slimeclient.RunbookStep{ID: fmt.Sprintf("st%d", i+1), Title: s.Title, Description: s.Description, Command: cmd, Expect: s.Expect, Risk: "readonly", Role: s.Role, OneHost: s.OneHost, Captures: s.Captures})
 	}
 	if id == "" {
 		f.mem.rbSeq++
@@ -168,13 +168,13 @@ func (f *fakeBackend) SaveRunbook(_ context.Context, id string, in keelclient.Ru
 			}
 		}
 	}
-	return keelclient.SavedRunbook{Runbook: rb, Redacted: redacted}, nil
+	return slimeclient.SavedRunbook{Runbook: rb, Redacted: redacted}, nil
 }
 
 func (f *fakeBackend) DeleteRunbook(_ context.Context, id string) error {
 	f.rec("delete runbook")
 	f.mem.rbReqs = append(f.mem.rbReqs, "delete "+id)
-	var keep []keelclient.Runbook
+	var keep []slimeclient.Runbook
 	for _, r := range f.mem.runbooks {
 		if r.ID != id {
 			keep = append(keep, r)
@@ -184,7 +184,7 @@ func (f *fakeBackend) DeleteRunbook(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeBackend) SetRunbookPick(_ context.Context, id string, on bool) (keelclient.Runbook, error) {
+func (f *fakeBackend) SetRunbookPick(_ context.Context, id string, on bool) (slimeclient.Runbook, error) {
 	f.rec("set runbook pick")
 	f.mem.rbReqs = append(f.mem.rbReqs, fmt.Sprintf("pick %s %v", id, on))
 	for i := range f.mem.runbooks {
@@ -193,26 +193,26 @@ func (f *fakeBackend) SetRunbookPick(_ context.Context, id string, on bool) (kee
 			return f.mem.runbooks[i], nil
 		}
 	}
-	return keelclient.Runbook{}, &keelclient.StatusError{Code: 404, Status: "404 Not Found"}
+	return slimeclient.Runbook{}, &slimeclient.StatusError{Code: 404, Status: "404 Not Found"}
 }
 
-func (f *fakeBackend) DraftRunbook(_ context.Context, conv string) (keelclient.RunbookDraft, error) {
+func (f *fakeBackend) DraftRunbook(_ context.Context, conv string) (slimeclient.RunbookDraft, error) {
 	f.rec("draft runbook")
 	f.mem.rbReqs = append(f.mem.rbReqs, "draft "+conv)
 	return f.mem.draft, f.mem.draftErr
 }
 
-func (f *fakeBackend) RunbookState(context.Context, string) (keelclient.RunState, error) {
+func (f *fakeBackend) RunbookState(context.Context, string) (slimeclient.RunState, error) {
 	f.rec("runbook state")
 	f.mem.stateGets++
-	return keelclient.RunState{Runbook: f.mem.run, NoRunbook: f.mem.noRunbook}, nil
+	return slimeclient.RunState{Runbook: f.mem.run, NoRunbook: f.mem.noRunbook}, nil
 }
 
-func (f *fakeBackend) StepAction(_ context.Context, conv, step, action string) (keelclient.RunState, error) {
+func (f *fakeBackend) StepAction(_ context.Context, conv, step, action string) (slimeclient.RunState, error) {
 	f.rec("step action")
 	f.mem.actions = append(f.mem.actions, conv+"/"+step+":"+action)
 	if f.mem.runErr != nil {
-		return keelclient.RunState{}, f.mem.runErr
+		return slimeclient.RunState{}, f.mem.runErr
 	}
 	if r := f.mem.run; r != nil {
 		for i := range r.Steps {
@@ -236,49 +236,49 @@ func (f *fakeBackend) StepAction(_ context.Context, conv, step, action string) (
 			r.Status = "finished"
 		}
 	}
-	return keelclient.RunState{Runbook: f.mem.run, NoRunbook: f.mem.noRunbook}, nil
+	return slimeclient.RunState{Runbook: f.mem.run, NoRunbook: f.mem.noRunbook}, nil
 }
 
-func (f *fakeBackend) StopRunbook(context.Context, string) (keelclient.RunState, error) {
+func (f *fakeBackend) StopRunbook(context.Context, string) (slimeclient.RunState, error) {
 	f.rec("stop runbook")
 	f.mem.stops++
 	f.mem.noRunbook = true
 	if f.mem.run != nil {
 		f.mem.run.Status = "stopped"
 	}
-	return keelclient.RunState{Runbook: f.mem.run, NoRunbook: true}, nil
+	return slimeclient.RunState{Runbook: f.mem.run, NoRunbook: true}, nil
 }
 
-func (f *fakeBackend) MoveRunbook(context.Context, string) (keelclient.RunState, error) {
+func (f *fakeBackend) MoveRunbook(context.Context, string) (slimeclient.RunState, error) {
 	f.rec("move runbook")
 	f.mem.moves++
 	if f.mem.run != nil {
 		f.mem.run.PinHost, f.mem.run.PinSessionID, f.mem.run.Blocked = "", "", ""
 	}
-	return keelclient.RunState{Runbook: f.mem.run, NoRunbook: f.mem.noRunbook}, nil
+	return slimeclient.RunState{Runbook: f.mem.run, NoRunbook: f.mem.noRunbook}, nil
 }
 
-func (f *fakeBackend) SaveProposedRunbook(_ context.Context, conv, id string) (keelclient.SavedRunbook, error) {
+func (f *fakeBackend) SaveProposedRunbook(_ context.Context, conv, id string) (slimeclient.SavedRunbook, error) {
 	f.rec("save proposed runbook")
 	f.mem.propReqs = append(f.mem.propReqs, "save-book "+conv+"/"+id)
 	if f.mem.propErr != nil {
-		return keelclient.SavedRunbook{}, f.mem.propErr
+		return slimeclient.SavedRunbook{}, f.mem.propErr
 	}
 	f.mem.rbSeq++
-	rb := keelclient.Runbook{ID: fmt.Sprintf("rb%d", f.mem.rbSeq), Name: "proposed", Source: "agent", AgentMayPick: false, Steps: []keelclient.RunbookStep{{ID: "st1", Title: "One", Command: "echo fake"}}}
+	rb := slimeclient.Runbook{ID: fmt.Sprintf("rb%d", f.mem.rbSeq), Name: "proposed", Source: "agent", AgentMayPick: false, Steps: []slimeclient.RunbookStep{{ID: "st1", Title: "One", Command: "echo fake"}}}
 	f.mem.runbooks = append(f.mem.runbooks, rb)
-	return keelclient.SavedRunbook{Runbook: rb, Proposal: &keelclient.RunbookProposal{ID: id, Name: "proposed", Status: "saved", RunbookID: rb.ID}}, nil
+	return slimeclient.SavedRunbook{Runbook: rb, Proposal: &slimeclient.RunbookProposal{ID: id, Name: "proposed", Status: "saved", RunbookID: rb.ID}}, nil
 }
 
-func (f *fakeBackend) UndoProposedRunbook(_ context.Context, conv, id string) (keelclient.RunbookProposal, error) {
+func (f *fakeBackend) UndoProposedRunbook(_ context.Context, conv, id string) (slimeclient.RunbookProposal, error) {
 	f.rec("undo proposed runbook")
 	f.mem.propReqs = append(f.mem.propReqs, "undo-book "+conv+"/"+id)
 	f.mem.runbooks = nil
-	return keelclient.RunbookProposal{ID: id, Name: "proposed", Status: "open", PanesRead: []string{"api-1"}, Steps: []keelclient.RunbookStep{{Title: "One", Command: "echo fake"}}}, nil
+	return slimeclient.RunbookProposal{ID: id, Name: "proposed", Status: "open", PanesRead: []string{"api-1"}, Steps: []slimeclient.RunbookStep{{Title: "One", Command: "echo fake"}}}, nil
 }
 
-func (f *fakeBackend) DismissProposedRunbook(_ context.Context, conv, id string) (keelclient.RunbookProposal, error) {
+func (f *fakeBackend) DismissProposedRunbook(_ context.Context, conv, id string) (slimeclient.RunbookProposal, error) {
 	f.rec("dismiss proposed runbook")
 	f.mem.propReqs = append(f.mem.propReqs, "dismiss-book "+conv+"/"+id)
-	return keelclient.RunbookProposal{ID: id, Name: "proposed", Status: "dismissed"}, nil
+	return slimeclient.RunbookProposal{ID: id, Name: "proposed", Status: "dismissed"}, nil
 }

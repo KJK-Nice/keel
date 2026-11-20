@@ -15,7 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Folders, the Group page and group runs against a real slime serve that answers from its in-process fake
@@ -37,11 +37,11 @@ func (e *win) apiLocalHost(name string, readable bool) string {
 	return h.ID
 }
 
-func (e *win) apiGroup(name, parent string) keelclient.Group {
+func (e *win) apiGroup(name, parent string) slimeclient.Group {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
-	g, err := e.cl.SaveGroup(c, keelclient.Group{Name: name, ParentID: parent})
+	g, err := e.cl.SaveGroup(c, slimeclient.Group{Name: name, ParentID: parent})
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func (e *win) apiMove(ids []string, group string) {
 	}
 }
 
-func (e *win) apiGroups() []keelclient.Group {
+func (e *win) apiGroups() []slimeclient.Group {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -68,20 +68,20 @@ func (e *win) apiGroups() []keelclient.Group {
 	return g
 }
 
-func (e *win) apiGroupNamed(name string) (keelclient.Group, bool) {
+func (e *win) apiGroupNamed(name string) (slimeclient.Group, bool) {
 	for _, g := range e.apiGroups() {
 		if g.Name == name {
 			return g, true
 		}
 	}
-	return keelclient.Group{}, false
+	return slimeclient.Group{}, false
 }
 
-func (e *win) apiRunbook(name string, steps ...keelclient.RunbookStepInput) string {
+func (e *win) apiRunbook(name string, steps ...slimeclient.RunbookStepInput) string {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
-	res, err := e.cl.SaveRunbook(c, "", keelclient.RunbookInput{Name: name, Steps: steps})
+	res, err := e.cl.SaveRunbook(c, "", slimeclient.RunbookInput{Name: name, Steps: steps})
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func (e *win) menuPick(label, item string) {
 func (e *win) logTypes() []string { return e.logMessages("agent.type") }
 
 // groupRun is the run page's run, as the window holds it.
-func (e *win) groupRun() *keelclient.GroupRun {
+func (e *win) groupRun() *slimeclient.GroupRun {
 	if p := e.w.groupRunPageState(); p != nil {
 		return p.run
 	}
@@ -364,7 +364,7 @@ func TestE2EGroupPageRolesNotesVars(t *testing.T) {
 			t.Errorf("the log holds the refused value: %s", l.Kind)
 		}
 	}
-	files, _ := filepath.Glob(filepath.Join(dir, "keel-native*"))
+	files, _ := filepath.Glob(filepath.Join(dir, "slime-native*"))
 	for _, f := range files {
 		if b, _ := os.ReadFile(f); strings.Contains(string(b), e2eVarSecret) {
 			t.Errorf("%s holds the refused value", f)
@@ -418,9 +418,9 @@ func runSetup(t *testing.T, n int, commands ...string) (*win, []string, string) 
 	}
 	g := e.apiGroup("gx-run", "")
 	e.apiMove(ids, g.ID)
-	var steps []keelclient.RunbookStepInput
+	var steps []slimeclient.RunbookStepInput
 	for i, c := range commands {
-		steps = append(steps, keelclient.RunbookStepInput{Title: fmt.Sprintf("Step %d", i+1), Command: c})
+		steps = append(steps, slimeclient.RunbookStepInput{Title: fmt.Sprintf("Step %d", i+1), Command: c})
 	}
 	e.apiRunbook("gx print", steps...)
 	e.reread("folder gx-run")
@@ -655,7 +655,7 @@ func TestE2EGroupRunFollowerAndClosedPane(t *testing.T) {
 		}
 	}
 	e.pump(func() bool { return other.Snapshot().YouID != 0 }, "the other client's id")
-	if err := wk2.conn.(*keelclient.Conn).GrantControl(other.Snapshot().YouID); err != nil {
+	if err := wk2.conn.(*slimeclient.Conn).GrantControl(other.Snapshot().YouID); err != nil {
 		t.Fatal(err)
 	}
 	var wk3 *pane
@@ -716,7 +716,7 @@ func TestE2EAnsibleExport(t *testing.T) {
 	if code, body := e.raw("POST", "/api/hosts", map[string]any{"name": "an-pw", "address": "10.9.9.9", "port": 22, "username": "ops", "authType": "password", "password": old}); code != 200 && code != 201 {
 		t.Fatalf("POST /api/hosts: %d %s", code, body)
 	}
-	e.apiRunbook("an print", keelclient.RunbookStepInput{Title: "Print", Command: "echo {{k8s_version}}"})
+	e.apiRunbook("an print", slimeclient.RunbookStepInput{Title: "Print", Command: "echo {{k8s_version}}"})
 	e.reread("folder an-folder")
 	e.menuPick("folder an-folder", "Roles and runbooks")
 	e.pump(func() bool { return e.w.groupPageState() != nil && e.hasLabel("member an-1") }, "the Group page")

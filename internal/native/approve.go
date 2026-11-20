@@ -7,12 +7,12 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/cmdrule"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// Approve before type (docs/ui-redesign.md §6): keel-native types nothing on the user's behalf until the user has seen
+// Approve before type (docs/ui-redesign.md §6): slime-native types nothing on the user's behalf until the user has seen
 // the exact bytes and pressed Type, except one plainly read-only line that slime serve agrees to type with no dialog and
-// no Enter (typenow.go, rule 13). This file is the only caller of keelclient.ApprovedInject, and Type is its only
+// no Enter (typenow.go, rule 13). This file is the only caller of slimeclient.ApprovedInject, and Type is its only
 // trigger (guard_test.go keeps both true).
 //
 // The group approve dialog (docs/ui-redesign.md §6 rule 10, §17; groupapproveview.go) is this same dialog and this same Type
@@ -110,7 +110,7 @@ func (approveNotebook) prepare(j *typeJob, shown string) string {
 	if cmdrule.HasPlaceholder(shown) { // slime serve refuses it too (the notebook-labelled inject)
 		return placeholderRefused
 	}
-	j.command, j.opts = shown, []keelclient.InjectOption{keelclient.FromNotebook}
+	j.command, j.opts = shown, []slimeclient.InjectOption{slimeclient.FromNotebook}
 	return ""
 }
 
@@ -123,7 +123,7 @@ func (a *approveAgent) sessionLine(*pane) string      { return a.session }
 // prepare: the proposal's bytes already start with Ctrl-U and end with the newline.
 func (a *approveAgent) prepare(j *typeJob, shown string) string {
 	j.command = shown
-	j.ref = &keelclient.AgentRef{ConversationID: a.conv, ProposalID: a.proposal, Shift: a.shift}
+	j.ref = &slimeclient.AgentRef{ConversationID: a.conv, ProposalID: a.proposal, Shift: a.shift}
 	return ""
 }
 
@@ -162,9 +162,9 @@ type approveGroup struct {
 type typeJob struct {
 	conn    session
 	command string
-	ref     *keelclient.AgentRef
-	opts    []keelclient.InjectOption // FromNotebook for a notebook fence
-	row     *groupRow                 // nil for the one-pane dialogs
+	ref     *slimeclient.AgentRef
+	opts    []slimeclient.InjectOption // FromNotebook for a notebook fence
+	row     *groupRow                  // nil for the one-pane dialogs
 }
 
 // The words of a row that cannot be typed.
@@ -292,7 +292,7 @@ func (w *workspace) closeApprove() {
 	}
 }
 
-// approveType is the Type button (and its key): the one place keel-native asks to type. It sends the bytes the
+// approveType is the Type button (and its key): the one place slime-native asks to type. It sends the bytes the
 // dialog shows now, behind Ctrl-U, through the one writer; slime serve decides, and a refusal stays in the dialog.
 func (w *workspace) approveType(shift bool) {
 	d := w.approve
@@ -409,7 +409,7 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 	for _, r := range pick {
 		p := g.pane(r.sessionID)
 		jobs = append(jobs, typeJob{conn: p.p.conn, command: r.bytes, row: r,
-			ref: &keelclient.AgentRef{GroupRunID: g.runID, ProposalID: r.proposalID, Shift: shift}})
+			ref: &slimeclient.AgentRef{GroupRunID: g.runID, ProposalID: r.proposalID, Shift: shift}})
 	}
 	return jobs
 }

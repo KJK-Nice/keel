@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -433,7 +433,7 @@ func (w *workspace) group(c *ui.Context, g hostGroup) {
 	})
 }
 
-func (w *workspace) hostRow(c *ui.Context, host keelclient.Host) {
+func (w *workspace) hostRow(c *ui.Context, host slimeclient.Host) {
 	current := false
 	if p := w.focusedPane(); p != nil {
 		current = p.host.ID == host.ID

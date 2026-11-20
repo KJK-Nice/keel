@@ -10,14 +10,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
 // The Group page (docs/ui-redesign.md §17, board GroupRoles): one
 // folder's hosts with their roles, its notes for the agent, its variables, "Run a runbook on this group" and the Ansible
 // export drawer. A tab page, one instance, named after the folder; the folder it shows is kept in the saved workspace
-// (saved.go). Roles and variables are saved one at a time by slime serve, which checks them; this client holds what keel
+// (saved.go). Roles and variables are saved one at a time by slime serve, which checks them; this client holds what slime
 // serve answered in memory and writes nothing to disk. Nothing on this page reads a pane, calls the agent's provider or
 // types: a run started from here is a group run (grouprun.go), whose every host × step is a proposal the user approves.
 //
@@ -70,8 +70,8 @@ const (
 type groupPage struct {
 	id      string // the folder shown
 	title   string // its name once read: the tab's name
-	group   keelclient.Group
-	members []keelclient.GroupMember
+	group   slimeclient.Group
+	members []slimeclient.GroupMember
 	loaded  bool
 	err     string
 	gen     int // a read that answers after another began is ignored
@@ -99,7 +99,7 @@ type groupPage struct {
 // groupRunMenu is "Run a runbook on this group" and its list of runbooks.
 type groupRunMenu struct {
 	open    bool
-	books   []keelclient.Runbook // runbooks with steps
+	books   []slimeclient.Runbook // runbooks with steps
 	loading bool
 	err     string
 	busy    bool
@@ -113,7 +113,7 @@ type ansibleDrawer struct {
 	mode    string // rolling | parallel
 	user    bool
 	jump    bool
-	files   []keelclient.ExportFile
+	files   []slimeclient.ExportFile
 	file    int
 	gen     int
 	err     string
@@ -177,10 +177,10 @@ func (w *workspace) loadGroupPage() {
 	gen, id := p.gen, p.id
 	w.loadNotes(&p.notes)
 	w.loadGroupRunbooks(p)
-	callIf(w, func() bool { return w.groupPageState() == p && p.gen == gen }, func(c context.Context) (keelclient.GroupInfo, error) { return w.be.GroupMembers(c, id) },
-		func(info keelclient.GroupInfo, err error) {
+	callIf(w, func() bool { return w.groupPageState() == p && p.gen == gen }, func(c context.Context) (slimeclient.GroupInfo, error) { return w.be.GroupMembers(c, id) },
+		func(info slimeclient.GroupInfo, err error) {
 			if err != nil {
-				var se *keelclient.StatusError
+				var se *slimeclient.StatusError
 				if errors.As(err, &se) && se.Code == 423 {
 					p.err = groupLockedText
 				} else {
@@ -199,7 +199,7 @@ func (w *workspace) loadGroupPage() {
 // loadGroupRunbooks reads the runbooks that have steps: the list of "Run a runbook on this group" and of the export's playbook.
 func (w *workspace) loadGroupRunbooks(p *groupPage) {
 	p.run.loading = true
-	callIf(w, func() bool { return w.groupPageState() == p }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+	callIf(w, func() bool { return w.groupPageState() == p }, w.be.Runbooks, func(l slimeclient.RunbookList, err error) {
 		p.run.loading = false
 		if err != nil { // runbooks need the vault; the inventory alone still works
 			p.run.books, p.run.err = nil, hostError(err)
@@ -276,8 +276,8 @@ func (w *workspace) setVar(p *groupPage, name, value string, onDone func()) {
 	}
 	p.varsBusy = true
 	id := p.id
-	callIf(w, func() bool { return w.groupPageState() == p && p.id == id }, func(c context.Context) (keelclient.Group, error) { return w.be.SetGroupVar(c, id, n, v) },
-		func(g keelclient.Group, err error) {
+	callIf(w, func() bool { return w.groupPageState() == p && p.id == id }, func(c context.Context) (slimeclient.Group, error) { return w.be.SetGroupVar(c, id, n, v) },
+		func(g slimeclient.Group, err error) {
 			p.varsBusy = false
 			if err != nil {
 				p.varsErr = hostError(err)
@@ -295,7 +295,7 @@ func (w *workspace) addVar(p *groupPage) {
 	w.setVar(p, p.varName, p.varValue, func() { p.varName, p.varValue, p.varNameFocus = "", "", true })
 }
 
-func (w *workspace) startEditVar(p *groupPage, v keelclient.GroupVar) {
+func (w *workspace) startEditVar(p *groupPage, v slimeclient.GroupVar) {
 	p.varEdit, p.varEditTxt, p.varFocusEdit, p.varsErr = v.Name, v.Value, true, ""
 }
 
@@ -336,9 +336,9 @@ func (w *workspace) exportRefresh(p *groupPage) {
 	}
 	p.ex.gen++
 	gen, id := p.ex.gen, p.id
-	q := keelclient.AnsibleQuery{Format: p.ex.format, RunbookID: p.ex.runbook, Mode: p.ex.mode, User: p.ex.user, Jump: p.ex.jump}
-	callIf(w, func() bool { return w.groupPageState() == p && p.ex.gen == gen }, func(c context.Context) ([]keelclient.ExportFile, error) { return w.be.GroupAnsible(c, id, q) },
-		func(files []keelclient.ExportFile, err error) {
+	q := slimeclient.AnsibleQuery{Format: p.ex.format, RunbookID: p.ex.runbook, Mode: p.ex.mode, User: p.ex.user, Jump: p.ex.jump}
+	callIf(w, func() bool { return w.groupPageState() == p && p.ex.gen == gen }, func(c context.Context) ([]slimeclient.ExportFile, error) { return w.be.GroupAnsible(c, id, q) },
+		func(files []slimeclient.ExportFile, err error) {
 			if err != nil {
 				p.ex.files, p.ex.err = nil, hostError(err)
 				return

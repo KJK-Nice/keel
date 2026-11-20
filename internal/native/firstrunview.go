@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 const (
@@ -384,7 +384,7 @@ func (w *workspace) importBody(c *ui.Context, f *firstRun) {
 	}
 }
 
-func (w *workspace) importTable(c *ui.Context, f *firstRun, p keelclient.SSHPreview, sel *importSel) {
+func (w *workspace) importTable(c *ui.Context, f *firstRun, p slimeclient.SSHPreview, sel *importSel) {
 	if len(p.Hosts) == 0 {
 		help(c, "No hosts to add: every Host line in the config is a pattern.")
 		return
@@ -442,7 +442,7 @@ func boolState(b bool) checkState {
 }
 
 // viaCell is the Via column: the proxy's flag and, for a ProxyJump that is not kept, the Without the jump box.
-func (w *workspace) viaCell(c *ui.Context, f *firstRun, h keelclient.ConfigHost, sel *importSel) {
+func (w *workspace) viaCell(c *ui.Context, f *firstRun, h slimeclient.ConfigHost, sel *importSel) {
 	v := viaOf(h)
 	if v.kind == "" {
 		body(c, "—", inkFaint)
@@ -473,7 +473,7 @@ func (w *workspace) viaCell(c *ui.Context, f *firstRun, h keelclient.ConfigHost,
 	}
 }
 
-func (w *workspace) importKeys(c *ui.Context, f *firstRun, p keelclient.SSHPreview, sel *importSel) {
+func (w *workspace) importKeys(c *ui.Context, f *firstRun, p slimeclient.SSHPreview, sel *importSel) {
 	box(c).Label("Private keys").Children(func() {
 		ui.Row(c).Gap(space2 + space0_5).Children(func() {
 			icon(c, "key-01", inkMuted)
@@ -532,7 +532,7 @@ func (w *workspace) importKeys(c *ui.Context, f *firstRun, p keelclient.SSHPrevi
 	})
 }
 
-func keyLabel(k keelclient.ConfigKey) string {
+func keyLabel(k slimeclient.ConfigKey) string {
 	if k.Display != "" {
 		return k.Display
 	}
@@ -610,7 +610,7 @@ func (w *workspace) agentStep(c *ui.Context, f *firstRun) {
 }
 
 func (w *workspace) agentChoice(c *ui.Context, f *firstRun) {
-	d := keelclient.AgentProvider{Name: "Google Gemini", KeyLabel: "Gemini API key"}
+	d := slimeclient.AgentProvider{Name: "Google Gemini", KeyLabel: "Gemini API key"}
 	if f.agentProv != nil {
 		d = *f.agentProv
 	}

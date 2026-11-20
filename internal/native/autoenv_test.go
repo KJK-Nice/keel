@@ -11,7 +11,7 @@ import (
 )
 
 // The automation guards: MyGo's automation plugin (a socket that can type into the app) is linked only with the tag
-// keelautomation, no release path passes the tag, and a tagged build refuses real data.
+// slimeautomation, no release path passes the tag, and a tagged build refuses real data.
 
 const automationPkg = "github.com/egoist/mygo/plugins/automation"
 
@@ -52,14 +52,14 @@ func TestAutomationPluginIsLinkedOnlyWithItsTag(t *testing.T) {
 	}
 	for _, c := range []struct{ pkg, tags, cgo string }{
 		{"./cmd/slime", "", "0"},
-		{"./cmd/keel-native", "", "0"},
+		{"./cmd/slime-native", "", "0"},
 	} {
 		if hasPkg(goDeps(t, c.pkg, c.tags, c.cgo)) {
-			t.Errorf("%s without keelautomation links the automation plugin", c.pkg)
+			t.Errorf("%s without slimeautomation links the automation plugin", c.pkg)
 		}
-		tagged := strings.Trim(c.tags+",keelautomation", ",")
+		tagged := strings.Trim(c.tags+",slimeautomation", ",")
 		if !hasPkg(goDeps(t, c.pkg, tagged, c.cgo)) {
-			t.Errorf("%s with keelautomation does not link the automation plugin", c.pkg)
+			t.Errorf("%s with slimeautomation does not link the automation plugin", c.pkg)
 		}
 	}
 }
@@ -88,8 +88,8 @@ func TestAutomationIsImportedOnlyByTheTaggedFiles(t *testing.T) {
 		if strings.Contains(string(b), "_ \""+automationPkg+"\"\n") && !strings.HasSuffix(p, "_test.go") {
 			rel, _ := filepath.Rel(root, p)
 			found = append(found, filepath.ToSlash(rel))
-			if !strings.HasPrefix(string(b), "//go:build keelautomation\n") {
-				t.Errorf("%s imports the automation plugin without //go:build keelautomation on its first line", rel)
+			if !strings.HasPrefix(string(b), "//go:build slimeautomation\n") {
+				t.Errorf("%s imports the automation plugin without //go:build slimeautomation on its first line", rel)
 			}
 		}
 		return nil
@@ -97,7 +97,7 @@ func TestAutomationIsImportedOnlyByTheTaggedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "cmd/keel-native/automation.go cmd/slime/automation.go"
+	want := "cmd/slime/automation.go cmd/slime-native/automation.go"
 	if got := strings.Join(found, " "); got != want {
 		t.Errorf("the plugin is imported by %q, want exactly %q", got, want)
 	}
@@ -116,8 +116,8 @@ func TestNoReleasePathPassesTheAutomationTag(t *testing.T) {
 				target = strings.TrimSpace(l[:i])
 			}
 		}
-		if strings.Contains(l, "keelautomation") && target != "native-automation-build" {
-			t.Errorf("Makefile target %q passes the tag keelautomation: %s", target, l)
+		if strings.Contains(l, "slimeautomation") && target != "native-automation-build" {
+			t.Errorf("Makefile target %q passes the tag slimeautomation: %s", target, l)
 		}
 	}
 	scripts, _ := filepath.Glob(filepath.Join(root, "scripts", "*"))
@@ -127,8 +127,8 @@ func TestNoReleasePathPassesTheAutomationTag(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		if strings.Contains(string(b), "keelautomation") {
-			t.Errorf("%s names the tag keelautomation", p)
+		if strings.Contains(string(b), "slimeautomation") {
+			t.Errorf("%s names the tag slimeautomation", p)
 		}
 	}
 }

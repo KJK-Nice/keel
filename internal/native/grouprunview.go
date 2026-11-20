@@ -6,14 +6,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
 // The group run page: on the left the runbook's steps with their marks and where each runs, the safety line and Stop
 // runbook; on the right the current step (the mode, the proposal card with the saved command and its {{names}}, the halt
 // banner, the hosts that need a pane), the captured values as a mask and a length, and the Results matrix. Every command is
-// drawn with variable names; a value never reaches this page (keelclient/grouprun_types.go).
+// drawn with variable names; a value never reaches this page (slimeclient/grouprun_types.go).
 
 func (w *workspace) groupRunView(c *ui.Context, p *groupRunPage) {
 	run := p.run
@@ -73,7 +73,7 @@ func markColor(state string) ui.Color {
 	return inkMuted
 }
 
-func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
+func (w *workspace) runSteps(c *ui.Context, p *groupRunPage, run *slimeclient.GroupRun) {
 	changes := 0
 	for _, s := range run.Steps {
 		if changesState(s.Risk) {
@@ -136,7 +136,7 @@ func runBanner(c *ui.Context, glyph string, col ui.Color, label string, text fun
 	})
 }
 
-func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
+func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *slimeclient.GroupRun) {
 	switch run.Status {
 	case wire.RunFinished:
 		runBanner(c, "tick", tide, "run finished", func() {
@@ -242,7 +242,7 @@ func (w *workspace) runDetail(c *ui.Context, p *groupRunPage, run *keelclient.Gr
 }
 
 // runModeSeg is Rolling | Parallel; both are off while the mode may not change (slime serve refuses it too, with 409).
-func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
+func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *slimeclient.GroupRun) {
 	ui.Row(c).Padding(space0_5).Gap(space0_5).Radius(radiusSm).Background(stage).Border(1, line).Label("How to run on several hosts").Children(func() {
 		for _, o := range [][2]string{{wire.ModeRolling, "Rolling"}, {wire.ModeParallel, "Parallel"}} {
 			on := run.Mode == o[0]
@@ -267,7 +267,7 @@ func (w *workspace) runModeSeg(c *ui.Context, p *groupRunPage, run *keelclient.G
 	})
 }
 
-func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun, i int) {
+func (w *workspace) runProposalCard(c *ui.Context, p *groupRunPage, run *slimeclient.GroupRun, i int) {
 	st := run.Steps[i]
 	ready := typeable(run, w.groupPaneOpen)
 	var names []string
@@ -388,12 +388,12 @@ func textBtnOffAs(c *ui.Context, name, shown string, kind btnKind, off bool) boo
 
 // runCaptures is a step's box of captured values (board CaptureVars): each name, its pattern and, per host, a mask and the
 // length, or why there is none. slime serve never sends the value to this page.
-func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) {
+func (w *workspace) runCaptures(c *ui.Context, run *slimeclient.GroupRun, i int) {
 	st := run.Steps[i]
 	if len(st.Captures) == 0 {
 		return
 	}
-	var cells []keelclient.GroupRunCell
+	var cells []slimeclient.GroupRunCell
 	for _, cell := range st.Cells {
 		if cell.HostID != "" {
 			cells = append(cells, cell)
@@ -419,7 +419,7 @@ func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) 
 					help(c, "Not captured yet.")
 				}
 				for _, cell := range cells {
-					var cv *keelclient.CaptureView
+					var cv *slimeclient.CaptureView
 					for k := range cell.Captures {
 						if cell.Captures[k].Name == cap.Name {
 							cv = &cell.Captures[k]
@@ -444,9 +444,9 @@ func (w *workspace) runCaptures(c *ui.Context, run *keelclient.GroupRun, i int) 
 
 var matrixCols = [3]float32{3, 2, 2}
 
-func (w *workspace) runMatrix(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun) {
+func (w *workspace) runMatrix(c *ui.Context, p *groupRunPage, run *slimeclient.GroupRun) {
 	// Rows: the run's target hosts (any step), in member order.
-	var targets []keelclient.GroupRunMember
+	var targets []slimeclient.GroupRunMember
 	for _, m := range run.Members {
 		if m.Excluded != "" {
 			continue
@@ -458,7 +458,7 @@ func (w *workspace) runMatrix(c *ui.Context, p *groupRunPage, run *keelclient.Gr
 			}
 		}
 	}
-	var cur *keelclient.GroupRunStep
+	var cur *slimeclient.GroupRunStep
 	if run.Current >= 0 && run.Current < len(run.Steps) {
 		cur = &run.Steps[run.Current]
 	}
@@ -501,7 +501,7 @@ func (w *workspace) runMatrix(c *ui.Context, p *groupRunPage, run *keelclient.Gr
 	})
 }
 
-func cellOf(st keelclient.GroupRunStep, hostID string) *keelclient.GroupRunCell {
+func cellOf(st slimeclient.GroupRunStep, hostID string) *slimeclient.GroupRunCell {
 	for i := range st.Cells {
 		if st.Cells[i].HostID == hostID {
 			return &st.Cells[i]
@@ -510,7 +510,7 @@ func cellOf(st keelclient.GroupRunStep, hostID string) *keelclient.GroupRunCell 
 	return nil
 }
 
-func candidateOf(st keelclient.GroupRunStep, hostID string) bool {
+func candidateOf(st slimeclient.GroupRunStep, hostID string) bool {
 	for _, h := range st.Candidates {
 		if h.HostID == hostID {
 			return true
@@ -519,7 +519,7 @@ func candidateOf(st keelclient.GroupRunStep, hostID string) bool {
 	return false
 }
 
-func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *keelclient.GroupRun, m keelclient.GroupRunMember, cur *keelclient.GroupRunStep) {
+func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *slimeclient.GroupRun, m slimeclient.GroupRunMember, cur *slimeclient.GroupRunStep) {
 	ui.Row(c).FillWidth().MinHeight(sizeControl).Padding(space1, 0).Gap(space2).AlignItems(ui.Center).Key(m.HostID).Label("result row " + m.Host).Children(func() {
 		ui.Row(c).Grow(matrixCols[0]).Basis(0).MinWidth(0).Gap(space1_5).AlignItems(ui.Center).Children(func() {
 			body(c, m.Host, ink).Shrink(1).MinWidth(0)
@@ -562,7 +562,7 @@ func (w *workspace) runMatrixRow(c *ui.Context, p *groupRunPage, run *keelclient
 
 // runCellActions are the current step's actions on one host (cellActions): Confirm, Mark done, Retry, Skip. Mark done waits
 // while the shell may still report the exit status (slime serve refuses it too).
-func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, cell *keelclient.GroupRunCell) {
+func (w *workspace) runCellActions(c *ui.Context, p *groupRunPage, host string, cell *slimeclient.GroupRunCell) {
 	btn := func(action, shown, name string, kind btnKind) {
 		if textBtnAs(c, name+" "+host, shown, kind) {
 			id := cell.HostID

@@ -12,8 +12,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 // Notebooks (docs/ui-redesign.md §18). A notebook is one Markdown document kept by slime serve. The pane shows it rendered and, on Edit, as
@@ -68,7 +68,7 @@ type notebookPane struct {
 // saveFlight is a save on its way: done closes after res and err are set, on whichever goroutine made the request.
 type saveFlight struct {
 	done chan struct{}
-	res  keelclient.SavedNotebook
+	res  slimeclient.SavedNotebook
 	err  error
 }
 
@@ -76,7 +76,7 @@ func newNotebookState() *notebookPane {
 	return &notebookPane{auto: newAutosave(), clicked: map[int]time.Time{}}
 }
 
-func (n *notebookPane) load(rec keelclient.Notebook) {
+func (n *notebookPane) load(rec slimeclient.Notebook) {
 	n.id, n.title, n.rev, n.pinned = rec.ID, notebookName(rec), rec.Rev, rec.Pinned
 	n.md = rec.Markdown()
 	n.cellID = ""
@@ -101,12 +101,12 @@ func (n *notebookPane) retryFailed() {
 	}
 }
 
-func (n *notebookPane) payload() keelclient.NotebookSave {
+func (n *notebookPane) payload() slimeclient.NotebookSave {
 	name := strings.TrimSpace(n.title)
 	if name == "" {
 		name = "Notebook"
 	}
-	return keelclient.NotebookSave{Name: name, Cells: []keelclient.NotebookCell{{ID: n.cellID, Body: n.md}}, Pinned: n.pinned, Rev: n.rev}
+	return slimeclient.NotebookSave{Name: name, Cells: []slimeclient.NotebookCell{{ID: n.cellID, Body: n.md}}, Pinned: n.pinned, Rev: n.rev}
 }
 
 // nbConn is the connection of a notebook pane: there is no session. It reports nothing and refuses everything, so a
@@ -116,44 +116,44 @@ type nbConn struct{}
 //lint:ignore ST1005 shown to the user in the app's words
 var errNotebookPane = errors.New("A notebook is not a terminal")
 
-func (nbConn) Read([]byte) (int, error)                 { return 0, io.EOF }
-func (nbConn) Write([]byte) (int, error)                { return 0, errNotebookPane }
-func (nbConn) Close() error                             { return nil }
-func (nbConn) Resize(int, int) error                    { return nil }
-func (nbConn) SessionID() string                        { return "" }
-func (nbConn) Snapshot() keelclient.State               { return keelclient.State{} }
-func (nbConn) TakeControl() error                       { return errNotebookPane }
-func (nbConn) RequestControl() error                    { return errNotebookPane }
-func (nbConn) GrantControl(uint64) error                { return errNotebookPane }
-func (nbConn) Events() []keelclient.Event               { return nil }
-func (nbConn) OnChange(func())                          {}
-func (nbConn) SuggestDetect(int, string) error          { return errNotebookPane }
-func (nbConn) SuggestAsk(int, string) error             { return errNotebookPane }
-func (nbConn) SuggestEvents() []keelclient.SuggestEvent { return nil }
-func (nbConn) RestoreWords(string) error                { return errNotebookPane }
-func (nbConn) SuggestInsert(context.Context, keelclient.SuggestionRef) error {
+func (nbConn) Read([]byte) (int, error)                  { return 0, io.EOF }
+func (nbConn) Write([]byte) (int, error)                 { return 0, errNotebookPane }
+func (nbConn) Close() error                              { return nil }
+func (nbConn) Resize(int, int) error                     { return nil }
+func (nbConn) SessionID() string                         { return "" }
+func (nbConn) Snapshot() slimeclient.State               { return slimeclient.State{} }
+func (nbConn) TakeControl() error                        { return errNotebookPane }
+func (nbConn) RequestControl() error                     { return errNotebookPane }
+func (nbConn) GrantControl(uint64) error                 { return errNotebookPane }
+func (nbConn) Events() []slimeclient.Event               { return nil }
+func (nbConn) OnChange(func())                           {}
+func (nbConn) SuggestDetect(int, string) error           { return errNotebookPane }
+func (nbConn) SuggestAsk(int, string) error              { return errNotebookPane }
+func (nbConn) SuggestEvents() []slimeclient.SuggestEvent { return nil }
+func (nbConn) RestoreWords(string) error                 { return errNotebookPane }
+func (nbConn) SuggestInsert(context.Context, slimeclient.SuggestionRef) error {
 	return errNotebookPane
 }
-func (nbConn) ApprovedInject(context.Context, string, *keelclient.AgentRef, ...keelclient.InjectOption) error {
+func (nbConn) ApprovedInject(context.Context, string, *slimeclient.AgentRef, ...slimeclient.InjectOption) error {
 	return errNotebookPane
 }
-func (nbConn) DirectType(context.Context, string, keelclient.DirectRef, *keelclient.AgentRef) (keelclient.DirectResult, error) {
-	return keelclient.DirectResult{}, errNotebookPane
+func (nbConn) DirectType(context.Context, string, slimeclient.DirectRef, *slimeclient.AgentRef) (slimeclient.DirectResult, error) {
+	return slimeclient.DirectResult{}, errNotebookPane
 }
 
 // ---- the list ----
 
-func (w *workspace) notebook(id string) (keelclient.Notebook, bool) {
+func (w *workspace) notebook(id string) (slimeclient.Notebook, bool) {
 	for _, n := range w.notebooks {
 		if n.ID == id {
 			return n, true
 		}
 	}
-	return keelclient.Notebook{}, false
+	return slimeclient.Notebook{}, false
 }
 
 // shownNotebooks is the list under the filter (name and first line), sorted as sortedNotebooks does.
-func (w *workspace) shownNotebooks(q string) (out []keelclient.Notebook) {
+func (w *workspace) shownNotebooks(q string) (out []slimeclient.Notebook) {
 	for _, n := range sortedNotebooks(w.notebooks) {
 		if sideMatches(n.Name+" "+notebookPreview(n), q) {
 			out = append(out, n)
@@ -163,16 +163,16 @@ func (w *workspace) shownNotebooks(q string) (out []keelclient.Notebook) {
 }
 
 // rememberNotebook puts a notebook slime serve answered with into the list at once.
-func (w *workspace) rememberNotebook(rec keelclient.Notebook) {
-	if i := slices.IndexFunc(w.notebooks, func(n keelclient.Notebook) bool { return n.ID == rec.ID }); i >= 0 {
+func (w *workspace) rememberNotebook(rec slimeclient.Notebook) {
+	if i := slices.IndexFunc(w.notebooks, func(n slimeclient.Notebook) bool { return n.ID == rec.ID }); i >= 0 {
 		w.notebooks[i] = rec
 		return
 	}
-	w.notebooks = append([]keelclient.Notebook{rec}, w.notebooks...)
+	w.notebooks = append([]slimeclient.Notebook{rec}, w.notebooks...)
 }
 
 func (w *workspace) reloadNotebooks() {
-	call(w, w.be.Notebooks, func(nbs []keelclient.Notebook, err error) {
+	call(w, w.be.Notebooks, func(nbs []slimeclient.Notebook, err error) {
 		if err != nil {
 			w.stale()
 			w.fail("notebooks", err)
@@ -218,7 +218,7 @@ func (w *workspace) followNotebooks() {
 // ---- opening ----
 
 // newNotebookPane makes a pane for rec, or for a new notebook (nil), which starts in Edit with the starter text.
-func (w *workspace) newNotebookPane(rec *keelclient.Notebook) *pane {
+func (w *workspace) newNotebookPane(rec *slimeclient.Notebook) *pane {
 	w.seq++
 	p := &pane{id: strconv.Itoa(w.seq), conn: nbConn{}, nb: newNotebookState()}
 	n := p.nb
@@ -316,14 +316,14 @@ func (w *workspace) nbPump(p *pane) {
 	name := in.Name
 	fl := &saveFlight{done: make(chan struct{})}
 	n.flight = fl
-	call(w, func(c context.Context) (res keelclient.SavedNotebook, err error) {
+	call(w, func(c context.Context) (res slimeclient.SavedNotebook, err error) {
 		defer func() { fl.res, fl.err = res, err; close(fl.done) }()
 		if id == "" {
 			res.Notebook, err = w.be.CreateNotebook(c, in)
 			return res, err
 		}
 		return w.be.SaveNotebook(c, id, in)
-	}, func(res keelclient.SavedNotebook, err error) {
+	}, func(res slimeclient.SavedNotebook, err error) {
 		n.saving, n.flight = false, nil
 		again := n.auto.end()
 		if err != nil {
@@ -479,7 +479,7 @@ func (w *workspace) flushNotebooksNow() {
 }
 
 func nbErr(err error, fallback string) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) && se.Msg != "" {
 		return se.Msg
 	}
@@ -490,7 +490,7 @@ func nbErr(err error, fallback string) string {
 
 // applyNotebook takes a record slime serve answered a change with into the list and the panes that show it. A pane with
 // typing keeps it.
-func (w *workspace) applyNotebook(rec keelclient.Notebook) {
+func (w *workspace) applyNotebook(rec slimeclient.Notebook) {
 	w.rememberNotebook(rec)
 	for _, p := range w.notebookPanes() {
 		if n := p.nb; n.id == rec.ID && !n.dirty() {
@@ -505,9 +505,9 @@ func (w *workspace) renameNotebook(id, name string) {
 		name = "Notebook"
 	}
 	w.nbFlushID(id, func() {
-		call(w, func(c context.Context) (keelclient.Notebook, error) {
+		call(w, func(c context.Context) (slimeclient.Notebook, error) {
 			return w.be.PatchNotebook(c, id, &name, nil) // the name only: a window with an old copy never writes old text back
-		}, func(rec keelclient.Notebook, err error) {
+		}, func(rec slimeclient.Notebook, err error) {
 			if err != nil {
 				w.warn(nbErr(err, "Could not rename notebook"))
 				return
@@ -525,7 +525,7 @@ func (w *workspace) toggleNotebookPin(id string) {
 	}
 	pin := !rec.Pinned
 	w.nbFlushID(id, func() {
-		call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.PatchNotebook(c, id, nil, &pin) }, func(saved keelclient.Notebook, err error) {
+		call(w, func(c context.Context) (slimeclient.Notebook, error) { return w.be.PatchNotebook(c, id, nil, &pin) }, func(saved slimeclient.Notebook, err error) {
 			if err != nil {
 				w.warn(nbErr(err, "Could not pin notebook"))
 				return
@@ -541,7 +541,7 @@ func (w *workspace) toggleNotebookPrivate(id string) {
 		return
 	}
 	next := !rec.Private
-	call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.PutNotebookPrivacy(c, id, next) }, func(saved keelclient.Notebook, err error) {
+	call(w, func(c context.Context) (slimeclient.Notebook, error) { return w.be.PutNotebookPrivacy(c, id, next) }, func(saved slimeclient.Notebook, err error) {
 		if err != nil {
 			w.warn(nbErr(err, "Could not change Private"))
 			return
@@ -556,7 +556,7 @@ func (w *workspace) toggleNotebookPrivate(id string) {
 }
 
 // noteMarks takes a notebook's flags (Private, Edited by agent) without touching its text.
-func (w *workspace) noteMarks(rec keelclient.Notebook) {
+func (w *workspace) noteMarks(rec slimeclient.Notebook) {
 	cur, ok := w.notebook(rec.ID)
 	if !ok {
 		w.rememberNotebook(rec)
@@ -567,7 +567,7 @@ func (w *workspace) noteMarks(rec keelclient.Notebook) {
 }
 
 func (w *workspace) markNotebookReviewed(id string) {
-	call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.MarkNotebookReviewed(c, id) }, func(saved keelclient.Notebook, err error) {
+	call(w, func(c context.Context) (slimeclient.Notebook, error) { return w.be.MarkNotebookReviewed(c, id) }, func(saved slimeclient.Notebook, err error) {
 		if err != nil {
 			w.warn(nbErr(err, "Could not mark the notebook reviewed"))
 			return
@@ -602,7 +602,7 @@ func (w *workspace) deleteNotebook(id string, permanent bool) {
 			switch {
 			case err == nil:
 				w.removeNotebook(id)
-			case !permanent && keelclient.IsHistoryRefusal(err):
+			case !permanent && slimeclient.IsHistoryRefusal(err):
 				w.askConfirm(&confirmDialog{title: "Delete permanently", action: "Delete permanently",
 					message: "Slime cannot keep “" + notebookName(rec) + "” in Recently deleted right now, so it cannot be restored. Delete it permanently?",
 					run:     func() { w.deleteNotebook(id, true) }})
@@ -614,7 +614,7 @@ func (w *workspace) deleteNotebook(id string, permanent bool) {
 }
 
 func (w *workspace) removeNotebook(id string) {
-	w.notebooks = slices.DeleteFunc(w.notebooks, func(n keelclient.Notebook) bool { return n.ID == id })
+	w.notebooks = slices.DeleteFunc(w.notebooks, func(n slimeclient.Notebook) bool { return n.ID == id })
 	for _, p := range w.notebookPanes() {
 		if p.nb.id != id {
 			continue

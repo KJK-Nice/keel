@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // In-pane suggestions on the fake backend: what a pane asks of slime serve, what it shows, which keys it takes, and what
@@ -42,7 +42,7 @@ func (r *sugRig) key(mods ui.Modifiers, k ui.Key) bool {
 // pause is the typing pause passing and a frame running.
 func (r *sugRig) pause() { r.tt.Advance(detectPause + time.Millisecond); r.tt.Frame() }
 
-func (r *sugRig) push(ev ...keelclient.SuggestEvent) {
+func (r *sugRig) push(ev ...slimeclient.SuggestEvent) {
 	r.c.sugEvents = append(r.c.sugEvents, ev...)
 	r.tt.Frame()
 }
@@ -58,7 +58,7 @@ func (r *sugRig) noticed(t *testing.T) {
 		t.Fatal("no detection after the typing pause")
 	}
 	d := r.c.detects[len(r.c.detects)-1]
-	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestDetected, Seq: d.seq, Plain: true, Source: "jev"})
+	r.push(slimeclient.SuggestEvent{Kind: slimeclient.SuggestDetected, Seq: d.seq, Plain: true, Source: "jev"})
 	if r.state() != sugNotice {
 		t.Fatalf("state %q, want a notice", r.state())
 	}
@@ -68,22 +68,22 @@ func (r *sugRig) noticed(t *testing.T) {
 // assume macOS's (issue #140: ⌘Z and ⌘Y are Ctrl+Shift+Z and Ctrl+Shift+Y elsewhere, ⇥ is "Tab").
 func platLabels() keyLabelSet { return keyLabels() }
 
-func card(options ...keelclient.SuggestOption) *keelclient.Suggestion {
-	return &keelclient.Suggestion{ID: "s_1", Options: options}
+func card(options ...slimeclient.SuggestOption) *slimeclient.Suggestion {
+	return &slimeclient.Suggestion{ID: "s_1", Options: options}
 }
 
-func ro(cmd string) keelclient.SuggestOption {
-	return keelclient.SuggestOption{Command: cmd, Risk: "readonly", Why: "Lists the files.", Source: "generated"}
+func ro(cmd string) slimeclient.SuggestOption {
+	return slimeclient.SuggestOption{Command: cmd, Risk: "readonly", Why: "Lists the files.", Source: "generated"}
 }
 
-func (r *sugRig) carded(t *testing.T, sug *keelclient.Suggestion) {
+func (r *sugRig) carded(t *testing.T, sug *slimeclient.Suggestion) {
 	t.Helper()
 	r.noticed(t)
 	if !r.key(0, ui.KeyTab) {
 		t.Fatal("⇥ not taken on a notice")
 	}
 	a := r.c.asks[len(r.c.asks)-1]
-	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestAnswered, Seq: a.seq, OK: true, Suggestion: sug})
+	r.push(slimeclient.SuggestEvent{Kind: slimeclient.SuggestAnswered, Seq: a.seq, OK: true, Suggestion: sug})
 	if r.state() != sugCard {
 		t.Fatalf("state %q, want a card", r.state())
 	}
@@ -111,7 +111,7 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 		t.Error("no Blocks while the suggestion is asked")
 	}
 	a := r.c.asks[0]
-	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestAnswered, Seq: a.seq, OK: true,
+	r.push(slimeclient.SuggestEvent{Kind: slimeclient.SuggestAnswered, Seq: a.seq, OK: true,
 		Suggestion: card(ro("find . -type f -size +100M"), ro("du -ah . | sort -rh | head"))})
 	if r.has("Suggesting a command") {
 		t.Error("Blocks still shows after the answer")
@@ -123,7 +123,7 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 	if !r.key(0, ui.KeyTab) {
 		t.Fatal("⇥ not taken on a card")
 	}
-	if got := r.c.sugInserts; len(got) != 1 || got[0] != (keelclient.SuggestionRef{ID: "s_1", Option: 0, Shift: false}) {
+	if got := r.c.sugInserts; len(got) != 1 || got[0] != (slimeclient.SuggestionRef{ID: "s_1", Option: 0, Shift: false}) {
 		t.Fatalf("inserts %v", got)
 	}
 	if r.c.wrote != 0 || len(r.c.restored) != 0 || len(r.c.injected) != 0 || len(r.c.directs) != 0 {
@@ -152,7 +152,7 @@ func TestNoticeThenTabAsksThenTabInsertsNotRunThenCmdZRestores(t *testing.T) {
 
 func TestPlainTabNeverInsertsAnOptionThatNeedsShiftAndShiftTabSendsShiftAsPressed(t *testing.T) {
 	r := newSugRig(t)
-	r.carded(t, card(keelclient.SuggestOption{Command: "rm -rf /tmp/x", Risk: "destructive", NeedsShift: true, Source: "generated"}))
+	r.carded(t, card(slimeclient.SuggestOption{Command: "rm -rf /tmp/x", Risk: "destructive", NeedsShift: true, Source: "generated"}))
 	k := platLabels()
 	r.texts(t, "Deletes files", "insert anyway", "Plain "+k.Tab+" never inserts a destructive command")
 	if !r.has("suggestion card destructive") {
@@ -172,7 +172,7 @@ func TestPlainTabNeverInsertsAnOptionThatNeedsShiftAndShiftTabSendsShiftAsPresse
 func TestAStricterRatingTurnsTheCardRedAndAsksForShift(t *testing.T) {
 	r := newSugRig(t)
 	r.carded(t, card(ro("echo keel-jev-slow")))
-	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestRated, ID: "s_1", Options: []keelclient.SuggestOption{{Risk: "destructive", NeedsShift: true, Judged: true}}})
+	r.push(slimeclient.SuggestEvent{Kind: slimeclient.SuggestRated, ID: "s_1", Options: []slimeclient.SuggestOption{{Risk: "destructive", NeedsShift: true, Judged: true}}})
 	r.texts(t, "insert anyway", "Destructive")
 	r.key(0, ui.KeyTab)
 	if len(r.c.sugInserts) != 0 {
@@ -238,7 +238,7 @@ func TestTheSuggestKeyAsksForAPlainLineThatWasNeverSent(t *testing.T) {
 		t.Fatal("asking wrote to the session")
 	}
 	r.texts(t, "Suggesting a command…")
-	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestAnswered, Seq: r.c.asks[0].seq, OK: true, Suggestion: card(ro("ls -la"))})
+	r.push(slimeclient.SuggestEvent{Kind: slimeclient.SuggestAnswered, Seq: r.c.asks[0].seq, OK: true, Suggestion: card(ro("ls -la"))})
 	if r.state() != sugCard {
 		t.Fatalf("state %q", r.state())
 	}
@@ -262,7 +262,7 @@ func TestAutoNoticeNamesTheKeyAndLeavesTab(t *testing.T) {
 	}
 }
 
-func autoSettings() (s keelclient.AgentSettings) {
+func autoSettings() (s slimeclient.AgentSettings) {
 	s.Settings.Suggestions, s.Settings.Detection = "on", detectionAuto
 	return s
 }
@@ -276,7 +276,7 @@ func TestTurningSuggestionsOffActsAtOnceInEveryPane(t *testing.T) {
 	r.noticed(t)
 	cur := r.w.agentVal()
 	r.w.agentState().settings = &cur
-	r.w.putAgent(keelclient.AgentSettingsPatch{Suggestions: ptr("off")}, nil)
+	r.w.putAgent(slimeclient.AgentSettingsPatch{Suggestions: ptr("off")}, nil)
 	r.tt.Frame()
 	if r.state() != sugIdle || r.has("suggestion notice") {
 		t.Fatalf("state %q after off", r.state())
@@ -322,7 +322,7 @@ func TestInsertIsDroppedWhenTheWordsChangedUnderTheCard(t *testing.T) {
 
 func TestAnInsertKeelServeRefusesKeepsTheCardWithItsWords(t *testing.T) {
 	r := newSugRig(t)
-	r.c.sugInsertErr = keelclient.ErrSuggestionGone
+	r.c.sugInsertErr = slimeclient.ErrSuggestionGone
 	r.carded(t, card(ro("ls")))
 	r.key(0, ui.KeyTab)
 	r.tt.Frame()
@@ -385,7 +385,7 @@ func TestAnErrorAnswerShowsItsMessageAndAnyKeyClosesIt(t *testing.T) {
 	r.noticed(t)
 	r.key(0, ui.KeyTab)
 	a := r.c.asks[0]
-	r.push(keelclient.SuggestEvent{Kind: keelclient.SuggestAnswered, Seq: a.seq, Message: "No command came back for these words. Try other words.", Reason: "empty"})
+	r.push(slimeclient.SuggestEvent{Kind: slimeclient.SuggestAnswered, Seq: a.seq, Message: "No command came back for these words. Try other words.", Reason: "empty"})
 	r.texts(t, "No command came back for these words. Try other words.", "keep my words")
 	if !r.key(0, ui.KeyTab) || r.state() != sugIdle { // ⇥ is taken once so it does not complete into the words
 		t.Fatalf("state %q", r.state())

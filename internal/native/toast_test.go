@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 func TestToastShowsAndExpiresAfterFiveSeconds(t *testing.T) {
@@ -37,7 +37,7 @@ func TestToastErrorHasAStatusIconAndTheServersWords(t *testing.T) {
 	if _, ok := r.tt.Find("toast Host not found"); !ok || !r.tt.HasText("Copied") {
 		t.Fatalf("toasts %v", r.tt.Texts())
 	}
-	if got := errText("save", &keelclient.StatusError{Msg: "name is required"}); got != "name is required" {
+	if got := errText("save", &slimeclient.StatusError{Msg: "name is required"}); got != "name is required" {
 		t.Errorf("a refusal says %q", got)
 	}
 	if got := errText("save", errors.New("boom")); got != "save: boom" {

@@ -1,7 +1,7 @@
 //go:build nativeautomation
 
 // Package nativeautomation drives the built native app from outside, through MyGo's automation socket:
-// a test binary (bin/keel-e2e, built with the tag keelautomation by make native-automation-build) opens a real
+// a test binary (bin/slime-e2e, built with the tag slimeautomation by make native-automation-build) opens a real
 // window, and these tests speak the socket's newline-delimited JSON protocol to it. Everything runs on scratch
 // data in a fresh temp directory, with a free loopback port, no keychain and the fake agent provider.
 package nativeautomation
@@ -83,7 +83,7 @@ func alive(pid int) bool { return pid > 0 && syscall.Kill(pid, 0) == nil }
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	root := repoRoot(t)
-	bin := filepath.Join(root, "bin", "keel-e2e")
+	bin := filepath.Join(root, "bin", "slime-e2e")
 	if _, err := os.Stat(bin); err != nil {
 		t.Fatalf("%s is missing: run make native-automation (it builds it)", bin)
 	}

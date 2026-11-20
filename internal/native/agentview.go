@@ -10,7 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -304,7 +304,7 @@ func (w *workspace) agentEmpty(c *ui.Context, onPage bool) {
 // agentConnect is "Connect Gemini": the provider's warning and the masked key field (PUT /api/agent/keys/{provider}).
 func (w *workspace) agentConnect(c *ui.Context) {
 	a := w.agent
-	d := keelclient.AgentProvider{Name: "Google Gemini", ShortName: "Gemini", KeyLabel: "Gemini API key"}
+	d := slimeclient.AgentProvider{Name: "Google Gemini", ShortName: "Gemini", KeyLabel: "Gemini API key"}
 	if a.provider != nil {
 		d = *a.provider
 	}
@@ -435,7 +435,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 
 func (w *workspace) agentError(c *ui.Context, err error) {
 	title, detail := "The agent could not answer.", err.Error()
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) {
 		switch {
 		case se.Code == 412:
@@ -514,7 +514,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 		bg, fg = flareSoft, flare
 	}
 	border := line
-	if p.Risk == keelclient.RiskDestructive {
+	if p.Risk == slimeclient.RiskDestructive {
 		border = flare
 	}
 	card := ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposal")

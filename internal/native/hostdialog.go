@@ -14,7 +14,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/native/sshparse"
 )
 
@@ -53,19 +53,19 @@ type hostTest struct {
 	sent               [sha256.Size]byte // a hash of the values the last test sent, never the values
 	state              string            // the dot: "live" | "connecting" | "dead" | ""
 	short, detail      string
-	res                *keelclient.TestResult
+	res                *slimeclient.TestResult
 }
 
 type hostDialog struct {
 	id     string // "" for New host
-	saved  *keelclient.Host
+	saved  *slimeclient.Host
 	f      hostForm
 	err    string // the server's reason, or a field's
 	notes  *sshparse.Result
-	groups []keelclient.Group
-	idents []keelclient.Identity
-	key    *keelclient.KnownKey // the saved host key (Edit host)
-	nb     *notesEditor         // Notes for the agent: this host's (notes.go); empty until the host is saved
+	groups []slimeclient.Group
+	idents []slimeclient.Identity
+	key    *slimeclient.KnownKey // the saved host key (Edit host)
+	nb     *notesEditor          // Notes for the agent: this host's (notes.go); empty until the host is saved
 
 	test   hostTest
 	saving bool
@@ -87,11 +87,11 @@ const (
 var hostColors = limits.HostColors
 
 var authKinds = []struct{ value, label string }{
-	{keelclient.AuthPassword, "Password"}, {keelclient.AuthKey, "Private key"}, {keelclient.AuthIdentity, "Identity"}, {keelclient.AuthLocal, "Local shell"},
+	{slimeclient.AuthPassword, "Password"}, {slimeclient.AuthKey, "Private key"}, {slimeclient.AuthIdentity, "Identity"}, {slimeclient.AuthLocal, "Local shell"},
 }
 
 // isProductionGroup: the group's own name is production, any case.
-func isProductionGroup(groups []keelclient.Group, id string) bool {
+func isProductionGroup(groups []slimeclient.Group, id string) bool {
 	for _, g := range groups {
 		if g.ID == id {
 			return strings.EqualFold(strings.TrimSpace(g.Name), "production")
@@ -101,8 +101,8 @@ func isProductionGroup(groups []keelclient.Group, id string) bool {
 }
 
 // newHostForm is the defaults of a new host, or the values of a saved one.
-func newHostForm(h *keelclient.Host) hostForm {
-	f := hostForm{port: strconv.Itoa(limits.DefaultPort), color: defaultColor, auth: keelclient.AuthPassword, keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
+func newHostForm(h *slimeclient.Host) hostForm {
+	f := hostForm{port: strconv.Itoa(limits.DefaultPort), color: defaultColor, auth: slimeclient.AuthPassword, keepAlive: true, keepSec: strconv.Itoa(defaultKeep),
 		autoReconnect: true, agentReadable: true, agentNotes: true}
 	if h == nil {
 		return f
@@ -127,8 +127,8 @@ func newHostForm(h *keelclient.Host) hostForm {
 
 // hostPrefill is the fields a pasted command fills. The name is the host; the user
 // edits it. Auth stays the form's default: nothing about keys or passwords is carried over.
-func hostPrefill(r *sshparse.Result) keelclient.Host {
-	return keelclient.Host{Name: r.Host, Address: r.Host, Port: r.Port, Username: r.User}
+func hostPrefill(r *sshparse.Result) slimeclient.Host {
+	return slimeclient.Host{Name: r.Host, Address: r.Host, Port: r.Port, Username: r.User}
 }
 
 // ---- opening and closing ----
@@ -141,7 +141,7 @@ func (w *workspace) saveAsHost(r *sshparse.Result) {
 	w.openHostDialog(&h, r, "")
 }
 
-func (w *workspace) editHost(h keelclient.Host) { w.openHostDialog(&h, nil, h.ID) }
+func (w *workspace) editHost(h slimeclient.Host) { w.openHostDialog(&h, nil, h.ID) }
 
 // editPaneHost is the failure banner's Edit host: the pane's host, as saved now.
 func (w *workspace) editPaneHost(p *pane) {
@@ -153,7 +153,7 @@ func (w *workspace) editPaneHost(p *pane) {
 }
 
 // openHostDialog opens the dialog. id is set for a saved host; h with no id only prefills New host.
-func (w *workspace) openHostDialog(h *keelclient.Host, notes *sshparse.Result, id string) {
+func (w *workspace) openHostDialog(h *slimeclient.Host, notes *sshparse.Result, id string) {
 	w.closeHostDialog()
 	d := &hostDialog{id: id, f: newHostForm(h), notes: notes, focus: true, nb: &notesEditor{hostID: id}}
 	if id != "" {
@@ -162,9 +162,9 @@ func (w *workspace) openHostDialog(h *keelclient.Host, notes *sshparse.Result, i
 	w.hostDlg = d
 	w.loadNotes(d.nb)
 	type read struct {
-		groups []keelclient.Group
-		idents []keelclient.Identity
-		key    *keelclient.KnownKey
+		groups []slimeclient.Group
+		idents []slimeclient.Identity
+		key    *slimeclient.KnownKey
 	}
 	callIf(w, func() bool { return w.hostDlg == d }, func(c context.Context) (r read, _ error) {
 		r.groups, _ = w.be.Groups(c) // a failed list leaves the picker with "No group"
@@ -196,10 +196,10 @@ func (w *workspace) closeHostDialog() {
 // defaultIdentity picks the first identity for a new Identity host:
 // a saved Identity host with none must not be shown, and saved, with the first one instead.
 func (d *hostDialog) defaultIdentity() {
-	if d.f.auth != keelclient.AuthIdentity || d.f.identityID != "" || len(d.idents) == 0 {
+	if d.f.auth != slimeclient.AuthIdentity || d.f.identityID != "" || len(d.idents) == 0 {
 		return
 	}
-	if d.saved != nil && d.saved.AuthType == keelclient.AuthIdentity {
+	if d.saved != nil && d.saved.AuthType == slimeclient.AuthIdentity {
 		return
 	}
 	d.f.identityID = d.idents[0].ID
@@ -215,9 +215,9 @@ func atoiClamp(s string, def, lo, hi int) int {
 	return min(max(n, lo), hi)
 }
 
-func (f hostForm) detail(id string) keelclient.HostDetail {
-	local := f.auth == keelclient.AuthLocal
-	h := keelclient.HostDetail{
+func (f hostForm) detail(id string) slimeclient.HostDetail {
+	local := f.auth == slimeclient.AuthLocal
+	h := slimeclient.HostDetail{
 		ID: id, Name: strings.TrimSpace(f.name), GroupID: f.groupID, Tags: parseTags(f.tags),
 		Address: strings.TrimSpace(f.address), Port: atoiClamp(f.port, limits.DefaultPort, 0, maxPort), Username: strings.TrimSpace(f.username),
 		AuthType: f.auth, Color: f.color, JumpHost: f.jump, StartupCommand: strings.TrimSpace(f.startup),
@@ -227,11 +227,11 @@ func (f hostForm) detail(id string) keelclient.HostDetail {
 		h.Port = limits.DefaultPort
 	}
 	switch f.auth {
-	case keelclient.AuthIdentity:
+	case slimeclient.AuthIdentity:
 		h.IdentityID = f.identityID
-	case keelclient.AuthPassword:
+	case slimeclient.AuthPassword:
 		h.Password = f.password
-	case keelclient.AuthKey:
+	case slimeclient.AuthKey:
 		h.PrivateKey, h.Passphrase = f.privateKey, f.passphrase
 	}
 	switch {
@@ -247,7 +247,7 @@ func (f hostForm) detail(id string) keelclient.HostDetail {
 }
 
 // testDetail is the values Test connection sends and an edit is compared with.
-func (f hostForm) testDetail(id string) keelclient.HostDetail {
+func (f hostForm) testDetail(id string) slimeclient.HostDetail {
 	h := f.detail(id)
 	h.GroupID, h.Tags, h.Color, h.StartupCommand, h.NoAutoReconnect = "", nil, "", "", false
 	h.AgentReadable, h.Production, h.AgentNotes = nil, nil, nil
@@ -272,7 +272,7 @@ func (f hostForm) validate() string {
 	if strings.TrimSpace(f.name) == "" {
 		return "name is required"
 	}
-	if f.auth != keelclient.AuthLocal {
+	if f.auth != slimeclient.AuthLocal {
 		if strings.TrimSpace(f.address) == "" {
 			return "address is required"
 		}
@@ -280,7 +280,7 @@ func (f hostForm) validate() string {
 			return "username is required"
 		}
 	}
-	if f.auth == keelclient.AuthIdentity && strings.TrimSpace(f.identityID) == "" {
+	if f.auth == slimeclient.AuthIdentity && strings.TrimSpace(f.identityID) == "" {
 		return "identity is required"
 	}
 	return validStartup(strings.TrimSpace(f.startup))
@@ -305,11 +305,11 @@ func (w *workspace) saveHost() {
 	d.saving, d.err = true, ""
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", "" // they are in h now, and h only goes in this request
 	d.stopTest()
-	call(w, func(c context.Context) (keelclient.Host, error) {
+	call(w, func(c context.Context) (slimeclient.Host, error) {
 		saved, err := w.be.SaveHost(c, h)
-		h = keelclient.HostDetail{}
+		h = slimeclient.HostDetail{}
 		return saved, err
-	}, func(saved keelclient.Host, err error) {
+	}, func(saved slimeclient.Host, err error) {
 		d.saving = false
 		if err != nil {
 			d.err = hostError(err)
@@ -325,7 +325,7 @@ func (w *workspace) saveHost() {
 
 // hostError is the line the dialog shows for a refused request: the server's own reason, else the status.
 func hostError(err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	switch {
 	case errors.As(err, &se) && se.Code == 423: // store.ErrLocked
 		return "The vault is locked."
@@ -338,7 +338,7 @@ func hostError(err error) string {
 }
 
 // afterHostWrite takes a saved host into the list at once, then reads the list again (it is the server's).
-func (w *workspace) afterHostWrite(saved keelclient.Host) {
+func (w *workspace) afterHostWrite(saved slimeclient.Host) {
 	if saved.ID != "" {
 		replaced := false
 		for i := range w.hosts {
@@ -355,7 +355,7 @@ func (w *workspace) afterHostWrite(saved keelclient.Host) {
 }
 
 // askDeleteHost is the Delete host button and the host menu's Delete: it asks first. The local shell cannot be removed.
-func (w *workspace) askDeleteHost(h keelclient.Host) {
+func (w *workspace) askDeleteHost(h slimeclient.Host) {
 	if h.IsLocal() {
 		w.warn("Local Shell is part of the workspace and cannot be removed")
 		return
@@ -365,7 +365,7 @@ func (w *workspace) askDeleteHost(h keelclient.Host) {
 
 // deleteHost deletes the host. Its open sessions are left as they are: they keep
 // running, and a pane keeps the host it had (setHosts).
-func (w *workspace) deleteHost(h keelclient.Host) {
+func (w *workspace) deleteHost(h slimeclient.Host) {
 	callErr(w, func(c context.Context) error { return w.be.DeleteHost(c, h.ID) }, func(err error) {
 		if err != nil {
 			w.fail("delete host", err)
@@ -374,18 +374,18 @@ func (w *workspace) deleteHost(h keelclient.Host) {
 		if d := w.hostDlg; d != nil && d.id == h.ID {
 			w.closeHostDialog()
 		}
-		w.hosts = slices.DeleteFunc(slices.Clone(w.hosts), func(o keelclient.Host) bool { return o.ID == h.ID })
+		w.hosts = slices.DeleteFunc(slices.Clone(w.hosts), func(o slimeclient.Host) bool { return o.ID == h.ID })
 		w.reloadHosts()
 	})
 }
 
 // duplicateHost is the host menu's Duplicate: the server copies the host as "name (copy)".
-func (w *workspace) duplicateHost(h keelclient.Host) {
+func (w *workspace) duplicateHost(h slimeclient.Host) {
 	if h.IsLocal() {
 		w.say("Local Shell cannot be duplicated")
 		return
 	}
-	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.DuplicateHost(c, h.ID) }, func(dup keelclient.Host, err error) {
+	call(w, func(c context.Context) (slimeclient.Host, error) { return w.be.DuplicateHost(c, h.ID) }, func(dup slimeclient.Host, err error) {
 		if err != nil {
 			w.fail("duplicate host", err)
 			return
@@ -399,7 +399,7 @@ func (w *workspace) duplicateHost(h keelclient.Host) {
 	})
 }
 
-func (w *workspace) setAgentReadable(h keelclient.Host, on bool) {
+func (w *workspace) setAgentReadable(h slimeclient.Host, on bool) {
 	callErr(w, func(c context.Context) error { return w.be.SetAgentReadable(c, h.ID, on) }, func(err error) {
 		if err != nil {
 			w.fail("agent can read", err)
@@ -432,7 +432,7 @@ func (w *workspace) forgetKey(d *hostDialog) {
 			return
 		}
 		if w.hostDlg == d {
-			d.key = &keelclient.KnownKey{}
+			d.key = &slimeclient.KnownKey{}
 		}
 		w.say("Host key forgotten")
 	})
@@ -442,8 +442,8 @@ func (w *workspace) loadHostKey(d *hostDialog) {
 	if d.id == "" || d.saved == nil || d.saved.IsLocal() {
 		return
 	}
-	callIf(w, func() bool { return w.hostDlg == d }, func(c context.Context) (keelclient.KnownKey, error) { return w.be.HostKey(c, d.id) },
-		func(k keelclient.KnownKey, err error) {
+	callIf(w, func() bool { return w.hostDlg == d }, func(c context.Context) (slimeclient.KnownKey, error) { return w.be.HostKey(c, d.id) },
+		func(k slimeclient.KnownKey, err error) {
 			if err == nil {
 				d.key = &k
 			}
@@ -467,7 +467,7 @@ func keyTypeLabel(t string) string {
 
 // ---- Test connection ----
 
-func testText(res keelclient.TestResult) (state, short, detail string) {
+func testText(res slimeclient.TestResult) (state, short, detail string) {
 	where := ""
 	switch res.Hop {
 	case "jump":
@@ -480,9 +480,9 @@ func testText(res keelclient.TestResult) (state, short, detail string) {
 		return "live", fmt.Sprintf("Connected in %d ms", res.LatencyMs), ""
 	case "auth":
 		return "dead", "Authentication failed", where + "the server refused the password or key. " + res.Message
-	case keelclient.HostKeyUnknown:
+	case slimeclient.HostKeyUnknown:
 		return "connecting", "Host key unknown", where + res.Hostname + " presented a key Slime has not seen. Compare it with the server's own fingerprint before you trust it."
-	case keelclient.HostKeyMismatch:
+	case slimeclient.HostKeyMismatch:
 		return "dead", "Host key changed", where + res.Hostname + " presented a different key than the one saved. Only replace it if you know the server was reinstalled."
 	case "timeout":
 		return "dead", "Timed out", where + "no answer within 10 seconds. " + res.Message
@@ -497,7 +497,7 @@ func testText(res keelclient.TestResult) (state, short, detail string) {
 }
 
 // fingerprintText is the offered key as the dialog shows it, or "".
-func fingerprintText(res keelclient.TestResult) string {
+func fingerprintText(res slimeclient.TestResult) string {
 	if _, ok := res.HostKeyOffer(); !ok {
 		return ""
 	}
@@ -540,7 +540,7 @@ func (d *hostDialog) dropStaleTest() {
 // it after 10 s, and the button cancels it.
 func (w *workspace) runHostTest() {
 	d := w.hostDlg
-	if d == nil || d.f.auth == keelclient.AuthLocal {
+	if d == nil || d.f.auth == slimeclient.AuthLocal {
 		return
 	}
 	if d.test.running {
@@ -554,7 +554,7 @@ func (w *workspace) runHostTest() {
 	d.test = hostTest{running: true, cancel: cancel, gen: gen, sent: d.draftHash(), state: "connecting", short: "Testing…"}
 	w.work(func() {
 		res, err := w.be.TestHost(c, h)
-		h = keelclient.HostDetail{}
+		h = slimeclient.HostDetail{}
 		w.post(func() {
 			cancel()
 			if w.hostDlg != d || d.test.gen != gen { // the dialog closed or refilled meanwhile: drop the result
@@ -587,7 +587,7 @@ func (w *workspace) trustTest() {
 	if !ok {
 		return
 	}
-	replace := offer.Kind == keelclient.HostKeyMismatch
+	replace := offer.Kind == slimeclient.HostKeyMismatch
 	send := func() {
 		callErr(w, func(c context.Context) error { return w.be.TrustHostKey(c, offer, replace) }, func(err error) {
 			if err != nil {
@@ -618,12 +618,12 @@ func (w *workspace) trustTest() {
 type pickEntry struct{ value, label, desc string }
 
 // folderEntries is "No group" and every folder as "Parent / Child", by name.
-func folderEntries(groups []keelclient.Group) []pickEntry {
-	byID := map[string]keelclient.Group{}
+func folderEntries(groups []slimeclient.Group) []pickEntry {
+	byID := map[string]slimeclient.Group{}
 	for _, g := range groups {
 		byID[g.ID] = g
 	}
-	label := func(g keelclient.Group) string {
+	label := func(g slimeclient.Group) string {
 		parts := []string{g.Name}
 		for seen := 0; g.ParentID != "" && seen < 16; seen++ {
 			p, ok := byID[g.ParentID]
@@ -647,7 +647,7 @@ func folderEntries(groups []keelclient.Group) []pickEntry {
 
 // jumpEntries is None, or a saved SSH host with no jump host of its own (one hop), not this host.
 // A jump host that has been deleted stays listed, so saving cannot quietly turn a jump connect into a direct one.
-func jumpEntries(hosts []keelclient.Host, self, current string) []pickEntry {
+func jumpEntries(hosts []slimeclient.Host, self, current string) []pickEntry {
 	out := []pickEntry{{"", "None", ""}}
 	found := current == ""
 	for _, h := range hosts {
@@ -674,12 +674,12 @@ func jumpEntries(hosts []keelclient.Host, self, current string) []pickEntry {
 }
 
 // identityEntries is every identity with its kind and user, and a missing one kept listed.
-func identityEntries(ids []keelclient.Identity, current string) []pickEntry {
+func identityEntries(ids []slimeclient.Identity, current string) []pickEntry {
 	var out []pickEntry
 	found := current == ""
 	for _, id := range ids {
 		kind := "Password"
-		if id.Kind == keelclient.AuthKey {
+		if id.Kind == slimeclient.AuthKey {
 			kind = "Private key"
 		}
 		desc := kind

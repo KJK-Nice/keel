@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions
@@ -88,15 +88,15 @@ type modelItem struct{ value, label, provider string }
 // modelItems is the Model select of Settings · Agent: the models of every model provider, each labelled with its provider
 // when there is more than one, and the saved model first when no provider lists it (a custom value set through the API,
 // kept under the saved provider).
-func modelItems(providers []keelclient.AgentProvider, provider, model string) []modelItem {
-	var models []keelclient.AgentProvider
+func modelItems(providers []slimeclient.AgentProvider, provider, model string) []modelItem {
+	var models []slimeclient.AgentProvider
 	for _, d := range providers {
 		if d.Kind == "model" {
 			models = append(models, d)
 		}
 	}
 	many := len(models) > 1
-	short := func(d keelclient.AgentProvider) string { return orElse(d.ShortName, d.Name) }
+	short := func(d slimeclient.AgentProvider) string { return orElse(d.ShortName, d.Name) }
 	var out []modelItem
 	for _, d := range models {
 		for _, m := range d.Models {
@@ -128,7 +128,7 @@ func modelItems(providers []keelclient.AgentProvider, provider, model string) []
 
 // keyError turns a failed key save into a line for the card. It never carries the request, so it never carries the key.
 func keyError(err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) {
 		if se.Code == 423 {
 			return "The vault is locked. Unlock it, then try again."

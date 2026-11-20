@@ -3,26 +3,26 @@ package native
 import (
 	"context"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The agent half of fakeBackend: what the panel asks of slime serve, recorded, and answered as the test says. Nothing
 // here reads a pane: an ask records only the question and the session ids.
 
 type fakeAgent struct {
-	settings  keelclient.AgentSettings
+	settings  slimeclient.AgentSettings
 	settingsE error
-	providers []keelclient.AgentProvider
-	keys      []keelclient.AgentKeyInput
+	providers []slimeclient.AgentProvider
+	keys      []slimeclient.AgentKeyInput
 	keyErr    error
-	asks      []keelclient.AskRequest
-	askReply  func(req keelclient.AskRequest) (keelclient.AskResponse, error) // when nil: an empty answer
-	askWait   chan struct{}                                                   // when set: the ask closes it and waits for its context
-	edits     []string                                                        // "conv/proposal: command"
-	editReply func(command string) (keelclient.Proposal, error)
+	asks      []slimeclient.AskRequest
+	askReply  func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) // when nil: an empty answer
+	askWait   chan struct{}                                                     // when set: the ask closes it and waits for its context
+	edits     []string                                                          // "conv/proposal: command"
+	editReply func(command string) (slimeclient.Proposal, error)
 }
 
-func (f *fakeBackend) AgentSettings(context.Context) (keelclient.AgentSettings, error) {
+func (f *fakeBackend) AgentSettings(context.Context) (slimeclient.AgentSettings, error) {
 	f.rec("agent settings")
 	s := f.agent.settings
 	if f.agent.settingsE != nil {
@@ -39,16 +39,16 @@ func (f *fakeBackend) AgentSettings(context.Context) (keelclient.AgentSettings, 
 	return s, nil
 }
 
-func (f *fakeBackend) AgentProviders(context.Context) ([]keelclient.AgentProvider, error) {
+func (f *fakeBackend) AgentProviders(context.Context) ([]slimeclient.AgentProvider, error) {
 	f.rec("agent providers")
 	if f.agent.providers != nil {
 		return f.agent.providers, nil
 	}
-	return []keelclient.AgentProvider{{ID: "gemini", Name: "Google Gemini", ShortName: "Gemini", Kind: "model", KeyLabel: "Gemini API key",
+	return []slimeclient.AgentProvider{{ID: "gemini", Name: "Google Gemini", ShortName: "Gemini", Kind: "model", KeyLabel: "Gemini API key",
 		Warning: "On the free tier of the Gemini API, Google may use the content you submit.", TermsURL: "https://ai.google.dev/terms", KeyHelpURL: "https://aistudio.google.com/apikey"}}, nil
 }
 
-func (f *fakeBackend) SetAgentKey(_ context.Context, in keelclient.AgentKeyInput) error {
+func (f *fakeBackend) SetAgentKey(_ context.Context, in slimeclient.AgentKeyInput) error {
 	f.rec("agent key")
 	f.agent.keys = append(f.agent.keys, in)
 	if f.agent.keyErr != nil {
@@ -70,50 +70,50 @@ func (f *fakeBackend) SetAgentKey(_ context.Context, in keelclient.AgentKeyInput
 	return nil
 }
 
-func (f *fakeBackend) Ask(ctx context.Context, req keelclient.AskRequest) (keelclient.AskResponse, error) {
+func (f *fakeBackend) Ask(ctx context.Context, req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
 	f.rec("ask")
 	f.agent.asks = append(f.agent.asks, req)
 	if f.agent.askWait != nil { // an ask that waits for its context, as slime serve's waits for a model
 		close(f.agent.askWait)
 		<-ctx.Done()
-		return keelclient.AskResponse{}, ctx.Err()
+		return slimeclient.AskResponse{}, ctx.Err()
 	}
 	if f.agent.askReply != nil {
 		return f.agent.askReply(req)
 	}
-	return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok"}, nil
+	return slimeclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok"}, nil
 }
 
-func (f *fakeBackend) EditProposal(_ context.Context, conv, id, command string) (keelclient.Proposal, error) {
+func (f *fakeBackend) EditProposal(_ context.Context, conv, id, command string) (slimeclient.Proposal, error) {
 	f.rec("edit proposal")
 	f.agent.edits = append(f.agent.edits, conv+"/"+id+": "+command)
 	if f.agent.editReply != nil {
 		return f.agent.editReply(command)
 	}
-	return keelclient.Proposal{ID: id, Command: command, Bytes: "\x15" + command + "\n", Edited: true}, nil
+	return slimeclient.Proposal{ID: id, Command: command, Bytes: "\x15" + command + "\n", Edited: true}, nil
 }
 
 // ---- saved conversations and Settings · Agent ----
 
 // fakeConvs is the vault's saved conversations as the fake keeps them, most recent first, and what was asked of them.
 type fakeConvs struct {
-	list       keelclient.ConversationList
-	transcr    map[string]keelclient.Transcript
+	list       slimeclient.ConversationList
+	transcr    map[string]slimeclient.Transcript
 	renamed    []string // "id: title"
 	deleted    []string
 	deletedAll int
 	again      []string // "conv/proposal"
-	againReply func(conv, id string) (keelclient.Proposal, error)
+	againReply func(conv, id string) (slimeclient.Proposal, error)
 	listErr    error
-	saves      []keelclient.AgentSettingsPatch
+	saves      []slimeclient.AgentSettingsPatch
 	keysGone   []string
 }
 
-func (f *fakeBackend) Conversations(context.Context) (keelclient.ConversationList, error) {
+func (f *fakeBackend) Conversations(context.Context) (slimeclient.ConversationList, error) {
 	f.rec("conversations")
 	l := f.convs.list
 	if f.convs.listErr != nil {
-		return keelclient.ConversationList{}, f.convs.listErr
+		return slimeclient.ConversationList{}, f.convs.listErr
 	}
 	if f.agent.settings.Settings.Provider != "" { // slime serve keeps nothing, and lists nothing, when history is off
 		l.HistoryDays = f.agent.settings.Settings.HistoryDays
@@ -121,16 +121,16 @@ func (f *fakeBackend) Conversations(context.Context) (keelclient.ConversationLis
 			l.Sessions = nil
 		}
 	}
-	l.Sessions = append([]keelclient.ConversationSummary{}, l.Sessions...)
+	l.Sessions = append([]slimeclient.ConversationSummary{}, l.Sessions...)
 	return l, nil
 }
 
-func (f *fakeBackend) Conversation(_ context.Context, id string) (keelclient.Transcript, error) {
+func (f *fakeBackend) Conversation(_ context.Context, id string) (slimeclient.Transcript, error) {
 	f.rec("conversation " + id)
 	if t, ok := f.convs.transcr[id]; ok {
 		return t, nil
 	}
-	return keelclient.Transcript{}, &keelclient.StatusError{Code: 404, Status: "404 Not Found"}
+	return slimeclient.Transcript{}, &slimeclient.StatusError{Code: 404, Status: "404 Not Found"}
 }
 
 func (f *fakeBackend) RenameConversation(_ context.Context, id, title string) (string, error) {
@@ -147,7 +147,7 @@ func (f *fakeBackend) RenameConversation(_ context.Context, id, title string) (s
 func (f *fakeBackend) DeleteConversation(_ context.Context, id string) error {
 	f.rec("delete conversation")
 	f.convs.deleted = append(f.convs.deleted, id)
-	var keep []keelclient.ConversationSummary
+	var keep []slimeclient.ConversationSummary
 	for _, s := range f.convs.list.Sessions {
 		if s.ID != id {
 			keep = append(keep, s)
@@ -164,16 +164,16 @@ func (f *fakeBackend) DeleteAllConversations(context.Context) error {
 	return nil
 }
 
-func (f *fakeBackend) ProposeAgain(_ context.Context, conv, id string) (keelclient.Proposal, error) {
+func (f *fakeBackend) ProposeAgain(_ context.Context, conv, id string) (slimeclient.Proposal, error) {
 	f.rec("propose again")
 	f.convs.again = append(f.convs.again, conv+"/"+id)
 	if f.convs.againReply != nil {
 		return f.convs.againReply(conv, id)
 	}
-	return keelclient.Proposal{ID: "again-" + id, SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "echo keel-agent-ok", Bytes: "\x15echo keel-agent-ok\n", Risk: "readonly"}, nil
+	return slimeclient.Proposal{ID: "again-" + id, SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "echo keel-agent-ok", Bytes: "\x15echo keel-agent-ok\n", Risk: "readonly"}, nil
 }
 
-func (f *fakeBackend) SaveAgentSettings(_ context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error) {
+func (f *fakeBackend) SaveAgentSettings(_ context.Context, p slimeclient.AgentSettingsPatch) (slimeclient.AgentSettings, error) {
 	f.rec("save agent settings")
 	f.convs.saves = append(f.convs.saves, p)
 	s, _ := f.AgentSettings(context.Background())

@@ -166,7 +166,7 @@ func (c *clock) add(d time.Duration) {
 }
 
 // withChats gives the fixture a chat store and a clock, and returns a
-// function that builds a second service on the same store and panes: keel
+// function that builds a second service on the same store and panes: slime
 // serve after a restart.
 func withChats(t *testing.T, f *fixture) (*fakeChats, *clock, func() *Service) {
 	t.Helper()

@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The sidebar's folder tree and the folder dialog: hosts in no folder first, then each folder (collapsible, with its host count and its menu) holding its
@@ -38,7 +38,7 @@ func (w *workspace) folderTreeView(c *ui.Context) {
 	}
 }
 
-func (w *workspace) folderMenu(g keelclient.Group) func(m *ui.Menu) {
+func (w *workspace) folderMenu(g slimeclient.Group) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if menuItem(m, "Roles and runbooks").Chosen() {
 			w.act(func() { w.openGroupPage(g.ID, false) })

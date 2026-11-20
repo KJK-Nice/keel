@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // First run (docs/ui-redesign.md §5.15): step 1 creates the vault (or shows the one that exists), step 2 brings
@@ -34,7 +34,7 @@ const (
 type firstRun struct {
 	flow    string
 	step    int
-	vault   keelclient.Vault
+	vault   slimeclient.Vault
 	created bool
 	busy    bool
 
@@ -44,7 +44,7 @@ type firstRun struct {
 	existing    bool
 
 	// Step 2.
-	preview   *keelclient.SSHPreview
+	preview   *slimeclient.SSHPreview
 	sel       *importSel
 	lead      string
 	keyErrs   map[string]string
@@ -60,7 +60,7 @@ type firstRun struct {
 	agentKeyH    ui.Handle
 	agentErr     string
 	agentOff     bool // the switch is off (it starts on)
-	agentProv    *keelclient.AgentProvider
+	agentProv    *slimeclient.AgentProvider
 	agentProvGen int // the descriptor read in flight
 
 	wantTries int
@@ -102,7 +102,7 @@ func (f *firstRun) usesKeychain() bool { return !f.vault.NeedsSetup && f.vault.M
 // ---- opening and closing ----
 
 // showFirstRun puts step 1 over the window, for a vault that needs setup or whose first run is open.
-func (w *workspace) showFirstRun(v keelclient.Vault) {
+func (w *workspace) showFirstRun(v slimeclient.Vault) {
 	w.blocked = ""
 	w.first = &firstRun{flow: flowFirstRun, step: stepVault, vault: v}
 	w.first.want = "pass"
@@ -125,7 +125,7 @@ func (w *workspace) openImport() {
 	}
 	f := &firstRun{flow: flowImport}
 	w.first = f
-	callIf(w, func() bool { return w.first == f }, w.be.Vault, func(v keelclient.Vault, err error) {
+	callIf(w, func() bool { return w.first == f }, w.be.Vault, func(v slimeclient.Vault, err error) {
 		if err == nil {
 			f.vault = v
 		}
@@ -154,14 +154,14 @@ func (w *workspace) submitVault() {
 	}
 	pass := f.pass
 	f.pass, f.pass2, f.passErr, f.busy = "", "", "", true // the passphrase is only in this request from here on
-	callIf(w, func() bool { return w.first == f }, func(c context.Context) (v keelclient.Vault, err error) {
+	callIf(w, func() bool { return w.first == f }, func(c context.Context) (v slimeclient.Vault, err error) {
 		err = w.be.SetupVault(c, pass)
 		pass = ""
 		if err == nil {
 			v, err = w.be.Vault(c) // the first run goes on only while it is open
 		}
 		return v, err
-	}, func(v keelclient.Vault, err error) {
+	}, func(v slimeclient.Vault, err error) {
 		f.busy = false
 		if err != nil {
 			f.passErr, f.want = vaultError(err), "pass"
@@ -179,11 +179,11 @@ func (w *workspace) submitVault() {
 
 // vaultError is the line under the passphrase fields: the server's own reason, else the status.
 func vaultError(err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) && se.Msg != "" {
 		return se.Msg
 	}
-	if errors.Is(err, keelclient.ErrVaultExists) {
+	if errors.Is(err, slimeclient.ErrVaultExists) {
 		return "The vault already exists"
 	}
 	return err.Error()
@@ -240,7 +240,7 @@ func (w *workspace) showHostsStep(f *firstRun) {
 	f.gen++
 	gen := f.gen
 	f.lead = "Reading " + f.sshConfig() + "…"
-	callIf(w, func() bool { return w.first == f && f.gen == gen && f.step == stepHosts }, w.be.SSHConfigPreview, func(p keelclient.SSHPreview, err error) {
+	callIf(w, func() bool { return w.first == f && f.gen == gen && f.step == stepHosts }, w.be.SSHConfigPreview, func(p slimeclient.SSHPreview, err error) {
 		if err != nil {
 			f.lead = "Slime could not read " + f.sshConfig() + ": " + vaultError(err)
 			return
@@ -300,7 +300,7 @@ func (f *firstRun) toggleNoJump(alias string) {
 	}
 }
 
-func (f *firstRun) toggleKey(k keelclient.ConfigKey) {
+func (f *firstRun) toggleKey(k slimeclient.ConfigKey) {
 	if f.sel == nil || !copyable(k) {
 		return
 	}
@@ -335,11 +335,11 @@ func (w *workspace) runImport() {
 	}
 	f.busy, f.notice, f.keyErrs = true, "", nil
 	sel.clearSecrets() // the passphrases are in req now, and req only goes in this request
-	callIf(w, func() bool { return w.first == f }, func(c context.Context) (keelclient.ImportResult, error) {
+	callIf(w, func() bool { return w.first == f }, func(c context.Context) (slimeclient.ImportResult, error) {
 		res, err := w.be.SSHConfigImport(c, req)
-		req = keelclient.ImportRequest{}
+		req = slimeclient.ImportRequest{}
 		return res, err
-	}, func(res keelclient.ImportResult, err error) {
+	}, func(res slimeclient.ImportResult, err error) {
 		f.busy = false
 		if err != nil {
 			w.importRefused(f, p, err)
@@ -354,8 +354,8 @@ func (w *workspace) runImport() {
 }
 
 // importRefused shows a refusal: under the key it is about when it names one, else as the notice.
-func (w *workspace) importRefused(f *firstRun, p keelclient.SSHPreview, err error) {
-	var se *keelclient.StatusError
+func (w *workspace) importRefused(f *firstRun, p slimeclient.SSHPreview, err error) {
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) && se.Key != "" {
 		for _, k := range p.Keys {
 			if k.Path != se.Key {
@@ -405,7 +405,7 @@ func (w *workspace) showAgentStep(f *firstRun) {
 	}
 	f.agentProvGen++
 	gen := f.agentProvGen
-	callIf(w, func() bool { return w.first == f && f.agentProvGen == gen }, w.be.AgentProviders, func(list []keelclient.AgentProvider, err error) {
+	callIf(w, func() bool { return w.first == f && f.agentProvGen == gen }, w.be.AgentProviders, func(list []slimeclient.AgentProvider, err error) {
 		if err != nil {
 			return
 		}
@@ -437,7 +437,7 @@ func (w *workspace) openKeel(f *firstRun) {
 		f.agentErr, f.want = "Paste your key, or choose Not now.", "agentkey"
 		return
 	}
-	in := keelclient.AgentKeyInput{Provider: "gemini", Key: key}
+	in := slimeclient.AgentKeyInput{Provider: "gemini", Key: key}
 	if f.agentGemini {
 		f.agentKey = ""
 	}
@@ -451,10 +451,10 @@ func (w *workspace) openKeel(f *firstRun) {
 	callErrIf(w, func() bool { return w.first == f }, func(c context.Context) (err error) {
 		if gemini {
 			err = w.be.SetAgentKey(c, in)
-			in = keelclient.AgentKeyInput{}
+			in = slimeclient.AgentKeyInput{}
 		}
 		if err == nil {
-			_, err = w.be.SaveAgentSettings(c, keelclient.AgentSettingsPatch{Suggestions: &on})
+			_, err = w.be.SaveAgentSettings(c, slimeclient.AgentSettingsPatch{Suggestions: &on})
 		}
 		return err
 	}, func(err error) {

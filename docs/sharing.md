@@ -1,14 +1,14 @@
 # Share a session
 
-Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling server (`keel-signal`); PTY bytes go over a WebRTC datachannel. Joiners only see that session's terminal, not your hosts, keys or LAN (unless you give them control of a shell that can reach them; see [Security](#security)).
+Joiners cannot open TCP to your machine. Both sides dial **out** to a signaling server (`slime-signal`); PTY bytes go over a WebRTC datachannel. Joiners only see that session's terminal, not your hosts, keys or LAN (unless you give them control of a shell that can reach them; see [Security](#security)).
 
 ## Set up
 
 1. Run signaling somewhere public (VPS, Railway, …):
 
 ```bash
-./bin/keel-signal
-# or: SLIME_SIGNAL_ADDR=:8080 ./bin/keel-signal
+./bin/slime-signal
+# or: SLIME_SIGNAL_ADDR=:8080 ./bin/slime-signal
 ```
 
 2. On the host desktop, open **Settings → Sharing** and enter the server's URL under **Signal server** (for example `https://your-signal.example`), then press Enter. slime serve saves it in `keel.json` and uses it for the next share; shares already running keep their link. Clear the field to turn Share off.
@@ -53,18 +53,18 @@ Anyone with the full link can ask to watch, so share it like a password. The All
 
 Passing control hands them the keyboard of that shell — on a **Local Shell** that means your machine as you (your files, `keel.json`, and anything the shell can reach), so pass control only to people you'd let sit at your desk.
 
-## Running keel-signal
+## Running slime-signal
 
-Update `keel-signal` before Slime itself: it has to pass the new `mac` field through, and Slime refuses joiners (and links) without it.
+Update `slime-signal` before Slime itself: it has to pass the new `mac` field through, and Slime refuses joiners (and links) without it.
 
-Rooms on `keel-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. A write to a peer that does not read is dropped after 10 seconds. Only the client that created a room (it gets a host key) can host it.
+Rooms on `slime-signal` expire after two minutes if no host connects and live at most 24 hours (the server pings quiet connections so an idle share stays up). The server refuses more than 512 rooms, more than 16 joiners per room, and messages over 64 KB. A write to a peer that does not read is dropped after 10 seconds. Only the client that created a room (it gets a host key) can host it.
 
-With `SLIME_SIGNAL_CLIENT_IP` set, one client may also hold at most 8 live rooms at a time (further creates get 429); without it neither per-client limit applies, so set it on a public server. Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `keel-signal` where the client address is, with `SLIME_SIGNAL_CLIENT_IP`:
+With `SLIME_SIGNAL_CLIENT_IP` set, one client may also hold at most 8 live rooms at a time (further creates get 429); without it neither per-client limit applies, so set it on a public server. Per-address rate limiting of room creation (6 in a burst, then one per 10 s) is off until you tell `slime-signal` where the client address is, with `SLIME_SIGNAL_CLIENT_IP`:
 
 | Value | Use when |
 | --- | --- |
 | *(unset)* | off |
-| `remote` | clients connect to `keel-signal` directly (no proxy) |
+| `remote` | clients connect to `slime-signal` directly (no proxy) |
 | `xff:N` | behind N proxies that each append to `X-Forwarded-For`: the Nth entry from the right is the client |
 
 Pick N from what your platform actually sends (log the header once): too far left and clients choose their own key; too far right and every client shares one, so one client can block sharing for everyone. The signaling WebSocket accepts only clients that send no `Origin` header (Slime's); a request from a web page, which always carries one, is refused. `GET /join` answers the plain line above, with `nosniff` and `no-store`; the link's secret is in the `#fragment` and never reaches the server.

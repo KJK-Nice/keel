@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The title bar's right holds only the Agent icon: the pane bar already says whose session it is and who drives, and
@@ -16,7 +16,7 @@ func TestTitleBarRightIsTheAgentIconOnly(t *testing.T) {
 	r.tt.Frame()
 	r.click(t, "host api-1")
 	pane := r.w.activeTab().panes["1"]
-	pane.conn.(*fakeConn).st = &keelclient.State{Status: "ready", Subtitle: "vm", Role: "driver"}
+	pane.conn.(*fakeConn).st = &slimeclient.State{Status: "ready", Subtitle: "vm", Role: "driver"}
 	r.tt.Frame()
 	for _, s := range []string{"vm · driving", "Share"} {
 		if r.has(s) {

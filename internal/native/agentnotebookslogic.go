@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -34,13 +34,13 @@ func redactedCount(counts map[string]int) (n int) {
 	return n
 }
 
-func isNotebookStep(s keelclient.TraceStep) bool {
+func isNotebookStep(s slimeclient.TraceStep) bool {
 	return s.Status == wire.TraceNotebook || s.Status == wire.TraceNotebookIndex || strings.HasPrefix(s.Reason, "notebook-")
 }
 
 // notebookStepText is a trace line about notebooks: the titles sent, a notebook sent (attached) or read (the agent
 // asked), or why one was not.
-func notebookStepText(s keelclient.TraceStep) string {
+func notebookStepText(s slimeclient.TraceStep) string {
 	if s.Status == wire.TraceNotebookIndex {
 		return "Sent the titles of " + countWord(s.Count, "notebook", "notebooks") + " (not private)"
 	}
@@ -69,8 +69,8 @@ func notebookStepText(s keelclient.TraceStep) string {
 
 // attachable are the notebooks the picker lists: saved ones, pinned first, then by name. Private ones are listed but
 // cannot be ticked.
-func attachable(nbs []keelclient.Notebook) []keelclient.Notebook {
-	var out []keelclient.Notebook
+func attachable(nbs []slimeclient.Notebook) []slimeclient.Notebook {
+	var out []slimeclient.Notebook
 	for _, n := range nbs {
 		if n.ID != "" {
 			out = append(out, n)
@@ -90,12 +90,12 @@ func attachable(nbs []keelclient.Notebook) []keelclient.Notebook {
 }
 
 // reconcileAttached keeps the attached ids that still name a notebook the agent may read (not private), once each.
-func reconcileAttached(ids []string, nbs []keelclient.Notebook) (out []string) {
+func reconcileAttached(ids []string, nbs []slimeclient.Notebook) (out []string) {
 	for _, id := range ids {
 		if slices.Contains(out, id) {
 			continue
 		}
-		if i := slices.IndexFunc(nbs, func(n keelclient.Notebook) bool { return n.ID == id }); i >= 0 && id != "" && !nbs[i].Private {
+		if i := slices.IndexFunc(nbs, func(n slimeclient.Notebook) bool { return n.ID == id }); i >= 0 && id != "" && !nbs[i].Private {
 			out = append(out, id)
 		}
 	}
@@ -103,7 +103,7 @@ func reconcileAttached(ids []string, nbs []keelclient.Notebook) (out []string) {
 }
 
 // toggleAttached adds or removes one notebook; never more than maxAttached, never a private one.
-func toggleAttached(ids []string, id string, nbs []keelclient.Notebook) []string {
+func toggleAttached(ids []string, id string, nbs []slimeclient.Notebook) []string {
 	list := slices.Clone(ids)
 	if id == "" {
 		return list
@@ -115,7 +115,7 @@ func toggleAttached(ids []string, id string, nbs []keelclient.Notebook) []string
 		return list
 	}
 	if nbs != nil {
-		if i := slices.IndexFunc(nbs, func(n keelclient.Notebook) bool { return n.ID == id }); i >= 0 && nbs[i].Private {
+		if i := slices.IndexFunc(nbs, func(n slimeclient.Notebook) bool { return n.ID == id }); i >= 0 && nbs[i].Private {
 			return list
 		}
 	}
@@ -135,9 +135,9 @@ func attachHint(n int) string {
 // ---- what the agent did to a notebook (the cards) ----
 
 // warned: a change written after reading a pane gets the warning look.
-func warned(p keelclient.NotebookProposal) bool { return p.FromPane || len(p.PanesRead) > 0 }
+func warned(p slimeclient.NotebookProposal) bool { return p.FromPane || len(p.PanesRead) > 0 }
 
-func paneWarning(p keelclient.NotebookProposal) string {
+func paneWarning(p slimeclient.NotebookProposal) string {
 	where := ""
 	if p.FromPane && p.SeenIn != "" {
 		where = " Some of it matches pane " + p.SeenIn + "."
@@ -166,7 +166,7 @@ func refusedText(reason string) string {
 	return "The agent's edit was not valid. Nothing changed."
 }
 
-func cardHead(p keelclient.NotebookProposal) string {
+func cardHead(p slimeclient.NotebookProposal) string {
 	switch p.Kind {
 	case wire.NotebookCreate:
 		if p.Status == wire.CardRefused {
@@ -188,7 +188,7 @@ func cardHead(p keelclient.NotebookProposal) string {
 }
 
 // cardStatus is the line under the title, or "" for none.
-func cardStatus(p keelclient.NotebookProposal) string {
+func cardStatus(p slimeclient.NotebookProposal) string {
 	k, s := p.Kind, p.Status
 	switch k {
 	case wire.NotebookCreate:
@@ -242,7 +242,7 @@ const (
 )
 
 // cardActions lists the buttons a card offers now, in order: open, undo, keep, delete (asks first), restore.
-func cardActions(p keelclient.NotebookProposal) []string {
+func cardActions(p slimeclient.NotebookProposal) []string {
 	k, s := p.Kind, p.Status
 	if p.Expired {
 		if p.NotebookID != "" && (s == wire.CardCreated || s == wire.CardEdited || s == wire.CardUndone || s == wire.CardSaved) && k != wire.NotebookDelete {
@@ -287,6 +287,6 @@ func cardActions(p keelclient.NotebookProposal) []string {
 	return nil
 }
 
-func deleteConfirmText(p keelclient.NotebookProposal) string {
+func deleteConfirmText(p slimeclient.NotebookProposal) string {
 	return fmt.Sprintf("Delete the notebook “%s”? The agent asked for this. It goes to Notebooks · Recently deleted, where you can restore it for 30 days.", orElse(p.Title, "Notebook"))
 }

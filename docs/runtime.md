@@ -5,7 +5,7 @@
 On macOS Slime also lives in the menu bar (the Slime mark). Closing the window hides it and the Dock icon instead of quitting; the menu bar item brings it back. Its menu shows slime serve's status (`slime serve · 2 sessions`, or vault locked, or not running), **Show Slime** / **Hide Slime**, **New Tab**, **Quick Connect…**, the **Allow Claude Code (slime mcp)** switch (the same setting as Settings · Agent; see docs/agent.md) and **Quit Slime**. ⌘Q quits too. Quitting the app leaves `slime serve` and its sessions running, as closing the window always did. The menu re-reads slime serve every few seconds; it sends the UI token (for the Claude Code switch) only to a slime serve that proves it holds it.
 
 ```bash
-keel                 # desktop app (starts slime serve if needed)
+slime                 # desktop app (starts slime serve if needed)
 slime app             # same
 slime serve           # runtime daemon (PTYs)
 slime serve stop      # kill leftover sessions and stop the daemon
@@ -22,7 +22,7 @@ Each variable also works under its name from before the rename, `KEEL_` in place
 | `SLIME_ADDR` | `127.0.0.1:47241` | Where `slime serve` binds (loopback) |
 | `SLIME_DATA` | OS config dir `/keel` | `keel.json`, `keel.vault`, pid, logs |
 | `SLIME_NAME` | `$USER` | Display name |
-| `SLIME_SIGNAL` | (unset) | Public URL of `keel-signal` for internet join ([Sharing](sharing.md)) for this run. It wins over the server saved in Settings · Sharing, which wins over one baked in with `make build SLIME_SIGNAL=…`. |
+| `SLIME_SIGNAL` | (unset) | Public URL of `slime-signal` for internet join ([Sharing](sharing.md)) for this run. It wins over the server saved in Settings · Sharing, which wins over one baked in with `make build SLIME_SIGNAL=…`. |
 | `SLIME_VAULT_PASSPHRASE` | (unset) | Unlock/create the vault when the OS keychain is unavailable (a scripted setup: no first-run screens) |
 | `SLIME_KEYRING` | (unset) | `off`: never read or write the OS keychain item (`keel`/`vault`), as if the keychain did not answer. For tests and machines without a keychain |
 | `SLIME_SSH_DIR` | `~/.ssh` | Where the host import reads `config` and the keys it names; `~` in that config is the folder above it. Tests point it at a fixture |

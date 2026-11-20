@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Unlock screen (docs/ui-redesign.md §5.14): the vault exists and slime serve could not open it, or the poll
@@ -22,7 +22,7 @@ import (
 
 // unlockGate is the Unlock screen's state.
 type unlockGate struct {
-	vault keelclient.Vault
+	vault slimeclient.Vault
 	pass  string
 	err   string
 	show  bool // the passphrase is shown, not masked
@@ -65,7 +65,7 @@ func unlockLead(n int) string {
 }
 
 // unlockBanner is the banner text and whether the vault's key is in the keychain (then a passphrase cannot open it).
-func unlockBanner(v keelclient.Vault) (msg string, keychainVault bool) {
+func unlockBanner(v slimeclient.Vault) (msg string, keychainVault bool) {
 	kc := keychainName()
 	switch {
 	case v.Mode == "keychain":
@@ -88,7 +88,7 @@ func gateSessions(n int) string {
 }
 
 // showUnlock puts the Unlock screen over the window.
-func (w *workspace) showUnlock(v keelclient.Vault) {
+func (w *workspace) showUnlock(v slimeclient.Vault) {
 	w.gate = &unlockGate{vault: v, focus: true}
 }
 
@@ -113,7 +113,7 @@ func (w *workspace) submitUnlock() {
 		switch {
 		case err == nil:
 			w.unlocked(g)
-		case errors.Is(err, keelclient.ErrPassphrase):
+		case errors.Is(err, slimeclient.ErrPassphrase):
 			g.err, g.focus = "That passphrase doesn't open the vault.", true
 		default:
 			g.err, g.focus = err.Error(), true
@@ -217,7 +217,7 @@ func (w *workspace) unlockCard(c *ui.Context, g *unlockGate) {
 		TextColor(inkMuted).FontSize(captionSize)
 }
 
-// markPath is the Slime mark: the keel on a tile. The tile is ink and the keel is stage, so no colour literal is added.
+// markPath is the Slime mark: the slime on a tile. The tile is ink and the slime is stage, so no colour literal is added.
 const markPath = `m90.3 25.8-37.6-21.8c-1.5-0.9-3.3-1-4.9-0.2l-33.2 18.9c-1.5 0.8-1.5 3 0 3.8l36.6 21.4c1.7 0.9 1.7 3.3 0 4.2-0.7 0.5-1.6 0.4-2.4 0l-36.8-21.7c-1.5-0.9-3.2 0.2-3.2 1.8v40.1c0 1 0.6 2.1 1.5 2.7l38.1 21.4c1 0.6 2.2 0.7 3.2 0.1l38.6-21.4c0.9-0.6 1.3-1.6 1.3-2.7v-44.5c-0.1-0.8-0.4-1.5-1.2-2.1z`
 
 var markSVG *ui.SVG

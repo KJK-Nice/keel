@@ -5,36 +5,36 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 func TestPresenceOfAPane(t *testing.T) {
-	me := keelclient.Peer{ID: 1, Name: "me", Kind: keelclient.KindWindow}
-	ann := keelclient.Peer{ID: 2, Name: "Ann", Kind: keelclient.KindJoined}
-	bo := keelclient.Peer{ID: 3, Name: "Bo", Kind: keelclient.KindJoined}
-	cy := keelclient.Peer{ID: 4, Name: "", Kind: keelclient.KindJoined}
-	kim := keelclient.Peer{ID: 5, Name: "Kim", Kind: keelclient.KindWindow}
+	me := slimeclient.Peer{ID: 1, Name: "me", Kind: slimeclient.KindWindow}
+	ann := slimeclient.Peer{ID: 2, Name: "Ann", Kind: slimeclient.KindJoined}
+	bo := slimeclient.Peer{ID: 3, Name: "Bo", Kind: slimeclient.KindJoined}
+	cy := slimeclient.Peer{ID: 4, Name: "", Kind: slimeclient.KindJoined}
+	kim := slimeclient.Peer{ID: 5, Name: "Kim", Kind: slimeclient.KindWindow}
 	for _, tc := range []struct {
 		name string
-		st   keelclient.State
+		st   slimeclient.State
 		kind presenceKind
 		text string
 	}{
-		{"alone", keelclient.State{Status: "ready", Role: "driver", Attached: []keelclient.Peer{me}}, presenceNone, ""},
-		{"not ready", keelclient.State{Status: "connecting", Role: "follower", Attached: []keelclient.Peer{me, ann}}, presenceNone, ""},
-		{"a window follows, nobody by link", keelclient.State{Status: "ready", Role: "driver", Attached: []keelclient.Peer{me, kim}}, presenceNone, ""},
-		{"one watcher", keelclient.State{Status: "ready", Role: "driver", Attached: []keelclient.Peer{me, ann}}, presenceWatched, "Ann watching"},
-		{"two watchers", keelclient.State{Status: "ready", Role: "driver", Attached: []keelclient.Peer{me, ann, bo}}, presenceWatched, "Ann, Bo watching"},
-		{"three watchers", keelclient.State{Status: "ready", Role: "driver", Attached: []keelclient.Peer{me, ann, bo, cy}}, presenceWatched, "Ann +2 watching"},
-		{"following", keelclient.State{Status: "ready", Role: "follower", DriverID: 2, Attached: []keelclient.Peer{me, ann}}, presenceFollowing, "Ann is driving"},
-		{"nobody drives", keelclient.State{Status: "ready", Role: "follower", Attached: []keelclient.Peer{me, ann}}, presenceFollowing, "Nobody is driving"},
+		{"alone", slimeclient.State{Status: "ready", Role: "driver", Attached: []slimeclient.Peer{me}}, presenceNone, ""},
+		{"not ready", slimeclient.State{Status: "connecting", Role: "follower", Attached: []slimeclient.Peer{me, ann}}, presenceNone, ""},
+		{"a window follows, nobody by link", slimeclient.State{Status: "ready", Role: "driver", Attached: []slimeclient.Peer{me, kim}}, presenceNone, ""},
+		{"one watcher", slimeclient.State{Status: "ready", Role: "driver", Attached: []slimeclient.Peer{me, ann}}, presenceWatched, "Ann watching"},
+		{"two watchers", slimeclient.State{Status: "ready", Role: "driver", Attached: []slimeclient.Peer{me, ann, bo}}, presenceWatched, "Ann, Bo watching"},
+		{"three watchers", slimeclient.State{Status: "ready", Role: "driver", Attached: []slimeclient.Peer{me, ann, bo, cy}}, presenceWatched, "Ann +2 watching"},
+		{"following", slimeclient.State{Status: "ready", Role: "follower", DriverID: 2, Attached: []slimeclient.Peer{me, ann}}, presenceFollowing, "Ann is driving"},
+		{"nobody drives", slimeclient.State{Status: "ready", Role: "follower", Attached: []slimeclient.Peer{me, ann}}, presenceFollowing, "Nobody is driving"},
 	} {
 		pr := presenceOf(tc.st)
 		if pr.kind != tc.kind || pr.text() != tc.text {
 			t.Errorf("%s: kind %d %q, want %d %q", tc.name, pr.kind, pr.text(), tc.kind, tc.text)
 		}
 	}
-	owner := presenceOf(keelclient.State{Status: "ready", Role: "owner", OwnerID: 1, YouID: 1, DriverID: 2, Attached: []keelclient.Peer{me, ann}})
+	owner := presenceOf(slimeclient.State{Status: "ready", Role: "owner", OwnerID: 1, YouID: 1, DriverID: 2, Attached: []slimeclient.Peer{me, ann}})
 	if !owner.owner {
 		t.Error("the owner who follows may take control")
 	}
@@ -81,8 +81,8 @@ func TestKeepCursorRebuildsTheThemeOnlyOnAChange(t *testing.T) {
 
 // In a pane you follow the notch says who drives and carries Ask for control; the ring is the driver's colour.
 func TestFollowerNotchAndRing(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
-	r := failedRig(t, keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "h-api")
+	two := []slimeclient.Peer{{ID: 1, Name: "ann", Kind: slimeclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: slimeclient.KindWindow, Role: "follower"}}
+	r := failedRig(t, slimeclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "h-api")
 	notch, ok := r.tt.Find("presence following")
 	body, ok2 := r.tt.Find("pane 1")
 	if !ok || !ok2 || !r.tt.HasText("ann is driving") || !r.has("Ask for control") {

@@ -13,11 +13,11 @@ import (
 	"testing"
 )
 
-// The guards of docs/ui-redesign.md §6 rule 1 for keel-native: the five writers, one file that builds their frames, and
+// The guards of docs/ui-redesign.md §6 rule 1 for slime-native: the five writers, one file that builds their frames, and
 // one caller of each. They read the source of every non-test .go file under internal/native; writers_security_test.go
 // holds the same rules checked on what each name refers to (method values, interfaces, io.Writer, the wire's names).
 //
-//	keelclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject, the suggestion frames)
+//	slimeclient/inject.go   builds every frame that can lead to bytes in a PTY (inject-challenge, inject, the suggestion frames)
 //	ApprovedInject(        called once, from approve.go: the Approve before type dialog's Type action
 //	DirectType(            called once, from (*workspace).typeNow in typenow.go
 //	SuggestInsert(         called once, from (*workspace).insertSuggestion in suggestpane.go
@@ -47,8 +47,8 @@ func sourceFiles(t *testing.T) map[string]string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out) < 20 || out["keelclient/inject.go"] == "" {
-		t.Fatalf("the guard sees %d files and not keelclient/inject.go: it would pass on nothing", len(out))
+	if len(out) < 20 || out["slimeclient/inject.go"] == "" {
+		t.Fatalf("the guard sees %d files and not slimeclient/inject.go: it would pass on nothing", len(out))
 	}
 	return out
 }
@@ -70,7 +70,7 @@ func wireSource(t *testing.T) string {
 var jsonTag = regexp.MustCompile("`json:\"[^\"`]*\"`")
 
 // The frames that can lead to bytes in a PTY are an inject-challenge and an inject. Their names and the shapes of an
-// inject's parts are internal/wire's; of the files under internal/native only keelclient/inject.go may name them, by
+// inject's parts are internal/wire's; of the files under internal/native only slimeclient/inject.go may name them, by
 // their wire names or as strings.
 func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	frame := regexp.MustCompile(`"(inject|inject-challenge|type-check|direct)"|\\"(inject|inject-challenge|type-check|direct)\\"`)
@@ -81,22 +81,22 @@ func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 				t.Errorf("%s imports the wire package under another name (%s): the guards look for wire.…", file, l)
 			}
 		}
-		if file == "keelclient/inject.go" {
+		if file == "slimeclient/inject.go" {
 			continue
 		}
 		if m := frame.FindString(src); m != "" {
-			t.Errorf("%s holds the frame type %s: only keelclient/inject.go may build an inject or an inject-challenge", file, m)
+			t.Errorf("%s holds the frame type %s: only slimeclient/inject.go may build an inject or an inject-challenge", file, m)
 		}
 		if m := name.FindString(src); m != "" {
-			t.Errorf("%s names %s: only keelclient/inject.go may build an inject, an inject-challenge or a part of one", file, m)
+			t.Errorf("%s names %s: only slimeclient/inject.go may build an inject, an inject-challenge or a part of one", file, m)
 		}
 	}
 	// And it names them, and they are the frames' names: the guard is looking for the right things.
-	src := sourceFiles(t)["keelclient/inject.go"]
+	src := sourceFiles(t)["slimeclient/inject.go"]
 	for _, want := range []string{"wire.Control{Type: wire.TypeInjectChallenge, Command: command}", "wire.TypeInject, command, n", "wire.DirectType{", "wire.AgentType{", "wire.AgentInsert{",
 		"wire.TypeAgentDetect", "wire.TypeAgentSuggest", "wire.TypeAgentSuggestRisk", "wire.TypeAgentType", "wire.TypeAgentInsert", "wire.TypeTypeDirect"} {
 		if !strings.Contains(src, want) {
-			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
+			t.Fatalf("slimeclient/inject.go no longer holds %s; update the guard", want)
 		}
 	}
 	w := wireSource(t)
@@ -108,13 +108,13 @@ func TestOnlyInjectGoBuildsAFrameThatLeadsToBytesInAPTY(t *testing.T) {
 	}
 	// Every inject goes out through one function, which asks for the nonce first: inject.go sends an inject frame once.
 	if n := strings.Count(src, "wire.TypeInject,"); n != 1 {
-		t.Fatalf("keelclient/inject.go names wire.TypeInject %d times, want once (in inject)", n)
+		t.Fatalf("slimeclient/inject.go names wire.TypeInject %d times, want once (in inject)", n)
 	}
 	if n := strings.Count(src, "wire.TypeInjectChallenge"); n != 3 { // the header comment, the request in inject, the answer in injectFrame
-		t.Fatalf("keelclient/inject.go names wire.TypeInjectChallenge %d times, want 3 (its comment, the request, the answer)", n)
+		t.Fatalf("slimeclient/inject.go names wire.TypeInjectChallenge %d times, want 3 (its comment, the request, the answer)", n)
 	}
 	var from []string
-	for _, c := range callSites(t, "keelclient/inject.go", src, "inject") {
+	for _, c := range callSites(t, "slimeclient/inject.go", src, "inject") {
 		from = append(from, c.in)
 	}
 	slices.Sort(from)
@@ -132,7 +132,7 @@ func TestATextFrameLeavesOnlyAsAWireControl(t *testing.T) {
 	for name, s := range src {
 		text += strings.Count(s, "websocket.TextMessage")
 		sendText += strings.Count(s, "SendText(")
-		if (strings.Contains(s, "websocket.TextMessage") && name != "keelclient/conn.go") || (strings.Contains(s, "SendText(") && name != "joinpeer/peer.go") {
+		if (strings.Contains(s, "websocket.TextMessage") && name != "slimeclient/conn.go") || (strings.Contains(s, "SendText(") && name != "joinpeer/peer.go") {
 			t.Errorf("%s sends a text frame of its own", name)
 		}
 	}
@@ -140,8 +140,8 @@ func TestATextFrameLeavesOnlyAsAWireControl(t *testing.T) {
 		t.Fatalf("%d socket and %d data-channel text senders, want one each", text, sendText)
 	}
 	for file, want := range map[string]string{
-		"keelclient/conn.go": "func (c *Conn) send(ctl wire.Control) error {\n\tb, err := json.Marshal(ctl)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn c.write(websocket.TextMessage, b)\n}",
-		"joinpeer/peer.go":   "func (p *Peer) control(ctl wire.Control) error {\n\tb, _ := json.Marshal(ctl)\n\tif dc := p.channel(); dc != nil {\n\t\treturn dc.SendText(string(b))\n\t}\n\treturn nil\n}",
+		"slimeclient/conn.go": "func (c *Conn) send(ctl wire.Control) error {\n\tb, err := json.Marshal(ctl)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn c.write(websocket.TextMessage, b)\n}",
+		"joinpeer/peer.go":    "func (p *Peer) control(ctl wire.Control) error {\n\tb, _ := json.Marshal(ctl)\n\tif dc := p.channel(); dc != nil {\n\t\treturn dc.SendText(string(b))\n\t}\n\treturn nil\n}",
 	} {
 		if !strings.Contains(src[file], want) {
 			t.Errorf("%s no longer sends a text frame as a wire.Control and nothing else; update the guard", file)
@@ -267,7 +267,7 @@ func TestTypeNowIsCalledOnlyByTheEntryPoints(t *testing.T) {
 }
 
 // slime serve decides a direct type at the write and answers no question about typing, so no file may ask one (a
-// DirectCheck call, a type-check frame), keelclient/inject.go included.
+// DirectCheck call, a type-check frame), slimeclient/inject.go included.
 func TestNoFileAsksATypeCheck(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"DirectCheck", "type-check"} {
@@ -317,10 +317,10 @@ func TestConnWriteIsOnlyTheTerminalViewsConnection(t *testing.T) {
 // alone, behind the terminal view's own write, and nothing that types for the user can reach it.
 func TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt(t *testing.T) {
 	src := sourceFiles(t)
-	// 1. Outside keelclient and joinpeer (and the stubs' own method declarations, which are not calls), only syncinput.go calls
+	// 1. Outside slimeclient and joinpeer (and the stubs' own method declarations, which are not calls), only syncinput.go calls
 	// Write on a connection; prefs.go's call writes a file.
 	for name, s := range src {
-		if strings.HasPrefix(name, "keelclient/") || strings.HasPrefix(name, "joinpeer/") || name == "prefs.go" {
+		if strings.HasPrefix(name, "slimeclient/") || strings.HasPrefix(name, "joinpeer/") || name == "prefs.go" {
 			continue
 		}
 		for _, c := range calls(t, name, s, "Write") {
@@ -381,32 +381,32 @@ func TestSyncInputIsTheOnlyFanOutAndNothingTypedReachesIt(t *testing.T) {
 }
 
 // An agent proposal is typed through the same writers: the reference to it goes into the frame inside
-// keelclient/inject.go and nowhere else, and only the two callers of the writers build one (approve.go for the dialog,
+// slimeclient/inject.go and nowhere else, and only the two callers of the writers build one (approve.go for the dialog,
 // typenow.go for a direct type). The "direct" part is built by typeNow alone.
 func TestAgentAndDirectReferencesAreBuiltOnlyWhereTheWritersAreCalled(t *testing.T) {
 	keys := regexp.MustCompile(`"(agent|conversationId)"\s*:|"(proposalId|shift)"|\\"(agent|proposalId|conversationId|shift)\\"`)
 	for name, src := range sourceFiles(t) {
-		if name != "keelclient/inject.go" {
+		if name != "slimeclient/inject.go" {
 			if m := keys.FindString(jsonTag.ReplaceAllString(src, "")); m != "" {
-				t.Errorf("%s holds the key %s: only keelclient/inject.go builds the agent part of a frame", name, m)
+				t.Errorf("%s holds the key %s: only slimeclient/inject.go builds the agent part of a frame", name, m)
 			}
 			if strings.Contains(src, "wire.AgentType") || strings.Contains(src, "wire.DirectType") {
-				t.Errorf("%s names the agent or direct part of a frame: only keelclient/inject.go builds one", name)
+				t.Errorf("%s names the agent or direct part of a frame: only slimeclient/inject.go builds one", name)
 			}
 		}
-		if name != "approve.go" && name != "typenow.go" && strings.Contains(src, "AgentRef{") && !strings.HasPrefix(name, "keelclient/") && !strings.HasPrefix(name, "joinpeer/") {
-			t.Errorf("%s builds a keelclient.AgentRef: only the Approve dialog's Type action and typeNow do", name)
+		if name != "approve.go" && name != "typenow.go" && strings.Contains(src, "AgentRef{") && !strings.HasPrefix(name, "slimeclient/") && !strings.HasPrefix(name, "joinpeer/") {
+			t.Errorf("%s builds a slimeclient.AgentRef: only the Approve dialog's Type action and typeNow do", name)
 		}
-		if name != "typenow.go" && strings.Contains(src, "DirectRef{") && !strings.HasPrefix(name, "keelclient/") {
-			t.Errorf("%s builds a keelclient.DirectRef: only typeNow does", name)
+		if name != "typenow.go" && strings.Contains(src, "DirectRef{") && !strings.HasPrefix(name, "slimeclient/") {
+			t.Errorf("%s builds a slimeclient.DirectRef: only typeNow does", name)
 		}
 	}
 	// inject.go builds the agent part from the reference alone, and the keys the guard bans are that part's keys.
-	src := sourceFiles(t)["keelclient/inject.go"]
+	src := sourceFiles(t)["slimeclient/inject.go"]
 	for _, want := range []string{"wire.AgentType{GroupRunID: a.GroupRunID, ProposalID: a.ProposalID, Shift: a.Shift}", "wire.AgentType{ConversationID: a.ConversationID, ProposalID: a.ProposalID, Shift: a.Shift}",
 		"parts := wire.Control{Agent: agentPart(agent)}", "parts := wire.Control{Agent: agentPart(agent), Direct: &wire.DirectType{"} {
 		if !strings.Contains(src, want) {
-			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
+			t.Fatalf("slimeclient/inject.go no longer holds %s; update the guard", want)
 		}
 	}
 	for _, want := range []string{`json:"agent,omitempty"`, `json:"proposalId"`, `json:"conversationId,omitempty"`, `json:"shift"`} {
@@ -440,19 +440,19 @@ func TestNoControlCharacterIsAddedToADirectType(t *testing.T) {
 			}
 		}
 	}
-	if src := sourceFiles(t)["keelclient/inject.go"]; strings.Contains(src, "clearLine") || strings.Contains(src, `"\r`) {
-		t.Error("keelclient/inject.go adds a control character")
+	if src := sourceFiles(t)["slimeclient/inject.go"]; strings.Contains(src, "clearLine") || strings.Contains(src, `"\r`) {
+		t.Error("slimeclient/inject.go adds a control character")
 	}
 }
 
 // The panel asks and shows; it never reads a pane for the agent. slime serve reads and redacts, so no file of the
-// window or the client may call the scrollback or the mcp read routes, and only keelclient/inject.go names a suggestion
+// window or the client may call the scrollback or the mcp read routes, and only slimeclient/inject.go names a suggestion
 // frame (TestOnlyInjectGoUsesTheTypingNamesOfTheWire checks the wire's constants for them).
 func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
 	for name, src := range sourceFiles(t) {
 		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback", "agent-insert", "agent-suggest", "agent-detect", "type-check"} {
-			if strings.Contains(src, bad) && name != "keelclient/inject.go" {
-				t.Errorf("%s names %s: the client reads no pane text for the agent, and only keelclient/inject.go builds or reads a suggestion frame or a type-check", name, bad)
+			if strings.Contains(src, bad) && name != "slimeclient/inject.go" {
+				t.Errorf("%s names %s: the client reads no pane text for the agent, and only slimeclient/inject.go builds or reads a suggestion frame or a type-check", name, bad)
 			}
 		}
 		for _, bad := range []string{"/scrollback", "/api/mcp", "ReadScrollback"} {
@@ -463,7 +463,7 @@ func TestNoFileReadsPaneTextForTheAgent(t *testing.T) {
 	}
 }
 
-// The third way: a suggestion's ⇥ / ⇧⇥. The frames are built only in keelclient/inject.go; SuggestInsert has one
+// The third way: a suggestion's ⇥ / ⇧⇥. The frames are built only in slimeclient/inject.go; SuggestInsert has one
 // caller, (*workspace).insertSuggestion; the restore of the user's words (the only other thing in a suggestion that
 // writes bytes) one, (*workspace).restoreWords; and the two questions that go with it (detect, ask) are asked only by
 // the pane's suggestion code. Nothing hands SuggestInsert bytes: its argument names the suggestion, the option and ⇧.
@@ -501,11 +501,11 @@ func TestInsertSuggestionIsReachedOnlyFromTheCardsKeyHandling(t *testing.T) {
 		t.Fatalf("insertSuggestion is called from %v; it must be called once, from suggestInsert in suggestpane.go (the machine's insert dep)", from)
 	}
 	for name, src := range sourceFiles(t) {
-		if name != "suggestpane.go" && !strings.HasPrefix(name, "keelclient/") && !strings.HasPrefix(name, "joinpeer/") && strings.Contains(src, "SuggestionRef{") {
-			t.Errorf("%s builds a keelclient.SuggestionRef: only suggestpane.go does", name)
+		if name != "suggestpane.go" && !strings.HasPrefix(name, "slimeclient/") && !strings.HasPrefix(name, "joinpeer/") && strings.Contains(src, "SuggestionRef{") {
+			t.Errorf("%s builds a slimeclient.SuggestionRef: only suggestpane.go does", name)
 		}
-		if name != "keelclient/inject.go" && (strings.Contains(src, `"suggestionId"`) || strings.Contains(src, `"suggestion"`)) {
-			t.Errorf("%s builds the suggestion part of a frame: only keelclient/inject.go does", name)
+		if name != "slimeclient/inject.go" && (strings.Contains(src, `"suggestionId"`) || strings.Contains(src, `"suggestion"`)) {
+			t.Errorf("%s builds the suggestion part of a frame: only slimeclient/inject.go does", name)
 		}
 	}
 }
@@ -577,7 +577,7 @@ func TestAProposalIsKeptOnlyByItsCardsSaveButton(t *testing.T) {
 func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
 	for _, name := range featureFiles(t, memoryFiles, "notes", "runbooks") {
 		src := sourceFiles(t)[name]
-		for _, bad := range []string{"keelclient.Proposal{", "Bytes:", "\\x15"} {
+		for _, bad := range []string{"slimeclient.Proposal{", "Bytes:", "\\x15"} {
 			if strings.Contains(src, bad) {
 				t.Errorf("%s holds %s: a step's proposal is made by slime serve, for the current step only", name, bad)
 			}
@@ -590,7 +590,7 @@ func TestARunbookStepIsNeverBuiltAsAProposalByTheClient(t *testing.T) {
 // One approval may type into several hosts' terminals, so the guards below are the ones a reviewer reads first. There is still
 // exactly one writer for a dialog's approval, ApprovedInject, called from the one place it was (approveType in approve.go);
 // the group approval is that same call made once per ticked row, inside a loop in that function and nowhere else. The group's
-// reference to its run is built only in the dialog's file and in keelclient/inject.go, no file of the Group page, the group
+// reference to its run is built only in the dialog's file and in slimeclient/inject.go, no file of the Group page, the group
 // run page or the folders holds a writer or a way to open a dialog that types, and no file puts a value into a command: the
 // bytes of a row are set from slime serve's answers alone.
 
@@ -717,14 +717,14 @@ func TestTheGroupApprovalIsOneApprovedInjectPerTickedRowInsideTheDialogsAction(t
 
 func TestGroupRunIDIsBuiltOnlyInInjectGoAndTheDialog(t *testing.T) {
 	for name, src := range sourceFiles(t) {
-		if strings.Contains(src, "GroupRunID") && name != "keelclient/inject.go" && name != "approve.go" {
-			t.Errorf("%s names GroupRunID: only keelclient/inject.go and the Approve dialog (approve.go) do", name)
+		if strings.Contains(src, "GroupRunID") && name != "slimeclient/inject.go" && name != "approve.go" {
+			t.Errorf("%s names GroupRunID: only slimeclient/inject.go and the Approve dialog (approve.go) do", name)
 		}
-		if strings.Contains(src, "groupRunId") && name != "keelclient/inject.go" {
-			t.Errorf("%s holds the key groupRunId: only keelclient/inject.go builds the agent part of a frame", name)
+		if strings.Contains(src, "groupRunId") && name != "slimeclient/inject.go" {
+			t.Errorf("%s holds the key groupRunId: only slimeclient/inject.go builds the agent part of a frame", name)
 		}
 	}
-	if !strings.Contains(sourceFiles(t)["keelclient/inject.go"], "wire.AgentType{GroupRunID: a.GroupRunID,") || !strings.Contains(wireSource(t), `json:"groupRunId,omitempty"`) ||
+	if !strings.Contains(sourceFiles(t)["slimeclient/inject.go"], "wire.AgentType{GroupRunID: a.GroupRunID,") || !strings.Contains(wireSource(t), `json:"groupRunId,omitempty"`) ||
 		!strings.Contains(sourceFiles(t)["approve.go"], "GroupRunID: g.runID") {
 		t.Fatal("inject.go, the wire package or approve.go no longer names the run; update the guard")
 	}
@@ -883,26 +883,26 @@ func TestNotebookCodeHasNoWriterAndNoCallSiteOfItsOwn(t *testing.T) {
 	}
 }
 
-// The notebook field of an inject frame is written in keelclient/inject.go and nowhere else.
+// The notebook field of an inject frame is written in slimeclient/inject.go and nowhere else.
 func TestTheNotebookInjectFieldIsWrittenOnlyByInjectGo(t *testing.T) {
 	key := regexp.MustCompile(`\["notebook"\]|"notebook"\s*:\s*true|"notebookId"`)
 	field := regexp.MustCompile(`\bNotebook:\s*true|\.Notebook\s*=\s*true`)
 	for name, src := range sourceFiles(t) {
-		if name == "keelclient/inject.go" {
+		if name == "slimeclient/inject.go" {
 			continue
 		}
 		// A struct tag (a body read over HTTP) is not a frame; every other form of the key is banned in every other file.
 		if m := key.FindString(jsonTag.ReplaceAllString(src, "")); m != "" {
-			t.Errorf("%s holds %s: only keelclient/inject.go writes the notebook part of a frame", name, m)
+			t.Errorf("%s holds %s: only slimeclient/inject.go writes the notebook part of a frame", name, m)
 		}
 		if m := field.FindString(src); m != "" {
-			t.Errorf("%s sets %s: only keelclient/inject.go marks an inject as a notebook's", name, m)
+			t.Errorf("%s sets %s: only slimeclient/inject.go marks an inject as a notebook's", name, m)
 		}
 	}
-	s := sourceFiles(t)["keelclient/inject.go"]
+	s := sourceFiles(t)["slimeclient/inject.go"]
 	for _, want := range []string{"parts.Notebook = true", "NotebookID: ref.NotebookID", "FromNotebook"} {
 		if !strings.Contains(s, want) {
-			t.Fatalf("keelclient/inject.go no longer holds %s; update the guard", want)
+			t.Fatalf("slimeclient/inject.go no longer holds %s; update the guard", want)
 		}
 	}
 	for _, want := range []string{`json:"notebook,omitempty"`, `json:"notebookId,omitempty"`} {
@@ -915,7 +915,7 @@ func TestTheNotebookInjectFieldIsWrittenOnlyByInjectGo(t *testing.T) {
 		t.Fatal("typenow.go or approve.go no longer builds its notebook reference; update the guard")
 	}
 	for name, src := range sourceFiles(t) {
-		if strings.Contains(src, "FromNotebook") && name != "approve.go" && !strings.HasPrefix(name, "keelclient/") {
+		if strings.Contains(src, "FromNotebook") && name != "approve.go" && !strings.HasPrefix(name, "slimeclient/") {
 			t.Errorf("%s names FromNotebook: only the Approve dialog's Type action marks bytes as a notebook's", name)
 		}
 	}
@@ -964,7 +964,7 @@ func TestAgentNotebookCodeHasNoWriterNoPaneReadAndSendsNoText(t *testing.T) {
 		t.Errorf("agent.go names AskRequest.Notebooks %d times; once, from the attached ids", n)
 	}
 	for name, s := range src {
-		if name != "agent.go" && !strings.HasPrefix(name, "keelclient/") && (strings.Contains(s, "AskRequest{") || strings.Contains(s, "req.Notebooks")) {
+		if name != "agent.go" && !strings.HasPrefix(name, "slimeclient/") && (strings.Contains(s, "AskRequest{") || strings.Contains(s, "req.Notebooks")) {
 			t.Errorf("%s builds an ask: only agent.go does", name)
 		}
 	}
@@ -999,8 +999,8 @@ func TestACardActionIsOneRequestAndADeleteWaitsForTheConfirm(t *testing.T) {
 	}
 	// No other file posts a card route by path.
 	for name, src := range sourceFiles(t) {
-		if name != "keelclient/agentnotebooks.go" && strings.Contains(src, "/notebooks/") && strings.Contains(src, "conversations/") {
-			t.Errorf("%s names a card route: only keelclient/agentnotebooks.go does", name)
+		if name != "slimeclient/agentnotebooks.go" && strings.Contains(src, "/notebooks/") && strings.Contains(src, "conversations/") {
+			t.Errorf("%s names a card route: only slimeclient/agentnotebooks.go does", name)
 		}
 	}
 }

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Writes THIRD_PARTY_NOTICES for a release archive: the license of Go and
-# every Go module linked into keel and keel-signal (macOS and Linux builds),
+# every Go module linked into slime and slime-signal (macOS and Linux builds),
 # libghostty-vt, and the fonts' OFL. Needs the network (go mod download, the
 # Ghostty license on GitHub). Fails rather than writing a notice without its
 # license text.
@@ -33,7 +33,7 @@ go mod download
 for os in darwin linux; do
 	GOOS=$os CGO_ENABLED=0 go list -deps \
 		-f '{{with .Module}}{{if not .Main}}{{.Path}}@{{.Version}}{{"\t"}}{{.Dir}}{{end}}{{end}}' \
-		./cmd/slime ./cmd/keel-signal
+		./cmd/slime ./cmd/slime-signal
 done | sort -u >"$tmp/modules"
 while IFS="$(printf '\t')" read -r mod dir; do
 	files=$(license_files "$dir")

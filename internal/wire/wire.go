@@ -2,7 +2,7 @@
 // name and shape both ends of the session socket match on (a WebSocket for
 // the window, a WebRTC data channel for a joined peer), and the words they
 // share elsewhere (client kinds, roles, statuses, host-key refusals, risk).
-// It is a leaf: it imports no other keel package, and both ends import it,
+// It is a leaf: it imports no other slime package, and both ends import it,
 // so a frame or a word is renamed here once or not at all.
 //
 // A binary frame is PTY bytes: the session's output one way, the driver's

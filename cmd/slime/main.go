@@ -99,7 +99,7 @@ session tab kills that PTY.
 
 Internet follow (no LAN) needs a public signaling server:
 
-  keel-signal                 # listen :47242
+  slime-signal                 # listen :47242
   Settings · Sharing · Signal server: its URL (saved; host copies a join link from Share)
   SLIME_SIGNAL=https://… slime # or for one run (wins over the saved server)
   make build SLIME_SIGNAL=https://…   or bake a default into the build
@@ -111,7 +111,7 @@ Environment:
   SLIME_ADDR       local bind of slime serve (default 127.0.0.1:47241)
   SLIME_DATA       data directory (default: OS config dir / keel)
   SLIME_NAME       display name (slime app --name sets it for the run)
-  SLIME_SIGNAL     public URL of keel-signal for this run (overrides Settings · Sharing)
+  SLIME_SIGNAL     public URL of slime-signal for this run (overrides Settings · Sharing)
   SLIME_VAULT_PASSPHRASE  unlock/create the vault when the OS keychain is unavailable
   (each also works under its old name, KEEL_*)
 

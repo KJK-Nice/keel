@@ -1,6 +1,6 @@
 {
   "name": "Slime",
-  "slug": "keel",
+  "slug": "slime",
   "identifier": "app.keel.desktop",
   "version": "0.2.5",
   "main": "./cmd/slime",
@@ -8,7 +8,7 @@
   "icon": "packaging/macos/icon.png",
   "updates": {
     "publicKey": "hHAEAQf2iG8b1mA+QOizLRDjrRPktRbev2XN/RuIVU8=",
-    "github": "KJK-Nice/keel"
+    "github": "KJK-Nice/slime"
   },
   "resources": ["LICENSE", "THIRD_PARTY_NOTICES"],
   "macos": {

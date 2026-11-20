@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 const (
@@ -33,7 +33,7 @@ type nbDialog struct {
 	focus bool
 
 	title, desc string
-	versions    []keelclient.NotebookVersion
+	versions    []slimeclient.NotebookVersion
 	selected    string
 	texts       map[string]string // version id -> its text
 	textErr     map[string]string
@@ -68,7 +68,7 @@ func (w *workspace) openNotebookHistoryAt(id, event string) {
 	w.nbFlushID(id, func() {
 		d := &nbDialog{kind: "history", id: id, pick: event, title: "History · " + notebookName(rec), desc: historyDesc, texts: map[string]string{}, textErr: map[string]string{}, empty: loadingWord, now: time.Now()}
 		w.nbDlg = d
-		call(w, func(c context.Context) ([]keelclient.NotebookVersion, error) { return w.be.NotebookHistory(c, id) }, func(vs []keelclient.NotebookVersion, err error) {
+		call(w, func(c context.Context) ([]slimeclient.NotebookVersion, error) { return w.be.NotebookHistory(c, id) }, func(vs []slimeclient.NotebookVersion, err error) {
 			w.nbLoaded(d, vs, err, historyNone, "Could not load History")
 		})
 	})
@@ -77,12 +77,12 @@ func (w *workspace) openNotebookHistoryAt(id, event string) {
 func (w *workspace) openNotebookTrash() {
 	d := &nbDialog{kind: "trash", title: trashTitle, desc: trashDesc, texts: map[string]string{}, textErr: map[string]string{}, empty: loadingWord, now: time.Now()}
 	w.nbDlg = d
-	call(w, w.be.DeletedNotebooks, func(vs []keelclient.NotebookVersion, err error) {
+	call(w, w.be.DeletedNotebooks, func(vs []slimeclient.NotebookVersion, err error) {
 		w.nbLoaded(d, vs, err, trashNone, "Could not load Recently deleted")
 	})
 }
 
-func (w *workspace) nbLoaded(d *nbDialog, vs []keelclient.NotebookVersion, err error, none, failed string) {
+func (w *workspace) nbLoaded(d *nbDialog, vs []slimeclient.NotebookVersion, err error, none, failed string) {
 	if w.closed || w.nbDlg != d {
 		return
 	}
@@ -99,7 +99,7 @@ func (w *workspace) nbLoaded(d *nbDialog, vs []keelclient.NotebookVersion, err e
 		w.nbSelect(d, vs[0].ID)
 		return
 	}
-	if i := slices.IndexFunc(vs, func(v keelclient.NotebookVersion) bool { return v.Event == d.pick }); i >= 0 {
+	if i := slices.IndexFunc(vs, func(v slimeclient.NotebookVersion) bool { return v.Event == d.pick }); i >= 0 {
 		w.nbSelect(d, vs[i].ID)
 	}
 }
@@ -110,12 +110,12 @@ func (w *workspace) nbSelect(d *nbDialog, vid string) {
 		return
 	}
 	id, trash := d.id, d.kind == "trash"
-	call(w, func(c context.Context) (keelclient.NotebookVersion, error) {
+	call(w, func(c context.Context) (slimeclient.NotebookVersion, error) {
 		if trash {
 			return w.be.DeletedNotebook(c, vid)
 		}
 		return w.be.NotebookVersion(c, id, vid)
-	}, func(v keelclient.NotebookVersion, err error) {
+	}, func(v slimeclient.NotebookVersion, err error) {
 		if err != nil {
 			d.textErr[vid] = nbErr(err, "Could not load this version")
 			return
@@ -132,7 +132,7 @@ func (w *workspace) nbRestore(d *nbDialog) {
 	}
 	d.busy = true
 	if d.kind == "trash" {
-		call(w, func(c context.Context) (keelclient.Notebook, error) { return w.be.RestoreDeletedNotebook(c, vid) }, func(saved keelclient.Notebook, err error) {
+		call(w, func(c context.Context) (slimeclient.Notebook, error) { return w.be.RestoreDeletedNotebook(c, vid) }, func(saved slimeclient.Notebook, err error) {
 			d.busy = false
 			if err != nil {
 				w.warn(nbErr(err, "Could not restore"))
@@ -147,9 +147,9 @@ func (w *workspace) nbRestore(d *nbDialog) {
 	id := d.id
 	w.nbFlushID(id, func() {
 		rec, _ := w.notebook(id)
-		call(w, func(c context.Context) (keelclient.Notebook, error) {
+		call(w, func(c context.Context) (slimeclient.Notebook, error) {
 			return w.be.RestoreNotebookVersion(c, id, vid, rec.Rev)
-		}, func(saved keelclient.Notebook, err error) {
+		}, func(saved slimeclient.Notebook, err error) {
 			d.busy = false
 			if err != nil {
 				w.warn(nbErr(err, "Could not restore"))

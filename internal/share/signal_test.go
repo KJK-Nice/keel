@@ -4,12 +4,12 @@ import "testing"
 
 func TestNormalizeSignal(t *testing.T) {
 	ok := map[string]string{
-		"":                                 "",
-		"  ":                               "",
-		"https://signal.example":           "https://signal.example",
-		" https://signal.example/ ":        "https://signal.example",
-		"http://127.0.0.1:47242":           "http://127.0.0.1:47242",
-		"https://example.com/keel-signal/": "https://example.com/keel-signal",
+		"":                                  "",
+		"  ":                                "",
+		"https://signal.example":            "https://signal.example",
+		" https://signal.example/ ":         "https://signal.example",
+		"http://127.0.0.1:47242":            "http://127.0.0.1:47242",
+		"https://example.com/slime-signal/": "https://example.com/slime-signal",
 	}
 	for in, want := range ok {
 		got, err := NormalizeSignal(in)

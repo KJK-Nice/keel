@@ -1,6 +1,6 @@
 package wire
 
-// Signal is a message on keel-signal's socket: the envelope the signal
+// Signal is a message on slime-signal's socket: the envelope the signal
 // server relays between a share's host and its joiners. The server reads
 // Type and PeerID and passes the rest on; it never sees the link's secret.
 type Signal struct {

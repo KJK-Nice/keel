@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -45,7 +45,7 @@ const (
 type groupRunPage struct {
 	id      string // the run shown: kept in the saved workspace while slime serve holds it
 	title   string // "Run · <runbook>"
-	run     *keelclient.GroupRun
+	run     *slimeclient.GroupRun
 	err     string
 	loaded  bool
 	polling bool // a propose is out
@@ -71,7 +71,7 @@ func (w *workspace) groupRunPageState() *groupRunPage {
 }
 
 // openGroupRun opens the run's page, or shows it in the tab that is open: one instance.
-func (w *workspace) openGroupRun(run keelclient.GroupRun) {
+func (w *workspace) openGroupRun(run slimeclient.GroupRun) {
 	if run.ID == "" {
 		return
 	}
@@ -96,11 +96,11 @@ func (w *workspace) loadGroupRunPage() {
 	}
 	p.gen++
 	gen, id := p.gen, p.id
-	callIf(w, func() bool { return w.groupRunPageState() == p && p.gen == gen }, func(c context.Context) (keelclient.GroupRun, error) { return w.be.GroupRun(c, id) },
-		func(run keelclient.GroupRun, err error) {
+	callIf(w, func() bool { return w.groupRunPageState() == p && p.gen == gen }, func(c context.Context) (slimeclient.GroupRun, error) { return w.be.GroupRun(c, id) },
+		func(run slimeclient.GroupRun, err error) {
 			p.loaded = true
 			if err != nil {
-				var se *keelclient.StatusError
+				var se *slimeclient.StatusError
 				if errors.As(err, &se) && se.Code == 404 {
 					p.run, p.err = nil, msgRunEnded
 				} else {
@@ -137,12 +137,12 @@ func (w *workspace) groupRunTick() {
 	}
 	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
 	callOnce(w, &p.polling, func() bool { return w.groupRunPageState() == p && p.id == id && p.calls == seq }, // a press since: its answer is newer
-		func(c context.Context) (keelclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
-		func(run keelclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
+		func(c context.Context) (slimeclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
+		func(run slimeclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
 }
 
 // groupRunAnswered takes slime serve's answer to any call about the run.
-func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, err error) {
+func (w *workspace) groupRunAnswered(p *groupRunPage, run slimeclient.GroupRun, err error) {
 	if err != nil {
 		p.err = hostError(err)
 		return
@@ -152,7 +152,7 @@ func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, e
 
 // groupRunCall runs one request about the run (a mode change, a mark, a stop) and takes the answer; slime serve's refusal (409)
 // is shown in its words.
-func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id string) (keelclient.GroupRun, error)) {
+func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id string) (slimeclient.GroupRun, error)) {
 	if p.run == nil {
 		return
 	}
@@ -162,7 +162,7 @@ func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id 
 	seq := p.calls
 	p.busy++
 	id := p.run.ID
-	call(w, func(c context.Context) (keelclient.GroupRun, error) { return do(c, id) }, func(run keelclient.GroupRun, err error) {
+	call(w, func(c context.Context) (slimeclient.GroupRun, error) { return do(c, id) }, func(run slimeclient.GroupRun, err error) {
 		p.busy--
 		if w.groupRunPageState() != p || p.id != id || seq != p.calls {
 			return
@@ -175,7 +175,7 @@ func (w *workspace) setRunMode(p *groupRunPage, mode string) {
 	if p.run == nil || p.run.Mode == mode || p.run.ModeLocked {
 		return
 	}
-	w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) {
+	w.groupRunCall(p, func(c context.Context, id string) (slimeclient.GroupRun, error) {
 		return w.be.SetGroupRunMode(c, id, mode)
 	})
 }
@@ -186,7 +186,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 		return
 	}
 	step := p.run.Steps[p.run.Current].ID
-	w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) {
+	w.groupRunCall(p, func(c context.Context, id string) (slimeclient.GroupRun, error) {
 		return w.be.MarkGroupStep(c, id, step, hostID, action)
 	})
 }
@@ -194,7 +194,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 // askStopRun is Stop runbook: it asks first.
 func (w *workspace) askStopRun(p *groupRunPage) {
 	w.askConfirm(&confirmDialog{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
-		w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
+		w.groupRunCall(p, func(c context.Context, id string) (slimeclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
 	}})
 }
 
@@ -216,9 +216,9 @@ func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	}
 	p.run.open, p.run.busy = false, true
 	id := p.id
-	call(w, func(c context.Context) (keelclient.GroupRun, error) {
+	call(w, func(c context.Context) (slimeclient.GroupRun, error) {
 		return w.be.StartGroupRun(c, runbookID, id, wire.ModeRolling)
-	}, func(run keelclient.GroupRun, err error) {
+	}, func(run slimeclient.GroupRun, err error) {
 		p.run.busy = false
 		if err != nil {
 			w.warn(hostError(err))
@@ -270,8 +270,8 @@ func (w *workspace) typeGroupRun() {
 	// A step that names variables: slime serve fills each host's values in now, and the dialog shows those exact bytes (Type is
 	// refused for any other bytes).
 	p.typing = true
-	callIf(w, func() bool { return w.groupRunPageState() == p }, func(c context.Context) ([]keelclient.GroupFill, error) { return w.be.FillGroupStep(c, run.ID, ids) },
-		func(fills []keelclient.GroupFill, err error) {
+	callIf(w, func() bool { return w.groupRunPageState() == p }, func(c context.Context) ([]slimeclient.GroupFill, error) { return w.be.FillGroupStep(c, run.ID, ids) },
+		func(fills []slimeclient.GroupFill, err error) {
 			p.typing = false
 			if err != nil {
 				w.warn(hostError(err))

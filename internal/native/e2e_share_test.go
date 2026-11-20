@@ -21,7 +21,7 @@ import (
 )
 
 // Share and Join end to end. The owner is a window on a scratch slime serve with SLIME_SIGNAL on a loopback
-// keel-signal; the joiner is a second window on its own scratch slime serve, as a second machine would be. The joiner's
+// slime-signal; the joiner is a second window on its own scratch slime serve, as a second machine would be. The joiner's
 // peers have no ICE server (e2eJoiner) and the signal server is loopback. The one request that leaves the machine is
 // the STUN binding request slime serve's own share hub makes after Allow (internal/share/hub.go acceptPeer), which
 // the maintainer allowed for these tests.
@@ -112,12 +112,12 @@ func (e *win) noOffMachine() {
 	}
 }
 
-// startSignal runs bin/keel-signal on a free loopback port and returns its URL.
+// startSignal runs bin/slime-signal on a free loopback port and returns its URL.
 func startSignal(t *testing.T, dir string) string {
 	t.Helper()
-	bin := filepath.Join(repoRoot(t), "bin", "keel-signal")
+	bin := filepath.Join(repoRoot(t), "bin", "slime-signal")
 	if _, err := os.Stat(bin); err != nil {
-		t.Fatalf("%s is missing: run make native-e2e (it builds bin/keel-signal first)", bin)
+		t.Fatalf("%s is missing: run make native-e2e (it builds bin/slime-signal first)", bin)
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	logf, err := os.Create(filepath.Join(dir, "signal.log"))
@@ -154,11 +154,11 @@ func startSignal(t *testing.T, dir string) string {
 		}
 		select {
 		case <-done:
-			t.Fatalf("keel-signal exited early; see %s", filepath.Join(dir, "signal.log"))
+			t.Fatalf("slime-signal exited early; see %s", filepath.Join(dir, "signal.log"))
 		default:
 		}
 	}
-	t.Fatalf("keel-signal did not come up; see %s", filepath.Join(dir, "signal.log"))
+	t.Fatalf("slime-signal did not come up; see %s", filepath.Join(dir, "signal.log"))
 	return ""
 }
 

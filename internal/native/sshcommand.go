@@ -6,16 +6,16 @@ import (
 	"unicode"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // sshCommand is the host menu's "Copy SSH command" text: ssh, the port when
 // it is not 22, the saved jump host as -J, and user@address. It is built from the address fields only, never from a password,
-// key, passphrase or any other vault value (a keelclient.Host has none). The Local Shell has none (""). A user name or address
+// key, passphrase or any other vault value (a slimeclient.Host has none). The Local Shell has none (""). A user name or address
 // that ssh could read as an option (a leading "-", which quoting does not stop) or that holds whitespace or a control or
 // invisible character gets no command at all, and neither does a jump host like that: hosts can come from an imported
 // ~/.ssh/config, and a pasted command must never run anything but ssh to that host. Copying it writes nothing to a session.
-func sshCommand(h keelclient.Host, hosts []keelclient.Host) string {
+func sshCommand(h slimeclient.Host, hosts []slimeclient.Host) string {
 	if h.IsLocal() || strings.TrimSpace(h.Address) == "" || !sshSafe(h.Username) || !sshSafe(h.Address) {
 		return ""
 	}

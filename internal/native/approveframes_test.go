@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // What the Approve dialog hands the one writer, whole, for each of its four sources: the bytes, every field of the
@@ -49,7 +49,7 @@ func TestANotebookFencesFrameIsTheLinesWithNoCtrlUAndTheNotebookOption(t *testin
 	}
 	r.click(t, "Type")
 	r.frames(3)
-	wantFrames(t, r.fb.conns[0], fmt.Sprintf(`"echo one\necho two\n" <nil> [%d]`, keelclient.FromNotebook))
+	wantFrames(t, r.fb.conns[0], fmt.Sprintf(`"echo one\necho two\n" <nil> [%d]`, slimeclient.FromNotebook))
 }
 
 func TestAnAgentProposalsFrameIsItsOwnBytesAndItsReference(t *testing.T) {
@@ -91,7 +91,7 @@ func TestAGroupRowsFrameIsItsOwnBytesItsProposalAndTheRun(t *testing.T) {
 
 	// ⇧ held with Type travels in every row's reference.
 	s := runRig(t, 1)
-	s.startRun(runOf("sudo systemctl restart kubelet", "changes", 1, func(_ int, c *keelclient.GroupRunCell) {
+	s.startRun(runOf("sudo systemctl restart kubelet", "changes", 1, func(_ int, c *slimeclient.GroupRunCell) {
 		c.Proposal.Production, c.Proposal.NeedsShift = true, true
 	}))
 	s.pressTypeAll(t, 1)

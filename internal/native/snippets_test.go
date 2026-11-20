@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Snippets on the fake backend: the page, the sidebar section, the palette group, and that every way to type one
@@ -15,7 +15,7 @@ import (
 
 func snippetBackend() *fakeBackend {
 	fb := okBackend()
-	fb.snippets = []keelclient.Snippet{
+	fb.snippets = []slimeclient.Snippet{
 		{ID: "sn-1", Name: "disk usage", Command: "df -h\n", AgentUsable: true},
 		{ID: "sn-2", Name: "two steps", Command: "cd /var/log\nls -la\n"},
 		{ID: "sn-3", Name: "no newline", Command: "uptime"},
@@ -169,14 +169,14 @@ func TestNewSnippetDialogAndItsRefusals(t *testing.T) {
 	r.fill(t, "Snippet dialog name", "who")
 	r.fill(t, "Snippet dialog command", "whoami")
 	r.click(t, "Save snippet")
-	if len(fb.snipSaved) != 1 || fb.snipSaved[0] != (keelclient.SnippetInput{Name: "who", Command: "whoami\n"}) {
+	if len(fb.snipSaved) != 1 || fb.snipSaved[0] != (slimeclient.SnippetInput{Name: "who", Command: "whoami\n"}) {
 		t.Fatalf("saved %v", fb.snipSaved)
 	}
 	if r.w.snipDlg != nil || pageAs[*snippetsPage](r.w.activeTab()).selected != "sn-new1" {
 		t.Errorf("dialog %v selected %q", r.w.snipDlg, pageAs[*snippetsPage](r.w.activeTab()).selected)
 	}
 	// A server refusal stays in the dialog with its words.
-	fb.snipSaveErr = &keelclient.StatusError{Code: 400, Msg: "Give the snippet a name"}
+	fb.snipSaveErr = &slimeclient.StatusError{Code: 400, Msg: "Give the snippet a name"}
 	r.click(t, "New snippet")
 	r.fill(t, "Snippet dialog name", "x")
 	r.fill(t, "Snippet dialog command", "y")
@@ -307,7 +307,7 @@ func TestTypeIntoPaneFromAPageNamesThePaneYouCanSeeAndSendsTheSnippet(t *testing
 func TestSnippetBracesAreTypedAsTheyAreSaved(t *testing.T) {
 	// There are no {{var}} fields: a snippet with braces is typed with them, unchanged.
 	fb := snippetBackend()
-	fb.snippets = []keelclient.Snippet{{ID: "sn-v", Name: "braces", Command: "echo {{name}} {{greeting}}\n"}}
+	fb.snippets = []slimeclient.Snippet{{ID: "sn-v", Name: "braces", Command: "echo {{name}} {{greeting}}\n"}}
 	r := snippetRig(t, fb)
 	r.w.typeSnippet("sn-v")
 	r.tt.Frame()

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // A command whose group the Keyboard page does not list would have no row there.
@@ -38,34 +38,34 @@ func TestSettingsFormatting(t *testing.T) {
 }
 
 func TestVaultModeText(t *testing.T) {
-	if l, _ := vaultMode(keelclient.Vault{Mode: "keychain"}); l != "OS keychain" {
+	if l, _ := vaultMode(slimeclient.Vault{Mode: "keychain"}); l != "OS keychain" {
 		t.Error(l)
 	}
-	if _, h := vaultMode(keelclient.Vault{Mode: "passphrase", KeyringOff: true}); h != "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase." {
+	if _, h := vaultMode(slimeclient.Vault{Mode: "passphrase", KeyringOff: true}); h != "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase." {
 		t.Error(h)
 	}
-	if l, h := vaultMode(keelclient.Vault{Mode: "passphrase"}); l != "Passphrase" || h != "Slime asks for the passphrase when it starts." {
+	if l, h := vaultMode(slimeclient.Vault{Mode: "passphrase"}); l != "Passphrase" || h != "Slime asks for the passphrase when it starts." {
 		t.Error(l, h)
 	}
-	if l, h := vaultMode(keelclient.Vault{}); l != "Not set up" || h != "The vault is created on first run." {
+	if l, h := vaultMode(slimeclient.Vault{}); l != "Not set up" || h != "The vault is created on first run." {
 		t.Error(l, h)
 	}
 }
 
 func TestSignalFields(t *testing.T) {
-	v, ph, help := signalFields(keelclient.Runtime{})
-	if v != "" || ph != "https://signal.example.com" || help != "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you." {
+	v, ph, help := signalFields(slimeclient.Runtime{})
+	if v != "" || ph != "https://signal.example.com" || help != "Share is off until you enter a slime-signal server: one you run yourself, or one someone runs for you." {
 		t.Errorf("no server: %q %q %q", v, ph, help)
 	}
-	v, _, help = signalFields(keelclient.Runtime{SignalURL: "https://x.example", SignalSource: "settings", SignalSaved: "https://x.example"})
+	v, _, help = signalFields(slimeclient.Runtime{SignalURL: "https://x.example", SignalSource: "settings", SignalSaved: "https://x.example"})
 	if v != "https://x.example" || help != "Join links go through this server. It never sees the terminal or the key in the link's #fragment." {
 		t.Errorf("saved: %q %q", v, help)
 	}
-	v, _, help = signalFields(keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://x.example"})
+	v, _, help = signalFields(slimeclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://x.example"})
 	if v != "https://x.example" || help != "SLIME_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set." {
 		t.Errorf("env: %q %q", v, help)
 	}
-	v, ph, help = signalFields(keelclient.Runtime{SignalURL: "https://baked.example", SignalSource: "build"})
+	v, ph, help = signalFields(slimeclient.Runtime{SignalURL: "https://baked.example", SignalSource: "build"})
 	if v != "" || ph != "https://baked.example" || help[:len("This copy of Slime was built with https://baked.example.")] != "This copy of Slime was built with https://baked.example." {
 		t.Errorf("build: %q %q %q", v, ph, help)
 	}

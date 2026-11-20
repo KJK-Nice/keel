@@ -10,7 +10,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -49,7 +49,7 @@ type tunnelStateInfo struct {
 	on     bool
 }
 
-func tunnelState(t keelclient.Tunnel) tunnelStateInfo {
+func tunnelState(t slimeclient.Tunnel) tunnelStateInfo {
 	switch t.Status {
 	case wire.TunnelReady:
 		return tunnelStateInfo{"Running", "live", tunnelRunning, true}
@@ -75,14 +75,14 @@ func tunnelFlag(kind string) string {
 	return "-L"
 }
 
-func tunnelDest(t keelclient.Tunnel) string {
+func tunnelDest(t slimeclient.Tunnel) string {
 	if t.Kind == wire.TunnelDynamic {
 		return "SOCKS5"
 	}
 	return fmt.Sprintf("%s:%d", t.DestHost, t.DestPort)
 }
 
-func tunnelListen(t keelclient.Tunnel) string {
+func tunnelListen(t slimeclient.Tunnel) string {
 	if t.ListenAddr != "" {
 		return t.ListenAddr
 	}
@@ -94,7 +94,7 @@ func tunnelListen(t keelclient.Tunnel) string {
 
 // tunnelEveryInterface reports a wildcard bind, not loopback only. These are display
 // strings for the badge; nothing here binds.
-func tunnelEveryInterface(t keelclient.Tunnel) bool {
+func tunnelEveryInterface(t slimeclient.Tunnel) bool {
 	switch strings.TrimSpace(t.BindAddr) {
 	case "0.0.0.0", "::", "[::]", "*":
 		return true
@@ -103,7 +103,7 @@ func tunnelEveryInterface(t keelclient.Tunnel) bool {
 }
 
 // tunnelLocalAddress is what "Copy local address" copies, "" when there is none.
-func tunnelLocalAddress(t keelclient.Tunnel) string {
+func tunnelLocalAddress(t slimeclient.Tunnel) string {
 	if t.Kind == wire.TunnelRemote {
 		if t.DestHost == "" || t.DestPort == 0 {
 			return ""
@@ -130,11 +130,11 @@ func (w *workspace) tunnelHostName(id string) string {
 	return id
 }
 
-func (w *workspace) tunnelFilterText(t keelclient.Tunnel) string {
+func (w *workspace) tunnelFilterText(t slimeclient.Tunnel) string {
 	return t.Name + " " + w.tunnelHostName(t.HostID) + " " + tunnelListen(t) + " " + tunnelDest(t)
 }
 
-func (w *workspace) shownTunnels(p *forwardsPage) (out []keelclient.Tunnel) {
+func (w *workspace) shownTunnels(p *forwardsPage) (out []slimeclient.Tunnel) {
 	q := strings.ToLower(strings.TrimSpace(p.filter))
 	for _, t := range w.tunnels {
 		if q != "" && !strings.Contains(strings.ToLower(w.tunnelFilterText(t)), q) {
@@ -197,7 +197,7 @@ func (w *workspace) tunnelTick() {
 // readTunnels is the one read of the forwards. busy is the in-flight flag a tick shares; quiet leaves a failed
 // read unreported (it is not news: the next tick tries again).
 func (w *workspace) readTunnels(busy *bool, quiet bool) {
-	callOnce(w, busy, nil, w.be.Tunnels, func(ts []keelclient.Tunnel, err error) {
+	callOnce(w, busy, nil, w.be.Tunnels, func(ts []slimeclient.Tunnel, err error) {
 		switch {
 		case err == nil:
 			w.tunnels = ts
@@ -214,10 +214,10 @@ func (w *workspace) readTunnels(busy *bool, quiet bool) {
 // session's. Only its Trust and connect button sends the key back.
 type fwdKeyOffer struct {
 	tunnelID string
-	key      keelclient.HostKey
+	key      slimeclient.HostKey
 }
 
-func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
+func (w *workspace) setTunnelOn(t slimeclient.Tunnel, on bool) {
 	callErr(w, func(c context.Context) (err error) {
 		if on {
 			_, err = w.be.StartTunnel(c, t.ID)
@@ -227,7 +227,7 @@ func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
 		return err
 	}, func(err error) {
 		if err != nil {
-			var se *keelclient.StatusError
+			var se *slimeclient.StatusError
 			if on && errors.As(err, &se) && se.Offer.Kind != "" {
 				w.fwdKey = &fwdKeyOffer{tunnelID: t.ID, key: se.Offer}
 			} else {
@@ -241,7 +241,7 @@ func (w *workspace) setTunnelOn(t keelclient.Tunnel, on bool) {
 func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	w.fwdKey = nil
 	callErr(w, func(c context.Context) error {
-		err := w.be.TrustHostKey(c, o.key, o.key.Kind == keelclient.HostKeyMismatch)
+		err := w.be.TrustHostKey(c, o.key, o.key.Kind == slimeclient.HostKeyMismatch)
 		if err == nil {
 			_, err = w.be.StartTunnel(c, o.tunnelID)
 		}
@@ -256,11 +256,11 @@ func (w *workspace) trustForwardKey(o *fwdKeyOffer) {
 	})
 }
 
-func (w *workspace) askDeleteTunnel(t keelclient.Tunnel) {
+func (w *workspace) askDeleteTunnel(t slimeclient.Tunnel) {
 	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete forward “" + t.Name + "”?", action: "Remove", run: func() { w.deleteTunnel(t) }})
 }
 
-func (w *workspace) deleteTunnel(t keelclient.Tunnel) {
+func (w *workspace) deleteTunnel(t slimeclient.Tunnel) {
 	callErr(w, func(c context.Context) error { return w.be.DeleteTunnel(c, t.ID) }, func(err error) {
 		if err != nil {
 			w.warn(errText("delete forward", err))
@@ -284,7 +284,7 @@ func (w *workspace) newForward() {
 	w.fwdDlg = &forwardDialog{kind: wire.TunnelLocal, bindAddr: "127.0.0.1", bindPort: "0", destHost: "127.0.0.1", destPort: "5432", focus: true}
 }
 
-func (w *workspace) editForward(t keelclient.Tunnel) {
+func (w *workspace) editForward(t slimeclient.Tunnel) {
 	d := &forwardDialog{id: t.ID, name: t.Name, hostID: t.HostID, kind: t.Kind, bindAddr: t.BindAddr,
 		bindPort: strconv.Itoa(t.BindPort), destHost: t.DestHost, destPort: strconv.Itoa(t.DestPort), focus: true}
 	if t.BindAddr == "" {
@@ -304,7 +304,7 @@ func (w *workspace) editForward(t keelclient.Tunnel) {
 
 func (w *workspace) closeForwardDialog() { w.fwdDlg = nil }
 
-func (w *workspace) sshHosts() (out []keelclient.Host) {
+func (w *workspace) sshHosts() (out []slimeclient.Host) {
 	for _, h := range w.hosts {
 		if !h.IsLocal() {
 			out = append(out, h)
@@ -331,13 +331,13 @@ func (w *workspace) hostPickEntries(selected string) (out []pickEntry) {
 
 // request is what the form makes of its values: a blank bind address is 127.0.0.1, a port that is not a number
 // is 0. The kind's own rules (a target for -L and -R, a loopback bind for -D) are the server's.
-func (d *forwardDialog) request() keelclient.TunnelInput {
+func (d *forwardDialog) request() slimeclient.TunnelInput {
 	bind := strings.TrimSpace(d.bindAddr)
 	if bind == "" {
 		bind = "127.0.0.1"
 	}
 	n := func(s string) int { v, _ := strconv.Atoi(strings.TrimSpace(s)); return v }
-	return keelclient.TunnelInput{ID: d.id, Name: strings.TrimSpace(d.name), HostID: d.hostID, Kind: d.kind, BindAddr: bind,
+	return slimeclient.TunnelInput{ID: d.id, Name: strings.TrimSpace(d.name), HostID: d.hostID, Kind: d.kind, BindAddr: bind,
 		BindPort: n(d.bindPort), DestHost: strings.TrimSpace(d.destHost), DestPort: n(d.destPort)}
 }
 

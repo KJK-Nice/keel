@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/plugins/terminal"
 
 	"slime/internal/cmdrule"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // screenOf reads the alt screen and the cursor line against a real terminal.
@@ -27,26 +27,26 @@ func TestSnippetLineDropsTheNewlineThatWouldRunIt(t *testing.T) {
 }
 
 func TestProposalDirectIsReadOnlyOneLineNoPlaceholder(t *testing.T) {
-	p := func(f func(*keelclient.Proposal)) keelclient.Proposal {
-		x := keelclient.Proposal{Command: "df -h", Risk: "readonly"}
+	p := func(f func(*slimeclient.Proposal)) slimeclient.Proposal {
+		x := slimeclient.Proposal{Command: "df -h", Risk: "readonly"}
 		if f != nil {
 			f(&x)
 		}
 		return x
 	}
 	for name, c := range map[string]struct {
-		p    keelclient.Proposal
+		p    slimeclient.Proposal
 		want bool
 	}{
 		"read-only":       {p(nil), true},
-		"changes":         {p(func(x *keelclient.Proposal) { x.Risk = "changes" }), false},
-		"destructive":     {p(func(x *keelclient.Proposal) { x.Risk, x.NeedsShift = "destructive", true }), false},
-		"no rating":       {p(func(x *keelclient.Proposal) { x.Risk = "" }), false},
-		"two lines":       {p(func(x *keelclient.Proposal) { x.Command = "df -h\nuptime" }), false},
-		"placeholder":     {p(func(x *keelclient.Proposal) { x.Placeholders, x.Command = true, "cat [secret:1]" }), false},
-		"{{var}}":         {p(func(x *keelclient.Proposal) { x.Command = "kubeadm token list {{x}}" }), false},
-		"needs shift":     {p(func(x *keelclient.Proposal) { x.NeedsShift = true }), false},
-		"outside grammar": {p(func(x *keelclient.Proposal) { x.Command = "echo keel-agent-ok" }), false},
+		"changes":         {p(func(x *slimeclient.Proposal) { x.Risk = "changes" }), false},
+		"destructive":     {p(func(x *slimeclient.Proposal) { x.Risk, x.NeedsShift = "destructive", true }), false},
+		"no rating":       {p(func(x *slimeclient.Proposal) { x.Risk = "" }), false},
+		"two lines":       {p(func(x *slimeclient.Proposal) { x.Command = "df -h\nuptime" }), false},
+		"placeholder":     {p(func(x *slimeclient.Proposal) { x.Placeholders, x.Command = true, "cat [secret:1]" }), false},
+		"{{var}}":         {p(func(x *slimeclient.Proposal) { x.Command = "kubeadm token list {{x}}" }), false},
+		"needs shift":     {p(func(x *slimeclient.Proposal) { x.NeedsShift = true }), false},
+		"outside grammar": {p(func(x *slimeclient.Proposal) { x.Command = "echo keel-agent-ok" }), false},
 	} {
 		if got := proposalDirect(c.p); got != c.want {
 			t.Errorf("%s: %v, want %v", name, got, c.want)

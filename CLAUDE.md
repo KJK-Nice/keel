@@ -4,7 +4,7 @@ Local SSH workspace: Go owns SSH and PTYs in a daemon (`slime serve`, a loopback
 
 ## Checks
 
-Run before every PR: `make test`, `make lint` and `make native-e2e` (the window end to end under MyGo's tester against a scratch `slime serve`; PNGs in `.scratch-native/e2e/`). Run `make native-automation` too when a change touches the menu bar, the window's lifecycle or key handling. Set `SLIME_KEYRING=off` for every command you run from a script or an agent: it keeps the vault off the OS keychain. The build tags `keelfake` (the agent's fake provider, `SLIME_AGENT_PROVIDER=fake`) and `keelautomation` (MyGo's automation socket) are for the two test targets of the Makefile only; no release path passes them.
+Run before every PR: `make test`, `make lint` and `make native-e2e` (the window end to end under MyGo's tester against a scratch `slime serve`; PNGs in `.scratch-native/e2e/`). Run `make native-automation` too when a change touches the menu bar, the window's lifecycle or key handling. Set `SLIME_KEYRING=off` for every command you run from a script or an agent: it keeps the vault off the OS keychain. The build tags `slimefake` (the agent's fake provider, `SLIME_AGENT_PROVIDER=fake`) and `slimeautomation` (MyGo's automation socket) are for the two test targets of the Makefile only; no release path passes them.
 
 ## UI work
 

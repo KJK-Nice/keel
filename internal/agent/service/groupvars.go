@@ -137,7 +137,7 @@ func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
 
 // HoldsVaultValue reports whether a value holds a vault value, or (6 bytes
 // or longer) is part of one: a captured piece of a vault secret is as much
-// a secret as the whole. A captured value that does is not kept, and keel
+// a secret as the whole. A captured value that does is not kept, and slime
 // serve's Ansible export leaves out a group variable saved before its
 // value went into the vault. It fails closed (true) when the vault cannot
 // be read.

@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Notebooks on the fake backend: the sidebar section, the page, the row menu, the pane (read rendered, edit as Markdown),
@@ -29,7 +29,7 @@ func nbRig(t *testing.T, mds ...string) *rig {
 	st := drivingState
 	r.fb.conns[0].st = &st
 	r.screen(false, "user@h $")
-	r.fb.conns[0].directRes = keelclient.DirectResult{Typed: true}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Typed: true}
 	r.tt.Frame()
 	return r
 }
@@ -211,7 +211,7 @@ func TestDeleteAsksFirstAndAsksAgainWhenKeelServeCannotKeepIt(t *testing.T) {
 		t.Fatalf("delete: %v", r.fb.nb.reqs)
 	}
 	// The history refusal: asks the permanent question and retries with ?permanent=1.
-	r.fb.nb.deleteErr = &keelclient.StatusError{Code: 409, Reason: "history", Msg: "Slime cannot keep this notebook in Recently deleted right now. Delete it permanently?"}
+	r.fb.nb.deleteErr = &slimeclient.StatusError{Code: 409, Reason: "history", Msg: "Slime cannot keep this notebook in Recently deleted right now. Delete it permanently?"}
 	r.tt.RightClick("notebook Backups")
 	r.tt.Frame()
 	r.tt.ChooseMenuItem("Delete")

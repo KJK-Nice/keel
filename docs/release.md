@@ -14,11 +14,11 @@ The workflow runs `scripts/release.sh` for each target; the script is the source
 
 | Target | Files |
 |---|---|
-| macOS, universal (arm64 and x86_64) | `keel-<version>.dmg`, with `Slime.app` inside; for updates, `keel-<version>-darwin-universal.tar.gz`, `update-darwin-universal.json` and deltas |
-| Linux, `amd64` and `arm64` (one Ubuntu runner builds both) | `keel-<version>-linux-<arch>.tar.gz` and `keel_<version>_<arch>.deb`; for updates, `update-linux-<arch>.json` and deltas |
-| keel-signal, a plain `go build`, for macOS, Linux and Windows | `keel-signal-<version>-<os>-<cpu>` archives |
+| macOS, universal (arm64 and x86_64) | `slime-<version>.dmg`, with `Slime.app` inside; for updates, `slime-<version>-darwin-universal.tar.gz`, `update-darwin-universal.json` and deltas |
+| Linux, `amd64` and `arm64` (one Ubuntu runner builds both) | `slime-<version>-linux-<arch>.tar.gz` and `keel_<version>_<arch>.deb`; for updates, `update-linux-<arch>.json` and deltas |
+| slime-signal, a plain `go build`, for macOS, Linux and Windows | `slime-signal-<version>-<os>-<cpu>` archives |
 
-`LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) are in each, and `SHA256SUMS` lists every file. The packages keep MyGo's file names. Windows has no Slime app, only keel-signal.
+`LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) are in each, and `SHA256SUMS` lists every file. The packages keep MyGo's file names. Windows has no Slime app, only slime-signal.
 
 ## Signing and notarizing
 
@@ -46,7 +46,7 @@ Windows has no Slime build, so MyGo's Windows secrets (`MYGO_WINDOWS_CERTIFICATE
 
 Slime updates itself with MyGo's updater (`docs/updates.md` in the MyGo module): "Check for Updates…" is in the Slime menu and the menu bar item, and the app checks in the background once a day. The update window is MyGo's, drawn in native UI (`plugins/updater/native`). Builds that cannot update (`bin/slime`, the `.deb` in `/opt`) never check and say why when asked.
 
-- `updates` in `mygo.json` holds the public key of `mygo keygen` and `github: KJK-Nice/keel`: installed apps read `update-<platform>.json` from the **latest** release (`releases/latest/download/`), so a pre-release never reaches them.
+- `updates` in `mygo.json` holds the public key of `mygo keygen` and `github: KJK-Nice/slime`: installed apps read `update-<platform>.json` from the **latest** release (`releases/latest/download/`), so a pre-release never reaches them.
 - The secret key is the repository secret `MYGO_UPDATER_PRIVATE_KEY` (the contents of `mygo-update.key`). Keep a copy in a password manager: installed apps accept only updates signed with it, so losing it strands them, and anyone with it can ship code to them. Changing it means a new public key in `mygo.json`, which only apps built after the change trust.
-- `scripts/release.sh` fails a tagged release without the key, and adds what `mygo build` signed to `dist/`: `update-<platform>.json` (darwin-universal, linux-amd64, linux-arm64), the app archive (`keel-<version>-darwin-universal.tar.gz` on macOS) and deltas from earlier versions (`*.delta`, none for the first release that has updates).
+- `scripts/release.sh` fails a tagged release without the key, and adds what `mygo build` signed to `dist/`: `update-<platform>.json` (darwin-universal, linux-amd64, linux-arm64), the app archive (`slime-<version>-darwin-universal.tar.gz` on macOS) and deltas from earlier versions (`*.delta`, none for the first release that has updates).
 - The release notes of the update window come from `CHANGELOG.md` (`## X.Y.Z`) when the file exists; Slime has none, so the window shows none.

@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 
 	"slime/internal/limits"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The notebook pane: the document rendered, the Markdown edited as plain text, and a fence typed only through typeNow and
@@ -299,7 +299,7 @@ func TestATwoLineShellFenceOpensTheDialogWithExactlyTheBytesAndTypesOnlyOnType(t
 	if got := r.typed(); !slices.Equal(got, []string{"echo one\necho two\n"}) {
 		t.Fatalf("typed %q", got)
 	}
-	if opts := r.fb.conns[0].injectOpts; len(opts) != 1 || !slices.Equal(opts[0], []keelclient.InjectOption{keelclient.FromNotebook}) {
+	if opts := r.fb.conns[0].injectOpts; len(opts) != 1 || !slices.Equal(opts[0], []slimeclient.InjectOption{slimeclient.FromNotebook}) {
 		t.Errorf("options %v: the inject carries notebook:true", opts)
 	}
 }
@@ -311,7 +311,7 @@ func TestAnUnreviewedAgentEditPutsTheNoteInTheDialogAndAsksKeelServeToo(t *testi
 	np := r.openNB(t, "nb1")
 	fs := fences(np.nb.md)
 	// A one-line fence: slime serve answers that a dialog is needed (reviewable text).
-	r.fb.conns[0].directRes = keelclient.DirectResult{Dialog: true, Reason: "unreviewed"}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Dialog: true, Reason: "unreviewed"}
 	r.tt.Click(fenceName("Type into api-1", fs[0].Index))
 	r.frames(3)
 	if s, _ := r.fenceDialog(); len(r.directs()) != 1 || s.note != unreviewedNote {
@@ -377,7 +377,7 @@ func TestAdjacentFencesStaySeparateTypeOnTheSecondOffersOnlyTheSecond(t *testing
 
 func TestAFollowedPaneCannotBeTypedIntoFromANotebook(t *testing.T) {
 	r := nbRig(t, "```sh\ndf -h\n```\n")
-	st := keelclient.State{Status: "ready", Role: "follower", Subtitle: "deploy@10.0.0.1", YouID: 3, DriverID: 2}
+	st := slimeclient.State{Status: "ready", Role: "follower", Subtitle: "deploy@10.0.0.1", YouID: 3, DriverID: 2}
 	r.fb.conns[0].st = &st
 	np := r.openNB(t, "nb1")
 	fs := fences(np.nb.md)
@@ -459,7 +459,7 @@ func TestASaveThatFailsAtCloseIsReported(t *testing.T) {
 	np := r.openNB(t, "nb1")
 	np.nb.auto.edit(time.Now())
 	np.nb.md += "typed\n"
-	r.fb.nb.saveErr = &keelclient.StatusError{Code: 500, Status: "500"}
+	r.fb.nb.saveErr = &slimeclient.StatusError{Code: 500, Status: "500"}
 	r.w.closeWindow()
 	if r.fb.nb.reqsWith("put") != 1 || !np.nb.failed || !slices.ContainsFunc(r.w.queued, func(t ui.Toast) bool { return t.Title == "Could not save notebook" }) {
 		t.Errorf("reqs %v failed %v toasts %+v", r.fb.nb.reqs, np.nb.failed, r.w.queued)
@@ -471,7 +471,7 @@ func TestAFailedSaveKeepsTheTypingAndTheNextEditTriesAgain(t *testing.T) {
 	np := r.openNB(t, "nb1")
 	r.click(t, "Edit")
 	r.frames(2)
-	r.fb.nb.saveErr = &keelclient.StatusError{Code: 500, Status: "500"}
+	r.fb.nb.saveErr = &slimeclient.StatusError{Code: 500, Status: "500"}
 	r.tt.Type("a")
 	r.click(t, "Done")
 	r.frames(3)
@@ -488,7 +488,7 @@ func TestAFailedSaveKeepsTheTypingAndTheNextEditTriesAgain(t *testing.T) {
 		t.Errorf("did not try again: failed %v reqs %v", np.nb.failed, r.fb.nb.reqs)
 	}
 	// The server's refusal is shown as it is.
-	r.fb.nb.saveErr = &keelclient.StatusError{Code: 409, Reason: "history", Msg: "Not saved: this notebook holds an agent edit, and Slime cannot keep that version in History right now. Your typing is still in the page."}
+	r.fb.nb.saveErr = &slimeclient.StatusError{Code: 409, Reason: "history", Msg: "Not saved: this notebook holds an agent edit, and Slime cannot keep that version in History right now. Your typing is still in the page."}
 	r.click(t, "Edit")
 	r.frames(2)
 	r.tt.Type("c")
@@ -505,7 +505,7 @@ func TestTheFocusedAndZoomedNotebookPaneAreRestoredWithTheWorkspace(t *testing.T
 		dir := t.TempDir()
 		fb := okBackend()
 		fb.addNotebook("Deploy", "SECRET-LOOKING-NOTEBOOK-TEXT\n")
-		fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+		fb.sessions = []slimeclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 		r := newRigIn(t, fb, dir)
 		r.w.openNotebook("nb1")
 		r.tt.Frame()
@@ -547,7 +547,7 @@ func TestANotebookPaneComesBackWithTheWorkspaceAndTheFileHoldsNoText(t *testing.
 	dir := t.TempDir()
 	fb := okBackend()
 	fb.addNotebook("Deploy", "SECRET-LOOKING-NOTEBOOK-TEXT\n```sh\ndf -h\n```\n")
-	fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+	fb.sessions = []slimeclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r := newRigIn(t, fb, dir)
 	r.w.openNotebook("nb1")
 	r.tt.Frame()

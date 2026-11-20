@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // shareTestKey is a made-up link key for these tests; it opens nothing.
@@ -19,12 +19,12 @@ const shareTestURL = "http://127.0.0.1:1/join?room=r1#k=" + shareTestKey
 var shareNow = time.Date(2026, 1, 2, 3, 10, 0, 0, time.UTC)
 
 // ownerState is a session shared with one person who joined by link: you own and drive it.
-func ownerState() *keelclient.State {
-	return &keelclient.State{
+func ownerState() *slimeclient.State {
+	return &slimeclient.State{
 		Status: "ready", Role: "driver", Title: "api-1", YouID: 1, DriverID: 1, OwnerID: 1,
-		Attached: []keelclient.Peer{
+		Attached: []slimeclient.Peer{
 			{ID: 2, Name: "Ann", Kind: "webrtc", Role: "follower", AttachedAt: time.Now().Add(-2 * time.Minute).Format(time.RFC3339)},
-			{ID: 1, Name: "me", Kind: keelclient.KindWindow, Role: "driver", AttachedAt: time.Now().Add(-10 * time.Minute).Format(time.RFC3339)},
+			{ID: 1, Name: "me", Kind: slimeclient.KindWindow, Role: "driver", AttachedAt: time.Now().Add(-10 * time.Minute).Format(time.RFC3339)},
 		},
 	}
 }
@@ -36,7 +36,7 @@ func shareFromMenu(t *testing.T, r *rig) {
 	choose(t, r, "Share")
 }
 
-func shareRig(t *testing.T, st *keelclient.State) *rig {
+func shareRig(t *testing.T, st *slimeclient.State) *rig {
 	t.Helper()
 	r := openTabs(t, 1)
 	r.fb.shareURL = shareTestURL
@@ -46,11 +46,11 @@ func shareRig(t *testing.T, st *keelclient.State) *rig {
 }
 
 func TestSharePeopleOrderRolesAndHowTheyCame(t *testing.T) {
-	st := keelclient.State{YouID: 1, DriverID: 3, OwnerID: 1, Attached: []keelclient.Peer{
+	st := slimeclient.State{YouID: 1, DriverID: 3, OwnerID: 1, Attached: []slimeclient.Peer{
 		{ID: 5, Name: "Cy", Kind: "webrtc", AttachedAt: "2026-01-02T03:09:00Z"},
 		{ID: 3, Name: "Dee", Kind: "webrtc", AttachedAt: "2026-01-02T03:08:00Z"},
-		{ID: 4, Name: "", Kind: keelclient.KindWindow, AttachedAt: "2026-01-02T03:02:00Z"},
-		{ID: 1, Name: "me", Kind: keelclient.KindWindow, AttachedAt: "2026-01-02T03:00:00Z"},
+		{ID: 4, Name: "", Kind: slimeclient.KindWindow, AttachedAt: "2026-01-02T03:02:00Z"},
+		{ID: 1, Name: "me", Kind: slimeclient.KindWindow, AttachedAt: "2026-01-02T03:00:00Z"},
 	}}
 	rows := sharePeople(st, shareNow)
 	var got []string
@@ -72,11 +72,11 @@ func TestSharePeopleOrderRolesAndHowTheyCame(t *testing.T) {
 	if roleOf(1, 1, 2) != "owner" || roleOf(2, 1, 2) != "driver" || roleOf(3, 1, 2) != "follower" || roleOf(0, 0, 0) != "follower" {
 		t.Error("roleOf")
 	}
-	own, drv, driving, host := followState(keelclient.State{YouID: 2, DriverID: 2, OwnerID: 1, Title: "api", Attached: []keelclient.Peer{{ID: 1, Name: "Ann"}, {ID: 2, Name: "me"}}})
+	own, drv, driving, host := followState(slimeclient.State{YouID: 2, DriverID: 2, OwnerID: 1, Title: "api", Attached: []slimeclient.Peer{{ID: 1, Name: "Ann"}, {ID: 2, Name: "me"}}})
 	if own != "Ann" || drv != "You" || !driving || host != "api" {
 		t.Errorf("followState %q %q %v %q", own, drv, driving, host)
 	}
-	if own, drv, driving, host = followState(keelclient.State{}); own != "the host" || drv != "" || driving || host != "session" {
+	if own, drv, driving, host = followState(slimeclient.State{}); own != "the host" || drv != "" || driving || host != "session" {
 		t.Errorf("followState empty %q %q %v %q", own, drv, driving, host)
 	}
 }
@@ -213,7 +213,7 @@ func TestEscapeAndClickOutsideClosePopoverAndReopenIsTheSameLinkWithoutAnotherSh
 func TestWithoutASignalServerThePopoverShowsTheServersError(t *testing.T) {
 	r := shareRig(t, ownerState())
 	r.fb.shareURL = ""
-	r.fb.shareErr = &keelclient.StatusError{Method: "POST", Path: "/api/share", Status: "503", Code: 503, Msg: "set a signal server in Settings · Sharing to share"}
+	r.fb.shareErr = &slimeclient.StatusError{Method: "POST", Path: "/api/share", Status: "503", Code: 503, Msg: "set a signal server in Settings · Sharing to share"}
 	shareFromMenu(t, r)
 	r.tt.Frame()
 	if !r.tt.HasText("set a signal server in Settings · Sharing to share") || !r.tt.HasText("Not shared") {
@@ -251,8 +251,8 @@ func TestStopSharingCallsStopShareAndClosesThePopover(t *testing.T) {
 
 func TestPopoverButtonsForYourSeat(t *testing.T) {
 	// A follower asks; the owner not driving takes control; several people each get Pass control.
-	follower := &keelclient.State{Status: "ready", Role: "follower", YouID: 2, DriverID: 1, OwnerID: 1, Attached: []keelclient.Peer{
-		{ID: 1, Name: "Ann", Kind: keelclient.KindWindow}, {ID: 2, Name: "me", Kind: keelclient.KindWindow}}}
+	follower := &slimeclient.State{Status: "ready", Role: "follower", YouID: 2, DriverID: 1, OwnerID: 1, Attached: []slimeclient.Peer{
+		{ID: 1, Name: "Ann", Kind: slimeclient.KindWindow}, {ID: 2, Name: "me", Kind: slimeclient.KindWindow}}}
 	r := shareRig(t, follower)
 	shareFromMenu(t, r)
 	r.tt.Frame()
@@ -264,8 +264,8 @@ func TestPopoverButtonsForYourSeat(t *testing.T) {
 		t.Errorf("asked %d", r.fb.conns[0].asked)
 	}
 
-	owner := &keelclient.State{Status: "ready", Role: "owner", YouID: 1, DriverID: 2, OwnerID: 1, Attached: []keelclient.Peer{
-		{ID: 1, Name: "me", Kind: keelclient.KindWindow}, {ID: 2, Name: "Ann", Kind: "webrtc"}, {ID: 3, Name: "Bo", Kind: "webrtc"}, {ID: 4, Name: "Cy", Kind: "webrtc"}}}
+	owner := &slimeclient.State{Status: "ready", Role: "owner", YouID: 1, DriverID: 2, OwnerID: 1, Attached: []slimeclient.Peer{
+		{ID: 1, Name: "me", Kind: slimeclient.KindWindow}, {ID: 2, Name: "Ann", Kind: "webrtc"}, {ID: 3, Name: "Bo", Kind: "webrtc"}, {ID: 4, Name: "Cy", Kind: "webrtc"}}}
 	r = shareRig(t, owner)
 	shareFromMenu(t, r)
 	r.tt.Frame()
@@ -282,7 +282,7 @@ func TestPopoverButtonsForYourSeat(t *testing.T) {
 	}
 
 	driver := ownerState()
-	driver.Attached = append(driver.Attached, keelclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc", AttachedAt: "2026-01-02T03:06:00Z"})
+	driver.Attached = append(driver.Attached, slimeclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc", AttachedAt: "2026-01-02T03:06:00Z"})
 	r = shareRig(t, driver)
 	shareFromMenu(t, r)
 	r.tt.Frame()
@@ -309,7 +309,7 @@ func TestTheWatchersBadgeCountsPeopleWhoCameByLink(t *testing.T) {
 	if !r.has("1 watching") {
 		t.Fatal("badge")
 	}
-	st.Attached = append(st.Attached, keelclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc"}, keelclient.Peer{ID: 4, Name: "Kim", Kind: keelclient.KindWindow})
+	st.Attached = append(st.Attached, slimeclient.Peer{ID: 3, Name: "Bo", Kind: "webrtc"}, slimeclient.Peer{ID: 4, Name: "Kim", Kind: slimeclient.KindWindow})
 	r.tt.Frame()
 	if !r.has("2 watching") || r.has("1 watching") {
 		t.Errorf("badge after two joined: %q", r.tt.Texts())
@@ -341,7 +341,7 @@ func TestNoShareButtonOnAPageOrTheNewTab(t *testing.T) {
 // ---- the prompts ----
 
 func joinRequest(r *rig, peer, name string) {
-	r.fb.conns[0].events = append(r.fb.conns[0].events, keelclient.Event{Kind: keelclient.EventJoinRequest, PeerID: peer, Message: name})
+	r.fb.conns[0].events = append(r.fb.conns[0].events, slimeclient.Event{Kind: slimeclient.EventJoinRequest, PeerID: peer, Message: name})
 	r.fb.conns[0].onChange()
 	r.tt.Frame()
 	r.tt.Frame()
@@ -394,7 +394,7 @@ func TestDenySendsAllowFalseAndAResolvedFrameRemovesThePrompt(t *testing.T) {
 		t.Fatalf("prompts %d", len(r.w.prompts))
 	}
 	// slime serve resolves p2 itself (it timed out after 2 minutes, or the joiner left): no admit call.
-	r.fb.conns[0].events = []keelclient.Event{{Kind: keelclient.EventJoinResolved, PeerID: "p2", Message: "expired"}}
+	r.fb.conns[0].events = []slimeclient.Event{{Kind: slimeclient.EventJoinResolved, PeerID: "p2", Message: "expired"}}
 	r.fb.conns[0].onChange()
 	r.tt.Frame()
 	r.tt.Frame()
@@ -409,13 +409,13 @@ func TestDenySendsAllowFalseAndAResolvedFrameRemovesThePrompt(t *testing.T) {
 
 func TestAnAnswerThatKeelServeRefusesIsShownAndTheJoinFailureToo(t *testing.T) {
 	r := shareRig(t, ownerState())
-	r.fb.admitErr = &keelclient.StatusError{Method: "POST", Path: "x", Status: "409", Code: 409, Msg: "no such join request (it may have expired)"}
+	r.fb.admitErr = &slimeclient.StatusError{Method: "POST", Path: "x", Status: "409", Code: 409, Msg: "no such join request (it may have expired)"}
 	joinRequest(r, "p1", "Ann")
 	r.click(t, "Allow")
 	if !r.tt.HasText("no such join request (it may have expired)") || r.has("Allow") {
 		t.Errorf("texts %q", r.tt.Texts())
 	}
-	r.fb.conns[0].events = []keelclient.Event{{Kind: keelclient.EventJoinFailed, PeerID: "p3", Message: "Bo was not connected: failed verification"}}
+	r.fb.conns[0].events = []slimeclient.Event{{Kind: slimeclient.EventJoinFailed, PeerID: "p3", Message: "Bo was not connected: failed verification"}}
 	r.fb.conns[0].onChange()
 	r.tt.Frame()
 	r.tt.Frame()
@@ -427,7 +427,7 @@ func TestAnAnswerThatKeelServeRefusesIsShownAndTheJoinFailureToo(t *testing.T) {
 func TestAControlRequestPromptsTheDriverToHandOverOrKeepDriving(t *testing.T) {
 	r := shareRig(t, ownerState())
 	ask := func(from uint64, msg string) {
-		r.fb.conns[0].events = []keelclient.Event{{Kind: keelclient.EventControlRequest, FromID: from, Message: msg}}
+		r.fb.conns[0].events = []slimeclient.Event{{Kind: slimeclient.EventControlRequest, FromID: from, Message: msg}}
 		r.fb.conns[0].onChange()
 		r.tt.Frame()
 		r.tt.Frame()
@@ -452,7 +452,7 @@ func TestAControlRequestPromptsTheDriverToHandOverOrKeepDriving(t *testing.T) {
 		t.Error("admit called")
 	}
 	// A request seen by someone who may not hand over is only the runtime's words; yours is no prompt either.
-	r.fb.conns[0].st = &keelclient.State{Status: "ready", Role: "follower", YouID: 5, DriverID: 1, OwnerID: 1}
+	r.fb.conns[0].st = &slimeclient.State{Status: "ready", Role: "follower", YouID: 5, DriverID: 1, OwnerID: 1}
 	ask(2, "Ann asks for control")
 	if len(r.w.prompts) != 0 || !r.tt.HasText("Ann asks for control") {
 		t.Errorf("a follower sees the words, not a prompt (prompts %d)", len(r.w.prompts))
@@ -466,11 +466,11 @@ func TestAControlRequestPromptsTheDriverToHandOverOrKeepDriving(t *testing.T) {
 
 func TestAControlNoteDismissesRequestsAndIsShown(t *testing.T) {
 	r := shareRig(t, ownerState())
-	r.fb.conns[0].events = []keelclient.Event{{Kind: keelclient.EventControlRequest, FromID: 2, Message: "Ann asks for control"}}
+	r.fb.conns[0].events = []slimeclient.Event{{Kind: slimeclient.EventControlRequest, FromID: 2, Message: "Ann asks for control"}}
 	r.fb.conns[0].onChange()
 	r.tt.Frame()
 	r.tt.Frame()
-	r.fb.conns[0].events = []keelclient.Event{{Kind: keelclient.EventControlNote, Message: "Ann has control"}}
+	r.fb.conns[0].events = []slimeclient.Event{{Kind: slimeclient.EventControlNote, Message: "Ann has control"}}
 	r.fb.conns[0].onChange()
 	r.tt.Frame()
 	r.tt.Frame()

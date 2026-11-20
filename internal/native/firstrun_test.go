@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The First run flow on the fake backend. The passphrases here are made up and open nothing.
@@ -19,7 +19,7 @@ const (
 )
 
 func setupBackend() *fakeBackend {
-	fb := &fakeBackend{vault: keelclient.Vault{Locked: true, NeedsSetup: true, KeyringOff: true, Path: "~/keel/keel.vault", SSHConfig: "~/.ssh/config"}, hosts: testHosts}
+	fb := &fakeBackend{vault: slimeclient.Vault{Locked: true, NeedsSetup: true, KeyringOff: true, Path: "~/keel/keel.vault", SSHConfig: "~/.ssh/config"}, hosts: testHosts}
 	fb.preview = testPreview()
 	return fb
 }
@@ -124,7 +124,7 @@ func TestFirstRunCreatesTheVaultThenAsksForHostsAndClearsThePassphrase(t *testin
 
 func TestFirstRunSetupRefusalShowsTheServersWordsAndKeepsStep1(t *testing.T) {
 	fb := setupBackend()
-	fb.setupErr = &keelclient.StatusError{Method: "POST", Path: "/api/vault/setup", Status: "400 Bad Request", Code: 400, Msg: "passphrase is required"}
+	fb.setupErr = &slimeclient.StatusError{Method: "POST", Path: "/api/vault/setup", Status: "400 Bad Request", Code: 400, Msg: "passphrase is required"}
 	r := firstRunRig(t, fb)
 	r.fill(t, "Passphrase", scratchPass)
 	r.fill(t, "Repeat passphrase", scratchPass)
@@ -154,7 +154,7 @@ func TestFirstRunExistingVaultIsAnInstructionOnly(t *testing.T) {
 // An unlocked vault whose first run is open starts at step 1 with Continue, (it shows the vault
 // the keychain already made).
 func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
-	fb := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "keychain", Path: "~/keel/keel.vault"}, hosts: testHosts, preview: testPreview()}
+	fb := &fakeBackend{vault: slimeclient.Vault{FirstRun: true, Mode: "keychain", Path: "~/keel/keel.vault"}, hosts: testHosts, preview: testPreview()}
 	r := firstRunRig(t, fb)
 	kc := keychainName()
 	r.texts(t, "Welcome to Slime", "The vault key lives in your login keychain. Slime opens without asking.",
@@ -168,14 +168,14 @@ func TestFirstRunOpenOnAnExistingVaultStartsAtStep1WithContinue(t *testing.T) {
 		t.Errorf("step %d, setups %v", r.w.first.step, fb.setups)
 	}
 	// A passphrase vault says so on its passphrase card.
-	fb2 := &fakeBackend{vault: keelclient.Vault{FirstRun: true, Mode: "passphrase", KeyringOff: true}, preview: testPreview()}
+	fb2 := &fakeBackend{vault: slimeclient.Vault{FirstRun: true, Mode: "passphrase", KeyringOff: true}, preview: testPreview()}
 	r2 := firstRunRig(t, fb2)
 	r2.texts(t, "Slime was started with SLIME_KEYRING=off, so it does not use the keychain.", "age, with a key made from your passphrase (scrypt)")
 }
 
 func atHosts(t *testing.T, fb *fakeBackend) *rig {
 	t.Helper()
-	fb.vault = keelclient.Vault{FirstRun: true, Path: "~/keel/keel.vault", SSHConfig: "~/.ssh/config"}
+	fb.vault = slimeclient.Vault{FirstRun: true, Path: "~/keel/keel.vault", SSHConfig: "~/.ssh/config"}
 	r := firstRunRig(t, fb)
 	r.click(t, "Continue")
 	return r
@@ -208,7 +208,7 @@ func TestFirstRunStep2TableRowsAndRules(t *testing.T) {
 
 func TestFirstRunStep2ImportSendsExactlyTheTicks(t *testing.T) {
 	fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
-	fb.importRes = keelclient.ImportResult{Hosts: []keelclient.Host{{ID: "h1"}, {ID: "h2"}}}
+	fb.importRes = slimeclient.ImportResult{Hosts: []slimeclient.Host{{ID: "h1"}, {ID: "h2"}}}
 	r := atHosts(t, fb)
 	r.click(t, "Add db")  // a saved host the user turns on
 	r.click(t, "Add web") // and the default one off again, then on
@@ -282,7 +282,7 @@ func TestFirstRunKeyCopyIsOffByDefaultAndAsksForItsPassphrase(t *testing.T) {
 	r2.tt.Type(scratchKey)
 	r2.tt.Frame()
 	r2.click(t, "Add 1 host")
-	if len(fb2.imports) != 1 || !slices.Equal(fb2.imports[0].Keys, []keelclient.ImportKey{{Path: pathDB, Passphrase: scratchKey}}) {
+	if len(fb2.imports) != 1 || !slices.Equal(fb2.imports[0].Keys, []slimeclient.ImportKey{{Path: pathDB, Passphrase: scratchKey}}) {
 		t.Fatalf("imports %+v", fb2.imports)
 	}
 	// The unreadable key's switch is disabled.
@@ -292,7 +292,7 @@ func TestFirstRunKeyCopyIsOffByDefaultAndAsksForItsPassphrase(t *testing.T) {
 }
 
 func TestFirstRunKeyPassphraseIsClearedWhenSentAndNeverPrinted(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), importErr: &keelclient.StatusError{Method: "POST", Path: "/api/ssh-config/import", Status: "400", Code: 400,
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), importErr: &slimeclient.StatusError{Method: "POST", Path: "/api/ssh-config/import", Status: "400", Code: 400,
 		Msg: "wrong", ErrorKind: "wrongPassphrase", Key: pathDB}}
 	r := atHosts(t, fb)
 	r.click(t, "Copy ~/.ssh/id_db into the vault")
@@ -320,7 +320,7 @@ func TestFirstRunKeyPassphraseIsClearedWhenSentAndNeverPrinted(t *testing.T) {
 }
 
 func TestFirstRunImportRefusalWithoutAKeyShowsTheServersMessage(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), importErr: &keelclient.StatusError{Code: 400, Msg: "invalid import payload"}}
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), importErr: &slimeclient.StatusError{Code: 400, Msg: "invalid import payload"}}
 	r := atHosts(t, fb)
 	r.click(t, "Add 1 host")
 	r.texts(t, "invalid import payload")
@@ -330,9 +330,9 @@ func TestFirstRunImportRefusalWithoutAKeyShowsTheServersMessage(t *testing.T) {
 }
 
 func TestFirstRunImportNamesHostsThatWereNotAdded(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), importRes: keelclient.ImportResult{
-		Hosts: []keelclient.Host{{ID: "h1"}}, Identities: []keelclient.Identity{{ID: "i1"}},
-		Failed: []keelclient.ImportFailure{{Alias: "db", Error: "its jump host bastion was not added"}}}}
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), importRes: slimeclient.ImportResult{
+		Hosts: []slimeclient.Host{{ID: "h1"}}, Identities: []slimeclient.Identity{{ID: "i1"}},
+		Failed: []slimeclient.ImportFailure{{Alias: "db", Error: "its jump host bastion was not added"}}}}
 	r := atHosts(t, fb)
 	r.click(t, "Add 1 host")
 	r.texts(t, "Added 1 host and 1 key. Not added: db (its jump host bastion was not added)")
@@ -366,10 +366,10 @@ func TestFirstRunSkipAndBack(t *testing.T) {
 }
 
 func TestFirstRunNoSSHConfigAndAReadFailure(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, preview: keelclient.SSHPreview{Path: "~/.ssh/config"}}
+	fb := &fakeBackend{hosts: testHosts, preview: slimeclient.SSHPreview{Path: "~/.ssh/config"}}
 	r := atHosts(t, fb)
 	r.texts(t, "Slime found no ~/.ssh/config. Add hosts later with New host.")
-	fb2 := &fakeBackend{hosts: testHosts, previewErr: &keelclient.StatusError{Code: 500, Msg: "boom"}}
+	fb2 := &fakeBackend{hosts: testHosts, previewErr: &slimeclient.StatusError{Code: 500, Msg: "boom"}}
 	r2 := atHosts(t, fb2)
 	r2.texts(t, "Slime could not read ~/.ssh/config: boom")
 	// No table: only Skip, and Add hosts is off.
@@ -398,7 +398,7 @@ func TestFirstRunOpenKeelEndsTheFirstRunAndOpensTheWorkspace(t *testing.T) {
 }
 
 func TestFirstRunSecondWindowOpensStraightToTheWorkspaceOnceItIsDone(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, vault: keelclient.Vault{FirstRun: false}}
+	fb := &fakeBackend{hosts: testHosts, vault: slimeclient.Vault{FirstRun: false}}
 	r := newRig(t, fb)
 	r.tt.Frame()
 	if r.w.first != nil || !r.tt.HasText("Filter hosts") {
@@ -424,8 +424,8 @@ func TestFirstRunSetupWithNoFirstRunLeftGoesStraightToTheWorkspace(t *testing.T)
 // The palette's import is step 2 on its own: no step row, Cancel instead of Skip, no Back, and it ends back in
 // the window with a status line.
 func TestPaletteImportOpensStep2AloneAndEndsInTheWindow(t *testing.T) {
-	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), vault: keelclient.Vault{SSHConfig: "~/.ssh/config"}}
-	fb.importRes = keelclient.ImportResult{Hosts: []keelclient.Host{{ID: "hx"}}}
+	fb := &fakeBackend{hosts: testHosts, preview: testPreview(), vault: slimeclient.Vault{SSHConfig: "~/.ssh/config"}}
+	fb.importRes = slimeclient.ImportResult{Hosts: []slimeclient.Host{{ID: "hx"}}}
 	r := newRig(t, fb)
 	r.tt.Frame()
 	r.openPal(t)
@@ -474,10 +474,10 @@ func TestFirstRunHidesTheWorkspaceAndTakesNoShortcut(t *testing.T) {
 }
 
 func TestVaultErrorsUseTheServersWords(t *testing.T) {
-	if got := vaultError(&keelclient.StatusError{Msg: "passphrase is required", Code: 400}); got != "passphrase is required" {
+	if got := vaultError(&slimeclient.StatusError{Msg: "passphrase is required", Code: 400}); got != "passphrase is required" {
 		t.Error(got)
 	}
-	if got := vaultError(keelclient.ErrVaultExists); got != "The vault already exists" {
+	if got := vaultError(slimeclient.ErrVaultExists); got != "The vault already exists" {
 		t.Error(got)
 	}
 	if got := vaultError(errors.New("dial tcp: refused")); got != "dial tcp: refused" {
@@ -548,7 +548,7 @@ func TestFirstRunStep3GeminiNeedsAKeyThenSendsItOnceAndEmptiesTheField(t *testin
 
 func TestFirstRunStep3ARefusedKeyStaysOnTheStepAndIsTypedAgain(t *testing.T) {
 	fb := &fakeBackend{hosts: testHosts, preview: testPreview()}
-	fb.agent.keyErr = &keelclient.StatusError{Code: 423, Msg: "vault is locked"}
+	fb.agent.keyErr = &slimeclient.StatusError{Code: 423, Msg: "vault is locked"}
 	r := atAgentStep(t, fb)
 	r.click(t, "Google Gemini")
 	r.tt.Frame()

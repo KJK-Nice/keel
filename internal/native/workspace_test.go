@@ -17,8 +17,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -32,29 +32,29 @@ type fakeConn struct {
 	writes   [][]byte // each Write, in order
 	writeErr error    // what Write answers (the bytes are recorded either way)
 	wmu      sync.Mutex
-	st       *keelclient.State // when set, Snapshot returns it (its Status wins over status)
-	took     int               // TakeControl calls
-	asked    int               // RequestControl calls
+	st       *slimeclient.State // when set, Snapshot returns it (its Status wins over status)
+	took     int                // TakeControl calls
+	asked    int                // RequestControl calls
 
-	granted []uint64           // GrantControl, the peer ids in order
-	events  []keelclient.Event // what Events hands over once
+	granted []uint64            // GrantControl, the peer ids in order
+	events  []slimeclient.Event // what Events hands over once
 
-	injected   []string                    // what ApprovedInject was asked to type, in order
-	injectOpts [][]keelclient.InjectOption // the options of each, in the same order
-	injectErr  error                       // what it answers
-	agentRefs  []*keelclient.AgentRef      // the agent reference of each, nil for a snippet
+	injected   []string                     // what ApprovedInject was asked to type, in order
+	injectOpts [][]slimeclient.InjectOption // the options of each, in the same order
+	injectErr  error                        // what it answers
+	agentRefs  []*slimeclient.AgentRef      // the agent reference of each, nil for a snippet
 
 	// DirectType, recorded: the bare command, the direct part and the agent reference of each call, in order.
 	directs   []fakeDirect
-	directRes keelclient.DirectResult // what it answers; the zero value is a refusal with no words, so a test sets it
+	directRes slimeclient.DirectResult // what it answers; the zero value is a refusal with no words, so a test sets it
 	directErr error
 	directGo  chan struct{} // when set, a DirectType waits for it to be closed
 
 	// In-pane suggestions, recorded: the questions (seq and line), the answers slime serve "pushed", the inserts asked for
 	// and what they answer, and the words restored.
 	detects, asks []fakeAsk
-	sugEvents     []keelclient.SuggestEvent
-	sugInserts    []keelclient.SuggestionRef
+	sugEvents     []slimeclient.SuggestEvent
+	sugInserts    []slimeclient.SuggestionRef
 	sugInsertErr  error
 	restored      []string
 }
@@ -68,15 +68,15 @@ type fakeAsk struct {
 // fakeDirect is one DirectType call.
 type fakeDirect struct {
 	command string
-	ref     keelclient.DirectRef
-	agent   *keelclient.AgentRef
+	ref     slimeclient.DirectRef
+	agent   *slimeclient.AgentRef
 }
 
-func (c *fakeConn) state() keelclient.State {
+func (c *fakeConn) state() slimeclient.State {
 	if c.st != nil {
 		return *c.st
 	}
-	return keelclient.State{Status: wire.Status(c.status)}
+	return slimeclient.State{Status: wire.Status(c.status)}
 }
 
 func (c *fakeConn) Read([]byte) (int, error) { return 0, io.EOF }
@@ -94,29 +94,29 @@ func (c *fakeConn) written() string {
 	defer c.wmu.Unlock()
 	return string(slices.Concat(c.writes...))
 }
-func (c *fakeConn) Close() error               { c.closed = true; return nil }
-func (c *fakeConn) Resize(int, int) error      { return nil }
-func (c *fakeConn) SessionID() string          { return c.id }
-func (c *fakeConn) Snapshot() keelclient.State { return c.state() }
-func (c *fakeConn) RequestControl() error      { c.asked++; return nil }
-func (c *fakeConn) TakeControl() error         { c.took++; return nil }
-func (c *fakeConn) OnChange(fn func())         { c.onChange = fn }
+func (c *fakeConn) Close() error                { c.closed = true; return nil }
+func (c *fakeConn) Resize(int, int) error       { return nil }
+func (c *fakeConn) SessionID() string           { return c.id }
+func (c *fakeConn) Snapshot() slimeclient.State { return c.state() }
+func (c *fakeConn) RequestControl() error       { c.asked++; return nil }
+func (c *fakeConn) TakeControl() error          { c.took++; return nil }
+func (c *fakeConn) OnChange(fn func())          { c.onChange = fn }
 func (c *fakeConn) GrantControl(id uint64) error {
 	c.granted = append(c.granted, id)
 	return nil
 }
-func (c *fakeConn) Events() []keelclient.Event {
+func (c *fakeConn) Events() []slimeclient.Event {
 	out := c.events
 	c.events = nil
 	return out
 }
-func (c *fakeConn) ApprovedInject(_ context.Context, command string, agent *keelclient.AgentRef, opts ...keelclient.InjectOption) error {
+func (c *fakeConn) ApprovedInject(_ context.Context, command string, agent *slimeclient.AgentRef, opts ...slimeclient.InjectOption) error {
 	c.injected = append(c.injected, command)
 	c.injectOpts = append(c.injectOpts, opts)
 	c.agentRefs = append(c.agentRefs, agent)
 	return c.injectErr
 }
-func (c *fakeConn) DirectType(_ context.Context, command string, ref keelclient.DirectRef, agent *keelclient.AgentRef) (keelclient.DirectResult, error) {
+func (c *fakeConn) DirectType(_ context.Context, command string, ref slimeclient.DirectRef, agent *slimeclient.AgentRef) (slimeclient.DirectResult, error) {
 	c.directs = append(c.directs, fakeDirect{command, ref, agent})
 	if c.directGo != nil {
 		<-c.directGo
@@ -132,12 +132,12 @@ func (c *fakeConn) SuggestAsk(seq int, line string) error {
 	c.asks = append(c.asks, fakeAsk{seq, line})
 	return nil
 }
-func (c *fakeConn) SuggestEvents() []keelclient.SuggestEvent {
+func (c *fakeConn) SuggestEvents() []slimeclient.SuggestEvent {
 	out := c.sugEvents
 	c.sugEvents = nil
 	return out
 }
-func (c *fakeConn) SuggestInsert(_ context.Context, ref keelclient.SuggestionRef) error {
+func (c *fakeConn) SuggestInsert(_ context.Context, ref slimeclient.SuggestionRef) error {
 	c.sugInserts = append(c.sugInserts, ref)
 	return c.sugInsertErr
 }
@@ -150,9 +150,9 @@ func (c *fakeConn) RestoreWords(words string) error {
 type fakeBackend struct {
 	attachErr map[string]error // Attach fails for these session ids
 	hostsErr  error            // Hosts fails once, then answers
-	vault     keelclient.Vault
-	hosts     []keelclient.Host
-	sessions  []keelclient.Session
+	vault     slimeclient.Vault
+	hosts     []slimeclient.Host
+	sessions  []slimeclient.Session
 	calls     []string
 	spawned   []string // host ids
 	attached  []string // session ids
@@ -161,10 +161,10 @@ type fakeBackend struct {
 	n         int
 
 	reconnected []string
-	trusted     []keelclient.HostKey
+	trusted     []slimeclient.HostKey
 	replaced    []bool
 
-	created []keelclient.NewHost // what CreateHost was asked for
+	created []slimeclient.NewHost // what CreateHost was asked for
 
 	// The Unlock screen and the host dialog. unlockWant is the passphrase that opens the vault; the fake keeps
 	// no passphrase.
@@ -173,33 +173,33 @@ type fakeBackend struct {
 	vaultCalls  int
 	hostsCalls  int
 
-	saved       []keelclient.HostDetail // SaveHost, as sent
+	saved       []slimeclient.HostDetail // SaveHost, as sent
 	deleted     []string
 	duplicated  []string
-	tests       []keelclient.HostDetail // TestHost, as sent
-	testReply   []keelclient.TestResult // answered in turn; the last repeats
-	testWait    chan struct{}           // when set, TestHost waits for it or its context
-	savedKey    keelclient.KnownKey
+	tests       []slimeclient.HostDetail // TestHost, as sent
+	testReply   []slimeclient.TestResult // answered in turn; the last repeats
+	testWait    chan struct{}            // when set, TestHost waits for it or its context
+	savedKey    slimeclient.KnownKey
 	forgot      []string
 	readable    map[string]bool
-	identities  []keelclient.Identity
-	groups      []keelclient.Group
+	identities  []slimeclient.Identity
+	groups      []slimeclient.Group
 	saveErr     error
 	nextHostSeq int
 
 	// First run and the pages.
 	setups       []string // SetupVault, the passphrases as sent (made-up test values)
 	setupErr     error
-	preview      keelclient.SSHPreview
+	preview      slimeclient.SSHPreview
 	previewErr   error
-	imports      []keelclient.ImportRequest
+	imports      []slimeclient.ImportRequest
 	importErr    error
-	importRes    keelclient.ImportResult
+	importRes    slimeclient.ImportResult
 	firstRunDone int
-	identSaved   []keelclient.IdentityInput
+	identSaved   []slimeclient.IdentityInput
 	identDeleted []string
 	identSaveErr error
-	logs         []keelclient.LogEntry
+	logs         []slimeclient.LogEntry
 	logsCalls    int
 	logLimit     int
 	nextIdentSeq int
@@ -208,16 +208,16 @@ type fakeBackend struct {
 	nbc *fakeNBCards   // agentnotebooks_fake_test.go
 
 	// Snippets.
-	snippets     []keelclient.Snippet
-	snipSaved    []keelclient.SnippetInput
+	snippets     []slimeclient.Snippet
+	snipSaved    []slimeclient.SnippetInput
 	snipDeleted  []string
 	snipSaveErr  error
 	nextSnipSeq  int
 	snippetCalls int
 
 	// Port forwarding.
-	tunnels     []keelclient.Tunnel
-	tunSaved    []keelclient.TunnelInput
+	tunnels     []slimeclient.Tunnel
+	tunSaved    []slimeclient.TunnelInput
 	tunStarted  []string
 	tunStopped  []string
 	tunDeleted  []string
@@ -226,7 +226,7 @@ type fakeBackend struct {
 	tunCalls    int
 
 	// Settings.
-	runtime      keelclient.Runtime
+	runtime      slimeclient.Runtime
 	signalSet    []string // SetSignal, as sent
 	signalErr    error
 	runtimeStops int
@@ -270,21 +270,21 @@ func (f *fakeBackend) StopShare(_ context.Context, sid string) error {
 
 func (f *fakeBackend) rec(s string) { f.calls = append(f.calls, s) }
 
-func (f *fakeBackend) Vault(context.Context) (keelclient.Vault, error) {
+func (f *fakeBackend) Vault(context.Context) (slimeclient.Vault, error) {
 	f.rec("vault")
 	f.vaultCalls++
 	return f.vault, nil
 }
-func (f *fakeBackend) Hosts(context.Context) ([]keelclient.Host, error) {
+func (f *fakeBackend) Hosts(context.Context) ([]slimeclient.Host, error) {
 	f.rec("hosts")
 	f.hostsCalls++
 	if err := f.hostsErr; err != nil {
 		f.hostsErr = nil
 		return nil, err
 	}
-	return append([]keelclient.Host(nil), f.hosts...), nil
+	return append([]slimeclient.Host(nil), f.hosts...), nil
 }
-func (f *fakeBackend) Sessions(context.Context) ([]keelclient.Session, error) {
+func (f *fakeBackend) Sessions(context.Context) ([]slimeclient.Session, error) {
 	f.rec("sessions")
 	return f.sessions, nil
 }
@@ -313,17 +313,17 @@ func (f *fakeBackend) Reconnect(_ context.Context, id string) error {
 	f.reconnected = append(f.reconnected, id)
 	return nil
 }
-func (f *fakeBackend) TrustHostKey(_ context.Context, k keelclient.HostKey, replace bool) error {
+func (f *fakeBackend) TrustHostKey(_ context.Context, k slimeclient.HostKey, replace bool) error {
 	f.calls = append(f.calls, "trust")
 	f.trusted = append(f.trusted, k)
 	f.replaced = append(f.replaced, replace)
 	return nil
 }
 
-func (f *fakeBackend) CreateHost(_ context.Context, h keelclient.NewHost) (keelclient.Host, error) {
+func (f *fakeBackend) CreateHost(_ context.Context, h slimeclient.NewHost) (slimeclient.Host, error) {
 	f.calls = append(f.calls, "create host")
 	f.created = append(f.created, h)
-	out := keelclient.Host{ID: fmt.Sprintf("h-new%d", len(f.created)), Name: h.Name, Group: h.Group, Address: h.Address, Username: h.Username, AuthType: h.AuthType, Color: h.Color, Port: h.Port}
+	out := slimeclient.Host{ID: fmt.Sprintf("h-new%d", len(f.created)), Name: h.Name, Group: h.Group, Address: h.Address, Username: h.Username, AuthType: h.AuthType, Color: h.Color, Port: h.Port}
 	f.hosts = append(f.hosts, out)
 	return out, nil
 }
@@ -332,19 +332,19 @@ func (f *fakeBackend) Unlock(_ context.Context, pass string) error {
 	f.rec("unlock")
 	f.unlockCalls++
 	if pass != f.unlockWant {
-		return keelclient.ErrPassphrase
+		return slimeclient.ErrPassphrase
 	}
 	f.vault.Locked = false
 	return nil
 }
 
-func (f *fakeBackend) SaveHost(_ context.Context, h keelclient.HostDetail) (keelclient.Host, error) {
+func (f *fakeBackend) SaveHost(_ context.Context, h slimeclient.HostDetail) (slimeclient.Host, error) {
 	f.rec("save host")
 	f.saved = append(f.saved, h)
 	if f.saveErr != nil {
-		return keelclient.Host{}, f.saveErr
+		return slimeclient.Host{}, f.saveErr
 	}
-	out := keelclient.Host{ID: h.ID, Name: h.Name, GroupID: h.GroupID, Address: h.Address, Username: h.Username, AuthType: h.AuthType,
+	out := slimeclient.Host{ID: h.ID, Name: h.Name, GroupID: h.GroupID, Address: h.Address, Username: h.Username, AuthType: h.AuthType,
 		Color: h.Color, Port: h.Port, Tags: h.Tags, JumpHost: h.JumpHost, StartupCommand: h.StartupCommand, KeepAliveSec: h.KeepAliveSec,
 		NoAutoReconnect: h.NoAutoReconnect, IdentityID: h.IdentityID, AgentReadable: h.AgentReadable, Production: h.Production, AgentNotes: h.AgentNotes}
 	if out.ID == "" {
@@ -373,7 +373,7 @@ func (f *fakeBackend) DeleteHost(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeBackend) DuplicateHost(_ context.Context, id string) (keelclient.Host, error) {
+func (f *fakeBackend) DuplicateHost(_ context.Context, id string) (slimeclient.Host, error) {
 	f.rec("duplicate host")
 	f.duplicated = append(f.duplicated, id)
 	for _, h := range f.hosts {
@@ -383,21 +383,21 @@ func (f *fakeBackend) DuplicateHost(_ context.Context, id string) (keelclient.Ho
 			return h, nil
 		}
 	}
-	return keelclient.Host{}, fmt.Errorf("not found")
+	return slimeclient.Host{}, fmt.Errorf("not found")
 }
 
-func (f *fakeBackend) TestHost(ctx context.Context, h keelclient.HostDetail) (keelclient.TestResult, error) {
+func (f *fakeBackend) TestHost(ctx context.Context, h slimeclient.HostDetail) (slimeclient.TestResult, error) {
 	f.rec("test host")
 	f.tests = append(f.tests, h)
 	if f.testWait != nil {
 		select {
 		case <-f.testWait:
 		case <-ctx.Done():
-			return keelclient.TestResult{}, ctx.Err()
+			return slimeclient.TestResult{}, ctx.Err()
 		}
 	}
 	if len(f.testReply) == 0 {
-		return keelclient.TestResult{OK: true, Kind: "ok", LatencyMs: 12}, nil
+		return slimeclient.TestResult{OK: true, Kind: "ok", LatencyMs: 12}, nil
 	}
 	r := f.testReply[0]
 	if len(f.testReply) > 1 {
@@ -406,7 +406,7 @@ func (f *fakeBackend) TestHost(ctx context.Context, h keelclient.HostDetail) (ke
 	return r, nil
 }
 
-func (f *fakeBackend) HostKey(context.Context, string) (keelclient.KnownKey, error) {
+func (f *fakeBackend) HostKey(context.Context, string) (slimeclient.KnownKey, error) {
 	f.rec("host key")
 	return f.savedKey, nil
 }
@@ -414,7 +414,7 @@ func (f *fakeBackend) HostKey(context.Context, string) (keelclient.KnownKey, err
 func (f *fakeBackend) ForgetHostKey(_ context.Context, id string) error {
 	f.rec("forget host key")
 	f.forgot = append(f.forgot, id)
-	f.savedKey = keelclient.KnownKey{}
+	f.savedKey = slimeclient.KnownKey{}
 	return nil
 }
 
@@ -427,8 +427,8 @@ func (f *fakeBackend) SetAgentReadable(_ context.Context, id string, v bool) err
 	return nil
 }
 
-func (f *fakeBackend) Identities(context.Context) ([]keelclient.Identity, error) {
-	return append([]keelclient.Identity(nil), f.identities...), nil
+func (f *fakeBackend) Identities(context.Context) ([]slimeclient.Identity, error) {
+	return append([]slimeclient.Identity(nil), f.identities...), nil
 }
 
 func (f *fakeBackend) SetupVault(_ context.Context, pass string) error {
@@ -441,12 +441,12 @@ func (f *fakeBackend) SetupVault(_ context.Context, pass string) error {
 	return nil
 }
 
-func (f *fakeBackend) SSHConfigPreview(context.Context) (keelclient.SSHPreview, error) {
+func (f *fakeBackend) SSHConfigPreview(context.Context) (slimeclient.SSHPreview, error) {
 	f.rec("ssh preview")
 	return f.preview, f.previewErr
 }
 
-func (f *fakeBackend) SSHConfigImport(_ context.Context, req keelclient.ImportRequest) (keelclient.ImportResult, error) {
+func (f *fakeBackend) SSHConfigImport(_ context.Context, req slimeclient.ImportRequest) (slimeclient.ImportResult, error) {
 	f.rec("ssh import")
 	f.imports = append(f.imports, req)
 	return f.importRes, f.importErr
@@ -459,13 +459,13 @@ func (f *fakeBackend) FirstRunDone(context.Context) error {
 	return nil
 }
 
-func (f *fakeBackend) SaveIdentity(_ context.Context, in keelclient.IdentityInput) (keelclient.Identity, error) {
+func (f *fakeBackend) SaveIdentity(_ context.Context, in slimeclient.IdentityInput) (slimeclient.Identity, error) {
 	f.rec("save identity")
 	f.identSaved = append(f.identSaved, in)
 	if f.identSaveErr != nil {
-		return keelclient.Identity{}, f.identSaveErr
+		return slimeclient.Identity{}, f.identSaveErr
 	}
-	out := keelclient.Identity{ID: in.ID, Name: in.Name, Kind: in.Kind, Username: in.Username,
+	out := slimeclient.Identity{ID: in.ID, Name: in.Name, Kind: in.Kind, Username: in.Username,
 		HasPassword: in.Password != "", HasPrivateKey: in.PrivateKey != "", HasPassphrase: in.Passphrase != ""}
 	if in.ID == "" {
 		f.nextIdentSeq++
@@ -498,24 +498,24 @@ func (f *fakeBackend) DeleteIdentity(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeBackend) Logs(_ context.Context, limit int) ([]keelclient.LogEntry, error) {
+func (f *fakeBackend) Logs(_ context.Context, limit int) ([]slimeclient.LogEntry, error) {
 	f.rec("logs")
 	f.logsCalls++
 	f.logLimit = limit
-	return append([]keelclient.LogEntry(nil), f.logs...), nil
+	return append([]slimeclient.LogEntry(nil), f.logs...), nil
 }
-func (f *fakeBackend) Tunnels(context.Context) ([]keelclient.Tunnel, error) {
+func (f *fakeBackend) Tunnels(context.Context) ([]slimeclient.Tunnel, error) {
 	f.tunCalls++
-	return append([]keelclient.Tunnel(nil), f.tunnels...), nil
+	return append([]slimeclient.Tunnel(nil), f.tunnels...), nil
 }
 
-func (f *fakeBackend) SaveTunnel(_ context.Context, in keelclient.TunnelInput) (keelclient.Tunnel, error) {
+func (f *fakeBackend) SaveTunnel(_ context.Context, in slimeclient.TunnelInput) (slimeclient.Tunnel, error) {
 	f.rec("save tunnel")
 	f.tunSaved = append(f.tunSaved, in)
 	if f.tunSaveErr != nil {
-		return keelclient.Tunnel{}, f.tunSaveErr
+		return slimeclient.Tunnel{}, f.tunSaveErr
 	}
-	out := keelclient.Tunnel{ID: in.ID, Name: in.Name, HostID: in.HostID, Kind: in.Kind, BindAddr: in.BindAddr, BindPort: in.BindPort,
+	out := slimeclient.Tunnel{ID: in.ID, Name: in.Name, HostID: in.HostID, Kind: in.Kind, BindAddr: in.BindAddr, BindPort: in.BindPort,
 		DestHost: in.DestHost, DestPort: in.DestPort, Status: "stopped"}
 	if in.ID == "" {
 		out.ID = fmt.Sprintf("t-new%d", len(f.tunSaved))
@@ -543,43 +543,43 @@ func (f *fakeBackend) DeleteTunnel(_ context.Context, id string) error {
 	return nil
 }
 
-func (f *fakeBackend) setTunnel(id, status string) keelclient.Tunnel {
+func (f *fakeBackend) setTunnel(id, status string) slimeclient.Tunnel {
 	for i := range f.tunnels {
 		if f.tunnels[i].ID == id {
 			f.tunnels[i].Status = status
 			return f.tunnels[i]
 		}
 	}
-	return keelclient.Tunnel{}
+	return slimeclient.Tunnel{}
 }
 
-func (f *fakeBackend) StartTunnel(_ context.Context, id string) (keelclient.Tunnel, error) {
+func (f *fakeBackend) StartTunnel(_ context.Context, id string) (slimeclient.Tunnel, error) {
 	f.rec("start tunnel " + id)
 	f.tunStarted = append(f.tunStarted, id)
 	if f.tunStartErr != nil {
-		return keelclient.Tunnel{}, f.tunStartErr
+		return slimeclient.Tunnel{}, f.tunStartErr
 	}
 	return f.setTunnel(id, "ready"), nil
 }
 
-func (f *fakeBackend) StopTunnel(_ context.Context, id string) (keelclient.Tunnel, error) {
+func (f *fakeBackend) StopTunnel(_ context.Context, id string) (slimeclient.Tunnel, error) {
 	f.rec("stop tunnel " + id)
 	f.tunStopped = append(f.tunStopped, id)
 	return f.setTunnel(id, "stopped"), nil
 }
 
-func (f *fakeBackend) Runtime(context.Context) (keelclient.Runtime, error) {
+func (f *fakeBackend) Runtime(context.Context) (slimeclient.Runtime, error) {
 	f.rec("runtime")
 	r := f.runtime
 	r.Sessions = len(f.conns)
 	return r, nil
 }
 
-func (f *fakeBackend) SetSignal(_ context.Context, url string) (keelclient.Runtime, error) {
+func (f *fakeBackend) SetSignal(_ context.Context, url string) (slimeclient.Runtime, error) {
 	f.rec("set signal")
 	f.signalSet = append(f.signalSet, url)
 	if f.signalErr != nil {
-		return keelclient.Runtime{}, f.signalErr
+		return slimeclient.Runtime{}, f.signalErr
 	}
 	f.runtime.SignalSaved, f.runtime.SignalURL, f.runtime.SignalSource = url, url, "settings"
 	if url == "" {
@@ -594,9 +594,9 @@ func (f *fakeBackend) StopRuntime(context.Context) error {
 	return f.stopErr
 }
 
-func (f *fakeBackend) Groups(context.Context) ([]keelclient.Group, error) { return f.groups, nil }
+func (f *fakeBackend) Groups(context.Context) ([]slimeclient.Group, error) { return f.groups, nil }
 
-var testHosts = []keelclient.Host{
+var testHosts = []slimeclient.Host{
 	{ID: "h-pg", Name: "pg-primary", Group: "production", Address: "10.0.0.3", Username: "dba", AuthType: "key"},
 	{ID: "h-api", Name: "api-1", Group: "production", Address: "10.0.0.1", Username: "deploy", AuthType: "key"},
 	{ID: "h-web", Name: "staging-web", Group: "staging", Address: "10.1.0.1", Username: "ci", AuthType: "password"},
@@ -664,10 +664,10 @@ func TestLockedOrUnsetVaultMakesNoOtherCall(t *testing.T) {
 	// A locked vault that needs no setup shows the Unlock screen, whatever firstRun says; setup, and an unlocked
 	// first run, show First run's step 1. None of them reads the hosts or the sessions.
 	for _, c := range []struct {
-		v      keelclient.Vault
+		v      slimeclient.Vault
 		unlock bool
-	}{{keelclient.Vault{Locked: true}, true}, {keelclient.Vault{Locked: true, NeedsSetup: true}, false}, {keelclient.Vault{NeedsSetup: true}, false},
-		{keelclient.Vault{FirstRun: true}, false}, {keelclient.Vault{Locked: true, FirstRun: true}, true}} {
+	}{{slimeclient.Vault{Locked: true}, true}, {slimeclient.Vault{Locked: true, NeedsSetup: true}, false}, {slimeclient.Vault{NeedsSetup: true}, false},
+		{slimeclient.Vault{FirstRun: true}, false}, {slimeclient.Vault{Locked: true, FirstRun: true}, true}} {
 		fb := &fakeBackend{vault: c.v, hosts: testHosts}
 		r := newRig(t, fb)
 		r.tt.Frame()
@@ -759,7 +759,7 @@ func TestPlusOpensANewTabPage(t *testing.T) {
 
 func TestLiveSessionsBecomeTabsAttachedByID(t *testing.T) {
 	fb := okBackend()
-	fb.sessions = []keelclient.Session{
+	fb.sessions = []slimeclient.Session{
 		{ID: "s-a", HostID: "h-api", Status: "ready", Cols: 100, Rows: 30},
 		{ID: "s-b", HostID: "h-gone", Title: "old host", Status: "connecting"},
 		{ID: "s-c", HostID: "h-api", Status: "exited"},
@@ -1037,8 +1037,8 @@ func TestHostTint(t *testing.T) {
 
 // A narrow pane bar keeps its tools whole: user@address and the host name give way, not the buttons.
 func TestNarrowPaneBarKeepsItsTools(t *testing.T) {
-	long := keelclient.Host{ID: "h-long", Name: "a-very-long-production-host-name", Address: "very-long-address.internal.example.com", Username: "deploy-user", AuthType: "key"}
-	r := newRig(t, &fakeBackend{hosts: []keelclient.Host{long}})
+	long := slimeclient.Host{ID: "h-long", Name: "a-very-long-production-host-name", Address: "very-long-address.internal.example.com", Username: "deploy-user", AuthType: "key"}
+	r := newRig(t, &fakeBackend{hosts: []slimeclient.Host{long}})
 	r.tt.Frame()
 	r.click(t, "host "+long.Name)
 	r.click(t, "Split right")
@@ -1188,18 +1188,18 @@ func TestPrefsFileOfV021LoadsKeepsUnknownKeysAndRoundTrips(t *testing.T) {
 	}
 }
 
-func (f *fakeBackend) Snippets(context.Context) ([]keelclient.Snippet, error) {
+func (f *fakeBackend) Snippets(context.Context) ([]slimeclient.Snippet, error) {
 	f.snippetCalls++
-	return append([]keelclient.Snippet(nil), f.snippets...), nil
+	return append([]slimeclient.Snippet(nil), f.snippets...), nil
 }
 
-func (f *fakeBackend) SaveSnippet(_ context.Context, in keelclient.SnippetInput) (keelclient.Snippet, error) {
+func (f *fakeBackend) SaveSnippet(_ context.Context, in slimeclient.SnippetInput) (slimeclient.Snippet, error) {
 	f.rec("save snippet")
 	f.snipSaved = append(f.snipSaved, in)
 	if f.snipSaveErr != nil {
-		return keelclient.Snippet{}, f.snipSaveErr
+		return slimeclient.Snippet{}, f.snipSaveErr
 	}
-	out := keelclient.Snippet{ID: in.ID, Name: in.Name, Command: in.Command}
+	out := slimeclient.Snippet{ID: in.ID, Name: in.Name, Command: in.Command}
 	if in.ID == "" {
 		f.nextSnipSeq++
 		out.ID = fmt.Sprintf("sn-new%d", f.nextSnipSeq)

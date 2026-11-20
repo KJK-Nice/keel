@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"slime/internal/cmdrule"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13): pure helpers, no window and no session.
@@ -31,8 +31,8 @@ func snippetBadge(command string) string {
 }
 
 // proposalDirect: an agent proposal that slime serve should type without the dialog, as far as the window knows.
-func proposalDirect(p keelclient.Proposal) bool {
-	return p.Risk == keelclient.RiskReadOnly && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && cmdrule.DirectSafe(p.Command)
+func proposalDirect(p slimeclient.Proposal) bool {
+	return p.Risk == slimeclient.RiskReadOnly && !p.NeedsShift && !p.Placeholders && !strings.Contains(p.Command, "{{") && cmdrule.DirectSafe(p.Command)
 }
 
 // typeWord adds the ellipsis when a dialog will follow the press.

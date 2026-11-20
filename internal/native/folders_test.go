@@ -9,28 +9,28 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The folder rules, and the folder tree, menus, dialog
 // and drops of the window.
 
 // infra > db > replicas ; apps (the forest the tests use)
-var testGroups = []keelclient.Group{
+var testGroups = []slimeclient.Group{
 	{ID: "infra", Name: "Infra"},
 	{ID: "db", Name: "db", ParentID: "infra"},
 	{ID: "rep", Name: "Replicas", ParentID: "db"},
 	{ID: "apps", Name: "Apps"},
 }
 
-var jsHosts = []keelclient.Host{
+var jsHosts = []slimeclient.Host{
 	{ID: "h1", Name: "pg-1", Address: "10.0.0.1", Username: "root", GroupID: "db", Tags: []string{"postgres"}},
 	{ID: "h2", Name: "pg-2", Address: "10.0.0.2", Username: "root", GroupID: "rep"},
 	{ID: "h3", Name: "web", Address: "10.1.0.1", Username: "deploy", GroupID: "apps"},
 	{ID: "h4", Name: "laptop", Address: "127.0.0.1", Username: "me"},
 }
 
-func hostIDs(hs []keelclient.Host) (out []string) {
+func hostIDs(hs []slimeclient.Host) (out []string) {
 	for _, h := range hs {
 		out = append(out, h.ID)
 	}
@@ -71,7 +71,7 @@ func TestFolderRulesDepthsAndAncestry(t *testing.T) {
 }
 
 func TestFolderRulesCyclesDoNotHang(t *testing.T) { // "cycles in group data don't hang"
-	loop := []keelclient.Group{{ID: "a", Name: "A", ParentID: "b"}, {ID: "b", Name: "B", ParentID: "a"}}
+	loop := []slimeclient.Group{{ID: "a", Name: "A", ParentID: "b"}, {ID: "b", Name: "B", ParentID: "a"}}
 	if got := groupDepth(loop, "a"); got != 2 {
 		t.Errorf("groupDepth in a loop = %d", got)
 	}
@@ -125,13 +125,13 @@ func TestFolderRulesTagsAndSubtitles(t *testing.T) { // "tags and subtitles" (pa
 	if got := parseTags(" a, ,b ,c"); !slices.Equal(got, []string{"a", "b", "c"}) {
 		t.Errorf("tags %v", got)
 	}
-	if got := hostSubtitle(keelclient.Host{Username: "u", Address: "h", Port: 2222, IdentityID: "i"}); got != "u@h:2222 · identity" {
+	if got := hostSubtitle(slimeclient.Host{Username: "u", Address: "h", Port: 2222, IdentityID: "i"}); got != "u@h:2222 · identity" {
 		t.Errorf("subtitle %q", got)
 	}
-	if got := hostSubtitle(keelclient.Host{Username: "u", Address: "h", Port: 22}); got != "u@h" {
+	if got := hostSubtitle(slimeclient.Host{Username: "u", Address: "h", Port: 22}); got != "u@h" {
 		t.Errorf("subtitle %q", got)
 	}
-	if got := hostSubtitle(keelclient.Host{AuthType: "local"}); got != "this machine" {
+	if got := hostSubtitle(slimeclient.Host{AuthType: "local"}); got != "this machine" {
 		t.Errorf("subtitle %q", got)
 	}
 }
@@ -149,11 +149,11 @@ func TestFolderRulesRefusals(t *testing.T) {
 			t.Errorf("move %s -> %q: %q, want %q", c.id, c.dest, got, c.want)
 		}
 	}
-	var deep []keelclient.Group
+	var deep []slimeclient.Group
 	parent := ""
 	for i := 0; i < maxGroupDepth; i++ {
 		id := string(rune('a' + i))
-		deep = append(deep, keelclient.Group{ID: id, Name: id, ParentID: parent})
+		deep = append(deep, slimeclient.Group{ID: id, Name: id, ParentID: parent})
 		parent = id
 	}
 	if folderCreateRefusal(deep, "h") != msgGroupDepth || folderCreateRefusal(deep, "g") != "" || folderCreateRefusal(deep, "zz") != "Group not found" {
@@ -170,7 +170,7 @@ func folderRig(t *testing.T) *rig {
 	t.Helper()
 	fb := okBackend()
 	fb.groups = slices.Clone(testGroups)
-	fb.hosts = append(slices.Clone(jsHosts), keelclient.Host{ID: "h-local", Name: "Local Shell", AuthType: "local"})
+	fb.hosts = append(slices.Clone(jsHosts), slimeclient.Host{ID: "h-local", Name: "Local Shell", AuthType: "local"})
 	for i := range fb.hosts {
 		fb.hosts[i].Group = fb.groupName(fb.hosts[i].GroupID)
 	}
@@ -380,7 +380,7 @@ func TestSubgroupBelowTheDepthLimitIsRefused(t *testing.T) {
 		if i > 0 {
 			parent = "deep" + string(rune('0'+i-1))
 		}
-		r.fb.groups = append(r.fb.groups, keelclient.Group{ID: "deep" + string(rune('0'+i)), Name: "deep" + string(rune('0'+i)), ParentID: parent})
+		r.fb.groups = append(r.fb.groups, slimeclient.Group{ID: "deep" + string(rune('0'+i)), Name: "deep" + string(rune('0'+i)), ParentID: parent})
 	}
 	r.w.reloadFolders()
 	r.tt.Frame()
@@ -529,7 +529,7 @@ func TestDraggingAFolderOntoAFolderNestsItAndTheRefusalsAreTheApps(t *testing.T)
 
 func TestFolderRequestsFailWithTheServersWords(t *testing.T) {
 	r := folderRig(t)
-	r.fb.fold.err = &keelclient.StatusError{Code: 400, Msg: "group nest is deeper than 8"}
+	r.fb.fold.err = &slimeclient.StatusError{Code: 400, Msg: "group nest is deeper than 8"}
 	r.w.moveFolderTo("apps", "infra")
 	r.tt.Frame()
 	if _, ok := r.tt.Find("toast group nest is deeper than 8"); !ok {
@@ -538,7 +538,7 @@ func TestFolderRequestsFailWithTheServersWords(t *testing.T) {
 }
 
 // hostsInSubtree is the hosts in focus's subtree (all hosts with no focus) that match query.
-func hostsInSubtree(groups []keelclient.Group, hosts []keelclient.Host, focus, query string) (out []keelclient.Host) {
+func hostsInSubtree(groups []slimeclient.Group, hosts []slimeclient.Host, focus, query string) (out []slimeclient.Host) {
 	q := strings.ToLower(strings.TrimSpace(query))
 	allow := subtreeGroupIDs(groups, focus)
 	for _, h := range hosts {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -29,7 +29,7 @@ type notesEditor struct {
 	group   bool   // the notes of a folder (§17): about every host in it
 	groupID string
 
-	notes      []keelclient.Note
+	notes      []slimeclient.Note
 	loaded     bool
 	unreadable bool // keel.memory cannot be read: Delete all notes starts a fresh file
 	busy       bool
@@ -47,7 +47,7 @@ type notesEditor struct {
 }
 
 // mine picks this list's notes from all of them.
-func (e *notesEditor) mine(all []keelclient.Note) []keelclient.Note {
+func (e *notesEditor) mine(all []slimeclient.Note) []slimeclient.Note {
 	switch {
 	case e.user:
 		return userNotesOf(all)
@@ -67,7 +67,7 @@ func (w *workspace) loadNotes(e *notesEditor) {
 	if !e.saved() {
 		return
 	}
-	callIf(w, func() bool { return e.gen == gen }, w.be.Notes, func(l keelclient.NoteList, err error) {
+	callIf(w, func() bool { return e.gen == gen }, w.be.Notes, func(l slimeclient.NoteList, err error) {
 		if err != nil {
 			e.err = hostError(err)
 		} else {
@@ -77,13 +77,13 @@ func (w *workspace) loadNotes(e *notesEditor) {
 	})
 }
 
-func (e *notesEditor) find(id string) (keelclient.Note, bool) {
+func (e *notesEditor) find(id string) (slimeclient.Note, bool) {
 	for _, n := range e.notes {
 		if n.ID == id {
 			return n, true
 		}
 	}
-	return keelclient.Note{}, false
+	return slimeclient.Note{}, false
 }
 
 // noteSavedToast is the toast after an add or a save that replaced values: "Note added. 1 secret-looking value was replaced
@@ -111,14 +111,14 @@ func (w *workspace) addNote(e *notesEditor) {
 	}
 	e.busy, e.err = true, ""
 	gen := e.gen
-	in := keelclient.NoteInput{Text: text}
+	in := slimeclient.NoteInput{Text: text}
 	switch {
 	case e.group:
 		in.GroupID = e.groupID // a note has a host or a group, never both
 	case !e.user:
 		in.HostID = e.hostID
 	}
-	call(w, func(c context.Context) (keelclient.SavedNote, error) { return w.be.SaveNote(c, in) }, func(res keelclient.SavedNote, err error) {
+	call(w, func(c context.Context) (slimeclient.SavedNote, error) { return w.be.SaveNote(c, in) }, func(res slimeclient.SavedNote, err error) {
 		e.busy = false
 		if e.gen != gen {
 			return
@@ -160,9 +160,9 @@ func (w *workspace) saveNoteEdit(e *notesEditor) {
 	}
 	e.busy = true
 	gen := e.gen
-	call(w, func(c context.Context) (keelclient.SavedNote, error) {
-		return w.be.SaveNote(c, keelclient.NoteInput{ID: id, Text: text})
-	}, func(res keelclient.SavedNote, err error) {
+	call(w, func(c context.Context) (slimeclient.SavedNote, error) {
+		return w.be.SaveNote(c, slimeclient.NoteInput{ID: id, Text: text})
+	}, func(res slimeclient.SavedNote, err error) {
 		e.busy = false
 		if e.gen != gen {
 			return
@@ -199,7 +199,7 @@ func (w *workspace) deleteNote(e *notesEditor, id string) {
 			e.err = hostError(err)
 			return
 		}
-		var keep []keelclient.Note
+		var keep []slimeclient.Note
 		for _, n := range e.notes {
 			if n.ID != id {
 				keep = append(keep, n)
@@ -248,7 +248,7 @@ func (w *workspace) deleteAllNotes() {
 
 // agentNote is a note proposal on the thread: what slime serve holds, and what the card is doing.
 type agentNote struct {
-	n    keelclient.NoteProposal
+	n    slimeclient.NoteProposal
 	busy bool
 	err  string
 
@@ -260,7 +260,7 @@ type agentNote struct {
 }
 
 // registerNote adds a proposal to the conversation's cards.
-func (a *agentPanel) registerNote(n keelclient.NoteProposal) *agentNote {
+func (a *agentPanel) registerNote(n slimeclient.NoteProposal) *agentNote {
 	rec := &agentNote{n: n}
 	a.notes[n.ID] = rec
 	return rec
@@ -287,7 +287,9 @@ func (w *workspace) saveNoteProposal(id string) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	call(w, func(c context.Context) (keelclient.SavedNote, error) { return w.be.SaveProposedNote(c, conv, id, text) }, func(res keelclient.SavedNote, err error) {
+	call(w, func(c context.Context) (slimeclient.SavedNote, error) {
+		return w.be.SaveProposedNote(c, conv, id, text)
+	}, func(res slimeclient.SavedNote, err error) {
 		rec.busy = false
 		if a.conv != conv {
 			return
@@ -322,12 +324,12 @@ func (w *workspace) noteProposalAction(id string, undo bool) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	call(w, func(c context.Context) (keelclient.NoteProposal, error) {
+	call(w, func(c context.Context) (slimeclient.NoteProposal, error) {
 		if undo {
 			return w.be.UndoProposedNote(c, conv, id)
 		}
 		return w.be.DismissProposedNote(c, conv, id)
-	}, func(n keelclient.NoteProposal, err error) {
+	}, func(n slimeclient.NoteProposal, err error) {
 		rec.busy = false
 		if a.conv != conv {
 			return

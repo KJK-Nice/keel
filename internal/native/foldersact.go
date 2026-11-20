@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // What the folder menus, the folder dialog and a drop do. slime serve keeps the folders; this client reads them again after every write and keeps
@@ -42,7 +42,7 @@ type folderRename struct {
 }
 
 func (w *workspace) reloadFolders() {
-	call(w, w.be.Groups, func(groups []keelclient.Group, err error) {
+	call(w, w.be.Groups, func(groups []slimeclient.Group, err error) {
 		if err == nil { // a failed list leaves the tree as it was
 			w.folders = groups
 		}
@@ -92,7 +92,7 @@ func (w *workspace) saveFolderDialog() {
 	if d == nil || d.saving {
 		return
 	}
-	g := keelclient.Group{ID: d.id, Name: strings.TrimSpace(d.name), ParentID: d.parent}
+	g := slimeclient.Group{ID: d.id, Name: strings.TrimSpace(d.name), ParentID: d.parent}
 	if g.Name == "" {
 		d.err = folderNeedsLabel
 		return
@@ -217,6 +217,6 @@ func (w *workspace) dropOnFolder(dest string, d *treeDrag) {
 
 // newHostIn is the folder menu's New host: New host with that folder picked.
 func (w *workspace) newHostIn(groupID string) {
-	h := keelclient.Host{GroupID: groupID}
+	h := slimeclient.Host{GroupID: groupID}
 	w.openHostDialog(&h, nil, "")
 }

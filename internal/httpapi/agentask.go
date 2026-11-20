@@ -25,7 +25,7 @@ import (
 
 // WithAgentProvider sets how the agent builds its provider, and whether it
 // is a test fake (the trace then says so). slime serve passes the real
-// clients, or the fake in a build with the tag keelfake
+// clients, or the fake in a build with the tag slimefake
 // (internal/app/agent_fake.go); tests pass a fake.
 func (s *Server) WithAgentProvider(f service.Factory, test bool) *Server {
 	s.agentFactory = f

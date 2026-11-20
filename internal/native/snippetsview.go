@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Snippets page, the sidebar's Snippets section and the snippet dialog, with the Keychain page's split layout
@@ -11,7 +11,7 @@ import (
 
 // snippetMenu is the row menu: Type into pane…, Copy, Edit, Delete. "Type into
 // pane…" asks Approve before type; nothing in the menu types.
-func (w *workspace) snippetMenu(c *ui.Context, s keelclient.Snippet) func(m *ui.Menu) {
+func (w *workspace) snippetMenu(c *ui.Context, s slimeclient.Snippet) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		if menuItem(m, "Type into pane…").Chosen() {
 			w.act(func() { w.typeSnippet(s.ID) })
@@ -87,7 +87,7 @@ func (w *workspace) snippetList(c *ui.Context, p *snippetsPage, current string) 
 	}
 }
 
-func (w *workspace) snippetRow(c *ui.Context, p *snippetsPage, s keelclient.Snippet, selected bool) {
+func (w *workspace) snippetRow(c *ui.Context, p *snippetsPage, s slimeclient.Snippet, selected bool) {
 	r := hairline(ui.Row(c).FillWidth().Padding(space2, space4).Gap(space3).Cursor(ui.CursorPointer).Key(s.ID).
 		Label("snippet "+s.Name).Tooltip(s.Name+" · "+snippetFirstLine(s)).Selected(selected), 0, 0, 1, 0)
 	hover := r.Hovered()
@@ -110,7 +110,7 @@ func (w *workspace) snippetRow(c *ui.Context, p *snippetsPage, s keelclient.Snip
 }
 
 // snippetEditorView is the editor: the name, "Type into pane…", Save, the commands, the error and Delete snippet.
-func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur keelclient.Snippet) {
+func (w *workspace) snippetEditorView(c *ui.Context, p *snippetsPage, cur slimeclient.Snippet) {
 	e := &p.ed
 	ui.Column(c).FillWidth().Gap(space4).Children(func() {
 		ui.Row(c).FillWidth().Gap(space2).AlignItems(ui.Center).Children(func() {
@@ -204,7 +204,7 @@ func (w *workspace) sidebarSnippets(c *ui.Context) {
 	})
 }
 
-func (w *workspace) sideSnippetRow(c *ui.Context, s keelclient.Snippet) {
+func (w *workspace) sideSnippetRow(c *ui.Context, s slimeclient.Snippet) {
 	r := ui.Row(c).FillWidth().Height(sizeRow).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(s.ID).
 		Label("sidebar snippet " + snippetName(s)).Cursor(ui.CursorPointer).Focusable().Tooltip("Type into the focused pane after you approve")
 	hover := r.Hovered()

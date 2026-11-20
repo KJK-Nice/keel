@@ -13,7 +13,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Notebooks against a real slime serve and a real shell (Local Shell): the document is shown rendered and edited as plain
@@ -27,7 +27,7 @@ func (e *win) apiNotebook(name, md string) string {
 	if code != 201 {
 		e.t.Fatalf("POST /api/notebooks: %d %s", code, body)
 	}
-	var nb keelclient.Notebook
+	var nb slimeclient.Notebook
 	if err := json.Unmarshal([]byte(body), &nb); err != nil {
 		e.t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func (e *win) apiNotebook(name, md string) string {
 	return nb.ID
 }
 
-func (e *win) serverNotebooks() []keelclient.Notebook {
+func (e *win) serverNotebooks() []slimeclient.Notebook {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -47,7 +47,7 @@ func (e *win) serverNotebooks() []keelclient.Notebook {
 	return l
 }
 
-func (e *win) serverNotebook(id string) keelclient.Notebook {
+func (e *win) serverNotebook(id string) slimeclient.Notebook {
 	e.t.Helper()
 	for _, n := range e.serverNotebooks() {
 		if n.ID == id {
@@ -55,7 +55,7 @@ func (e *win) serverNotebook(id string) keelclient.Notebook {
 		}
 	}
 	e.t.Fatalf("notebook %s is not on the server", id)
-	return keelclient.Notebook{}
+	return slimeclient.Notebook{}
 }
 
 // openNotebookFromSidebar clicks the notebook's row in the sidebar's Snippets section, as a person does.

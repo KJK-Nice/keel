@@ -6,8 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -70,7 +70,7 @@ func (w *workspace) pickPane(t *tab, id string) {
 // paneRow is paneRowInfo: what a row shows from what the pane knows.
 type paneRow struct {
 	id, name, sub string
-	host          keelclient.Host
+	host          slimeclient.Host
 	driving       bool // shared with you driving
 	agent         bool // the agent can read it
 	notebook      bool // a notebook pane: no host, no session

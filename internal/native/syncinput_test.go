@@ -11,8 +11,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
 	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 // Sync input (syncinput.go) on the fake backend. The terminal view's own write is (*syncConn).Write, so the tests call it with
@@ -198,8 +198,8 @@ func TestWhatKeelTypesGoesToOnePaneEvenWithSyncOn(t *testing.T) {
 	r := syncRig(t, 3)
 	r.syncOn(t)
 	r.p.screen = func() (bool, string) { return false, "user@h $" }
-	r.fb.conns[0].directRes = keelclient.DirectResult{Typed: true}
-	r.fb.snippets = []keelclient.Snippet{{ID: "sn-1", Name: "disk usage", Command: "df -h\n"}}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Typed: true}
+	r.fb.snippets = []slimeclient.Snippet{{ID: "sn-1", Name: "disk usage", Command: "df -h\n"}}
 	others := func(what string) {
 		t.Helper()
 		for i, c := range r.fb.conns[1:] {

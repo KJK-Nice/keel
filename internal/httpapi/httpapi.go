@@ -124,7 +124,7 @@ func (s *Server) WithStop(fn func()) *Server {
 	return s
 }
 
-// Handler is the API. It panics when no token was set (WithAuth): keel
+// Handler is the API. It panics when no token was set (WithAuth): slime
 // serve never runs open.
 func (s *Server) Handler() http.Handler {
 	if s.authToken == "" {

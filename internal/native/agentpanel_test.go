@@ -12,7 +12,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The agent panel on the fake backend: what an ask sends, what the thread shows, and that a proposal reaches a session
@@ -145,15 +145,15 @@ func (r *rig) ask(t *testing.T, q string) {
 	r.tt.Frame()
 }
 
-func okProposal() keelclient.Proposal {
-	return keelclient.Proposal{ID: "p1", SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "echo keel-agent-ok", Bytes: "\x15echo keel-agent-ok\n", Why: "Prints a marker.", Risk: "readonly"}
+func okProposal() slimeclient.Proposal {
+	return slimeclient.Proposal{ID: "p1", SessionID: "s1", HostID: "h-api", Host: "api-1", Command: "echo keel-agent-ok", Bytes: "\x15echo keel-agent-ok\n", Why: "Prints a marker.", Risk: "readonly"}
 }
 
 // answers makes the fake answer every ask with one answer and the given proposals.
-func (r *rig) answers(ps ...keelclient.Proposal) {
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Title: "What to run", Answer: "I was given 1 pane excerpt(s) and 0 redacted value(s).",
-			Trace:     []keelclient.TraceStep{{SessionID: "s1", Host: "api-1", Status: "read", Lines: 14}},
+func (r *rig) answers(ps ...slimeclient.Proposal) {
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Title: "What to run", Answer: "I was given 1 pane excerpt(s) and 0 redacted value(s).",
+			Trace:     []slimeclient.TraceStep{{SessionID: "s1", Host: "api-1", Status: "read", Lines: 14}},
 			Proposals: ps, TestProvider: true}, nil
 	}
 }
@@ -390,15 +390,15 @@ func TestTheThreadShowsTheQuestionTheTraceTheAnswerAndTheCard(t *testing.T) {
 
 func TestAnErrorTheCutNoticeAndNoPaneReadAreShownAsTheAppShowsThem(t *testing.T) {
 	r := agentRig(t)
-	r.fb.agent.askReply = func(keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{}, &keelclient.StatusError{Code: 502, Status: "502 Bad Gateway", Msg: "quota exceeded"}
+	r.fb.agent.askReply = func(slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{}, &slimeclient.StatusError{Code: 502, Status: "502 Bad Gateway", Msg: "quota exceeded"}
 	}
 	r.ask(t, "hi")
 	if !r.tt.HasText("The agent could not answer.") || !r.tt.HasText("quota exceeded") {
 		t.Errorf("%v", r.tt.Texts())
 	}
-	r.fb.agent.askReply = func(keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{Answer: "Partial", Cut: "length"}, nil
+	r.fb.agent.askReply = func(slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{Answer: "Partial", Cut: "length"}, nil
 	}
 	r.ask(t, "again")
 	if !r.tt.HasText("Answer cut off at the length limit. Ask the agent to continue.") || !r.tt.HasText("Read no pane") {
@@ -529,7 +529,7 @@ func TestAServerRefusalIsShownOnTheCardAndNeverRetried(t *testing.T) {
 func TestEditSavesThroughTheServerAndWhatIsTypedIsWhatTheServerHolds(t *testing.T) {
 	r := agentRig(t)
 	r.answers(okProposal())
-	r.fb.agent.editReply = func(command string) (keelclient.Proposal, error) {
+	r.fb.agent.editReply = func(command string) (slimeclient.Proposal, error) {
 		// slime serve holds its own version of the edit: it is what the card shows and what is typed.
 		p := okProposal()
 		p.Command, p.Bytes, p.Edited = command, "\x15"+command+"\n", true
@@ -566,8 +566,8 @@ func TestEditSavesThroughTheServerAndWhatIsTypedIsWhatTheServerHolds(t *testing.
 func TestAnEditThatKeelServeRefusesLeavesTheCardAndTheBytesAlone(t *testing.T) {
 	r := agentRig(t)
 	r.answers(okProposal())
-	r.fb.agent.editReply = func(string) (keelclient.Proposal, error) {
-		return keelclient.Proposal{}, &keelclient.StatusError{Code: 400, Msg: "a command is 1 to 4096 bytes"}
+	r.fb.agent.editReply = func(string) (slimeclient.Proposal, error) {
+		return slimeclient.Proposal{}, &slimeclient.StatusError{Code: 400, Msg: "a command is 1 to 4096 bytes"}
 	}
 	r.ask(t, "q")
 	r.click(t, "Edit command")
@@ -585,7 +585,7 @@ func TestAnEditThatKeelServeRefusesLeavesTheCardAndTheBytesAlone(t *testing.T) {
 	}
 }
 
-func destructive() keelclient.Proposal {
+func destructive() slimeclient.Proposal {
 	p := okProposal()
 	p.Command, p.Bytes, p.Risk, p.NeedsShift, p.Why = "rm -rf /tmp/keel-agent-e2e", "\x15rm -rf /tmp/keel-agent-e2e\n", "destructive", true, "Deletes the scratch folder."
 	return p
@@ -681,7 +681,7 @@ func TestNoTypeButtonForAFollowedPaneAClosedPaneOrAProposalWithNoPane(t *testing
 		t.Errorf("%d labels of Type into pane…", n)
 	}
 	// A pane you follow.
-	st := keelclient.State{Status: "ready", Role: "follower", Subtitle: "deploy@10.0.0.1", YouID: 2, DriverID: 1}
+	st := slimeclient.State{Status: "ready", Role: "follower", Subtitle: "deploy@10.0.0.1", YouID: 2, DriverID: 1}
 	r.fb.conns[0].st = &st
 	r.tt.Frame()
 	if r.has("Type into pane…") || !r.tt.HasText("You follow this pane. The agent cannot type into it.") {
@@ -756,7 +756,7 @@ func TestNoKeyShowsTheConnectCardAndTheKeyIsSentOnceAndTheFieldCleared(t *testin
 
 func TestAKeyKeelServeRefusesIsReportedAndTheFieldIsAlreadyEmpty(t *testing.T) {
 	r := approveRig(t)
-	r.fb.agent.keyErr = &keelclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}
+	r.fb.agent.keyErr = &slimeclient.StatusError{Code: 400, Msg: "the key is empty, too long, or has spaces"}
 	r.tt.Key(agentMods(), ui.KeyI)
 	r.tt.Frame()
 	r.tt.Click("Gemini API key input")

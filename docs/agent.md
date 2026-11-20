@@ -12,7 +12,7 @@ The answer can carry command proposals: Slime shows the exact bytes and a Read-o
 
 The key goes in the panel's Connect field (Connect Gemini or Connect Claude) and is kept in the vault. Conversations are saved encrypted in the vault and kept for the period set in Settings · Agent · Keep conversations (7, 30 or 90 days, 1 year, or "Only while open", which saves nothing).
 
-`SLIME_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `keelfake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `slime serve` refuses to start with the variable set to `fake`.
+`SLIME_AGENT_PROVIDER=fake` is for end-to-end tests only: in a test build (the build tag `slimefake`) the agent then answers from an in-process fake and nothing is sent anywhere. A release has no fake, and `slime serve` refuses to start with the variable set to `fake`.
 
 ## Model providers
 
@@ -32,7 +32,7 @@ The Claude client calls the Messages API (`POST /v1/messages`, key in `x-api-key
 It is **off by default**. Turn it on in Settings · Agent → Claude Code → **Allow Claude Code (slime mcp)**, or on macOS from the same switch in Slime's menu bar item (docs/runtime.md). Until then every `/api/mcp/` route answers 403 and Claude Code is told `Claude Code is off in Slime: turn on "Allow Claude Code (slime mcp)" in Settings · Agent`; nothing is listed, read, proposed or logged. Unlike the agent panel, which reads only when you Ask, Claude Code reads whenever it decides to, so turn it on only while you use it, and only hosts with **Agent can read** on are visible to it (new hosts, Local Shell included, start with it on; turn it off in Edit host for hosts Claude Code should not see).
 
 ```bash
-# The keel binary: on macOS the one in Slime.app (build/darwin-*/Slime.app/Contents/MacOS/Slime
+# The slime binary: on macOS the one in Slime.app (build/darwin-*/Slime.app/Contents/MacOS/Slime
 # when built from source, or wherever you put Slime.app); on Linux `slime` (the .deb
 # links it into /usr/bin) or bin/slime.
 claude mcp add slime -- /Applications/Slime.app/Contents/MacOS/Slime mcp

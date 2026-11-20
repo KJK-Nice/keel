@@ -1,10 +1,10 @@
-//go:build keelfake
+//go:build slimefake
 
 package app
 
 import "testing"
 
-// go test -tags keelfake ./internal/app/
+// go test -tags slimefake ./internal/app/
 func TestOnlyFakeSelectsTheFake(t *testing.T) {
 	for _, v := range []string{"", "gemini", "FAKE", "fake ", "http://example.com"} {
 		if _, _, fake, err := agentProviders(v); fake || err != nil {

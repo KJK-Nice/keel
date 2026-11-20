@@ -11,7 +11,7 @@ import (
 // slime mcp's routes (docs/agent.md, Claude Code): the bridge that lets
 // Claude Code list and read panes and propose commands. They are closed
 // (403) until the user turns on "Allow Claude Code (slime mcp)" in Settings ·
-// Agent (store.AgentSettings.ClaudeCode, off by default); then only keel
+// Agent (store.AgentSettings.ClaudeCode, off by default); then only slime
 // mcp's own token opens them (auth.go), and they reach the agent service
 // only:
 //

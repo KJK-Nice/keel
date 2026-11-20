@@ -8,14 +8,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // A made-up passphrase for the fake backend: it opens nothing.
 const testPass = "fake-pass-for-tests"
 
 func lockedBackend() *fakeBackend {
-	return &fakeBackend{vault: keelclient.Vault{Locked: true, Path: "~/keel/keel.vault", Sessions: 2}, hosts: testHosts, unlockWant: testPass}
+	return &fakeBackend{vault: slimeclient.Vault{Locked: true, Path: "~/keel/keel.vault", Sessions: 2}, hosts: testHosts, unlockWant: testPass}
 }
 
 func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
@@ -47,14 +47,14 @@ func TestUnlockScreenIsShownForALockedVault(t *testing.T) {
 func TestUnlockBannerAndStatesFollowTheVaultMode(t *testing.T) {
 	kc := keychainName()
 	for _, c := range []struct {
-		v          keelclient.Vault
+		v          slimeclient.Vault
 		banner     string
 		field      bool
 		keychainFn bool
 	}{
-		{keelclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run slime serve stop and open Slime again.", false, false},
-		{keelclient.Vault{Locked: true, KeyringOff: true}, "Slime was started with SLIME_KEYRING=off, so it needs your passphrase.", true, false},
-		{keelclient.Vault{Locked: true}, kc + " doesn't hold this vault's key, so Slime needs your passphrase.", true, true},
+		{slimeclient.Vault{Locked: true, Mode: "keychain"}, kc + " didn't answer, and this vault's key is kept there, so a passphrase can't open it. Allow Slime in " + kc + ", then run slime serve stop and open Slime again.", false, false},
+		{slimeclient.Vault{Locked: true, KeyringOff: true}, "Slime was started with SLIME_KEYRING=off, so it needs your passphrase.", true, false},
+		{slimeclient.Vault{Locked: true}, kc + " doesn't hold this vault's key, so Slime needs your passphrase.", true, true},
 	} {
 		fb := &fakeBackend{vault: c.v}
 		r := newRig(t, fb)
@@ -116,7 +116,7 @@ func TestEmptyPassphraseIsRefusedWithoutARequest(t *testing.T) {
 
 func TestRightPassphraseLoadsTheWorkspaceAndKeepsNoPassphrase(t *testing.T) {
 	fb := lockedBackend()
-	fb.sessions = []keelclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
+	fb.sessions = []slimeclient.Session{{ID: "s1", HostID: "h-api", Status: "ready"}}
 	r := newRig(t, fb)
 	r.tt.Frame()
 	r.typeIn(testPass)
@@ -153,7 +153,7 @@ func TestShowPassphraseTogglesTheMask(t *testing.T) {
 }
 
 func TestSetupAndFirstRunShowFirstRunNotUnlock(t *testing.T) {
-	for _, v := range []keelclient.Vault{{Locked: true, NeedsSetup: true}, {FirstRun: true}} {
+	for _, v := range []slimeclient.Vault{{Locked: true, NeedsSetup: true}, {FirstRun: true}} {
 		r := newRig(t, &fakeBackend{vault: v})
 		r.tt.Frame()
 		if !r.tt.HasText("Welcome to Slime") || r.has("Vault passphrase") {
@@ -174,7 +174,7 @@ func TestNoShortcutActsOnTheUnlockScreen(t *testing.T) {
 }
 
 func TestLockedFirstRunShowsUnlockThenFirstRun(t *testing.T) {
-	fb := &fakeBackend{vault: keelclient.Vault{Locked: true, FirstRun: true}, hosts: testHosts, unlockWant: testPass}
+	fb := &fakeBackend{vault: slimeclient.Vault{Locked: true, FirstRun: true}, hosts: testHosts, unlockWant: testPass}
 	fb.unlockWant = testPass
 	r := newRig(t, fb)
 	r.tt.Frame()

@@ -1,4 +1,4 @@
-//go:build keelautomation
+//go:build slimeautomation
 
 package main
 
@@ -15,7 +15,7 @@ import (
 // the app has launched; this init runs before main, so a refused environment exits before any window or request.
 func init() {
 	if err := native.CheckAutomationEnv(); err != nil {
-		fmt.Fprintln(os.Stderr, "keel: automation refused:", err)
+		fmt.Fprintln(os.Stderr, "slime: automation refused:", err)
 		native.RemoveAutomationSocket()
 		os.Exit(2)
 	}

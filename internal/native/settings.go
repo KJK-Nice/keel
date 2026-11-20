@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"slime/internal/env"
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Settings (docs/ui-redesign.md §5.9). The helpers are in settingshelpers.go and the agent's own settings in agentsettings.go.
@@ -30,8 +30,8 @@ type settingsPage struct {
 	search  string
 	searchH ui.Handle
 
-	rt       *keelclient.Runtime
-	vault    *keelclient.Vault
+	rt       *slimeclient.Runtime
+	vault    *slimeclient.Vault
 	loaded   bool
 	loadFail string // the read failed: the sections show what they have
 
@@ -89,8 +89,8 @@ func (p *settingsPage) view(w *workspace, c *ui.Context) { w.settingsView(c, p) 
 // holds a secret.
 func (w *workspace) loadSettings() {
 	type read struct {
-		rt         keelclient.Runtime
-		v          keelclient.Vault
+		rt         slimeclient.Runtime
+		v          slimeclient.Vault
 		rerr, verr error
 	}
 	call(w, func(c context.Context) (r read, _ error) {
@@ -246,7 +246,7 @@ func (w *workspace) commitSignal(p *settingsPage) {
 		return
 	}
 	p.signalSaving = true
-	call(w, func(c context.Context) (keelclient.Runtime, error) { return w.be.SetSignal(c, url) }, func(info keelclient.Runtime, err error) {
+	call(w, func(c context.Context) (slimeclient.Runtime, error) { return w.be.SetSignal(c, url) }, func(info slimeclient.Runtime, err error) {
 		p.signalSaving = false
 		if err != nil {
 			w.warn(errText("Could not save the signal server", err))
@@ -288,7 +288,7 @@ func (w *workspace) checkRuntimeBuild() {
 	if w.appBuild == "" {
 		return
 	}
-	call(w, w.be.Runtime, func(rt keelclient.Runtime, err error) {
+	call(w, w.be.Runtime, func(rt slimeclient.Runtime, err error) {
 		if err == nil && runtimeIsStale(w.appBuild, rt.Build) {
 			w.sayAction(staleRuntimeNotice, "Stop runtime", w.askStopRuntime)
 		}

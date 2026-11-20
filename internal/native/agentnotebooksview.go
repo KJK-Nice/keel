@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"slime/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 	"slime/internal/wire"
 )
 
@@ -292,7 +292,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 }
 
 // cardAction is a card button: Open shows the notebook, the others are requests (Delete asks first).
-func (w *workspace) cardAction(p keelclient.NotebookProposal, act string) {
+func (w *workspace) cardAction(p slimeclient.NotebookProposal, act string) {
 	if act == actOpen {
 		w.openNotebook(p.NotebookID)
 		return
