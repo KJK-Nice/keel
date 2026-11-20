@@ -1,6 +1,6 @@
 package service
 
-// An outside agent (Claude Code, through keel mcp; docs/agent.md) reaches
+// An outside agent (Claude Code, through slime mcp; docs/agent.md) reaches
 // the agent service here, under the same rules as the agent panel
 // (docs/ui-redesign.md §6):
 //
@@ -9,7 +9,7 @@ package service
 //     the same Redactor an Ask builds;
 //   - it may propose a command for a pane it may read. The proposal is
 //     kept in one conversation, "Claude Code", in the agent panel, rated by
-//     Keel's own code rule, and typed only by the user, through the
+//     Slime's own code rule, and typed only by the user, through the
 //     approve-before-type path (AuthorizeType, the ⇧ rule, agent.type);
 //   - it never writes to a PTY, never sees vault contents, never reads a
 //     key, and never calls a model provider.
@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 const (
@@ -36,17 +36,17 @@ const (
 	maxExternalPanes = 64
 )
 
-// ErrNoPaneList is returned when keel serve gives the service no way to
+// ErrNoPaneList is returned when slime serve gives the service no way to
 // list its sessions.
-var ErrNoPaneList = errors.New("agent: this keel serve cannot list its panes")
+var ErrNoPaneList = errors.New("agent: this slime serve cannot list its panes")
 
-// PaneLister lists the ids of the running sessions. keel serve's pane
+// PaneLister lists the ids of the running sessions. slime serve's pane
 // source satisfies it; ExternalPanes needs it.
 type PaneLister interface {
 	PaneIDs() []string
 }
 
-// The shapes keel mcp reads are internal/wire's.
+// The shapes slime mcp reads are internal/wire's.
 type (
 	// ExternalPane is one pane an outside agent may read.
 	ExternalPane = wire.ExternalPane
@@ -170,7 +170,7 @@ type ExternalProposeRequest struct {
 // ExternalPropose keeps a command an outside agent proposes for a pane it
 // may read, in the "Claude Code" conversation of the agent panel. It types
 // nothing: the user sees the exact bytes there and types them, or not,
-// through approve-before-type. The rating is Keel's code rule alone.
+// through approve-before-type. The rating is Slime's code rule alone.
 func (s *Service) ExternalPropose(req ExternalProposeRequest) (Proposal, error) {
 	cmd, ok := cleanCommand(req.Command)
 	if !ok {

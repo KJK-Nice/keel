@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/runtime"
-	"keel/internal/shellmark"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/runtime"
+	"slime/internal/shellmark"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // The agent panel's routes. POST /api/agent/ask is the only
-// route in Keel that sends anything off the machine, and only what the
+// route in Slime that sends anything off the machine, and only what the
 // agent service has read through the Auditor and redacted. These handlers
 // never write to a session: typing a proposal goes through the session
 // socket's approve-before-type path (sessionWS, "inject" with "agent"),
@@ -24,8 +24,8 @@ import (
 // file makes no write, inject or spawn call.
 
 // WithAgentProvider sets how the agent builds its provider, and whether it
-// is a test fake (the trace then says so). keel serve passes the real
-// clients, or the fake in a build with the tag keelfake
+// is a test fake (the trace then says so). slime serve passes the real
+// clients, or the fake in a build with the tag slimefake
 // (internal/app/agent_fake.go); tests pass a fake.
 func (s *Server) WithAgentProvider(f service.Factory, test bool) *Server {
 	s.agentFactory = f
@@ -49,7 +49,7 @@ func (a agentPanes) Pane(id string) (agent.Pane, bool) {
 func (a agentPanes) ReadScrollback(id string) ([]byte, error) { return a.rt.ReadScrollback(id) }
 
 // PaneIDs lists the running sessions, oldest first (service.PaneLister),
-// for keel mcp's pane list. Ids only: the service resolves each through
+// for slime mcp's pane list. Ids only: the service resolves each through
 // Pane and keeps the ones the agent may read.
 func (a agentPanes) PaneIDs() []string {
 	list := a.rt.List()
@@ -71,7 +71,7 @@ func (a agentPanes) CommandsAfter(id string, from uint64) []shellmark.Command {
 }
 
 // CommandOutput passes on a finished command's raw output
-// (service.CaptureSource), read only by keel serve's capture code for a
+// (service.CaptureSource), read only by slime serve's capture code for a
 // group run's step: never sent to a provider or logged.
 func (a agentPanes) CommandOutput(id string, c shellmark.Command) ([]byte, bool) {
 	return a.rt.CommandOutput(id, c)

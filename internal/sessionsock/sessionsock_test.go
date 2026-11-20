@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // fakeBridge is a PTY: what is written to the session comes out of inR.
@@ -51,8 +51,8 @@ func (w *written) String() string {
 
 func readySession(t *testing.T) (*runtime.Session, *written) {
 	t.Helper()
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func (r *recorder) answers(n int) (out []map[string]any) {
 func (r *recorder) count() int { return len(r.since(0)) }
 
 // typist counts what it is asked. With real, an inject consumes the
-// session's ticket, as keel serve's does.
+// session's ticket, as slime serve's does.
 type typist struct {
 	c                        *Conn
 	real                     bool
@@ -165,7 +165,7 @@ func frame(t *testing.T, v any) []byte {
 	return b
 }
 
-// typingFrames is every frame by which a client can ask keel serve to type
+// typingFrames is every frame by which a client can ask slime serve to type
 // for it or ask the agent: the inject family and the agent family.
 func typingFrames(cmd, nonce string) map[string]wire.Control {
 	return map[string]wire.Control{
@@ -184,7 +184,7 @@ func typingFrames(cmd, nonce string) map[string]wire.Control {
 	}
 }
 
-// A joined peer can never make keel serve type for it or ask the agent:
+// A joined peer can never make slime serve type for it or ask the agent:
 // following or driving, every inject-family and agent-family frame is
 // refused before a typist sees it, no nonce is issued, no answer frame of
 // those families goes back, and nothing reaches the PTY. Its keystrokes
@@ -240,7 +240,7 @@ func TestAJoinedPeerCannotMakeKeelTypeOrAskTheAgent(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 		if got := pty.String(); strings.Contains(got, "keel-joined") {
-			t.Fatalf("a joined %s made keel serve type %q", role, got)
+			t.Fatalf("a joined %s made slime serve type %q", role, got)
 		}
 	}
 

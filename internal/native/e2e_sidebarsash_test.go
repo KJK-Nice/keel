@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// The sidebar's sash in a real window: a drag widens the sidebar and the terminal pane gives way (keel serve sees the
+// The sidebar's sash in a real window: a drag widens the sidebar and the terminal pane gives way (slime serve sees the
 // narrower terminal), the width is kept and a window opened later on the same data starts at it. Shots in both themes.
 func TestE2ESidebarWidthIsKept(t *testing.T) {
 	addr, dir := startServe(t, true)
@@ -34,7 +34,7 @@ func TestE2ESidebarWidthIsKept(t *testing.T) {
 	e.step()
 	e.tt.Release(x+120, y)
 	e.pump(func() bool { return loadPrefs(dir).SidebarWidth > sidebarWidth()+100 }, "the width kept")
-	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on keel serve")
+	e.pump(func() bool { return cols() < before }, "the terminal to give way: fewer columns on slime serve")
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2ESidebarWidth-dark")
 	e.w.setTheme(themeLight)

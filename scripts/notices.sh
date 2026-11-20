@@ -1,6 +1,6 @@
 #!/bin/sh
 # Writes THIRD_PARTY_NOTICES for a release archive: the license of Go and
-# every Go module linked into keel and keel-signal (macOS and Linux builds),
+# every Go module linked into slime and slime-signal (macOS and Linux builds),
 # libghostty-vt, and the fonts' OFL. Needs the network (go mod download, the
 # Ghostty license on GitHub). Fails rather than writing a notice without its
 # license text.
@@ -23,7 +23,7 @@ license_files() {
 	find "$1" -maxdepth 1 -type f \( -iname 'licen[cs]e*' -o -iname 'copying*' -o -iname 'notice*' \) | sort
 }
 
-printf 'Keel includes the third-party software below, under the licenses that follow.\n' >"$tmp/notices"
+printf 'Slime includes the third-party software below, under the licenses that follow.\n' >"$tmp/notices"
 
 section "Go (the standard library and runtime)"
 cat "$(go env GOROOT)/LICENSE" >>"$tmp/notices"
@@ -33,7 +33,7 @@ go mod download
 for os in darwin linux; do
 	GOOS=$os CGO_ENABLED=0 go list -deps \
 		-f '{{with .Module}}{{if not .Main}}{{.Path}}@{{.Version}}{{"\t"}}{{.Dir}}{{end}}{{end}}' \
-		./cmd/keel ./cmd/keel-signal
+		./cmd/slime ./cmd/slime-signal
 done | sort -u >"$tmp/modules"
 while IFS="$(printf '\t')" read -r mod dir; do
 	files=$(license_files "$dir")
@@ -43,7 +43,7 @@ while IFS="$(printf '\t')" read -r mod dir; do
 done <"$tmp/modules"
 
 # libghostty-vt, the terminal engine of the native window (MyGo's terminal plugin downloads it, SHA-256 pinned, and
-# Keel.app and the Linux archives carry it). Its source is a Ghostty commit named in the plugin's manifest; the
+# Slime.app and the Linux archives carry it). Its source is a Ghostty commit named in the plugin's manifest; the
 # license is read at that commit.
 mygo=$(go list -m -f '{{.Dir}}' github.com/egoist/mygo)
 ghostty=$(sed -n 's#.*"source": "https://github.com/ghostty-org/ghostty/tree/\([0-9a-f]*\)".*#\1#p' "$mygo/plugins/terminal/mygo-plugin.json" | head -1)

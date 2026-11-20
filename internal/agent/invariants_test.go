@@ -18,11 +18,11 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/runtime"
+	"slime/internal/agent"
+	"slime/internal/runtime"
 )
 
-const module = "keel"
+const module = "slime"
 
 func moduleRoot(t *testing.T) string {
 	t.Helper()
@@ -106,7 +106,7 @@ func inAgentTree(pkg string) bool {
 }
 
 // §6.1: the agent never writes to a PTY. No package under internal/agent
-// can reach a PTY writer, directly or through any Keel package it imports.
+// can reach a PTY writer, directly or through any Slime package it imports.
 func TestAgentCannotReachPTYWriters(t *testing.T) {
 	files := parseModule(t)
 	importsOf := map[string]map[string]bool{}
@@ -131,7 +131,7 @@ func TestAgentCannotReachPTYWriters(t *testing.T) {
 		if !inAgentTree(pkg) {
 			continue
 		}
-		// Walk the Keel packages it depends on.
+		// Walk the Slime packages it depends on.
 		seen := map[string]bool{}
 		stack := []string{pkg}
 		for len(stack) > 0 {
@@ -184,7 +184,7 @@ func TestAgentCallsNoWriteMethods(t *testing.T) {
 // into the x-goog-api-key header) and in judgeFor (the detector's key,
 // which goes only into Jev's Authorization header), never into a request
 // body. NewRedactor itself is called once, in the service's
-// buildRedactor, which also puts in the values Keel withholds (§6 rule
+// buildRedactor, which also puts in the values Slime withholds (§6 rule
 // 11): no call site can build a Redactor that forgets either.
 func TestAgentReadsNoVaultSecrets(t *testing.T) {
 	secretFields := map[string]bool{"Password": true, "PrivateKey": true, "Passphrase": true, "Token": true}
@@ -329,7 +329,7 @@ func TestNoRuntimePathBuildsAProviderClient(t *testing.T) {
 }
 
 // fakeWiring is the one file that links the test fakes, and only in a build
-// with the tag keelfake.
+// with the tag slimefake.
 const fakeWiring = "internal/app/agent_fake.go"
 
 // A release binary holds no test provider: providertest is imported by
@@ -355,8 +355,8 @@ func TestFakeProviderIsLinkedOnlyByTheTaggedFile(t *testing.T) {
 				continue
 			}
 			found = true
-			if !strings.HasPrefix(string(f.src), "//go:build keelfake\n") {
-				t.Errorf("%s imports providertest without //go:build keelfake on its first line", f.rel)
+			if !strings.HasPrefix(string(f.src), "//go:build slimefake\n") {
+				t.Errorf("%s imports providertest without //go:build slimefake on its first line", f.rel)
 			}
 		}
 	}
@@ -491,7 +491,7 @@ func TestOnlyTheAuditorWritesTheLog(t *testing.T) {
 }
 
 // §6.1, §6.6: in-pane suggestions start only from the user's own session
-// socket (where keel serve knows the client's role), and the model
+// socket (where slime serve knows the client's role), and the model
 // suggester is built only inside Service.Suggest (the user's ⇥). Outside
 // tests, Detect, Suggest and AuthorizeInsert are called only from
 // internal/httpapi/agentsuggest.go.

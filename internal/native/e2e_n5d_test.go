@@ -18,12 +18,12 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/authtoken"
-	"keel/internal/native/keelclient"
+	"slime/internal/authtoken"
+	"slime/internal/native/slimeclient"
 )
 
-// Port forwarding, the sidebar's Panes section, Settings and toasts against a scratch keel serve. Every daemon has
-// KEEL_KEYRING=off and its own KEEL_DATA under .scratch-native/e2e. Every listener (the daemon, the SSH fixture, each
+// Port forwarding, the sidebar's Panes section, Settings and toasts against a scratch slime serve. Every daemon has
+// SLIME_KEYRING=off and its own SLIME_DATA under .scratch-native/e2e. Every listener (the daemon, the SSH fixture, each
 // forward's local port, the test's own target) is on 127.0.0.1 and on a port the kernel chose. No forward binds anything
 // else.
 
@@ -92,10 +92,10 @@ func dialPong(port int) (string, error) {
 }
 
 // tunnelsOnServer is GET /api/tunnels.
-func (e *win) tunnelsOnServer() []keelclient.Tunnel {
+func (e *win) tunnelsOnServer() []slimeclient.Tunnel {
 	e.t.Helper()
 	_, body := e.raw("GET", "/api/tunnels", nil)
-	var out []keelclient.Tunnel
+	var out []slimeclient.Tunnel
 	if err := json.Unmarshal([]byte(body), &out); err != nil {
 		e.t.Fatal(err)
 	}
@@ -103,13 +103,13 @@ func (e *win) tunnelsOnServer() []keelclient.Tunnel {
 }
 
 // tunnelNamed is the forward with that name on the daemon.
-func (e *win) tunnelNamed(name string) (keelclient.Tunnel, bool) {
+func (e *win) tunnelNamed(name string) (slimeclient.Tunnel, bool) {
 	for _, tn := range e.tunnelsOnServer() {
 		if tn.Name == name {
 			return tn, true
 		}
 	}
-	return keelclient.Tunnel{}, false
+	return slimeclient.Tunnel{}, false
 }
 
 // openForwardsPage opens the Port forwarding page the way a person does: the sidebar's Forwards section, then Manage forwards.
@@ -217,7 +217,7 @@ func TestE2EForwardFailureShows(t *testing.T) {
 	addr, dir := startServe(t, true)
 	f := startSSHOnly(t, dir)
 	addJumpHost(t, addr, dir, f)
-	jump, ok := (&win{t: t, addr: addr, cl: keelclient.NewAt(addr, mustToken(t, dir))}).hostNamed("e2e-jump")
+	jump, ok := (&win{t: t, addr: addr, cl: slimeclient.NewAt(addr, mustToken(t, dir))}).hostNamed("e2e-jump")
 	if !ok {
 		t.Fatal("the host was not saved")
 	}
@@ -405,8 +405,8 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 	}
 	// Stop asks first; Cancel changes nothing.
 	e.click("Stop runtime…")
-	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Keel runtime?") }, "the confirm")
-	if !e.tt.HasText("This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again.") {
+	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Slime runtime?") }, "the confirm")
+	if !e.tt.HasText("This ends the 1 running session and every port forward, then closes slime serve. Reopen Slime to start it again.") {
 		t.Errorf("the confirm says %v", e.tt.Texts())
 	}
 	e.click("Cancel")
@@ -416,14 +416,14 @@ func TestE2ESettingsRuntimeStop(t *testing.T) {
 	}
 	// Confirm: the daemon stops answering within 5 s, and the window says so.
 	e.click("Stop runtime…")
-	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Keel runtime?") }, "the confirm")
+	e.pump(func() bool { return e.hasLabel("alertdialog Stop the Slime runtime?") }, "the confirm")
 	e.click("Stop runtime")
 	deadline := time.Now().Add(5 * time.Second)
-	e.pump(func() bool { return !health() }, "keel serve to stop answering")
+	e.pump(func() bool { return !health() }, "slime serve to stop answering")
 	if time.Now().After(deadline) {
-		t.Error("keel serve took more than 5 s to stop")
+		t.Error("slime serve took more than 5 s to stop")
 	}
-	e.pump(func() bool { return e.tt.HasText("Keel runtime stopped") }, "the Keel runtime stopped toast")
+	e.pump(func() bool { return e.tt.HasText("Slime runtime stopped") }, "the Slime runtime stopped toast")
 	e.shot("TestE2ESettingsRuntimeStop")
 }
 
@@ -451,7 +451,7 @@ func TestE2EToasts(t *testing.T) {
 	e.tt.Advance(toastTimeout + time.Second)
 	e.step()
 	e.pump(func() bool { return !e.tt.HasText("Duplicated as toast-host (copy)") }, "the success toast to expire")
-	// An error toast: keel serve refuses a signal server that is not a URL, and says why.
+	// An error toast: slime serve refuses a signal server that is not a URL, and says why.
 	e.key(ui.Cmd, ui.KeyComma)
 	e.pump(func() bool { return e.hasLabel("tab Settings") }, "Settings")
 	e.click("settings nav Sharing")
@@ -462,11 +462,11 @@ func TestE2EToasts(t *testing.T) {
 	var refusal struct{ Error string }
 	json.Unmarshal([]byte(body), &refusal)
 	if code != http.StatusBadRequest || refusal.Error == "" {
-		t.Fatalf("keel serve answered %d %q: expected a refusal with a reason", code, body)
+		t.Fatalf("slime serve answered %d %q: expected a refusal with a reason", code, body)
 	}
 	e.fillField("Signal server input", "ftp://not-a-signal-server")
 	e.key(0, ui.KeyEnter)
-	e.pump(func() bool { return e.hasLabel("toast " + refusal.Error) }, "the error toast with keel serve's reason")
+	e.pump(func() bool { return e.hasLabel("toast " + refusal.Error) }, "the error toast with slime serve's reason")
 	e.shot("TestE2EToasts-error")
 	e.tt.Advance(toastTimeout + time.Second)
 	e.step()

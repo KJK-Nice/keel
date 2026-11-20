@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 func TestParseSize(t *testing.T) {
@@ -43,14 +43,14 @@ func TestLocalWorkingDirIsHome(t *testing.T) {
 	}
 }
 
-// Every KEEL_* variable the code names is either a secret (store.SecretEnv,
+// Every SLIME_* variable the code names is either a secret (store.SecretEnv,
 // which a local shell never inherits) or listed here as holding none. A
 // new variable fails this test until someone decides which it is.
 func TestEverySecretVariableIsKeptFromLocalShells(t *testing.T) {
 	plain := map[string]bool{
-		"KEEL_ADDR": true, "KEEL_DATA": true, "KEEL_SSH_DIR": true, "KEEL_NAME": true, "KEEL_KEYRING": true,
-		"KEEL_SIGNAL": true, "KEEL_SIGNAL_ADDR": true, "KEEL_SIGNAL_CLIENT_IP": true, "KEEL_AGENT_PROVIDER": true,
-		"KEEL_NATIVE_CAPTURE": true, "KEEL_NATIVE_OPACITY": true, "KEEL_NATIVE_BLUR": true,
+		"SLIME_ADDR": true, "SLIME_DATA": true, "SLIME_SSH_DIR": true, "SLIME_NAME": true, "SLIME_KEYRING": true,
+		"SLIME_SIGNAL": true, "SLIME_SIGNAL_ADDR": true, "SLIME_SIGNAL_CLIENT_IP": true, "SLIME_AGENT_PROVIDER": true,
+		"SLIME_NATIVE_CAPTURE": true, "SLIME_NATIVE_OPACITY": true, "SLIME_NATIVE_BLUR": true,
 	}
 	secret := map[string]bool{}
 	for _, name := range store.SecretEnv {
@@ -63,10 +63,10 @@ func TestEverySecretVariableIsKeptFromLocalShells(t *testing.T) {
 			t.Errorf("shellEnv kept %s: %q", name, got)
 		}
 	}
-	if !secret["KEEL_VAULT_PASSPHRASE"] {
-		t.Error("the vault passphrase variable is not in store.SecretEnv")
+	if !secret["SLIME_VAULT_PASSPHRASE"] || !secret["KEEL_VAULT_PASSPHRASE"] {
+		t.Error("the vault passphrase variable, under either name, is not in store.SecretEnv")
 	}
-	named := regexp.MustCompile(`"(KEEL_[A-Z0-9_]+)["=]`)
+	named := regexp.MustCompile(`"(SLIME_[A-Z0-9_]+)["=]`)
 	root := filepath.Join("..", "..")
 	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -101,16 +101,16 @@ func TestEverySecretVariableIsKeptFromLocalShells(t *testing.T) {
 func TestShellEnvDropsVaultPassphrase(t *testing.T) {
 	in := []string{
 		"HOME=/home/u",
-		"KEEL_VAULT_PASSPHRASE=hunter2",
-		"KEEL_VAULT_PASSPHRASE_HINT=kept",
-		"KEEL_ADDR=127.0.0.1:47241",
+		"SLIME_VAULT_PASSPHRASE=hunter2",
+		"SLIME_VAULT_PASSPHRASE_HINT=kept",
+		"SLIME_ADDR=127.0.0.1:47241",
 		"PATH=/usr/bin",
 	}
 	got := shellEnv(in)
 	want := []string{
 		"HOME=/home/u",
-		"KEEL_VAULT_PASSPHRASE_HINT=kept",
-		"KEEL_ADDR=127.0.0.1:47241",
+		"SLIME_VAULT_PASSPHRASE_HINT=kept",
+		"SLIME_ADDR=127.0.0.1:47241",
 		"PATH=/usr/bin",
 	}
 	if len(got) != len(want) {

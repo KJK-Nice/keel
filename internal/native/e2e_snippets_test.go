@@ -10,17 +10,17 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// Snippets and Approve before type against a real keel serve and a real shell (Local Shell). The point of these
+// Snippets and Approve before type against a real slime serve and a real shell (Local Shell). The point of these
 // scenarios is what reaches the PTY and when: nothing before Type, and after Type exactly Ctrl-U and the text the
-// dialog showed (keel serve adds nothing, so the trailing newline the client adds is what runs the command).
+// dialog showed (slime serve adds nothing, so the trailing newline the client adds is what runs the command).
 
-func (e *win) snippetsOnServer() []keelclient.Snippet {
+func (e *win) snippetsOnServer() []slimeclient.Snippet {
 	e.t.Helper()
 	_, body := e.raw("GET", "/api/snippets", nil)
-	var out []keelclient.Snippet
+	var out []slimeclient.Snippet
 	if err := json.Unmarshal([]byte(body), &out); err != nil {
 		e.t.Fatal(err)
 	}
@@ -28,13 +28,13 @@ func (e *win) snippetsOnServer() []keelclient.Snippet {
 }
 
 // snippetNamed is the snippet with that name on the daemon (a new vault is seeded with four of its own).
-func (e *win) snippetNamed(name string) (keelclient.Snippet, bool) {
+func (e *win) snippetNamed(name string) (slimeclient.Snippet, bool) {
 	for _, s := range e.snippetsOnServer() {
 		if s.Name == name {
 			return s, true
 		}
 	}
-	return keelclient.Snippet{}, false
+	return slimeclient.Snippet{}, false
 }
 
 // inWindow reports that the window holds a snippet of that name (it asks the server again each time).
@@ -170,7 +170,7 @@ func TestE2EFollowerCannotType(t *testing.T) {
 	}
 
 	// A passes control to B (a control frame, as the follower test does); the same dialog can now type.
-	conn := a.w.focusedPane().conn.(*keelclient.Conn)
+	conn := a.w.focusedPane().conn.(*slimeclient.Conn)
 	if err := conn.GrantControl(b.snap().YouID); err != nil {
 		t.Fatal(err)
 	}

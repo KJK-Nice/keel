@@ -17,12 +17,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/sharelink"
-	keelsignal "keel/internal/signal"
+	"slime/internal/native/slimeclient"
+	"slime/internal/sharelink"
+	keelsignal "slime/internal/signal"
 )
 
-// These tests run the real signal server (internal/signal) on a loopback port and a pion peer that stands in for keel
+// These tests run the real signal server (internal/signal) on a loopback port and a pion peer that stands in for slime
 // serve. Every peer has an empty ICE server list and offers loopback candidates: nothing leaves the machine.
 
 // fakeHost is the host's side: it owns the room, asks to be told of joiners, and answers them like internal/share.
@@ -237,7 +237,7 @@ func open(t *testing.T, h *fakeHost, withKey string) *Peer {
 	return p
 }
 
-func waitState(t *testing.T, p *Peer, what string, cond func(keelclient.State) bool) keelclient.State {
+func waitState(t *testing.T, p *Peer, what string, cond func(slimeclient.State) bool) slimeclient.State {
 	t.Helper()
 	for end := time.Now().Add(10 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
 		if st := p.Snapshot(); cond(st) {
@@ -245,7 +245,7 @@ func waitState(t *testing.T, p *Peer, what string, cond func(keelclient.State) b
 		}
 	}
 	t.Fatalf("timed out waiting for %s; state %+v", what, p.Snapshot())
-	return keelclient.State{}
+	return slimeclient.State{}
 }
 
 // readAll reads what the peer has until it is closed, with a limit of time.
@@ -303,7 +303,7 @@ func TestJoinHappyPathFollowsThenDrivesAfterAHandOver(t *testing.T) {
 	}
 	h.admit(id)
 	h.waitOpen()
-	waitState(t, p, "ready", func(s keelclient.State) bool { return s.Status == "ready" })
+	waitState(t, p, "ready", func(s slimeclient.State) bool { return s.Status == "ready" })
 	if v := <-h.answer; !v {
 		t.Fatal("the host could not verify the joiner's answer")
 	}
@@ -311,7 +311,7 @@ func TestJoinHappyPathFollowsThenDrivesAfterAHandOver(t *testing.T) {
 	// The snapshot the hub sends first, then the ready frame: follower of Ann's session.
 	h.dc.Send([]byte("hello-2\r\n"))
 	h.frame(presence("ready", "ready", 2, 1, 1))
-	st := waitState(t, p, "follower", func(s keelclient.State) bool { return s.Role == "follower" && s.Title == "Local Shell" })
+	st := waitState(t, p, "follower", func(s slimeclient.State) bool { return s.Role == "follower" && s.Title == "Local Shell" })
 	if st.DriverID != 1 || st.OwnerID != 1 || st.YouID != 2 || len(st.Attached) != 2 {
 		t.Fatalf("state %+v", st)
 	}
@@ -344,7 +344,7 @@ func TestJoinHappyPathFollowsThenDrivesAfterAHandOver(t *testing.T) {
 		t.Fatalf("got %q", m.Data)
 	}
 	h.frame(presence("control", "ready", 2, 2, 1))
-	waitState(t, p, "driver", func(s keelclient.State) bool { return s.Role == "driver" })
+	waitState(t, p, "driver", func(s slimeclient.State) bool { return s.Role == "driver" })
 	p.Write([]byte("x"))
 	if m := <-h.got; m.IsString || string(m.Data) != "x" {
 		t.Fatalf("got %v %q", m.IsString, m.Data)
@@ -380,7 +380,7 @@ func TestAWrongKeyFailsVerificationAndShowsNoOutput(t *testing.T) {
 	id := h.waitPeer()
 	h.pending(id)
 	h.admit(id)
-	st := waitState(t, p, "an error", func(s keelclient.State) bool { return s.Status == "error" })
+	st := waitState(t, p, "an error", func(s slimeclient.State) bool { return s.Status == "error" })
 	if st.Message != ErrUnverified.Error() {
 		t.Fatalf("message %q", st.Message)
 	}
@@ -396,7 +396,7 @@ func TestAWrongKeyFailsVerificationAndShowsNoOutput(t *testing.T) {
 		t.Fatalf("terminal output after a failed verification: %q", got)
 	}
 	evs := p.Events()
-	if len(evs) != 1 || evs[0].Kind != keelclient.EventNoticeError || evs[0].Message != ErrUnverified.Error() {
+	if len(evs) != 1 || evs[0].Kind != slimeclient.EventNoticeError || evs[0].Message != ErrUnverified.Error() {
 		t.Fatalf("events %+v", evs)
 	}
 	noLeak(t, "the state", fmt.Sprintf("%+v %v", st, evs))
@@ -415,7 +415,7 @@ func TestDenialEndsTheJoinWithTheAppsMessageAndNoOutput(t *testing.T) {
 	id := h.waitPeer()
 	h.pending(id)
 	h.deny(id)
-	st := waitState(t, p, "denied", func(s keelclient.State) bool { return s.Status == "error" })
+	st := waitState(t, p, "denied", func(s slimeclient.State) bool { return s.Status == "error" })
 	if st.Message != "The host declined your request to join." {
 		t.Fatalf("message %q", st.Message)
 	}
@@ -427,7 +427,7 @@ func TestDenialEndsTheJoinWithTheAppsMessageAndNoOutput(t *testing.T) {
 	}
 }
 
-func isLost(s keelclient.State) bool { return s.Status == "error" && s.Message == msgLost }
+func isLost(s slimeclient.State) bool { return s.Status == "error" && s.Message == msgLost }
 
 func TestABriefDisconnectDoesNotEndTheJoin(t *testing.T) {
 	disconnectGrace = 150 * time.Millisecond
@@ -487,16 +487,16 @@ func TestWhenTheOwnerStopsSharingTheJoinerIsToldAndTheTerminalSaysHostDetached(t
 	h.admit(id)
 	h.waitOpen()
 	h.frame(presence("ready", "ready", 2, 1, 1))
-	waitState(t, p, "follower", func(s keelclient.State) bool { return s.Role == "follower" })
+	waitState(t, p, "follower", func(s slimeclient.State) bool { return s.Role == "follower" })
 	// Stop sharing: the hub closes the room's host socket and every peer.
 	h.ws.Close()
 	h.pc.Close()
-	waitState(t, p, "host gone", func(s keelclient.State) bool { return s.Status != "ready" })
-	var evs []keelclient.Event
+	waitState(t, p, "host gone", func(s slimeclient.State) bool { return s.Status != "ready" })
+	var evs []slimeclient.Event
 	for end := time.Now().Add(5 * time.Second); time.Now().Before(end) && len(evs) == 0; time.Sleep(10 * time.Millisecond) {
 		evs = append(evs, p.Events()...)
 	}
-	if len(evs) == 0 || evs[0].Kind != keelclient.EventNotice || evs[0].Message != "Host left" {
+	if len(evs) == 0 || evs[0].Kind != slimeclient.EventNotice || evs[0].Message != "Host left" {
 		t.Fatalf("events %+v", evs)
 	}
 	p.Close()

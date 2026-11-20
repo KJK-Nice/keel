@@ -13,8 +13,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Theme, UI size, the terminal font and splits that fit, against a scratch keel serve (every daemon has KEEL_KEYRING=off and
-// its own KEEL_DATA under .scratch-native/e2e, on a loopback port the kernel chose).
+// Theme, UI size, the terminal font and splits that fit, against a scratch slime serve (every daemon has SLIME_KEYRING=off and
+// its own SLIME_DATA under .scratch-native/e2e, on a loopback port the kernel chose).
 
 // openSettings shows the Settings page (⌘,) and waits for its Appearance section.
 func (e *win) openSettings() {
@@ -125,8 +125,8 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e := newWin(t, addr, dir, nil)
 	sid := e.openLocal()
 	e.clickBody("1")
-	e.typeLine("echo 'Keel 0Oo1lI {}[] wmi'")
-	e.waitScrollback(sid, "Keel 0Oo1lI")
+	e.typeLine("echo 'Slime 0Oo1lI {}[] wmi'")
+	e.waitScrollback(sid, "Slime 0Oo1lI")
 	e.settle(500 * time.Millisecond)
 	cols := func() int {
 		for _, s := range e.sessions() {
@@ -138,7 +138,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	}
 	colsBefore := cols()
 	row, _ := e.tt.Find("host Local Shell")
-	status, _ := e.tt.Find("keel serve · 1 session")
+	status, _ := e.tt.Find("slime serve · 1 session")
 	paneBefore, _ := e.tt.Find("pane 1")
 	e.shot("TestE2EUISizeAndFont-default")
 
@@ -152,7 +152,7 @@ func TestE2EUISizeAndFont(t *testing.T) {
 	e.key(ui.Cmd, ui.Key1)
 	e.settle(500 * time.Millisecond)
 	row2, _ := e.tt.Find("host Local Shell")
-	status2, _ := e.tt.Find("keel serve · 1 session")
+	status2, _ := e.tt.Find("slime serve · 1 session")
 	if row2.H != row.H || row.H != sizeControl {
 		t.Errorf("the sidebar row is %v high at 16 and %v at 12: the app's row is px (size-control %d)", row2.H, row.H, sizeControl)
 	}

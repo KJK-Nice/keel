@@ -9,23 +9,23 @@ import (
 
 	"github.com/egoist/mygo/ui/markdown/parser"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/slimeclient"
 )
 
 // The pure rules of notebooks (docs/ui-redesign.md §18): the words and states the screens show, pinned by
-// notebookslogic_test.go. Nothing here talks to keel serve, draws or types.
+// notebookslogic_test.go. Nothing here talks to slime serve, draws or types.
 
 const (
 	placeholderRefused = "Not typed: this block holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Edit it to the real value or an environment variable first."
-	agentEditReview    = "The agent edited this notebook. Check what changed before you type a command from it: Keel kept the version before the edit."
+	agentEditReview    = "The agent edited this notebook. Check what changed before you type a command from it: Slime kept the version before the edit."
 )
 
 // byAgent is Notebook.LastBy and Notebook.Source of the agent's work (a constant: guard_test.go keeps the quoted key).
 const byAgent = "agent"
 
 // privateLabel is the meta line's toggle.
-func privateLabel(nb keelclient.Notebook) string {
+func privateLabel(nb slimeclient.Notebook) string {
 	if nb.Private {
 		return "Private"
 	}
@@ -35,7 +35,7 @@ func privateLabel(nb keelclient.Notebook) string {
 // ---- sorting and previews ----
 
 // sortedNotebooks is the list the sidebar and the page show: pinned first, then newest, then name.
-func sortedNotebooks(nbs []keelclient.Notebook) []keelclient.Notebook {
+func sortedNotebooks(nbs []slimeclient.Notebook) []slimeclient.Notebook {
 	out := slices.Clone(nbs)
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Pinned != out[j].Pinned {
@@ -50,7 +50,7 @@ func sortedNotebooks(nbs []keelclient.Notebook) []keelclient.Notebook {
 }
 
 // notebookPreview is a row's second line: the first non-empty line of the text.
-func notebookPreview(nb keelclient.Notebook) string {
+func notebookPreview(nb slimeclient.Notebook) string {
 	for _, cell := range nb.Cells {
 		line := strings.TrimSpace(cell.Body)
 		if line == "" {
@@ -67,7 +67,7 @@ func notebookPreview(nb keelclient.Notebook) string {
 }
 
 // notebookName is a notebook's name as a row shows it.
-func notebookName(nb keelclient.Notebook) string {
+func notebookName(nb slimeclient.Notebook) string {
 	if nb.Name == "" {
 		return "Notebook"
 	}
@@ -76,7 +76,7 @@ func notebookName(nb keelclient.Notebook) string {
 
 // ---- fences ----
 
-// fence is a fenced block of a notebook's Markdown as keel serve will see it: parsed with MyGo's Markdown parser, never
+// fence is a fenced block of a notebook's Markdown as slime serve will see it: parsed with MyGo's Markdown parser, never
 // from a rich text model, so two fences next to each other are two fences.
 type fence struct {
 	Index int    // the block's index in the parsed document, which markdown.View reports as CodeBlockView.Index
@@ -124,7 +124,7 @@ func fenceAt(fs []fence, index int) (fence, bool) {
 }
 
 // directable reports whether a fence may be typed with no dialog: a shell fence of exactly one line that holds no
-// placeholder (keel serve decides again).
+// placeholder (slime serve decides again).
 func directable(f fence) bool {
 	line := strings.TrimSpace(f.Code)
 	return f.Shell && line != "" && !strings.Contains(line, "\n") && !cmdrule.HasPlaceholder(line)
@@ -209,7 +209,7 @@ var eventLabel = map[string]string{
 type versionRow struct{ Who, What, When, Summary string }
 
 // versionLabel is a version's who and what.
-func versionLabel(v keelclient.NotebookVersion, now time.Time) versionRow {
+func versionLabel(v slimeclient.NotebookVersion, now time.Time) versionRow {
 	who := "You"
 	if v.By == byAgent {
 		who = "Agent"
@@ -245,7 +245,7 @@ func whenText(at, now time.Time) string {
 }
 
 // versionText is a version's text.
-func versionText(v keelclient.NotebookVersion) string { return v.Markdown() }
+func versionText(v slimeclient.NotebookVersion) string { return v.Markdown() }
 
 // diffLine is a line of a diff: op is "same", "add" or "del".
 type diffLine struct{ Op, Text string }

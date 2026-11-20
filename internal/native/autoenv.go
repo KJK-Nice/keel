@@ -6,12 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"keel/internal/paths"
+	"slime/internal/env"
+	"slime/internal/paths"
 )
 
-// CheckAutomationEnv is the run-time half of the automation guard. Only the test builds (tag keelautomation) call it,
+// CheckAutomationEnv is the run-time half of the automation guard. Only the test builds (tag slimeautomation) call it,
 // from an init in package main. It returns an error unless the automation socket (MYGO_AUTOMATION) is in a private
-// directory and KEEL_DATA names a directory other than the default data directory, so a socket that can type into
+// directory and SLIME_DATA names a directory other than the default data directory, so a socket that can type into
 // the app never meets real data. MyGo's plugin listens in its own init, before any main-package init, but it
 // answers nothing until the app has launched, and the caller exits before that.
 func CheckAutomationEnv() error {
@@ -19,12 +20,12 @@ func CheckAutomationEnv() error {
 	if sock == "" {
 		return nil
 	}
-	data := os.Getenv("KEEL_DATA")
+	data := env.Get("DATA")
 	if data == "" {
-		return errors.New("MYGO_AUTOMATION is set but KEEL_DATA is not: automation runs only against a scratch data directory")
+		return errors.New("MYGO_AUTOMATION is set but SLIME_DATA is not: automation runs only against a scratch data directory")
 	}
 	if sameDir(data, defaultDataDir()) {
-		return errors.New("MYGO_AUTOMATION is set and KEEL_DATA is the default data directory: automation runs only against a scratch data directory")
+		return errors.New("MYGO_AUTOMATION is set and SLIME_DATA is the default data directory: automation runs only against a scratch data directory")
 	}
 	st, err := os.Stat(filepath.Dir(sock))
 	if err != nil || !st.IsDir() || st.Mode().Perm() != 0o700 {
@@ -42,15 +43,15 @@ func RemoveAutomationSocket() {
 	}
 }
 
-// defaultDataDir is what paths.DataDir gives with KEEL_DATA unset.
+// defaultDataDir is what paths.DataDir gives with SLIME_DATA and SLIME_DATA unset.
 func defaultDataDir() string {
-	old, had := os.LookupEnv("KEEL_DATA")
-	os.Unsetenv("KEEL_DATA")
-	d := paths.DataDir()
-	if had {
-		os.Setenv("KEEL_DATA", old)
+	for _, k := range env.Names("DATA") {
+		if old, had := os.LookupEnv(k); had {
+			os.Unsetenv(k)
+			defer os.Setenv(k, old)
+		}
 	}
-	return d
+	return paths.DataDir()
 }
 
 func sameDir(a, b string) bool {

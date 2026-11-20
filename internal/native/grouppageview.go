@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // memberCols are the table's columns as weights: Host, Address, Role, Tags, Agent.
@@ -91,7 +91,7 @@ func (w *workspace) groupRunMenu(c *ui.Context, p *groupPage) {
 }
 
 // runbookGroupSub is "3 steps · Roles worker, control-plane" or "2 steps · Every host".
-func runbookGroupSub(b keelclient.Runbook) string {
+func runbookGroupSub(b slimeclient.Runbook) string {
 	var roles []string
 	seen := map[string]bool{}
 	for _, s := range b.Steps {
@@ -127,7 +127,7 @@ func (w *workspace) groupRoleChips(c *ui.Context, p *groupPage) {
 }
 
 func (w *workspace) groupHostsTable(c *ui.Context, p *groupPage) {
-	byID := map[string]keelclient.Host{}
+	byID := map[string]slimeclient.Host{}
 	for _, h := range w.hosts {
 		byID[h.ID] = h
 	}
@@ -181,7 +181,7 @@ func (w *workspace) groupHostsTable(c *ui.Context, p *groupPage) {
 }
 
 // memberAddr is the address column: user@address, "this machine" for a local shell.
-func memberAddr(h keelclient.Host) string {
+func memberAddr(h slimeclient.Host) string {
 	switch {
 	case h.Address != "":
 		if h.Username != "" {
@@ -195,7 +195,7 @@ func memberAddr(h keelclient.Host) string {
 }
 
 // rolePicker is a host's Role: the group's roles, No role and New role… (which turns into a field).
-func (w *workspace) rolePicker(c *ui.Context, p *groupPage, m keelclient.GroupMember, roles []string) {
+func (w *workspace) rolePicker(c *ui.Context, p *groupPage, m slimeclient.GroupMember, roles []string) {
 	if p.roleFor == m.HostID {
 		in := ui.TextInputBase(c, &p.roleText).Label("New role for " + m.Name).Placeholder("e.g. worker").PlaceholderColor(inkFaint).TextColor(ink).
 			FontSize(uiFontSize).Font(monoStack).MaxLength(32).Grow(1).MinWidth(0).Bind(&p.roleH)
@@ -279,7 +279,7 @@ func (w *workspace) groupVarsBox(c *ui.Context, p *groupPage) {
 	})
 }
 
-func (w *workspace) varRow(c *ui.Context, p *groupPage, v keelclient.GroupVar) {
+func (w *workspace) varRow(c *ui.Context, p *groupPage, v slimeclient.GroupVar) {
 	ui.Row(c).FillWidth().Gap(space2).Key(v.Name).AlignItems(ui.Center).Label("variable " + v.Name).Children(func() {
 		mono(c, v.Name, ink).Width(sizeRail / 2).Shrink(0)
 		if p.varEdit == v.Name {
@@ -407,7 +407,7 @@ func (w *workspace) exportDrawerView(c *ui.Context, p *groupPage) {
 				})
 			}
 			// Download: the shown file's text, saved where the system's save dialog says. Nothing is written by
-			// keel serve and nothing runs.
+			// slime serve and nothing runs.
 			if textBtnOff(c, "Download", btnPrimary, ex.file >= len(ex.files)) {
 				w.act(func() {
 					if ex.file < len(ex.files) {

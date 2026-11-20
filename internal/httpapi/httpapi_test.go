@@ -15,12 +15,12 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/tunnel"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/tunnel"
 )
 
 type fakeBridge struct {
@@ -52,7 +52,7 @@ func (f *fakeBridge) Close() error {
 
 func testServer(t *testing.T) (*httptest.Server, *runtime.Runtime, *store.Store, *fakeBridge) {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestHostTagsAPI(t *testing.T) {
 }
 
 func TestRuntimeStop(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -261,10 +261,10 @@ func TestRuntimeStop(t *testing.T) {
 }
 
 func TestVaultLockBlocksAPI(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	_ = os.Unsetenv("KEEL_VAULT_PASSPHRASE")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	_ = os.Unsetenv("SLIME_VAULT_PASSPHRASE")
 	// Never touch the real "keel"/"vault" keychain item from a test.
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_KEYRING", "off")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -523,7 +523,7 @@ func assertInjectNonceOneShotReplay(t *testing.T) {
 // the client sent. (The socket's own rules, live keys and the nonce
 // challenge, are checked where they now live: internal/sessionsock's
 // TestTheSocketsWritePathsBySource. The native client's are
-// internal/native/guard_test.go and keelclient/noforgedapproval_test.go.)
+// internal/native/guard_test.go and slimeclient/noforgedapproval_test.go.)
 func TestTheWindowsInjectsConsumeAServerTicket(t *testing.T) {
 	for file, min := range map[string]int{"httpapi.go": 3, "typedirect.go": 1} {
 		src, err := os.ReadFile(file)
@@ -685,7 +685,7 @@ func TestNotebookAPI(t *testing.T) {
 }
 
 func TestSessionReconnect(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -853,7 +853,7 @@ func TestSessionWSHostIDWithoutUpgradeSpawnsNothing(t *testing.T) {
 }
 
 func TestSessionWSReattachAfterDisconnect(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -1468,7 +1468,7 @@ func waitBinary(t *testing.T, conn *websocket.Conn, want string) string {
 }
 
 func TestRuntimeInfo(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)

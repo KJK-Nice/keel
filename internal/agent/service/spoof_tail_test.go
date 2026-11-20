@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/shellmark"
+	"slime/internal/shellmark"
 )
 
-// What keel serve's tracker yields for `cat evil.log` where evil.log holds
+// What slime serve's tracker yields for `cat evil.log` where evil.log holds
 // a DANGER line, then a fake end, a fake `ls` and `total 0`, and a fake
 // end (runtime: TestLastCommandBeforePartHoldsSpoofedOutput). The DANGER
 // line is in neither the command nor the part after it; the excerpt still

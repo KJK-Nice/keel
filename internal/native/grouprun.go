@@ -9,13 +9,13 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // The group run page (docs/ui-redesign.md §17, board GroupRunbook):
-// one runbook walked across a folder's hosts, rolling or parallel. keel serve holds the run (at most 8, in its memory only) and
-// makes every proposal; this window shows it, asks keel serve every 1.5 s to read the shells' results and to make the current
+// one runbook walked across a folder's hosts, rolling or parallel. slime serve holds the run (at most 8, in its memory only) and
+// makes every proposal; this window shows it, asks slime serve every 1.5 s to read the shells' results and to make the current
 // step's due proposals for the panes this window has open and drives, and types — never by itself. Typing is the user's:
 // "Type into N panes" opens the group approve dialog (approve.go, groupapproveview.go), which shows the exact bytes and one
 // row per host that the user ticks; each ticked host is then typed by the dialog's Type action (approve.go), which is the only
@@ -28,24 +28,24 @@ import (
 // Not built: one click typing a read-only one-line step into every pane with no dialog (§6 rule 13, "for review, not yet
 // accepted" in the spec): every group step goes through the dialog, which is the stricter path and always available.
 
-// groupRunEvery is how often the page asks keel serve to propose and to read results.
+// groupRunEvery is how often the page asks slime serve to propose and to read results.
 const groupRunEvery = 1500 * time.Millisecond
 
 const (
-	msgRunEnded     = "keel serve no longer holds this run (it ended with keel serve). Start a runbook from a group's page: Run a runbook on this group."
+	msgRunEnded     = "slime serve no longer holds this run (it ended with slime serve). Start a runbook from a group's page: Run a runbook on this group."
 	stopTitle       = "Stop this runbook?"
 	stopRunMessage  = "Nothing more is proposed in this run. What was typed stays typed, and Logs keep it."
 	stopAction      = "Stop runbook"
-	fillNote        = "Keel fills these in only when you press Type, and shows you the exact bytes first. Logs record how many values were filled in, never a value. Copy leaves the {{names}} in."
+	fillNote        = "Slime fills these in only when you press Type, and shows you the exact bytes first. Logs record how many values were filled in, never a value. Copy leaves the {{names}} in."
 	runSafetyLine   = "Each step is one proposal per host. Nothing runs until you press Enter in each pane: a step is typed only into the hosts you tick. Each host's result comes from its shell's exit code."
 	runReportedLine = "Exit codes are reported by each pane's shell (OSC 133 marks): they are not proof. On a production host a reported exit 0 waits for you to confirm it."
 )
 
 // groupRunPage is the state of the Group run tab.
 type groupRunPage struct {
-	id      string // the run shown: kept in the saved workspace while keel serve holds it
+	id      string // the run shown: kept in the saved workspace while slime serve holds it
 	title   string // "Run · <runbook>"
-	run     *keelclient.GroupRun
+	run     *slimeclient.GroupRun
 	err     string
 	loaded  bool
 	polling bool // a propose is out
@@ -71,7 +71,7 @@ func (w *workspace) groupRunPageState() *groupRunPage {
 }
 
 // openGroupRun opens the run's page, or shows it in the tab that is open: one instance.
-func (w *workspace) openGroupRun(run keelclient.GroupRun) {
+func (w *workspace) openGroupRun(run slimeclient.GroupRun) {
 	if run.ID == "" {
 		return
 	}
@@ -87,8 +87,8 @@ func (w *workspace) openGroupRun(run keelclient.GroupRun) {
 	w.openPage(pageGroupRun)
 }
 
-// loadGroupRunPage reads the run the page is on again (the page was selected, or the vault changed): keel serve first reads
-// the results of typed steps from their panes' shell marks. A run keel serve does not hold is said so.
+// loadGroupRunPage reads the run the page is on again (the page was selected, or the vault changed): slime serve first reads
+// the results of typed steps from their panes' shell marks. A run slime serve does not hold is said so.
 func (w *workspace) loadGroupRunPage() {
 	p := w.groupRunPageState()
 	if p == nil || p.id == "" {
@@ -96,11 +96,11 @@ func (w *workspace) loadGroupRunPage() {
 	}
 	p.gen++
 	gen, id := p.gen, p.id
-	callIf(w, func() bool { return w.groupRunPageState() == p && p.gen == gen }, func(c context.Context) (keelclient.GroupRun, error) { return w.be.GroupRun(c, id) },
-		func(run keelclient.GroupRun, err error) {
+	callIf(w, func() bool { return w.groupRunPageState() == p && p.gen == gen }, func(c context.Context) (slimeclient.GroupRun, error) { return w.be.GroupRun(c, id) },
+		func(run slimeclient.GroupRun, err error) {
 			p.loaded = true
 			if err != nil {
-				var se *keelclient.StatusError
+				var se *slimeclient.StatusError
 				if errors.As(err, &se) && se.Code == 404 {
 					p.run, p.err = nil, msgRunEnded
 				} else {
@@ -118,7 +118,7 @@ func (w *workspace) groupPaneOpen(sessionID string) bool {
 	return p.drives()
 }
 
-// groupPaneIDs are the sessions this window has open and drives, for the propose: keel serve resolves each pane's host itself.
+// groupPaneIDs are the sessions this window has open and drives, for the propose: slime serve resolves each pane's host itself.
 func (w *workspace) groupPaneIDs() (out []string) {
 	for _, p := range w.agentPanes() {
 		if p.drives() {
@@ -137,12 +137,12 @@ func (w *workspace) groupRunTick() {
 	}
 	id, panes, seq := p.run.ID, w.groupPaneIDs(), p.calls
 	callOnce(w, &p.polling, func() bool { return w.groupRunPageState() == p && p.id == id && p.calls == seq }, // a press since: its answer is newer
-		func(c context.Context) (keelclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
-		func(run keelclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
+		func(c context.Context) (slimeclient.GroupRun, error) { return w.be.ProposeGroupStep(c, id, panes) },
+		func(run slimeclient.GroupRun, err error) { w.groupRunAnswered(p, run, err) })
 }
 
-// groupRunAnswered takes keel serve's answer to any call about the run.
-func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, err error) {
+// groupRunAnswered takes slime serve's answer to any call about the run.
+func (w *workspace) groupRunAnswered(p *groupRunPage, run slimeclient.GroupRun, err error) {
 	if err != nil {
 		p.err = hostError(err)
 		return
@@ -150,19 +150,19 @@ func (w *workspace) groupRunAnswered(p *groupRunPage, run keelclient.GroupRun, e
 	p.run, p.err, p.title = &run, "", "Run · "+run.Name
 }
 
-// groupRunCall runs one request about the run (a mode change, a mark, a stop) and takes the answer; keel serve's refusal (409)
+// groupRunCall runs one request about the run (a mode change, a mark, a stop) and takes the answer; slime serve's refusal (409)
 // is shown in its words.
-func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id string) (keelclient.GroupRun, error)) {
+func (w *workspace) groupRunCall(p *groupRunPage, do func(c context.Context, id string) (slimeclient.GroupRun, error)) {
 	if p.run == nil {
 		return
 	}
-	// A second press while one call is out is a call of its own (keel serve takes them one at a time and
+	// A second press while one call is out is a call of its own (slime serve takes them one at a time and
 	// refuses what does not apply); only the newest answer is shown, which holds the earlier ones' effects.
 	p.calls++
 	seq := p.calls
 	p.busy++
 	id := p.run.ID
-	call(w, func(c context.Context) (keelclient.GroupRun, error) { return do(c, id) }, func(run keelclient.GroupRun, err error) {
+	call(w, func(c context.Context) (slimeclient.GroupRun, error) { return do(c, id) }, func(run slimeclient.GroupRun, err error) {
 		p.busy--
 		if w.groupRunPageState() != p || p.id != id || seq != p.calls {
 			return
@@ -175,7 +175,7 @@ func (w *workspace) setRunMode(p *groupRunPage, mode string) {
 	if p.run == nil || p.run.Mode == mode || p.run.ModeLocked {
 		return
 	}
-	w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) {
+	w.groupRunCall(p, func(c context.Context, id string) (slimeclient.GroupRun, error) {
 		return w.be.SetGroupRunMode(c, id, mode)
 	})
 }
@@ -186,7 +186,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 		return
 	}
 	step := p.run.Steps[p.run.Current].ID
-	w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) {
+	w.groupRunCall(p, func(c context.Context, id string) (slimeclient.GroupRun, error) {
 		return w.be.MarkGroupStep(c, id, step, hostID, action)
 	})
 }
@@ -194,7 +194,7 @@ func (w *workspace) markStep(p *groupRunPage, hostID, action string) {
 // askStopRun is Stop runbook: it asks first.
 func (w *workspace) askStopRun(p *groupRunPage) {
 	w.askConfirm(&confirmDialog{title: stopTitle, message: stopRunMessage, action: stopAction, run: func() {
-		w.groupRunCall(p, func(c context.Context, id string) (keelclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
+		w.groupRunCall(p, func(c context.Context, id string) (slimeclient.GroupRun, error) { return w.be.StopGroupRun(c, id) })
 	}})
 }
 
@@ -208,7 +208,7 @@ func (w *workspace) openRunHost(hostID string) {
 	w.warn("Host not found")
 }
 
-// startGroupRun starts a run of the runbook on this folder, rolling, and opens its page. keel serve fixes
+// startGroupRun starts a run of the runbook on this folder, rolling, and opens its page. slime serve fixes
 // the hosts per step; nothing is typed and no pane is read.
 func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	if p.run.busy {
@@ -216,9 +216,9 @@ func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 	}
 	p.run.open, p.run.busy = false, true
 	id := p.id
-	call(w, func(c context.Context) (keelclient.GroupRun, error) {
+	call(w, func(c context.Context) (slimeclient.GroupRun, error) {
 		return w.be.StartGroupRun(c, runbookID, id, wire.ModeRolling)
-	}, func(run keelclient.GroupRun, err error) {
+	}, func(run slimeclient.GroupRun, err error) {
 		p.run.busy = false
 		if err != nil {
 			w.warn(hostError(err))
@@ -230,7 +230,7 @@ func (w *workspace) startGroupRun(p *groupPage, runbookID string) {
 
 // ---- Type into N panes ----
 
-// typeGroupRun is "Type into N panes". It types nothing: it asks keel serve to fill the variables the proposals name (the
+// typeGroupRun is "Type into N panes". It types nothing: it asks slime serve to fill the variables the proposals name (the
 // fill writes nothing), then opens the group approve dialog on the exact bytes, nothing ticked unless there is one host.
 func (w *workspace) typeGroupRun() {
 	p := w.groupRunPageState()
@@ -267,11 +267,11 @@ func (w *workspace) typeGroupRun() {
 		open()
 		return
 	}
-	// A step that names variables: keel serve fills each host's values in now, and the dialog shows those exact bytes (Type is
+	// A step that names variables: slime serve fills each host's values in now, and the dialog shows those exact bytes (Type is
 	// refused for any other bytes).
 	p.typing = true
-	callIf(w, func() bool { return w.groupRunPageState() == p }, func(c context.Context) ([]keelclient.GroupFill, error) { return w.be.FillGroupStep(c, run.ID, ids) },
-		func(fills []keelclient.GroupFill, err error) {
+	callIf(w, func() bool { return w.groupRunPageState() == p }, func(c context.Context) ([]slimeclient.GroupFill, error) { return w.be.FillGroupStep(c, run.ID, ids) },
+		func(fills []slimeclient.GroupFill, err error) {
 			p.typing = false
 			if err != nil {
 				w.warn(hostError(err))
@@ -282,7 +282,7 @@ func (w *workspace) typeGroupRun() {
 		})
 }
 
-// groupTyped takes the answers of a group Type: each reached row shows what happened to it, in keel serve's words, and is
+// groupTyped takes the answers of a group Type: each reached row shows what happened to it, in slime serve's words, and is
 // final. When every row typed the dialog closes; when one was refused it stays, with that row's reason and
 // the others' "Typed.", so the user sees each.
 func (w *workspace) groupTyped(d *approveDialog, g *approveGroup, jobs []typeJob, errs []error) {
@@ -313,7 +313,7 @@ func (w *workspace) groupTyped(d *approveDialog, g *approveGroup, jobs []typeJob
 	g.done(typed, failed)
 }
 
-// groupTypeDone reads the run again after a Type: keel serve first reads the shells' results.
+// groupTypeDone reads the run again after a Type: slime serve first reads the shells' results.
 func (w *workspace) groupTypeDone(p *groupRunPage, typed int, failed []string) {
 	p.typing = false
 	w.loadGroupRunPage()

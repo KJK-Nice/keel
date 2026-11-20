@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 type sshBridge struct {

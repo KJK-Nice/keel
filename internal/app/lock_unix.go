@@ -12,7 +12,7 @@ import (
 
 // lockDataDir takes an exclusive, non-blocking flock on dataDir's
 // keel-serve.lock. The listening port only keeps two daemons off the same
-// KEEL_ADDR; two daemons with different addresses but the same KEEL_DATA
+// SLIME_ADDR; two daemons with different addresses but the same SLIME_DATA
 // would otherwise overwrite each other's keel.json and keel.vault. The
 // kernel drops the lock when the process exits, even on a crash.
 func lockDataDir(dataDir string) (release func(), err error) {
@@ -24,7 +24,7 @@ func lockDataDir(dataDir string) (release func(), err error) {
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()
 		if errors.Is(err, syscall.EWOULDBLOCK) {
-			return nil, fmt.Errorf("another keel serve is using %s", dataDir)
+			return nil, fmt.Errorf("another slime serve is using %s", dataDir)
 		}
 		return nil, err
 	}

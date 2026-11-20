@@ -22,7 +22,7 @@ func TestUISizeScalesRemSizesAndNotPxSizes(t *testing.T) {
 		}
 		tab, _ := r.tt.Find("tab Settings")
 		nh, _ := r.tt.Find("More host actions") // the last control of the sidebar's head, 8 px from its edge
-		st, _ := r.tt.Find("keel serve · 0 sessions")
+		st, _ := r.tt.Find("slime serve · 0 sessions")
 		foot, _ := r.tt.Find("Settings") // the sidebar footer's button
 		return measure{tab: tab.H, newHost: nh.H, sidebarEdge: nh.X + nh.W + space2 + 1, status: st.H, kbdH: foot.H, text: uiFontSize}
 	}
@@ -97,7 +97,7 @@ func TestTerminalFontRowListsTheAppsFiveAndAppliesToOpenPanes(t *testing.T) {
 		}
 	}
 	r.click(t, "Terminal font picker")
-	for _, label := range []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono", "Ships with Keel", "macOS", "Windows", "The system's monospace font"} {
+	for _, label := range []string{"JetBrains Mono", "IBM Plex Mono", "Menlo / SF Mono", "Consolas", "System mono", "Ships with Slime", "macOS", "Windows", "The system's monospace font"} {
 		if !slices.Contains(r.tt.Menu(), label) && !r.tt.HasText(label) {
 			t.Errorf("the font menu has no %q: %v", label, r.tt.Menu())
 		}

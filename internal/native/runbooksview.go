@@ -7,10 +7,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/runvars"
-	"keel/internal/wire"
+	"slime/internal/limits"
+	"slime/internal/native/slimeclient"
+	"slime/internal/runvars"
+	"slime/internal/wire"
 )
 
 // The Runbooks page, the card of a runbook in use and the card of a runbook the agent proposes. Colours and sizes are
@@ -145,7 +145,7 @@ func (w *workspace) conversationMenu(c *ui.Context, p *runbooksPage) {
 }
 
 func (w *workspace) runbooksList(c *ui.Context, p *runbooksPage) {
-	var shown []keelclient.Runbook
+	var shown []slimeclient.Runbook
 	if !p.unreadable && p.err == "" {
 		shown = filterRunbooks(p.list, p.filter)
 	}
@@ -187,7 +187,7 @@ func (w *workspace) runbooksList(c *ui.Context, p *runbooksPage) {
 	}
 }
 
-func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb keelclient.Runbook) {
+func (w *workspace) runbookRow(c *ui.Context, p *runbooksPage, rb slimeclient.Runbook) {
 	selected := rb.ID == p.selected
 	row := hairline(ui.Row(c).FillWidth().Padding(space2, space4).Gap(space3).Key(rb.ID).Selected(selected), 0, 0, 1, 0)
 	if selected {
@@ -309,7 +309,7 @@ func (w *workspace) runbookEditor(c *ui.Context, p *runbooksPage, e *rbEditor) {
 					ui.Row(c).Opacity(0.45).Label("Add step").Children(func() { label(c, "Add step", inkMuted) })
 				} else if textBtnIcon(c, "add-01", "Add step", btnGhost) {
 					w.act(func() {
-						e.steps = append(e.steps, newRbStep(keelclient.RunbookStep{}))
+						e.steps = append(e.steps, newRbStep(slimeclient.RunbookStep{}))
 						e.focusNew = len(e.steps)
 					})
 				}
@@ -396,14 +396,14 @@ func (w *workspace) runbookStepTarget(c *ui.Context, s *rbStepState, n string) {
 		})
 	}
 	if len(s.captures) > 0 {
-		help(c, "In a group run Keel takes the pattern's group from this step's output on each host and fills it in where a later step says {{name}}. Never sent to the agent.")
+		help(c, "In a group run Slime takes the pattern's group from this step's output on each host and fills it in where a later step says {{name}}. Never sent to the agent.")
 	}
 	if len(s.captures) < maxCaptures && textBtn(c, "Capture a value", btnGhost) {
-		w.act(func() { s.captures = append(s.captures, keelclient.StepCapture{}) })
+		w.act(func() { s.captures = append(s.captures, slimeclient.StepCapture{}) })
 	}
 }
 
-func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb keelclient.Runbook) {
+func (w *workspace) runbookBox(c *ui.Context, e *rbEditor, rb slimeclient.Runbook) {
 	ui.Column(c).Grow(1).Basis(sizeRail).MinWidth(0).Padding(space3).Gap(space3).Radius(radiusMd).Border(1, line).Label("Runbook settings").Children(func() {
 		ui.Row(c).FillWidth().Gap(space3).Children(func() {
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).Gap(space0_5).Children(func() {
@@ -480,7 +480,7 @@ func stepMarkColor(state string) ui.Color {
 func (w *workspace) runCard(c *ui.Context, runID string) {
 	a := w.agent
 	u := &a.runs
-	var run *keelclient.ChatRunbook
+	var run *slimeclient.ChatRunbook
 	if u.run != nil && u.run.ID == runID {
 		run = u.run
 	}
@@ -602,7 +602,7 @@ func (w *workspace) runOthers(c *ui.Context, u *runUse) {
 	})
 }
 
-func (w *workspace) runActions(c *ui.Context, run *keelclient.ChatRunbook, act runAction) {
+func (w *workspace) runActions(c *ui.Context, run *slimeclient.ChatRunbook, act runAction) {
 	busy := w.agent.runs.busy
 	btn := func(name string, primary bool, do func()) {
 		kind := btnGhost

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
 )
 
 // Runbooks (docs/ui-redesign.md §16). A runbook is a checklist the user

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/limits"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/limits"
 )
 
 // Notebooks (docs/ui-redesign.md §18, §6 rule 12). The agent sees the
@@ -91,7 +91,7 @@ func (a *Auditor) ReadNotebook(rd NotebookRead, id, name, body string, r *redact
 		b.WriteByte('\n')
 	}
 	if truncated {
-		fmt.Fprintf(&b, "[notebook cut by Keel: the first %d of %d bytes were sent]\n", sent, total)
+		fmt.Fprintf(&b, "[notebook cut by Slime: the first %d of %d bytes were sent]\n", sent, total)
 	}
 	fmt.Fprintf(&b, "--- end notebook %d ---", n)
 	safe := r.Text(b.String())

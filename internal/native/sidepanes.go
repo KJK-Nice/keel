@@ -6,9 +6,9 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/wire"
+	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // The sidebar's Panes section (docs/ui-redesign.md §5.1 "Panes in the sidebar"). The segment exists only while the active tab has two or more
@@ -70,7 +70,7 @@ func (w *workspace) pickPane(t *tab, id string) {
 // paneRow is paneRowInfo: what a row shows from what the pane knows.
 type paneRow struct {
 	id, name, sub string
-	host          keelclient.Host
+	host          slimeclient.Host
 	driving       bool // shared with you driving
 	agent         bool // the agent can read it
 	notebook      bool // a notebook pane: no host, no session

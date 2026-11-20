@@ -10,7 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 type roomResp struct {

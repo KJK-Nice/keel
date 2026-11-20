@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The pure helpers of Settings (tested in settingshelpers_test.go). No UI here.
@@ -59,34 +59,34 @@ func displayName(custom, fallback string) string {
 const nameMax = 40
 
 // vaultMode is how the vault is unlocked, from GET /api/vault.
-func vaultMode(v keelclient.Vault) (label, help string) {
+func vaultMode(v slimeclient.Vault) (label, help string) {
 	switch v.Mode {
 	case "keychain":
 		return "OS keychain", "The key that opens the vault is kept in your operating system's keychain. No passphrase to type."
 	case "passphrase":
 		if v.KeyringOff {
-			return "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Keel asks for the passphrase."
+			return "Passphrase", "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase."
 		}
-		return "Passphrase", "Keel asks for the passphrase when it starts."
+		return "Passphrase", "Slime asks for the passphrase when it starts."
 	}
 	return "Not set up", "The vault is created on first run."
 }
 
 // signalFields is the Signal server field from /api/runtime or PUT /api/share/signal: the
 // input's value (the saved server), its placeholder and the help line.
-func signalFields(info keelclient.Runtime) (value, placeholder, help string) {
+func signalFields(info slimeclient.Runtime) (value, placeholder, help string) {
 	url, saved := strings.TrimSpace(info.SignalURL), strings.TrimSpace(info.SignalSaved)
 	placeholder = "https://signal.example.com"
 	relay := "Join links go through this server. It never sees the terminal or the key in the link's #fragment."
 	switch info.SignalSource {
 	case "env":
-		return saved, placeholder, "KEEL_SIGNAL is set for this run, so Keel uses " + url + ". The server saved here is used when it is not set."
+		return saved, placeholder, "SLIME_SIGNAL is set for this run, so Slime uses " + url + ". The server saved here is used when it is not set."
 	case "settings":
 		return saved, placeholder, relay
 	case "build":
-		return saved, url, "This copy of Keel was built with " + url + ". Enter another server to use it instead. " + relay
+		return saved, url, "This copy of Slime was built with " + url + ". Enter another server to use it instead. " + relay
 	}
-	return saved, placeholder, "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you."
+	return saved, placeholder, "Share is off until you enter a slime-signal server: one you run yourself, or one someone runs for you."
 }
 
 // stopMessage is the alertdialog text for Stop runtime.
@@ -98,7 +98,7 @@ func stopMessage(sessions int) string {
 	case sessions > 1:
 		what = fmt.Sprintf("all %d running sessions", sessions)
 	}
-	return "This ends " + what + " and every port forward, then closes keel serve. Reopen Keel to start it again."
+	return "This ends " + what + " and every port forward, then closes slime serve. Reopen Slime to start it again."
 }
 
 // shortcut is a row of the Keyboard page: made from the command table, with the key cap text of this platform.

@@ -9,16 +9,16 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // gatedServer is testServer whose opener blocks until release is called, so
 // the session stays connecting (no bridge) for as long as the test needs.
 func gatedServer(t *testing.T) (srv *httptest.Server, st *store.Store, fb *fakeBridge, release func()) {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)

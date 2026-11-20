@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
 )
 
 // Runbooks (docs/ui-redesign.md §16): the agent never writes a runbook or

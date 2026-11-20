@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The notice, the card and the inserted look drawn over a pane's terminal. The text on the line stays the terminal's: marks sit over its cells, the hint after the
@@ -17,7 +17,7 @@ const (
 func noticeHintText() (lead, tail string) { return "Looks like a request", "suggest a command" }
 
 // sugBadge is the card's risk badge.
-func sugBadge(c *ui.Context, o keelclient.SuggestOption) {
+func sugBadge(c *ui.Context, o slimeclient.SuggestOption) {
 	_, kind := riskBadge(o.Risk)
 	fg, bg := tide, tideSoft
 	switch kind {
@@ -27,7 +27,7 @@ func sugBadge(c *ui.Context, o keelclient.SuggestOption) {
 		fg, bg = signal, signalSoft
 	}
 	ui.Row(c).Height(sizeControlSm-6).Padding(0, space1_5).Gap(space1).Radius(radiusFull).AlignItems(ui.Center).Shrink(0).Background(bg).Label("badge " + riskWords(o)).Children(func() {
-		if o.Risk == keelclient.RiskDestructive {
+		if o.Risk == slimeclient.RiskDestructive {
 			icon(c, "alert", fg)
 		}
 		label(c, riskWords(o), fg)
@@ -118,11 +118,11 @@ func (w *workspace) suggestCard(c *ui.Context, p *pane, v sugView, k keyLabelSet
 	if h := p.sg.cardH; h > 0 && below+h > b.H && at.Y-h-space1_5 >= 0 {
 		top = at.Y - h - space1_5
 	}
-	var opt *keelclient.SuggestOption
+	var opt *slimeclient.SuggestOption
 	if v.Sug != nil && len(v.Sug.Options) > 0 {
 		opt = &v.Sug.Options[min(max(v.Selected, 0), len(v.Sug.Options)-1)]
 	}
-	danger := opt != nil && opt.Risk == keelclient.RiskDestructive
+	danger := opt != nil && opt.Risk == slimeclient.RiskDestructive
 	name := "suggestion card"
 	switch {
 	case v.State == sugLoading:

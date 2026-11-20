@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"keel/internal/authtoken"
+	"slime/internal/authtoken"
 )
 
 // fakeKeel answers the /api/mcp/ routes from fixed values and records the
@@ -94,7 +94,7 @@ func TestInitializeListAndNotifications(t *testing.T) {
 		t.Fatalf("answers = %v (a notification gets none)", res)
 	}
 	init := res[0]["result"].(map[string]any)
-	if init["protocolVersion"] != "2025-06-18" || init["serverInfo"].(map[string]any)["name"] != "keel" {
+	if init["protocolVersion"] != "2025-06-18" || init["serverInfo"].(map[string]any)["name"] != "slime" {
 		t.Fatalf("initialize = %v", init)
 	}
 	if _, ok := init["capabilities"].(map[string]any)["tools"]; !ok {
@@ -118,7 +118,7 @@ func TestInitializeListAndNotifications(t *testing.T) {
 	}
 }
 
-// A client that asks for a version keel mcp does not list gets the latest.
+// A client that asks for a version slime mcp does not list gets the latest.
 // A line over the limit gets an error answer and the lines after it are
 // still served.
 func TestOversizedLineIsAnsweredNotFatal(t *testing.T) {
@@ -187,10 +187,10 @@ func TestToolsCallKeel(t *testing.T) {
 	}
 }
 
-// A tool whose keel serve call fails is a result with isError, so the
+// A tool whose slime serve call fails is a result with isError, so the
 // model reads why.
 func TestToolErrorsAreResults(t *testing.T) {
-	res := run(t, &fakeKeel{err: errors.New("keel serve is not running")}, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_panes"}}`)
+	res := run(t, &fakeKeel{err: errors.New("slime serve is not running")}, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_panes"}}`)
 	if text, isErr := resultText(t, res[0]); !isErr || !strings.Contains(text, "not running") {
 		t.Fatalf("result = %v", res[0])
 	}
@@ -273,13 +273,13 @@ func TestClientVerifiesThenSendsToken(t *testing.T) {
 
 func TestClientWithoutToken(t *testing.T) {
 	c := NewClient("127.0.0.1:1", t.TempDir())
-	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, nil); err == nil || !strings.Contains(err.Error(), "open the Keel app") {
+	if err := c.Do(context.Background(), "GET", "/api/mcp/panes", nil, nil); err == nil || !strings.Contains(err.Error(), "open the Slime app") {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 // The proof is checked before every request: a server that proved the
-// token once and then stops proving it (keel serve stopped and another
+// token once and then stops proving it (slime serve stopped and another
 // program took the port) never gets the token again.
 func TestClientVerifiesBeforeEveryRequest(t *testing.T) {
 	dir := t.TempDir()

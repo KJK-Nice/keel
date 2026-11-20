@@ -28,12 +28,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Both legs run every package, the window's (keel/internal/native) included (docs/native.md "Linux"). Nobody has
+      # Both legs run every package, the window's (slime/internal/native) included (docs/native.md "Linux"). Nobody has
       # run the window on a Linux desktop.
       - name: make test
         run: sh scripts/ci-run.sh "make test (${{ matrix.os }})" make test
 
-  # The native window (keel app) under MyGo's ui.Tester against a scratch keel serve, as make native-e2e runs it.
+  # The native window (slime app) under MyGo's ui.Tester against a scratch slime serve, as make native-e2e runs it.
   # It runs on the macOS runner and a failure fails the workflow. The unit tests of internal/native run in make test
   # above.
   native-e2e:
@@ -111,8 +111,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: docker build (keel-signal, as Railway builds it)
-        run: sh scripts/ci-run.sh "signal image" docker build -t keel-signal:ci .
+      - name: docker build (slime-signal, as Railway builds it)
+        run: sh scripts/ci-run.sh "signal image" docker build -t slime-signal:ci .
 
       - name: go.mod and Dockerfile agree on the Go version
         run: |

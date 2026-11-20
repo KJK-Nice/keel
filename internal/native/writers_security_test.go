@@ -78,7 +78,7 @@ func loadTyped() ([]*typedPkg, error) {
 			return nil, err
 		}
 		exports[p.ImportPath] = p.Export
-		if p.ImportPath == "keel/internal/native" || strings.HasPrefix(p.ImportPath, "keel/internal/native/") {
+		if p.ImportPath == "slime/internal/native" || strings.HasPrefix(p.ImportPath, "slime/internal/native/") {
 			own = append(own, p)
 		}
 	}
@@ -150,7 +150,7 @@ func calledIdents(f *ast.File) map[*ast.Ident]bool {
 }
 
 // writerSites are the places each writer, and each step of the window's paths to one, may be used, as "file:function",
-// once each. Every use of a function or method of that name declared under internal/native, on any type (keelclient's
+// once each. Every use of a function or method of that name declared under internal/native, on any type (slimeclient's
 // Conn, the window's session interface, or an interface declared anywhere else), counts.
 var writerSites = map[string][]string{
 	"ApprovedInject": {"approve.go:approveType"},
@@ -187,7 +187,7 @@ func usesOfWriters(pkgs []*typedPkg, names map[string][]string) map[string][]str
 				if _, tracked := names[fn.Name()]; !tracked {
 					return true
 				}
-				if path := fn.Pkg().Path(); path != "x" && path != "keel/internal/native" && !strings.HasPrefix(path, "keel/internal/native/") {
+				if path := fn.Pkg().Path(); path != "x" && path != "slime/internal/native" && !strings.HasPrefix(path, "slime/internal/native/") {
 					return true // a name of the same spelling from elsewhere
 				}
 				site := name + ":" + funcAt(f, id.Pos())
@@ -371,12 +371,12 @@ func hasWrite(t types.Type) bool {
 }
 
 // A session reaches a writer that is not the window's own session interface in one place: run.go hands the pane's
-// wrapped connection to the terminal view (Options.Conn). Nothing else gives a session, a syncConn or keelclient's Conn
+// wrapped connection to the terminal view (Options.Conn). Nothing else gives a session, a syncConn or slimeclient's Conn
 // to an io.Writer (io.WriteString, fmt.Fprint, io.Copy, bufio.NewWriter, …), where its Write would be called unseen.
 func TestASessionBecomesAWriterOnlyAsTheTerminalViewsConnection(t *testing.T) {
 	var native *typedPkg
 	for _, p := range typedNative(t) {
-		if p.path == "keel/internal/native" {
+		if p.path == "slime/internal/native" {
 			native = p
 		}
 	}
@@ -444,7 +444,7 @@ func fine(s sess) { var t sess = s; _ = t }
 
 // typingWire are the names of internal/wire that make or mark a frame that can lead to bytes in a PTY: the frame types
 // of the challenge, the inject and the suggestion questions and answers, the parts of an inject, and the fields of a
-// wire.Control that carry them. Under internal/native only keelclient/inject.go uses them.
+// wire.Control that carry them. Under internal/native only slimeclient/inject.go uses them.
 var typingWire = map[string]bool{
 	"TypeInjectChallenge": true, "TypeInject": true, "TypeAgentDetect": true, "TypeAgentSuggest": true, "TypeAgentSuggestRisk": true,
 	"TypeAgentType": true, "TypeAgentInsert": true, "TypeTypeDirect": true,
@@ -456,7 +456,7 @@ var typingWire = map[string]bool{
 // wireName is obj's name in typingWire's terms: "Name" for a package-level object of internal/wire, "Control.Field" for
 // a field of wire.Control, "" for anything else.
 func wireName(obj types.Object) string {
-	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != "keel/internal/wire" {
+	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != "slime/internal/wire" {
 		return ""
 	}
 	if v, ok := obj.(*types.Var); ok && v.IsField() {
@@ -474,7 +474,7 @@ func wireName(obj types.Object) string {
 	return ""
 }
 
-// The frames that can lead to bytes in a PTY are built from internal/wire's names in keelclient/inject.go alone, however
+// The frames that can lead to bytes in a PTY are built from internal/wire's names in slimeclient/inject.go alone, however
 // they are spelled (a constant, a field set by a key or by assignment, a part's type): the string and regexp rules of
 // guard_test.go cannot see a wire.TypeAgentSuggest or a ctl.Nonce.
 func TestOnlyInjectGoUsesTheTypingNamesOfTheWire(t *testing.T) {
@@ -490,8 +490,8 @@ func TestOnlyInjectGoUsesTheTypingNamesOfTheWire(t *testing.T) {
 				if !typingWire[w] {
 					return true
 				}
-				if name != "keelclient/inject.go" {
-					t.Errorf("%s:%d (%s) uses wire.%s: only keelclient/inject.go builds or reads a frame that can lead to bytes in a PTY", name, p.fset.Position(id.Pos()).Line, funcAt(f, id.Pos()), w)
+				if name != "slimeclient/inject.go" {
+					t.Errorf("%s:%d (%s) uses wire.%s: only slimeclient/inject.go builds or reads a frame that can lead to bytes in a PTY", name, p.fset.Position(id.Pos()).Line, funcAt(f, id.Pos()), w)
 				}
 				seen[w] = true
 				return true
@@ -500,7 +500,7 @@ func TestOnlyInjectGoUsesTheTypingNamesOfTheWire(t *testing.T) {
 	}
 	for w := range typingWire {
 		if !seen[w] {
-			t.Errorf("keelclient/inject.go no longer uses wire.%s; update typingWire", w)
+			t.Errorf("slimeclient/inject.go no longer uses wire.%s; update typingWire", w)
 		}
 	}
 }

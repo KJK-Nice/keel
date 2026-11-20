@@ -1,4 +1,4 @@
-// Package sessionsock is keel serve's end of the session socket
+// Package sessionsock is slime serve's end of the session socket
 // (internal/wire): it attaches one client to a session and handles what
 // that client sends, over whatever carries the frames. The window's
 // WebSocket (internal/httpapi) and a joined peer's WebRTC data channel
@@ -14,9 +14,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"keel/internal/inject"
-	"keel/internal/runtime"
-	"keel/internal/wire"
+	"slime/internal/inject"
+	"slime/internal/runtime"
+	"slime/internal/wire"
 )
 
 // Transport carries a client's frames: SendJSON a text frame, SendBytes a
@@ -30,7 +30,7 @@ type Transport interface {
 // it when it is the driver, and asking for or passing control. The zero
 // value grants none of it.
 type Caps struct {
-	// Inject: keel serve types for this client (inject-challenge, and
+	// Inject: slime serve types for this client (inject-challenge, and
 	// inject in every form: plain, notebook, direct, agent, suggestion).
 	Inject bool
 	// Agent: the in-pane suggestion questions (agent-detect, agent-suggest).
@@ -49,7 +49,7 @@ var (
 	Joined = Caps{}
 )
 
-// Typist is how keel serve types for a client that has Caps.Inject and
+// Typist is how slime serve types for a client that has Caps.Inject and
 // answers one that has Caps.Agent. internal/httpapi implements it: it owns
 // the agent service, the vault and the log those checks need. It answers
 // the client itself (Conn.Send); an error it returns is reported like any

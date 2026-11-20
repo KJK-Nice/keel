@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// In-pane suggestions against a real keel serve (KEEL_AGENT_PROVIDER=fake: the fake model and the fake Jev answer in
+// In-pane suggestions against a real slime serve (SLIME_AGENT_PROVIDER=fake: the fake model and the fake Jev answer in
 // process, nothing is sent anywhere) and a real shell (Local Shell, /bin/sh).
 //
 // What these prove: a noticed line, the card, an insert that leaves the command on the prompt line with its output absent
@@ -26,7 +26,7 @@ import (
 
 const fakeJevKey = "fake-jev-key-for-tests-only-0000"
 
-// suggestSetup stores the made-up keys (the fake provider ignores them; keel serve only needs them to be there) and turns
+// suggestSetup stores the made-up keys (the fake provider ignores them; slime serve only needs them to be there) and turns
 // suggestions on with the given detection ("auto" or "hash-only").
 func (e *win) suggestSetup(detection string) {
 	e.t.Helper()
@@ -38,7 +38,7 @@ func (e *win) suggestSetup(detection string) {
 	e.suggestSettings("on", detection)
 }
 
-// suggestSettings saves the settings as another window would (straight to keel serve) and waits for this window to learn
+// suggestSettings saves the settings as another window would (straight to slime serve) and waits for this window to learn
 // of it through the rev poll.
 func (e *win) suggestSettings(suggestions, detection string) {
 	e.t.Helper()
@@ -299,10 +299,10 @@ func TestE2ESuggestHashMode(t *testing.T) {
 	}
 	for _, l := range e.logEntries() {
 		if l.SessionID == sid && strings.HasPrefix(l.Kind, "agent.") {
-			t.Fatalf("a typed line without # reached keel serve's agent: %+v", l)
+			t.Fatalf("a typed line without # reached slime serve's agent: %+v", l)
 		}
 	}
-	// The suggest key asks for it, and keel serve logs it as it logs a ⇥ request.
+	// The suggest key asks for it, and slime serve logs it as it logs a ⇥ request.
 	e.key(ui.Cmd, ui.KeyY)
 	e.pumpClock(func() bool { return e.sugState() == sugCard && e.tt.HasText("echo keel-suggest-ok") }, "the card for the asked line")
 	e.pumpClock(func() bool { return e.logCount("agent.suggest", sid) > 0 }, "the agent.suggest log row")

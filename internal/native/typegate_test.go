@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The typing gate, pinned for every input: whether a pane may be typed into (a local session that is ready and that
@@ -19,8 +19,8 @@ func (g gateCase) String() string {
 	return fmt.Sprintf("remote=%v status=%q role=%q", g.remote, g.status, g.role)
 }
 
-func (g gateCase) state() keelclient.State {
-	st := keelclient.State{YouID: 2, DriverID: 2}
+func (g gateCase) state() slimeclient.State {
+	st := slimeclient.State{YouID: 2, DriverID: 2}
 	setWord(&st.Status, g.status)
 	setWord(&st.Role, g.role)
 	return st
@@ -111,7 +111,7 @@ func TestACardOffersTypeOnlyForADrivenLocalPaneAndAsksForShiftWhenNeeded(t *test
 		for _, driving := range []bool{false, true} {
 			for _, needs := range []bool{false, true} {
 				for _, shift := range []bool{false, true} {
-					p := keelclient.Proposal{SessionID: "s", NeedsShift: needs}
+					p := slimeclient.Proposal{SessionID: "s", NeedsShift: needs}
 					pane := &agentPane{remote: remote, driving: driving}
 					offer, ok, reason := offerType, true, ""
 					switch {
@@ -133,14 +133,14 @@ func TestACardOffersTypeOnlyForADrivenLocalPaneAndAsksForShiftWhenNeeded(t *test
 		}
 	}
 	for _, c := range []struct {
-		p    keelclient.Proposal
+		p    slimeclient.Proposal
 		pane *agentPane
 		want string
 	}{
-		{keelclient.Proposal{SessionID: "s", Expired: true}, &agentPane{driving: true}, offerExpired},
-		{keelclient.Proposal{SessionID: "s", Placeholders: true}, &agentPane{driving: true}, offerPlaceholder},
-		{keelclient.Proposal{}, &agentPane{driving: true}, offerNone},
-		{keelclient.Proposal{SessionID: "s"}, nil, offerClosed},
+		{slimeclient.Proposal{SessionID: "s", Expired: true}, &agentPane{driving: true}, offerExpired},
+		{slimeclient.Proposal{SessionID: "s", Placeholders: true}, &agentPane{driving: true}, offerPlaceholder},
+		{slimeclient.Proposal{}, &agentPane{driving: true}, offerNone},
+		{slimeclient.Proposal{SessionID: "s"}, nil, offerClosed},
 	} {
 		if got := typeOffer(c.p, c.pane); got != c.want {
 			t.Errorf("%+v: offer %q, want %q", c.p, got, c.want)
@@ -154,7 +154,7 @@ func TestACardOffersTypeOnlyForADrivenLocalPaneAndAsksForShiftWhenNeeded(t *test
 func TestAnInsertAndAGroupTypeNeedShiftExactlyWhenARiskyOneIsPicked(t *testing.T) {
 	for _, needs := range []bool{false, true} {
 		for _, shift := range []bool{false, true} {
-			ok, reason := insertGate(&keelclient.SuggestOption{NeedsShift: needs}, shift)
+			ok, reason := insertGate(&slimeclient.SuggestOption{NeedsShift: needs}, shift)
 			if want := !needs || shift; ok != want || (reason == needsShiftReason) != !want {
 				t.Errorf("insert needs=%v shift=%v: %v %q", needs, shift, ok, reason)
 			}
@@ -195,7 +195,7 @@ func TestSyncInputReachesOnlyAReadyPaneThisClientDrives(t *testing.T) {
 func TestSuggestionsTypeNowAndThePanelReadTheSameGate(t *testing.T) {
 	r := newSugRig(t)
 	r.screen(false, "user@h $")
-	r.c.directRes = keelclient.DirectResult{Typed: true}
+	r.c.directRes = slimeclient.DirectResult{Typed: true}
 	for _, g := range gateCases() {
 		st := g.state()
 		r.c.st = &st

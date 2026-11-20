@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/paths"
+	"slime/internal/paths"
 )
 
 // bystander starts an unrelated process and returns its pid. It stands in

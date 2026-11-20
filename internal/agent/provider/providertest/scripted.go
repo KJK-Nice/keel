@@ -7,11 +7,11 @@ import (
 	"strings"
 	"sync"
 
-	"keel/internal/agent/provider"
+	"slime/internal/agent/provider"
 )
 
-// Scripted is the test provider `keel serve` uses when started with
-// KEEL_AGENT_PROVIDER=fake (end-to-end tests only). It sends nothing
+// Scripted is the test provider `slime serve` uses when started with
+// SLIME_AGENT_PROVIDER=fake (end-to-end tests only). It sends nothing
 // anywhere and has no way to: it builds a canned reply from the request it
 // is given, in this process, and keeps only the last few requests in
 // memory for Go tests to inspect.
@@ -30,7 +30,7 @@ import (
 //     user's own for "remember my preference", one taken from pane output
 //     for "remember from the pane", else a note about the host of pane 1;
 //   - runbooks (docs/ui-redesign.md §16): with a runbook in use it says
-//     which step is current and proposes no command of its own (Keel
+//     which step is current and proposes no command of its own (Slime
 //     proposes the step); offered runbooks and a question that says
 //     "runbook" or "walk me" make it pick the first one; "save this as a
 //     runbook" makes it propose a two-step runbook;
@@ -132,12 +132,12 @@ func (s *Scripted) Generate(ctx context.Context, req provider.Request) (provider
 	if strings.Contains(question, "write this up") {
 		body := "## What we did\nPrinted the e2e marker in the pane.\n\n```sh\necho keel-notebook-draft\n```"
 		if strings.Contains(question, "image") {
-			// A remote image (§18): keel serve turns it into text, and the
+			// A remote image (§18): slime serve turns it into text, and the
 			// page's img-src policy would not fetch it anyway.
 			body += "\n\n![chart](" + LeakImageURL + ")"
 		}
 		if strings.Contains(question, "placeholder") {
-			body += "\n\n## Sign in\nSet the token first:\n\n```sh\nexport KEEL_TOKEN=[secret:1]\n```"
+			body += "\n\n## Sign in\nSet the token first:\n\n```sh\nexport SLIME_TOKEN=[secret:1]\n```"
 		}
 		raw, _ := json.Marshal(map[string]string{"title": "keel-notebook-e2e draft", "body": body})
 		b.WriteString(" Here is a write-up as a notebook draft:\n\n```keel-notebook\n" + string(raw) + "\n```\n")
@@ -253,7 +253,7 @@ func suggestReply(words string) provider.Response {
 
 // NotebookReadsPrefix must match the start of the message the agent
 // service sends with the notebooks the model asked to read.
-const NotebookReadsPrefix = "Keel read the notebooks you asked for."
+const NotebookReadsPrefix = "Slime read the notebooks you asked for."
 
 const readFence = "```keel-notebook-read"
 

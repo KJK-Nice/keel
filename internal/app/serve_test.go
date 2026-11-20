@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent/service"
-	"keel/internal/authtoken"
-	"keel/internal/paths"
-	"keel/internal/store"
+	"slime/internal/agent/service"
+	"slime/internal/authtoken"
+	"slime/internal/paths"
+	"slime/internal/store"
 )
 
 func TestProbeHealth(t *testing.T) {
@@ -70,7 +70,7 @@ func TestWriteReadRemovePid(t *testing.T) {
 }
 
 func TestRunServeHealthAndStop(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -228,7 +228,7 @@ func TestPostRuntimeStopSendsTokenOnlyToItsServe(t *testing.T) {
 
 func TestVerifyServeRejectsImpostor(t *testing.T) {
 	cases := map[string]http.HandlerFunc{
-		"no proof (older keel serve or another program)": func(w http.ResponseWriter, r *http.Request) {
+		"no proof (older slime serve or another program)": func(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
 		},
 		"proof for a different token": func(w http.ResponseWriter, r *http.Request) {

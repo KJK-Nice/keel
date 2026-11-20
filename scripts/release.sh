@@ -2,22 +2,22 @@
 # Builds the release files into dist/. The release workflow runs it
 # (.github/workflows/release.yml); it also runs locally, and changes nothing outside the worktree: it never uploads.
 #
-#   sh scripts/release.sh vX.Y.Z macos  Keel for macOS, universal (arm64 + x86_64), packaged by mygo build:
-#                                        keel-<mygo.json version>.dmg (Keel.app inside)
-#   sh scripts/release.sh vX.Y.Z linux  Keel for Linux, x86_64 and arm64 (mygo build builds both on any machine):
-#                                        keel-<v>-linux-<amd64|arm64>.tar.gz and keel_<v>_<amd64|arm64>.deb
-#   sh scripts/release.sh vX.Y.Z signal keel-signal for every OS (plain go build, not a MyGo app)
+#   sh scripts/release.sh vX.Y.Z macos  Slime for macOS, universal (arm64 + x86_64), packaged by mygo build:
+#                                        slime-<mygo.json version>.dmg (Slime.app inside)
+#   sh scripts/release.sh vX.Y.Z linux  Slime for Linux, x86_64 and arm64 (mygo build builds both on any machine):
+#                                        slime-<v>-linux-<amd64|arm64>.tar.gz and keel_<v>_<amd64|arm64>.deb
+#   sh scripts/release.sh vX.Y.Z signal slime-signal for every OS (plain go build, not a MyGo app)
 #
 # The version of the packages is "version" in mygo.json and must equal the tag (a v0.0.0-pr<N> dry run of the
-# workflow is the one exception). `keel version` prints the tag (MYGO_LDFLAGS -X main.version).
+# workflow is the one exception). `slime version` prints the tag (MYGO_LDFLAGS -X main.version).
 # LICENSE and THIRD_PARTY_NOTICES (scripts/notices.sh) go into every package and archive. The list is the variable
 # $shipped below; mygo.json ("resources") has to repeat it, since MyGo reads that file and not this script.
-# KEEL_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
+# SLIME_SIGN_IDENTITY (a Developer ID Application name) signs the macOS app and notarizes its disk image with the
 # keychain profile "notary"; without it the app is signed ad hoc and not notarized, and the log says so.
 # MYGO_UPDATER_PRIVATE_KEY (the secret of mygo keygen; mygo.json holds its public key) signs the in-app updates:
 # mygo build then writes update-<platform>.json, the app archive and deltas, which the release must carry for
 # "Check for Updates…" (docs/release.md). A tagged release fails without it; a pull request dry run goes on without.
-# No KEEL_SIGNAL is baked in: Share stays off until the user enters a keel-signal in Settings · Sharing
+# No SLIME_SIGNAL is baked in: Share stays off until the user enters a slime-signal in Settings · Sharing
 # (docs/sharing.md).
 set -eu
 
@@ -30,7 +30,7 @@ cd "$root"
 mkdir -p dist
 shipped="LICENSE THIRD_PARTY_NOTICES"
 
-# archname GOARCH: the CPU name in the keel-signal archive names (x86_64, arm64).
+# archname GOARCH: the CPU name in the slime-signal archive names (x86_64, arm64).
 archname() {
 	case "$1" in amd64) echo x86_64 ;; *) echo "$1" ;; esac
 }
@@ -58,7 +58,7 @@ fail() {
 	exit 1
 }
 
-# package PLATFORMS: mygo build, with the version of the tag in `keel version`. Sets cv, the version of mygo.json,
+# package PLATFORMS: mygo build, with the version of the tag in `slime version`. Sets cv, the version of mygo.json,
 # which names the files.
 package() {
 	cv=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' mygo.json)
@@ -76,11 +76,12 @@ package() {
 	[ -f THIRD_PARTY_NOTICES ] || sh scripts/notices.sh THIRD_PARTY_NOTICES
 	rm -rf build
 	platforms=$1
-	if [ -n "${KEEL_SIGN_IDENTITY:-}" ]; then
-		echo "release: signing with the Developer ID in KEEL_SIGN_IDENTITY and notarizing (keychain profile notary)"
-		set -- -sign "$KEEL_SIGN_IDENTITY"
+	SLIME_SIGN_IDENTITY=${SLIME_SIGN_IDENTITY:-${KEEL_SIGN_IDENTITY:-}} # its name before the rename still works
+	if [ -n "${SLIME_SIGN_IDENTITY:-}" ]; then
+		echo "release: signing with the Developer ID in SLIME_SIGN_IDENTITY and notarizing (keychain profile notary)"
+		set -- -sign "$SLIME_SIGN_IDENTITY"
 	else
-		echo "release: no KEEL_SIGN_IDENTITY: the macOS app is signed ad hoc and not notarized (Gatekeeper blocks it on other Macs until the user allows it)"
+		echo "release: no SLIME_SIGN_IDENTITY: the macOS app is signed ad hoc and not notarized (Gatekeeper blocks it on other Macs until the user allows it)"
 		set -- -skip-notarize
 	fi
 	MYGO_LDFLAGS="-X main.version=$tag" go tool mygo build -platform "$platforms" "$@"
@@ -90,41 +91,41 @@ case "$what" in
 macos)
 	[ "$(uname -s)" = Darwin ] || fail "the macOS app is signed and put in a disk image on macOS only"
 	package darwin/universal
-	app=build/darwin-universal/Keel.app
-	exe=$app/Contents/MacOS/Keel
+	app=build/darwin-universal/Slime.app
+	exe=$app/Contents/MacOS/Slime
 	for f in "$exe" "$app/Contents/Resources/libghostty-vt.dylib"; do
 		archs=$(lipo -archs "$f")
 		case "$archs" in *arm64*x86_64* | *x86_64*arm64*) ;; *) fail "$f is $archs, want arm64 and x86_64" ;; esac
 	done
 	# The universal binary runs here (arm64 or Rosetta).
-	[ "$("$exe" version)" = "keel $tag" ] || fail "keel version is not 'keel $tag'"
+	[ "$("$exe" version)" = "slime $tag" ] || fail "slime version is not 'slime $tag'"
 	[ "$(plutil -extract CFBundleIdentifier raw "$app/Contents/Info.plist")" = app.keel.desktop ] || fail "the bundle identifier changed"
 	[ "$(plutil -extract CFBundleShortVersionString raw "$app/Contents/Info.plist")" = "$cv" ] || fail "Info.plist version is not $cv"
 	for f in $shipped; do
 		[ -f "$app/Contents/Resources/$f" ] || fail "$f is not in the app"
 	done
 	codesign --verify --deep --strict "$app"
-	cp build/darwin-universal/keel-"$cv".dmg dist/
+	cp build/darwin-universal/slime-"$cv".dmg dist/
 	updates build/darwin-universal
 	;;
 linux)
 	package linux/amd64,linux/arm64
 	for arch in amd64 arm64; do
 		dir=build/linux-$arch
-		listing=$(tar -tzf "$dir/keel-$cv-linux-$arch.tar.gz")
-		for f in keel libghostty-vt.so $shipped; do
+		listing=$(tar -tzf "$dir/slime-$cv-linux-$arch.tar.gz")
+		for f in slime libghostty-vt.so $shipped; do
 			echo "$listing" | grep -qx "$f" || fail "$f is not in the $arch archive"
 		done
 		case "$arch" in amd64) want='x86-64' ;; arm64) want='ARM aarch64' ;; esac
-		file "$dir/keel" | grep -q "$want" || fail "$dir/keel is not $want"
+		file "$dir/slime" | grep -q "$want" || fail "$dir/slime is not $want"
 		# The binary of this machine's CPU runs here.
 		if [ "$(uname -s)" = Linux ] && [ "$(go env GOARCH)" = "$arch" ]; then
-			[ "$("$dir/keel" version)" = "keel $tag" ] || fail "keel version is not 'keel $tag'"
+			[ "$("$dir/slime" version)" = "slime $tag" ] || fail "slime version is not 'slime $tag'"
 		fi
 		if command -v dpkg-deb >/dev/null 2>&1; then
-			dpkg-deb -c "$dir/keel_${cv}_$arch.deb" | grep -q 'opt/keel/libghostty-vt.so' || fail "libghostty-vt.so is not in the $arch .deb"
+			dpkg-deb -c "$dir/keel_${cv}_$arch.deb" | grep -q 'opt/slime/libghostty-vt.so' || fail "libghostty-vt.so is not in the $arch .deb"
 		fi
-		cp "$dir/keel-$cv-linux-$arch.tar.gz" "$dir/keel_${cv}_$arch.deb" dist/
+		cp "$dir/slime-$cv-linux-$arch.tar.gz" "$dir/keel_${cv}_$arch.deb" dist/
 		updates "$dir"
 	done
 	;;
@@ -132,11 +133,11 @@ signal)
 	for target in linux/amd64 linux/arm64 darwin/arm64 darwin/amd64 windows/amd64; do
 		os=${target%/*}
 		arch=${target#*/}
-		name="keel-signal-$v-$os-$(archname "$arch")"
-		exe=keel-signal
-		if [ "$os" = windows ]; then exe=keel-signal.exe; fi
+		name="slime-signal-$v-$os-$(archname "$arch")"
+		exe=slime-signal
+		if [ "$os" = windows ]; then exe=slime-signal.exe; fi
 		rm -rf "dist/$name" && mkdir "dist/$name"
-		CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -o "dist/$name/$exe" ./cmd/keel-signal
+		CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -o "dist/$name/$exe" ./cmd/slime-signal
 		docs "dist/$name"
 		if [ "$os" = windows ]; then
 			(cd dist && zip -qr "$name.zip" "$name")

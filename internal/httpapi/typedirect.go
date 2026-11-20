@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/cmdrule"
-	"keel/internal/runtime"
-	"keel/internal/sessionsock"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/cmdrule"
+	"slime/internal/runtime"
+	"slime/internal/sessionsock"
+	"slime/internal/wire"
 )
 
 // Type without the approve dialog (docs/ui-redesign.md §6 rule 13, for
@@ -38,7 +38,7 @@ import (
 // Why a direct type goes to the dialog, beyond the agent service's own.
 const (
 	reasonAltScreen  = "the pane shows a full-screen program (such as vim, less or htop), where typed bytes are keystrokes"
-	reasonUnknown    = "Keel cannot check this command here"
+	reasonUnknown    = "Slime cannot check this command here"
 	reasonUnreviewed = "the agent edited this notebook and you have not reviewed that edit"
 	reasonNotPrompt  = "the shell is not at its prompt (a command is still running)"
 	reasonInput      = "the pane looks like it is asking for input (a password, a confirmation, another program's prompt)"
@@ -57,7 +57,7 @@ func looksLikeInput(line string) bool {
 
 // promptCheck sends a direct type to the dialog unless the pane is at its
 // shell's prompt: with OSC 133 marks, at a prompt with no command open;
-// in any case, not on a line that asks for input (keel serve's view of the
+// in any case, not on a line that asks for input (slime serve's view of the
 // output tail, or the window's own line).
 func promptCheck(sess *runtime.Session, d *wire.DirectType) error {
 	marks, atPrompt, last := sess.PromptState()
@@ -164,7 +164,7 @@ func notebookLine(body, command string) bool {
 var errFollowing = errors.New("you follow this pane: take or request control to type")
 
 // errJoined refuses a direct type into a pane a share peer drives.
-var errJoined = errors.New("this pane is joined from another Keel: type into it there")
+var errJoined = errors.New("this pane is joined from another Slime: type into it there")
 
 // directCheck runs every check of a type without the dialog for this
 // client of sess. A *service.DialogError sends it to the dialog; another

@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Runbooks on the fake backend: the page's list and editor and the bodies they send; the card for a runbook the agent
@@ -25,9 +25,9 @@ func rbRig(t *testing.T) *rig {
 	return r
 }
 
-func markerBook() keelclient.Runbook {
-	return keelclient.Runbook{ID: "rb1", Name: "Marker check", When: "The marker needs checking", Hosts: []string{"production"}, AgentMayPick: true, Source: "user",
-		Steps: []keelclient.RunbookStep{
+func markerBook() slimeclient.Runbook {
+	return slimeclient.Runbook{ID: "rb1", Name: "Marker check", When: "The marker needs checking", Hosts: []string{"production"}, AgentMayPick: true, Source: "user",
+		Steps: []slimeclient.RunbookStep{
 			{ID: "st1", Title: "Print one", Command: "echo rb-1", Risk: "readonly"},
 			{ID: "st2", Title: "Print two", Command: "echo rb-2", Risk: "readonly"},
 			{ID: "st3", Title: "Print three", Command: "echo rb-3", Risk: "readonly"},
@@ -137,7 +137,7 @@ func TestARunbookIsCheckedBeforeItIsSentAndAUnsavedEditorAsksBeforeItIsLeft(t *t
 		t.Fatal("a step with no title was sent")
 	}
 	// What was typed is not dropped without asking.
-	r.fb.mem.runbooks = []keelclient.Runbook{markerBook()}
+	r.fb.mem.runbooks = []slimeclient.Runbook{markerBook()}
 	r.w.loadRunbooks()
 	r.tt.Frame()
 	r.click(t, "Open Marker check")
@@ -165,10 +165,10 @@ func TestARunbookWithASecretInItsCommandShowsWhatWasKeptAndTheCount(t *testing.T
 		t.Fatal("the count is not told, or the value shows")
 	}
 	if got := r.w.runbooksPage().ed.steps[0].command; got != "mysql -p[secret:1]" {
-		t.Fatalf("the editor holds %q, not what keel serve kept", got)
+		t.Fatalf("the editor holds %q, not what slime serve kept", got)
 	}
-	// keel serve refuses a command the redactor would change in a saved runbook: the editor shows its reason.
-	r.fb.mem.rbErr = &keelclient.StatusError{Code: 400, Status: "400 Bad Request", Msg: "a step command holds a secret or a secret-looking value"}
+	// slime serve refuses a command the redactor would change in a saved runbook: the editor shows its reason.
+	r.fb.mem.rbErr = &slimeclient.StatusError{Code: 400, Status: "400 Bad Request", Msg: "a step command holds a secret or a secret-looking value"}
 	r.click(t, "Save")
 	if !r.tt.HasText("a step command holds a secret or a secret-looking value") {
 		t.Error("the refusal is not shown")
@@ -178,8 +178,8 @@ func TestARunbookWithASecretInItsCommandShowsWhatWasKeptAndTheCount(t *testing.T
 func TestWhatTheEditorDoesNotEditGoesBackAsItWasLoaded(t *testing.T) {
 	r := rbRig(t)
 	rb := markerBook()
-	rb.Steps[0].Role, rb.Steps[0].OneHost, rb.Steps[0].Captures = "web", true, []keelclient.StepCapture{{Name: "tok", Pattern: "x(\\d+)"}}
-	r.fb.mem.runbooks = []keelclient.Runbook{rb}
+	rb.Steps[0].Role, rb.Steps[0].OneHost, rb.Steps[0].Captures = "web", true, []slimeclient.StepCapture{{Name: "tok", Pattern: "x(\\d+)"}}
+	r.fb.mem.runbooks = []slimeclient.Runbook{rb}
 	r.w.loadRunbooks()
 	r.tt.Frame()
 	r.click(t, "Open Marker check")
@@ -199,7 +199,7 @@ func TestARunbookTheAgentProposedWaitsForAReviewAndEnableTurnsPickOn(t *testing.
 	rb := markerBook()
 	rb.Source, rb.AgentMayPick, rb.FromPane = "agent", false, true
 	rb.Steps[1].Risk = "changes"
-	r.fb.mem.runbooks = []keelclient.Runbook{rb}
+	r.fb.mem.runbooks = []slimeclient.Runbook{rb}
 	r.w.loadRunbooks()
 	r.tt.Frame()
 	r.click(t, "Open Marker check")
@@ -221,12 +221,12 @@ func TestARunbookTheAgentProposedWaitsForAReviewAndEnableTurnsPickOn(t *testing.
 func TestADraftFromAConversationIsNotKeptUntilSaveAndStartsWithPickOff(t *testing.T) {
 	r := rbRig(t)
 	r.fb.convs.list.HistoryDays = 30
-	r.fb.convs.list.Sessions = []keelclient.ConversationSummary{{ID: "c-old-0001", Title: "nginx 502", UpdatedAt: time.Now(), Proposals: 2}}
+	r.fb.convs.list.Sessions = []slimeclient.ConversationSummary{{ID: "c-old-0001", Title: "nginx 502", UpdatedAt: time.Now(), Proposals: 2}}
 	r.click(t, "From a conversation…")
 	if miss := r.lacks("Make a draft from a conversation: its proposals become steps.", "nginx 502"); len(miss) > 0 {
 		t.Fatalf("missing %q", miss)
 	}
-	r.fb.mem.draft = keelclient.RunbookDraft{Name: "nginx 502", Steps: []keelclient.RunbookStep{{Title: "Tail the log", Command: "echo tail"}}, Source: "conversation", SourceRef: "nginx 502", DraftID: "dr_1"}
+	r.fb.mem.draft = slimeclient.RunbookDraft{Name: "nginx 502", Steps: []slimeclient.RunbookStep{{Title: "Tail the log", Command: "echo tail"}}, Source: "conversation", SourceRef: "nginx 502", DraftID: "dr_1"}
 	r.click(t, "draft from nginx 502")
 	if !slices.Equal(r.fb.mem.rbReqs, []string{"draft c-old-0001"}) || len(r.fb.mem.runbooks) != 0 {
 		t.Fatalf("requests %v", r.fb.mem.rbReqs)
@@ -239,7 +239,7 @@ func TestADraftFromAConversationIsNotKeptUntilSaveAndStartsWithPickOff(t *testin
 		t.Fatalf("sent %+v", in)
 	}
 	// Nothing to make steps from: 422, and a toast says why.
-	r.fb.mem.draftErr = &keelclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
+	r.fb.mem.draftErr = &slimeclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
 	r.click(t, "From a conversation…")
 	r.click(t, "draft from nginx 502")
 	if !r.tt.HasText("Nothing to make steps from: no headings or shell blocks, or no proposals.") {
@@ -249,14 +249,14 @@ func TestADraftFromAConversationIsNotKeptUntilSaveAndStartsWithPickOff(t *testin
 
 // ---- the card for a runbook the agent proposes ----
 
-func bookProposal() keelclient.RunbookProposal {
-	return keelclient.RunbookProposal{ID: "bp1", Name: "keel-runbook-e2e proposed", When: "The marker needs checking", Status: "open", PanesRead: []string{"api-1"},
-		Steps: []keelclient.RunbookStep{{Title: "Print the marker", Command: "echo keel-runbook-proposed"}, {Title: "Look at it"}}}
+func bookProposal() slimeclient.RunbookProposal {
+	return slimeclient.RunbookProposal{ID: "bp1", Name: "keel-runbook-e2e proposed", When: "The marker needs checking", Status: "open", PanesRead: []string{"api-1"},
+		Steps: []slimeclient.RunbookStep{{Title: "Print the marker", Command: "echo keel-runbook-proposed"}, {Title: "Look at it"}}}
 }
 
-func (r *rig) answersBooks(bs ...keelclient.RunbookProposal) {
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Runbooks: bs}, nil
+func (r *rig) answersBooks(bs ...slimeclient.RunbookProposal) {
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Runbooks: bs}, nil
 	}
 }
 
@@ -310,40 +310,40 @@ func TestOpenRunbooksOnASavedProposalOpensThePage(t *testing.T) {
 
 // ---- the walk ----
 
-func stepOf(id, title, cmd, state string) keelclient.RunStep {
-	return keelclient.RunStep{ID: id, Title: title, Command: cmd, State: state}
+func stepOf(id, title, cmd, state string) slimeclient.RunStep {
+	return slimeclient.RunStep{ID: id, Title: title, Command: cmd, State: state}
 }
 
-func newRun() *keelclient.ChatRunbook {
-	return &keelclient.ChatRunbook{ID: "ru1", RunbookID: "rb1", Name: "Marker check", PickedBy: "user", Status: "active", Turn: 1, PinHost: "api-1", PinSessionID: "s1",
-		Steps: []keelclient.RunStep{stepOf("st1", "Print one", "echo rb-1", "next"), stepOf("st2", "Print two", "echo rb-2", "next"), stepOf("st3", "Print three", "echo rb-3", "next")}}
+func newRun() *slimeclient.ChatRunbook {
+	return &slimeclient.ChatRunbook{ID: "ru1", RunbookID: "rb1", Name: "Marker check", PickedBy: "user", Status: "active", Turn: 1, PinHost: "api-1", PinSessionID: "s1",
+		Steps: []slimeclient.RunStep{stepOf("st1", "Print one", "echo rb-1", "next"), stepOf("st2", "Print two", "echo rb-2", "next"), stepOf("st3", "Print three", "echo rb-3", "next")}}
 }
 
-func stepProposal(n int, placeholders bool) keelclient.Proposal {
+func stepProposal(n int, placeholders bool) slimeclient.Proposal {
 	cmd := "echo rb-" + string(rune('0'+n))
-	return keelclient.Proposal{ID: "p" + string(rune('0'+n)), SessionID: "s1", HostID: "h-api", Host: "api-1", Command: cmd, Bytes: "\x15" + cmd + "\n", Risk: "readonly", Placeholders: placeholders,
-		Runbook: &keelclient.ProposalStep{RunbookID: "rb1", Name: "Marker check", Step: n, Of: 3, StepID: "st" + string(rune('0'+n))}}
+	return slimeclient.Proposal{ID: "p" + string(rune('0'+n)), SessionID: "s1", HostID: "h-api", Host: "api-1", Command: cmd, Bytes: "\x15" + cmd + "\n", Risk: "readonly", Placeholders: placeholders,
+		Runbook: &slimeclient.ProposalStep{RunbookID: "rb1", Name: "Marker check", Step: n, Of: 3, StepID: "st" + string(rune('0'+n))}}
 }
 
-// walkAnswers makes the fake propose the current step of the run, as keel serve does: only for the step it is on.
+// walkAnswers makes the fake propose the current step of the run, as slime serve does: only for the step it is on.
 func (r *rig) walkAnswers() {
 	r.fb.mem.run = newRun()
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
 		run := r.fb.mem.run
 		cur := currentStep(run)
-		var props []keelclient.Proposal
+		var props []slimeclient.Proposal
 		if cur >= 0 && run.Status == "active" {
 			run.Steps[cur].State, run.Steps[cur].ProposalRef = "proposed", "p"+string(rune('1'+cur))
 			props = append(props, stepProposal(cur+1, false))
 		}
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Proposals: props, Runbook: run,
-			Trace: []keelclient.TraceStep{{Status: "runbook", Runbook: "Marker check"}}}, nil
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Proposals: props, Runbook: run,
+			Trace: []slimeclient.TraceStep{{Status: "runbook", Runbook: "Marker check"}}}, nil
 	}
 }
 
 func TestAWalkMovesOneStepAtATimeAndEveryStepIsTypedOnlyThroughApproveBeforeType(t *testing.T) {
 	r := rbRig(t)
-	r.fb.mem.runbooks = []keelclient.Runbook{markerBook()}
+	r.fb.mem.runbooks = []slimeclient.Runbook{markerBook()}
 	r.w.loadRunbooks()
 	r.tt.Frame()
 	r.walkAnswers()
@@ -446,14 +446,14 @@ func TestRetryResetsTheStepAndAsksForItAgain(t *testing.T) {
 func TestAStepWithAPlaceholderHasNoTypeButtonAndIsNeverTyped(t *testing.T) {
 	r := agentRig(t)
 	r.fb.mem.run = newRun()
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
 		r.fb.mem.run.Steps[0].State, r.fb.mem.run.Steps[0].ProposalRef = "proposed", "p1"
 		p := stepProposal(1, true)
 		p.Command, p.Bytes = "echo [secret:1]", "\x15echo [secret:1]\n"
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Proposals: []keelclient.Proposal{p}, Runbook: r.fb.mem.run}, nil
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Proposals: []slimeclient.Proposal{p}, Runbook: r.fb.mem.run}, nil
 	}
 	r.ask(t, "walk me through it")
-	if !r.tt.HasText("It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Keel will not type it: edit it to the real value or an environment variable first.") {
+	if !r.tt.HasText("It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Slime will not type it: edit it to the real value or an environment variable first.") {
 		t.Fatal("the app's sentence is not shown")
 	}
 	if r.has("Type into pane…") {
@@ -493,7 +493,7 @@ func TestProposeStepNeedsAPaneInScopeAndUseADifferentRunbookSaysWhyOneIsNotOffer
 	other.ID, other.Name, other.Hosts = "rb2", "Staging only", []string{"staging"}
 	fit := markerBook()
 	fit.ID, fit.Name, fit.Hosts = "rb3", "Production check", []string{"production"}
-	r.fb.mem.runbooks = []keelclient.Runbook{markerBook(), other, fit}
+	r.fb.mem.runbooks = []slimeclient.Runbook{markerBook(), other, fit}
 	r.fb.mem.run.Steps[0].State = "next"
 	r.w.agentState().runs.run = r.fb.mem.run
 	r.click(t, "Use a different runbook")
@@ -566,7 +566,7 @@ func TestAResumedConversationShowsTheRunUnderTheTurnThatStartedIt(t *testing.T) 
 	r := agentRig(t)
 	run := newRun()
 	run.Turn, run.Steps[0].State, run.Steps[0].Result = 2, "done", "user"
-	r.w.showTranscript(keelclient.Transcript{ID: "c-saved-2", Title: "Walk", Runbook: run, Turns: []keelclient.SavedTurn{{Question: "one", Answer: "a"}, {Question: "two", Answer: "b"}}})
+	r.w.showTranscript(slimeclient.Transcript{ID: "c-saved-2", Title: "Walk", Runbook: run, Turns: []slimeclient.SavedTurn{{Question: "one", Answer: "a"}, {Question: "two", Answer: "b"}}})
 	r.tt.Frame()
 	if r.w.agentState().turns[0].runID != "" || r.w.agentState().turns[1].runID != "ru1" {
 		t.Fatalf("placed on %q / %q", r.w.agentState().turns[0].runID, r.w.agentState().turns[1].runID)

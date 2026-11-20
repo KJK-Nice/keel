@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Port forwarding on the fake backend: the page, the dialog, the sidebar section and the status bar.
 
 func forwardBackend() *fakeBackend {
 	fb := okBackend()
-	fb.tunnels = []keelclient.Tunnel{
+	fb.tunnels = []slimeclient.Tunnel{
 		{ID: "t1", Name: "db local", HostID: "h-pg", Kind: "local", BindAddr: "127.0.0.1", BindPort: 5433, DestHost: "127.0.0.1", DestPort: 5432, Status: "ready", ListenAddr: "127.0.0.1:5433"},
 		{ID: "t2", Name: "web back", HostID: "h-web", Kind: "remote", BindAddr: "127.0.0.1", BindPort: 8080, DestHost: "localhost", DestPort: 3000, Status: "stopped"},
 		{ID: "t3", Name: "socks", HostID: "h-api", Kind: "dynamic", BindAddr: "127.0.0.1", BindPort: 0, Status: "connecting"},
@@ -32,41 +32,41 @@ func forwardRig(t *testing.T, fb *fakeBackend) *rig {
 }
 
 func TestTunnelHelpersAreTheAppsOwn(t *testing.T) {
-	ready := tunnelState(keelclient.Tunnel{Status: "ready"})
+	ready := tunnelState(slimeclient.Tunnel{Status: "ready"})
 	if ready.label != "Running" || ready.dot != "live" || !ready.on || ready.filter != "running" {
 		t.Errorf("ready %+v", ready)
 	}
-	if c := tunnelState(keelclient.Tunnel{Status: "connecting"}); c.label != "Connecting" || !c.on || c.filter != "running" {
+	if c := tunnelState(slimeclient.Tunnel{Status: "connecting"}); c.label != "Connecting" || !c.on || c.filter != "running" {
 		t.Errorf("connecting %+v", c)
 	}
-	if f := tunnelState(keelclient.Tunnel{Status: "error", Error: "refused"}); f.label != "Failed · refused" || f.dot != "dead" || f.on || f.filter != "stopped" {
+	if f := tunnelState(slimeclient.Tunnel{Status: "error", Error: "refused"}); f.label != "Failed · refused" || f.dot != "dead" || f.on || f.filter != "stopped" {
 		t.Errorf("failed %+v", f)
 	}
-	if f := tunnelState(keelclient.Tunnel{Status: "error"}); f.label != "Failed" {
+	if f := tunnelState(slimeclient.Tunnel{Status: "error"}); f.label != "Failed" {
 		t.Errorf("failed with no cause %+v", f)
 	}
-	if s := tunnelState(keelclient.Tunnel{}); s.label != "Stopped" || s.on {
+	if s := tunnelState(slimeclient.Tunnel{}); s.label != "Stopped" || s.on {
 		t.Errorf("stopped %+v", s)
 	}
 	if tunnelFlag("local") != "-L" || tunnelFlag("remote") != "-R" || tunnelFlag("dynamic") != "-D" || tunnelFlag("") != "-L" {
 		t.Error("flags")
 	}
 	for addr, want := range map[string]bool{"0.0.0.0": true, "::": true, "[::]": true, "*": true, " 0.0.0.0 ": true, "127.0.0.1": false, "localhost": false, "::1": false} {
-		if got := tunnelEveryInterface(keelclient.Tunnel{BindAddr: addr}); got != want {
+		if got := tunnelEveryInterface(slimeclient.Tunnel{BindAddr: addr}); got != want {
 			t.Errorf("every interface %q = %v", addr, got)
 		}
 	}
-	if got := tunnelListen(keelclient.Tunnel{BindAddr: "127.0.0.1"}); got != "127.0.0.1:auto" {
+	if got := tunnelListen(slimeclient.Tunnel{BindAddr: "127.0.0.1"}); got != "127.0.0.1:auto" {
 		t.Errorf("listen %q", got)
 	}
-	if got := tunnelListen(keelclient.Tunnel{BindAddr: "127.0.0.1", BindPort: 80, ListenAddr: "127.0.0.1:4242"}); got != "127.0.0.1:4242" {
+	if got := tunnelListen(slimeclient.Tunnel{BindAddr: "127.0.0.1", BindPort: 80, ListenAddr: "127.0.0.1:4242"}); got != "127.0.0.1:4242" {
 		t.Errorf("listen %q", got)
 	}
-	if tunnelDest(keelclient.Tunnel{Kind: "dynamic"}) != "SOCKS5" || tunnelDest(keelclient.Tunnel{DestHost: "h", DestPort: 5}) != "h:5" {
+	if tunnelDest(slimeclient.Tunnel{Kind: "dynamic"}) != "SOCKS5" || tunnelDest(slimeclient.Tunnel{DestHost: "h", DestPort: 5}) != "h:5" {
 		t.Error("dest")
 	}
-	if tunnelLocalAddress(keelclient.Tunnel{Kind: "remote", DestHost: "h", DestPort: 5}) != "h:5" || tunnelLocalAddress(keelclient.Tunnel{BindAddr: "127.0.0.1"}) != "" ||
-		tunnelLocalAddress(keelclient.Tunnel{BindPort: 7}) != "127.0.0.1:7" {
+	if tunnelLocalAddress(slimeclient.Tunnel{Kind: "remote", DestHost: "h", DestPort: 5}) != "h:5" || tunnelLocalAddress(slimeclient.Tunnel{BindAddr: "127.0.0.1"}) != "" ||
+		tunnelLocalAddress(slimeclient.Tunnel{BindPort: 7}) != "127.0.0.1:7" {
 		t.Error("local address")
 	}
 	if forwardsLabel(1) != "1 forward" || forwardsLabel(2) != "2 forwards" {
@@ -199,7 +199,7 @@ func TestForwardDialogNewHasTheAppsDefaultsAndSavesTheFormsBody(t *testing.T) {
 	if len(fb.tunSaved) != 1 {
 		t.Fatalf("saved %v", fb.tunSaved)
 	}
-	want := keelclient.TunnelInput{Name: "new db", HostID: "h-pg", Kind: "local", BindAddr: "127.0.0.1", BindPort: 5439, DestHost: "127.0.0.1", DestPort: 5432}
+	want := slimeclient.TunnelInput{Name: "new db", HostID: "h-pg", Kind: "local", BindAddr: "127.0.0.1", BindPort: 5439, DestHost: "127.0.0.1", DestPort: 5432}
 	if fb.tunSaved[0] != want {
 		t.Errorf("body %+v, want %+v", fb.tunSaved[0], want)
 	}
@@ -243,7 +243,7 @@ func TestForwardDialogKindsShowTheirFieldsAndEditKeepsTheID(t *testing.T) {
 		t.Fatalf("saved %+v", fb.tunSaved)
 	}
 	// The server's refusal shows in the dialog in its own words.
-	fb.tunSaveErr = &keelclient.StatusError{Code: 400, Msg: "destHost and destPort are required"}
+	fb.tunSaveErr = &slimeclient.StatusError{Code: 400, Msg: "destHost and destPort are required"}
 	r.w.editForward(fb.tunnels[1])
 	r.tt.Frame()
 	r.click(t, "Save forward")
@@ -291,8 +291,8 @@ func TestDeletingAForwardAsksFirst(t *testing.T) {
 
 func TestFailedStartAsksForTheHostKeyAndTrustRetries(t *testing.T) {
 	fb := forwardBackend()
-	fb.tunStartErr = &keelclient.StatusError{Code: 409, Msg: "unknown host", ErrorKind: "unknown-host",
-		Offer: keelclient.HostKey{Kind: "unknown-host", Hostname: "10.1.0.1:22", Fingerprint: "SHA256:abc", KeyType: "ssh-ed25519", Token: "t-1"}}
+	fb.tunStartErr = &slimeclient.StatusError{Code: 409, Msg: "unknown host", ErrorKind: "unknown-host",
+		Offer: slimeclient.HostKey{Kind: "unknown-host", Hostname: "10.1.0.1:22", Fingerprint: "SHA256:abc", KeyType: "ssh-ed25519", Token: "t-1"}}
 	r := forwardRig(t, fb)
 	r.click(t, "web back on")
 	r.texts(t, "Unknown host key", "10.1.0.1:22", "SHA256:abc", "Abort", "Trust and connect")
@@ -306,7 +306,7 @@ func TestFailedStartAsksForTheHostKeyAndTrustRetries(t *testing.T) {
 	}
 	r.texts(t, "Host key saved")
 	// A changed key says so, and Abort trusts nothing.
-	fb.tunStartErr = &keelclient.StatusError{Code: 409, ErrorKind: "host-key-mismatch", Offer: keelclient.HostKey{Kind: "host-key-mismatch", Hostname: "h", Fingerprint: "SHA256:new", Expected: "SHA256:old"}}
+	fb.tunStartErr = &slimeclient.StatusError{Code: 409, ErrorKind: "host-key-mismatch", Offer: slimeclient.HostKey{Kind: "host-key-mismatch", Hostname: "h", Fingerprint: "SHA256:new", Expected: "SHA256:old"}}
 	r.click(t, "Retry")
 	r.texts(t, "Host key changed", "saved: SHA256:old")
 	r.click(t, "Abort")
@@ -317,7 +317,7 @@ func TestFailedStartAsksForTheHostKeyAndTrustRetries(t *testing.T) {
 
 func TestAFailedStartThatIsNotAKeyIsAToast(t *testing.T) {
 	fb := forwardBackend()
-	fb.tunStartErr = &keelclient.StatusError{Code: 400, Msg: "listen tcp 127.0.0.1:8080: bind: address already in use"}
+	fb.tunStartErr = &slimeclient.StatusError{Code: 400, Msg: "listen tcp 127.0.0.1:8080: bind: address already in use"}
 	r := forwardRig(t, fb)
 	r.click(t, "web back on")
 	r.texts(t, "listen tcp 127.0.0.1:8080: bind: address already in use")
@@ -330,7 +330,7 @@ func TestSidebarForwardsSectionAndStatusBar(t *testing.T) {
 	fb := forwardBackend()
 	r := newRig(t, fb)
 	r.tt.Frame()
-	r.texts(t, "keel serve · 0 sessions", "1 forward") // only db local is ready; a connecting one is not counted
+	r.texts(t, "slime serve · 0 sessions", "1 forward") // only db local is ready; a connecting one is not counted
 	r.click(t, "Forwards")
 	r.texts(t, "db local", "127.0.0.1:5433 → 127.0.0.1:5432", "web back", "socks", "Manage forwards", "New forward")
 	if !r.has("sidebar forward db local") || !r.has("Filter forwards") {

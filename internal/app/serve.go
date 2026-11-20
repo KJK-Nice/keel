@@ -18,27 +18,28 @@ import (
 	"syscall"
 	"time"
 
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/buildid"
-	"keel/internal/httpapi"
-	"keel/internal/paths"
-	"keel/internal/runtime"
-	"keel/internal/share"
-	"keel/internal/store"
-	"keel/internal/tunnel"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/buildid"
+	"slime/internal/env"
+	"slime/internal/httpapi"
+	"slime/internal/paths"
+	"slime/internal/runtime"
+	"slime/internal/share"
+	"slime/internal/store"
+	"slime/internal/tunnel"
 )
 
 // agentProviderEnv set to "fake" swaps every provider for the in-process
-// test fake, in a build with the tag keelfake only (agent_fake.go). It
+// test fake, in a build with the tag slimefake only (agent_fake.go). It
 // exists for end-to-end tests.
-const agentProviderEnv = "KEEL_AGENT_PROVIDER"
+const agentProviderEnv = "SLIME_AGENT_PROVIDER"
 
-// serveConfig is what keel serve takes from its environment and its build.
+// serveConfig is what slime serve takes from its environment and its build.
 // RunServe reads it once; nothing below reads the environment for these.
 type serveConfig struct {
-	// signal is KEEL_SIGNAL: the signal server for this run.
+	// signal is SLIME_SIGNAL: the signal server for this run.
 	signal       string
 	agentFactory service.Factory
 	agentJudge   service.JudgeFactory
@@ -47,11 +48,11 @@ type serveConfig struct {
 }
 
 func RunServe(addr, dataDir string) error {
-	factory, judge, fake, err := agentProviders(os.Getenv(agentProviderEnv))
+	factory, judge, fake, err := agentProviders(env.Get("AGENT_PROVIDER"))
 	if err != nil {
 		return err
 	}
-	return runServe(addr, dataDir, serveConfig{signal: os.Getenv("KEEL_SIGNAL"), agentFactory: factory, agentJudge: judge, agentFake: fake})
+	return runServe(addr, dataDir, serveConfig{signal: env.Get("SIGNAL"), agentFactory: factory, agentJudge: judge, agentFake: fake})
 }
 
 func runServe(addr, dataDir string, cfg serveConfig) error {
@@ -71,14 +72,14 @@ func runServe(addr, dataDir string, cfg serveConfig) error {
 	if err != nil {
 		return fmt.Errorf("auth token: %w", err)
 	}
-	// keel mcp's own token: it opens /api/mcp/ and nothing else.
+	// slime mcp's own token: it opens /api/mcp/ and nothing else.
 	mcpToken, err := authtoken.LoadOrCreateMCP(dataDir)
 	if err != nil {
 		return fmt.Errorf("mcp token: %w", err)
 	}
 	rt := runtime.New(st, runtime.DefaultOpener(st))
 	hub := share.ForServe(cfg.signal, rt)
-	// Settings · Sharing's server; KEEL_SIGNAL still wins for this run.
+	// Settings · Sharing's server; SLIME_SIGNAL still wins for this run.
 	hub.SetSaved(st.SignalURL())
 	logs := applog.New(filepath.Join(dataDir, "keel.log"))
 	tn := tunnel.New(st, tunnel.DefaultFactory(st))
@@ -98,14 +99,14 @@ func runServe(addr, dataDir string, cfg serveConfig) error {
 	}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("keel could not bind %s (is it already running?): %w", addr, err)
+		return fmt.Errorf("slime serve could not bind %s (is it already running?): %w", addr, err)
 	}
 	if err := writePid(dataDir); err != nil {
 		log.Printf("pid file: %v", err)
 	}
 	api.WithRuntimeInfo(ln.Addr().String(), dataDir)
 	base := "http://" + ln.Addr().String()
-	log.Printf("Keel serve on %s — sessions keep running until keel serve stop", base)
+	log.Printf("Slime serve on %s — sessions keep running until slime serve stop", base)
 	if hub.Enabled() {
 		log.Printf("Internet share via %s (%s)", hub.URL(), hub.Source())
 	}
@@ -137,7 +138,7 @@ func runServe(addr, dataDir string, cfg serveConfig) error {
 
 // lockDataDirWait retries lockDataDir for up to wait. A daemon that was
 // just stopped answers "down" on its port a moment before it exits and
-// drops the lock, so `keel serve stop && keel serve` (or the desktop app
+// drops the lock, so `slime serve stop && slime serve` (or the desktop app
 // restarting serve) would otherwise fail on the lock.
 func lockDataDirWait(dataDir string, wait time.Duration) (func(), error) {
 	deadline := time.Now().Add(wait)
@@ -158,7 +159,7 @@ func ensureServe(addr, dataDir string) error {
 		return err
 	}
 	if err := spawnServe(addr, dataDir); err != nil {
-		return fmt.Errorf("start keel serve: %w", err)
+		return fmt.Errorf("start slime serve: %w", err)
 	}
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
@@ -167,7 +168,7 @@ func ensureServe(addr, dataDir string) error {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	return fmt.Errorf("keel serve did not become ready on %s", addr)
+	return fmt.Errorf("slime serve did not become ready on %s", addr)
 }
 
 func StopServe(addr, dataDir string) error {
@@ -189,19 +190,19 @@ func stopServe(addr, dataDir string, stopWait time.Duration) error {
 			// Nothing holds the port. A pid file left by a crashed daemon may
 			// now name an unrelated process, so drop it instead of signalling.
 			_ = os.Remove(paths.PidFile(dataDir))
-			return fmt.Errorf("keel serve is not running")
+			return fmt.Errorf("slime serve is not running")
 		}
-		return fmt.Errorf("keel serve on %s is not responding; not signalling the pid file", addr)
+		return fmt.Errorf("slime serve on %s is not responding; not signalling the pid file", addr)
 	}
 	pid, err := readPid(dataDir)
 	if err != nil {
 		if posted == nil {
-			return fmt.Errorf("keel serve did not stop")
+			return fmt.Errorf("slime serve did not stop")
 		}
-		return fmt.Errorf("keel serve is running but has no pid file")
+		return fmt.Errorf("slime serve is running but has no pid file")
 	}
 	if livePid != pid {
-		return fmt.Errorf("pid file names %d but keel serve on %s reports %d; not signalling", pid, addr, livePid)
+		return fmt.Errorf("pid file names %d but slime serve on %s reports %d; not signalling", pid, addr, livePid)
 	}
 	if err := signalStop(pid); err != nil && probeHealth(addr) {
 		return err
@@ -209,7 +210,7 @@ func stopServe(addr, dataDir string, stopWait time.Duration) error {
 	if waitUntilDown(addr, stopWait) {
 		return nil
 	}
-	return fmt.Errorf("keel serve did not stop")
+	return fmt.Errorf("slime serve did not stop")
 }
 
 // healthPid asks the daemon on addr for its pid. up reports a 200 from
@@ -250,7 +251,7 @@ func healthURL(addr string) string {
 	return "http://" + addr + "/api/health"
 }
 
-// verifyServe checks that the keel serve on addr holds token before a
+// verifyServe checks that the slime serve on addr holds token before a
 // client hands the token to it. It sends a random nonce, never the token,
 // and expects HMAC(token, nonce) back: another program that grabbed the
 // port first cannot answer.
@@ -258,13 +259,13 @@ func verifyServe(addr, token string) error {
 	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
 	err := authtoken.VerifyServer(context.Background(), client, addr, authtoken.WindowChallenge, token)
 	if errors.Is(err, authtoken.ErrUnproven) {
-		return fmt.Errorf("the server on %s did not prove it is this user's keel serve "+
-			"(an older keel serve, or another program on that port); run `keel serve stop` and try again", addr)
+		return fmt.Errorf("the server on %s did not prove it is this user's slime serve "+
+			"(an older slime serve, or another program on that port); run `slime serve stop` and try again", addr)
 	}
 	return err
 }
 
-// postRuntimeStop asks keel serve to stop. The token goes only to a server that proved it holds it, and never on
+// postRuntimeStop asks slime serve to stop. The token goes only to a server that proved it holds it, and never on
 // through a redirect.
 func postRuntimeStop(addr, token string) error {
 	if token != "" {
@@ -278,7 +279,7 @@ func postRuntimeStop(addr, token string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
-		req.Header.Set(authtoken.Header, token)
+		authtoken.SetToken(req.Header, token)
 	}
 	client := &http.Client{Timeout: 2 * time.Second, CheckRedirect: authtoken.NoRedirect}
 	res, err := client.Do(req)
@@ -315,7 +316,7 @@ func spawnServe(addr, dataDir string) error {
 		return err
 	}
 	defer f.Close()
-	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir)
+	env := append(os.Environ(), "SLIME_ADDR="+addr, "SLIME_DATA="+dataDir)
 	return startDetached(exe, []string{"serve"}, env, f)
 }
 

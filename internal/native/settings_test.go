@@ -11,15 +11,15 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Settings on the fake backend: the nav, each section's controls, the sliders that repaint, the signal field and Stop.
 
 func settingsBackend() *fakeBackend {
 	fb := okBackend()
-	fb.runtime = keelclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: true}
-	fb.vault = keelclient.Vault{Mode: "passphrase", KeyringOff: true, Path: "/scratch/data/keel.vault"}
+	fb.runtime = slimeclient.Runtime{Build: "9d62912abcde-0123456789ab", PID: 4242, Addr: "127.0.0.1:50123", DataDir: "/scratch/data", UptimeSec: 3*3600 + 300, CanStop: true}
+	fb.vault = slimeclient.Vault{Mode: "passphrase", KeyringOff: true, Path: "/scratch/data/keel.vault"}
 	return fb
 }
 
@@ -71,7 +71,7 @@ func (r *rig) prefsFile(t *testing.T) map[string]json.RawMessage {
 
 func TestSettingsNavIsTheApps(t *testing.T) {
 	r := settingsRig(t, settingsBackend())
-	r.texts(t, "Settings", "Search settings", "Appearance", "Terminal", "Keyboard", "Agent", "Sharing", "Vault & security", "Runtime", "About Keel", "9d62912")
+	r.texts(t, "Settings", "Search settings", "Appearance", "Terminal", "Keyboard", "Agent", "Sharing", "Vault & security", "Runtime", "About Slime", "9d62912")
 	if !r.has("settings nav Agent") {
 		t.Error("no Agent section")
 	}
@@ -264,7 +264,7 @@ func TestSettingsOpaqueWindowSavesAndSaysItAppliesNextStart(t *testing.T) {
 	if string(r.prefsFile(t)["opacity"]) != "70" {
 		t.Errorf("opacity not saved: %v", r.prefsFile(t))
 	}
-	r.texts(t, "The window turns see-through the next time Keel starts.")
+	r.texts(t, "The window turns see-through the next time Slime starts.")
 }
 
 func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
@@ -272,12 +272,12 @@ func TestSettingsTerminalControlsAndTheirDefaults(t *testing.T) {
 	r.section(t, "Terminal")
 	r.texts(t, "Typography", "Text size", "Weight", "Line height", "10–22px. ⌘+ / ⌘− / ⌘0 also change size.", "Input", "Copy on select", "Copy terminal selection to the clipboard.",
 		"Right-click in the terminal", "Paste the clipboard, open the terminal menu, or do nothing. With Menu or Nothing, ⇧ right-click opens the system's menu.",
-		"Paste", "Menu", "Nothing", "guest@keel:~ $ make test && make lint")
+		"Paste", "Menu", "Nothing", "guest@slime:~ $ make test && make lint")
 	if !r.w.prefs.CopyOnSelect || r.w.prefs.RightClick != "menu" {
 		t.Fatalf("defaults are the app's: copy on select on, right-click Menu; got %+v", r.w.prefs)
 	}
-	r.texts(t, "Font", "Monospace face used in every pane: Keel's own, or any installed on this machine.", "JetBrains Mono") // the first of the five, chosen by default
-	r.w.openHost(testHosts[1])                                                                                               // a pane to change live
+	r.texts(t, "Font", "Monospace face used in every pane: Slime's own, or any installed on this machine.", "JetBrains Mono") // the first of the five, chosen by default
+	r.w.openHost(testHosts[1])                                                                                                // a pane to change live
 	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Terminal")
@@ -328,7 +328,7 @@ func TestSettingsKeyboardListsTheKeysThisClientHas(t *testing.T) {
 	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
 	r.section(t, "Keyboard")
-	r.texts(t, "The keys Keel handles. They are fixed; the command palette shows the same keys beside each action.",
+	r.texts(t, "The keys Slime handles. They are fixed; the command palette shows the same keys beside each action.",
 		"General", "Tabs", "Vault", "Panes", "Terminal", "New tab", "Command palette", "Settings", "Focus view (zoom pane)", "Reset text size")
 	if !r.has("keys ⌘⇧T") || !r.has("keys ⌘,") {
 		t.Errorf("key caps missing: %v", r.tt.Texts())
@@ -354,7 +354,7 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	r.section(t, "Sharing")
 	r.texts(t, "Share a session by link. Nobody joins without your say, and the keyboard stays with you until you pass it.",
 		"You", "Display name", "Shown to people in sessions you share and join. Empty uses the default.",
-		"Signal server", "Server for internet join links", "Share is off until you enter a keel-signal server: one you run yourself, or one someone runs for you.",
+		"Signal server", "Server for internet join links", "Share is off until you enter a slime-signal server: one you run yourself, or one someone runs for you.",
 		"Access", "Joining needs your approval", "Control stays with you", "Always on")
 	// The display name: trimmed, at most 40 characters, kept in keel-native.json, empty uses the default.
 	r.fill(t, "Display name input", "  Ann  ")
@@ -369,7 +369,7 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 	if got := r.w.prefs.Name; got != strings.Repeat("n", 40) || string(r.prefsFile(t)["name"]) != `"`+strings.Repeat("n", 40)+`"` {
 		t.Errorf("name %q file %v", got, r.prefsFile(t)["name"])
 	}
-	// The signal server goes to keel serve as typed (trimmed); keel serve validates it.
+	// The signal server goes to slime serve as typed (trimmed); slime serve validates it.
 	r.fill(t, "Signal server input", "  https://signal.example.com  ")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
@@ -390,18 +390,18 @@ func TestSettingsSharingNameAndSignalServerWithTheAppsRules(t *testing.T) {
 		t.Fatalf("signal calls %v", fb.signalSet)
 	}
 	r.texts(t, "Signal server removed")
-	// keel serve's refusal is shown in its own words; the field keeps what was typed.
-	fb.signalErr = &keelclient.StatusError{Code: 400, Msg: "signal server must be an https or wss URL"}
+	// slime serve's refusal is shown in its own words; the field keeps what was typed.
+	fb.signalErr = &slimeclient.StatusError{Code: 400, Msg: "signal server must be an https or wss URL"}
 	r.fill(t, "Signal server input", "ftp://nope")
 	r.tt.Key(0, ui.KeyEnter)
 	r.tt.Frame()
 	r.texts(t, "signal server must be an https or wss URL")
-	// KEEL_SIGNAL wins for the run, and says so; the field still holds the saved server.
+	// SLIME_SIGNAL wins for the run, and says so; the field still holds the saved server.
 	fb.signalErr = nil
-	fb.runtime = keelclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://saved.example"}
+	fb.runtime = slimeclient.Runtime{SignalURL: "https://env.example", SignalSource: "env", SignalSaved: "https://saved.example"}
 	r.w.loadSettings()
 	r.tt.Frame()
-	r.texts(t, "KEEL_SIGNAL is set for this run, so Keel uses https://env.example. The server saved here is used when it is not set.")
+	r.texts(t, "SLIME_SIGNAL is set for this run, so Slime uses https://env.example. The server saved here is used when it is not set.")
 }
 
 func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
@@ -409,13 +409,13 @@ func TestSettingsVaultAndSecurityShowsNoSecret(t *testing.T) {
 	r := settingsRig(t, fb)
 	r.section(t, "Vault & security")
 	r.texts(t, "Passwords, key passphrases and the agent key are encrypted in the vault file. Nothing here shows a secret.",
-		"Vault", "State", "Unlocked", "Unlocked with", "Passphrase", "The OS keychain is off for this run (KEEL_KEYRING=off), so Keel asks for the passphrase.",
+		"Vault", "State", "Unlocked", "Unlocked with", "Passphrase", "The OS keychain is off for this run (SLIME_KEYRING=off), so Slime asks for the passphrase.",
 		"Vault file", "/scratch/data/keel.vault", "Copy path", "Safety", "The agent never sees vault contents", "A lost passphrase cannot be recovered")
 	r.click(t, "Copy path")
 	if r.tt.Clipboard() != "/scratch/data/keel.vault" || !r.tt.HasText("Copied") {
 		t.Errorf("clipboard %q", r.tt.Clipboard())
 	}
-	fb.vault = keelclient.Vault{Mode: "keychain", Locked: true}
+	fb.vault = slimeclient.Vault{Mode: "keychain", Locked: true}
 	r.w.loadSettings()
 	r.tt.Frame()
 	r.texts(t, "Locked", "OS keychain", "The key that opens the vault is kept in your operating system's keychain. No passphrase to type.")
@@ -433,14 +433,14 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 	r.w.showPage("settings")
 	r.tt.Frame()
 	r.section(t, "Runtime")
-	r.texts(t, "keel serve owns your sessions and serves this window. It keeps running when the window closes.",
+	r.texts(t, "slime serve owns your sessions and serves this window. It keeps running when the window closes.",
 		"Status", "Build", "9d62912abcde-0123456789ab", "Address", "127.0.0.1:50123", "Data folder", "/scratch/data", "Process id", "4242",
-		"Running sessions", "Uptime", "3 h 05 min", "Window", "Sessions keep running after the window closes", "Stop", "Stop the Keel runtime", "Stop runtime…")
+		"Running sessions", "Uptime", "3 h 05 min", "Window", "Sessions keep running after the window closes", "Stop", "Stop the Slime runtime", "Stop runtime…")
 	if !r.has("value 1") {
 		t.Errorf("running sessions: %v", r.tt.Texts())
 	}
 	r.click(t, "Stop runtime…")
-	r.texts(t, "Stop the Keel runtime?", "This ends the 1 running session and every port forward, then closes keel serve. Reopen Keel to start it again.", "Stop runtime")
+	r.texts(t, "Stop the Slime runtime?", "This ends the 1 running session and every port forward, then closes slime serve. Reopen Slime to start it again.", "Stop runtime")
 	if fb.runtimeStops != 0 {
 		t.Fatal("stopped before the confirm")
 	}
@@ -449,10 +449,10 @@ func TestSettingsRuntimeShowsStatusAndStopAsksFirst(t *testing.T) {
 		t.Fatalf("Cancel stopped: %d", fb.runtimeStops)
 	}
 	r.click(t, "Stop runtime…")
-	r.click(t, "alertdialog Stop the Keel runtime?")
+	r.click(t, "alertdialog Stop the Slime runtime?")
 	r.w.confirmDlg().run()
 	r.tt.Frame()
-	if fb.runtimeStops != 1 || !r.tt.HasText("Keel runtime stopped") {
+	if fb.runtimeStops != 1 || !r.tt.HasText("Slime runtime stopped") {
 		t.Errorf("stops %d", fb.runtimeStops)
 	}
 	// A refusal is a toast, not a silent stop.
@@ -476,7 +476,7 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 	r := newRig(t, fb)
 	r.tt.Frame()
 	r.openPal(t)
-	r.typePal("stop keel runtime")
+	r.typePal("stop slime runtime")
 	rows := r.rows()
 	if len(rows) != 1 {
 		t.Fatalf("rows %+v", rows)
@@ -487,16 +487,16 @@ func TestStopFromThePaletteAsksToo(t *testing.T) {
 	if fb.runtimeStops != 0 || !r.w.confirmOpen() {
 		t.Fatalf("the palette stopped the runtime without asking: stops %d", fb.runtimeStops)
 	}
-	r.texts(t, "Stop the Keel runtime?")
+	r.texts(t, "Stop the Slime runtime?")
 }
 
 func TestSettingsAboutAndSearch(t *testing.T) {
 	usePlatform(t, "darwin") // the keys are written as macOS writes them; TestKeyLabelsOffMacAreWords covers the rest
 	r := settingsRig(t, settingsBackend())
-	r.section(t, "About Keel")
-	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/keel", "README", "Copy link")
+	r.section(t, "About Slime")
+	r.texts(t, "Version", "9d62912", "Build", "Links", "Source", "https://github.com/KJK-Nice/slime", "README", "Copy link")
 	r.click(t, "Copy link")
-	if !strings.HasPrefix(r.tt.Clipboard(), "https://github.com/KJK-Nice/keel") {
+	if !strings.HasPrefix(r.tt.Clipboard(), "https://github.com/KJK-Nice/slime") {
 		t.Errorf("clipboard %q", r.tt.Clipboard())
 	}
 	// Search reads every section's rows, titles, descriptions and key caps; with none the section comes back.
@@ -510,7 +510,7 @@ func TestSettingsAboutAndSearch(t *testing.T) {
 	r.fill(t, "Search settings", "zzzz")
 	r.texts(t, "Nothing matches")
 	r.fill(t, "Search settings", "")
-	r.texts(t, "About Keel", "Source")
+	r.texts(t, "About Slime", "Source")
 }
 
 func TestSettingsPageIsSavedWithTheTabs(t *testing.T) {

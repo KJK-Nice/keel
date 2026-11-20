@@ -8,22 +8,22 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/slimeclient"
 )
 
-// Settings · Agent (docs/ui-redesign.md §5.9): the agent's settings are keel serve's, shown and saved here.
+// Settings · Agent (docs/ui-redesign.md §5.9): the agent's settings are slime serve's, shown and saved here.
 //
 // What this file does and does not do:
-//   - Every change is saved as it is made with PUT /api/agent/settings and only the fields that changed (keel serve merges
+//   - Every change is saved as it is made with PUT /api/agent/settings and only the fields that changed (slime serve merges
 //     them over the saved settings); the answer is the settings as saved and the screen shows that. A failed save says so and
 //     reads the settings again.
-//   - Redaction, scope and retention are keel serve's. This sends the value; it implements none of their effect.
+//   - Redaction, scope and retention are slime serve's. This sends the value; it implements none of their effect.
 //   - A provider key goes from a masked field to PUT /api/agent/keys/{provider} once; the field is emptied the moment it is
 //     sent and nothing keeps it. The key is in no error, no toast, no log. Disconnect and Delete all history ask first.
-//   - "Allow Claude Code (keel mcp)" is the setting claudeCode and nothing else: this client never calls keel mcp's routes.
+//   - "Allow Claude Code (slime mcp)" is the setting claudeCode and nothing else: this client never calls slime mcp's routes.
 //
-// Settings whose feature is not built in this window (Claude Code's mcp) are still settings of keel serve, which acts on
+// Settings whose feature is not built in this window (Claude Code's mcp) are still settings of slime serve, which acts on
 // them, so they are shown and saved, not hidden.
 
 // keyCard is a provider card's own state: whether its key field is open, its error and the masked field.
@@ -53,8 +53,8 @@ func (w *workspace) loadAgentSettings() {
 		w.loadNotes(&p.notes) // Notes for the agent: the user's own
 	}
 	type read struct {
-		s    keelclient.AgentSettings
-		list []keelclient.AgentProvider
+		s    slimeclient.AgentSettings
+		list []slimeclient.AgentProvider
 		lerr error
 	}
 	call(w, func(c context.Context) (r read, err error) {
@@ -63,7 +63,7 @@ func (w *workspace) loadAgentSettings() {
 		}
 		return r, err
 	}, func(r read, err error) {
-		var se *keelclient.StatusError
+		var se *slimeclient.StatusError
 		switch {
 		case errors.As(err, &se) && se.Code == 423: // the vault is locked: the Unlock screen says so
 			return
@@ -83,8 +83,8 @@ func (w *workspace) loadAgentSettings() {
 	})
 }
 
-// takeAgentSettings makes the settings keel serve answered with what every view shows: the panel's key state, its saved note.
-func (w *workspace) takeAgentSettings(s keelclient.AgentSettings) {
+// takeAgentSettings makes the settings slime serve answered with what every view shows: the panel's key state, its saved note.
+func (w *workspace) takeAgentSettings(s slimeclient.AgentSettings) {
 	a := w.agent
 	a.settings = &s
 	k := s.KeyConfigured()
@@ -94,8 +94,8 @@ func (w *workspace) takeAgentSettings(s keelclient.AgentSettings) {
 	w.noteSuggestSettings(s)
 }
 
-// applyPatch is what a patch changes, shown at once while keel serve answers.
-func applyPatch(s *keelclient.AgentSettings, p keelclient.AgentSettingsPatch) {
+// applyPatch is what a patch changes, shown at once while slime serve answers.
+func applyPatch(s *slimeclient.AgentSettings, p slimeclient.AgentSettingsPatch) {
 	v := &s.Settings
 	if p.Provider != nil {
 		v.Provider = *p.Provider
@@ -129,9 +129,9 @@ func applyPatch(s *keelclient.AgentSettings, p keelclient.AgentSettingsPatch) {
 	}
 }
 
-// putAgent saves a patch over the saved settings and takes the saved value back, so the screen always shows what keel
+// putAgent saves a patch over the saved settings and takes the saved value back, so the screen always shows what slime
 // serve holds. done, when there is one, runs when the answer is in.
-func (w *workspace) putAgent(p keelclient.AgentSettingsPatch, done func()) {
+func (w *workspace) putAgent(p slimeclient.AgentSettingsPatch, done func()) {
 	a := w.agent
 	if a.settings == nil {
 		if done != nil {
@@ -141,9 +141,9 @@ func (w *workspace) putAgent(p keelclient.AgentSettingsPatch, done func()) {
 	}
 	cp := *a.settings
 	applyPatch(&cp, p)
-	a.settings = &cp // shown at once; keel serve's answer replaces it
+	a.settings = &cp // shown at once; slime serve's answer replaces it
 	w.noteSuggestSettings(cp)
-	call(w, func(c context.Context) (keelclient.AgentSettings, error) { return w.be.SaveAgentSettings(c, p) }, func(saved keelclient.AgentSettings, err error) {
+	call(w, func(c context.Context) (slimeclient.AgentSettings, error) { return w.be.SaveAgentSettings(c, p) }, func(saved slimeclient.AgentSettings, err error) {
 		if done != nil {
 			defer done()
 		}
@@ -159,30 +159,30 @@ func (w *workspace) putAgent(p keelclient.AgentSettingsPatch, done func()) {
 	})
 }
 
-func (w *workspace) agentVal() keelclient.AgentSettings {
+func (w *workspace) agentVal() slimeclient.AgentSettings {
 	if w.agent.settings != nil {
 		return *w.agent.settings
 	}
-	var s keelclient.AgentSettings // before the first read: the defaults (store.DefaultAgentSettings)
+	var s slimeclient.AgentSettings // before the first read: the defaults (store.DefaultAgentSettings)
 	s.Settings.Provider, s.Settings.Detection, s.Settings.Suggestions, s.Settings.HistorySuggestions = limits.DefaultAgentProvider, limits.DetectionHashOnly, limits.SuggestionsOn, limits.SuggestionsOn
 	s.Settings.DefaultScope, s.Settings.ScrollbackLines, s.Settings.HistoryDays = limits.ScopeFocused, limits.DefaultScrollbackLines, limits.DefaultHistoryDays
 	s.Settings.Redact.Secrets = true
 	return s
 }
 
-func (w *workspace) providerFor(id string) (keelclient.AgentProvider, bool) {
+func (w *workspace) providerFor(id string) (slimeclient.AgentProvider, bool) {
 	for _, d := range w.agent.provs {
 		if d.ID == id {
 			return d, true
 		}
 	}
-	return keelclient.AgentProvider{}, false
+	return slimeclient.AgentProvider{}, false
 }
 
 // ---- the key ----
 
 // saveCardKey sends the key in a card's masked field, once. The field is emptied as it is sent: nothing keeps the key, and
-// when keel serve refuses it the user types it again.
+// when slime serve refuses it the user types it again.
 func (w *workspace) saveCardKey(p *settingsPage, id string) {
 	card := p.card(id)
 	if card.busy {
@@ -194,7 +194,7 @@ func (w *workspace) saveCardKey(p *settingsPage, id string) {
 		card.err, card.focus = "Paste a key first.", true
 		return
 	}
-	in := keelclient.AgentKeyInput{Provider: id, Key: key}
+	in := slimeclient.AgentKeyInput{Provider: id, Key: key}
 	key = ""
 	card.busy, card.err = true, ""
 	name := id
@@ -203,7 +203,7 @@ func (w *workspace) saveCardKey(p *settingsPage, id string) {
 	}
 	callErr(w, func(c context.Context) error {
 		err := w.be.SetAgentKey(c, in)
-		in = keelclient.AgentKeyInput{}
+		in = slimeclient.AgentKeyInput{}
 		return err
 	}, func(err error) {
 		card.busy = false
@@ -276,7 +276,9 @@ func (w *workspace) syncAgentLines(p *settingsPage) {
 		p.linesV, p.linesApplied, p.linesInit = float64(cur), cur, true
 	case n != p.linesApplied && !p.linesBusy:
 		p.linesApplied, p.linesBusy = n, true
-		w.act(func() { w.putAgent(keelclient.AgentSettingsPatch{ScrollbackLines: &n}, func() { p.linesBusy = false }) })
+		w.act(func() {
+			w.putAgent(slimeclient.AgentSettingsPatch{ScrollbackLines: &n}, func() { p.linesBusy = false })
+		})
 	case !p.linesBusy && cur != p.linesApplied:
 		p.linesApplied, p.linesV = cur, float64(cur)
 	}

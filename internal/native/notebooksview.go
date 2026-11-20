@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Notebooks page, the sidebar's Notebooks section and the row menu, in the Logs page's layout (logsview.go). The
@@ -23,7 +23,7 @@ func (p *notebooksPage) newItem(w *workspace)             { w.newNotebook() }
 
 // notebookMenu is notebookCardMenu: Open, Rename, Pin or Unpin, Make private or Let the agent read it, History, Ask the
 // agent about this notebook (not for a private one), Delete. Nothing in the menu types.
-func (w *workspace) notebookMenu(nb keelclient.Notebook) func(m *ui.Menu) {
+func (w *workspace) notebookMenu(nb slimeclient.Notebook) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		id := nb.ID
 		if menuItem(m, "Open").Chosen() {
@@ -101,7 +101,7 @@ func (w *workspace) notebooksView(c *ui.Context, p *notebooksPage) {
 }
 
 // notebookRow is a row of NotebookList: the tile, the name and the first line, the badges and the menu. A click opens it.
-func (w *workspace) notebookRow(c *ui.Context, nb keelclient.Notebook) {
+func (w *workspace) notebookRow(c *ui.Context, nb slimeclient.Notebook) {
 	r := hairline(ui.Row(c).FillWidth().MinHeight(sizeControlLg).Padding(space2, space6, space2, space8).Gap(space3).AlignItems(ui.Center).
 		Cursor(ui.CursorPointer).Key(nb.ID).Label("notebook "+notebookName(nb)), 0, 0, 1, 0)
 	if r.Hovered() {
@@ -125,7 +125,7 @@ func (w *workspace) notebookRow(c *ui.Context, nb keelclient.Notebook) {
 }
 
 // notebookBadges are the row's badges: Private, Edited by agent, From agent, Pinned.
-func (w *workspace) notebookBadges(c *ui.Context, nb keelclient.Notebook) {
+func (w *workspace) notebookBadges(c *ui.Context, nb slimeclient.Notebook) {
 	ui.Row(c).Gap(space1_5).AlignItems(ui.Center).Shrink(0).Children(func() {
 		if nb.Private {
 			ui.Row(c).Height(space4).Padding(0, space1_5).Gap(space1).Radius(radiusXs).Justify(ui.Center).Shrink(0).Border(1, lineStrong).
@@ -176,7 +176,7 @@ func (w *workspace) sidebarNotebooks(c *ui.Context) {
 	})
 }
 
-func (w *workspace) sideNotebookRow(c *ui.Context, nb keelclient.Notebook) {
+func (w *workspace) sideNotebookRow(c *ui.Context, nb slimeclient.Notebook) {
 	name := notebookName(nb)
 	r := ui.Row(c).FillWidth().Height(sizeRow).Padding(0, space2).Gap(space2).Radius(radiusSm).Key(nb.ID).
 		Label("sidebar notebook " + name).Tooltip(name).Cursor(ui.CursorPointer).Focusable()

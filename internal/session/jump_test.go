@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/session"
-	"keel/internal/session/sshtest"
-	"keel/internal/store"
+	"slime/internal/session"
+	"slime/internal/session/sshtest"
+	"slime/internal/store"
 )
 
 // keys is a stand-in for the store's known hosts.

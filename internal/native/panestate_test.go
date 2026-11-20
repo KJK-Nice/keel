@@ -7,14 +7,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // failedRig is a window whose only session was already down when it opened.
-func failedRig(t *testing.T, st keelclient.State, hostID string) *rig {
+func failedRig(t *testing.T, st slimeclient.State, hostID string) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.sessions = []keelclient.Session{{ID: "s-x", HostID: hostID, Status: string(st.Status)}}
+	fb.sessions = []slimeclient.Session{{ID: "s-x", HostID: hostID, Status: string(st.Status)}}
 	r := newRig(t, fb)
 	r.fb.conns[0].st = &st
 	r.tt.Frame()
@@ -25,7 +25,7 @@ func failedRig(t *testing.T, st keelclient.State, hostID string) *rig {
 func (r *rig) has(label string) bool { _, ok := r.tt.Find(label); return ok }
 
 func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
-	r := failedRig(t, keelclient.State{Status: "error", Message: "dial tcp: connection refused"}, "h-api")
+	r := failedRig(t, slimeclient.State{Status: "error", Message: "dial tcp: connection refused"}, "h-api")
 	if r.w.tabCount() != 1 {
 		t.Fatalf("tabs %d: a failed session is hidden", r.w.tabCount())
 	}
@@ -50,7 +50,7 @@ func TestFailedSessionFromStartShowsABannerWithCloseAndReconnect(t *testing.T) {
 // The failure banner has Copy logs between nothing and
 // Close, the pane lists the connection log under it, and Copy logs puts exactly those lines on the clipboard.
 func TestAFailedPaneListsItsConnectionLogAndCopyLogsCopiesIt(t *testing.T) {
-	st := keelclient.State{Status: "error", Message: "dial tcp: connection refused", Log: []keelclient.LogLine{
+	st := slimeclient.State{Status: "error", Message: "dial tcp: connection refused", Log: []slimeclient.LogLine{
 		{Kind: "work", Text: "Connecting…"}, {Kind: "fail", Text: "dial tcp: connection refused"}}}
 	r := failedRig(t, st, "h-api")
 	lines := []string{
@@ -73,16 +73,16 @@ func TestAFailedPaneListsItsConnectionLogAndCopyLogsCopiesIt(t *testing.T) {
 		t.Error("no toast")
 	}
 	// A local shell is seeded with its own line; a connecting SSH pane has the log and Copy logs, and no Reconnect.
-	r2 := failedRig(t, keelclient.State{Status: "exited"}, "h-local")
+	r2 := failedRig(t, slimeclient.State{Status: "exited"}, "h-local")
 	if !r2.tt.HasText("Starting a local shell") {
 		t.Error("the local shell's seed line is missing")
 	}
-	r3 := failedRig(t, keelclient.State{Status: "connecting"}, "h-api")
+	r3 := failedRig(t, slimeclient.State{Status: "connecting"}, "h-api")
 	if !r3.has("Copy logs") || r3.has("Reconnect") || !r3.tt.HasText(`Connecting to "10.0.0.1" port "22"`) {
 		t.Error("the connecting pane lacks its log or Copy logs, or offers Reconnect")
 	}
 	// A ready session, a local shell that is connecting and a joined tab show no log.
-	for _, st := range []keelclient.State{{Status: "ready"}} {
+	for _, st := range []slimeclient.State{{Status: "ready"}} {
 		if failedRig(t, st, "h-api").has("connection log 1") {
 			t.Errorf("%+v: a log shows", st)
 		}
@@ -93,7 +93,7 @@ func TestLogTextIsTheLinesOrTheEmptyWords(t *testing.T) {
 	if got := logText(nil); got != "No connection log yet." {
 		t.Error(got)
 	}
-	if got := logText([]keelclient.LogLine{{Text: "a"}, {Text: ""}, {Text: "b"}}); got != "a\nb" {
+	if got := logText([]slimeclient.LogLine{{Text: "a"}, {Text: ""}, {Text: "b"}}); got != "a\nb" {
 		t.Errorf("%q", got)
 	}
 }
@@ -101,17 +101,17 @@ func TestLogTextIsTheLinesOrTheEmptyWords(t *testing.T) {
 func TestBannerHeadlinesAndEndpoints(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		st       keelclient.State
+		st       slimeclient.State
 		host     string
 		words    []string
 		banner   string
 		reconect bool
 	}{
-		{"exited", keelclient.State{Status: "exited"}, "h-api", []string{"Session ended", "SSH 10.0.0.1:22"}, "banner failed", true},
-		{"lost", keelclient.State{Status: "error", WasReady: true}, "h-web", []string{"Connection lost", "SSH 10.1.0.1:22"}, "banner failed", true},
-		{"local failed", keelclient.State{Status: "error", Subtitle: "sh in /tmp"}, "h-local", []string{"Connection failed", "sh in /tmp"}, "banner failed", true},
-		{"local no subtitle", keelclient.State{Status: "exited"}, "h-local", []string{"Session ended", "Local shell"}, "banner failed", true},
-		{"connecting", keelclient.State{Status: "connecting"}, "h-api", []string{"Connecting…", "SSH 10.0.0.1:22"}, "banner connecting", false},
+		{"exited", slimeclient.State{Status: "exited"}, "h-api", []string{"Session ended", "SSH 10.0.0.1:22"}, "banner failed", true},
+		{"lost", slimeclient.State{Status: "error", WasReady: true}, "h-web", []string{"Connection lost", "SSH 10.1.0.1:22"}, "banner failed", true},
+		{"local failed", slimeclient.State{Status: "error", Subtitle: "sh in /tmp"}, "h-local", []string{"Connection failed", "sh in /tmp"}, "banner failed", true},
+		{"local no subtitle", slimeclient.State{Status: "exited"}, "h-local", []string{"Session ended", "Local shell"}, "banner failed", true},
+		{"connecting", slimeclient.State{Status: "connecting"}, "h-api", []string{"Connecting…", "SSH 10.0.0.1:22"}, "banner connecting", false},
 	} {
 		r := failedRig(t, tc.st, tc.host)
 		for _, s := range tc.words {
@@ -124,7 +124,7 @@ func TestBannerHeadlinesAndEndpoints(t *testing.T) {
 		}
 	}
 	// A local shell that is still connecting, or a ready session, has no banner.
-	for _, st := range []keelclient.State{{Status: "ready"}, {Status: "connecting"}} {
+	for _, st := range []slimeclient.State{{Status: "ready"}, {Status: "connecting"}} {
 		host := "h-api"
 		if st.Status == "connecting" {
 			host = "h-local"
@@ -136,15 +136,15 @@ func TestBannerHeadlinesAndEndpoints(t *testing.T) {
 	}
 }
 
-var unknownKey = keelclient.HostKey{Kind: "unknown-host", Hostname: "10.0.0.1:22", Fingerprint: "SHA256:fp-offered", KeyType: "ssh-ed25519", Token: "t-offer"}
+var unknownKey = slimeclient.HostKey{Kind: "unknown-host", Hostname: "10.0.0.1:22", Fingerprint: "SHA256:fp-offered", KeyType: "ssh-ed25519", Token: "t-offer"}
 
 // hostKeyRig has two tabs: s-a refused for its host key, s-b fine and focused.
-func hostKeyRig(t *testing.T, k keelclient.HostKey) *rig {
+func hostKeyRig(t *testing.T, k slimeclient.HostKey) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.sessions = []keelclient.Session{{ID: "s-a", HostID: "h-api", Status: "error"}, {ID: "s-b", HostID: "h-pg", Status: "ready"}}
+	fb.sessions = []slimeclient.Session{{ID: "s-a", HostID: "h-api", Status: "error"}, {ID: "s-b", HostID: "h-pg", Status: "ready"}}
 	r := newRig(t, fb)
-	r.fb.conns[0].st = &keelclient.State{Status: "error", HostKey: k}
+	r.fb.conns[0].st = &slimeclient.State{Status: "error", HostKey: k}
 	r.tt.Frame()
 	return r
 }
@@ -159,7 +159,7 @@ func TestHostKeyDialogOnlyForTheFocusedPaneThenTrustReconnects(t *testing.T) {
 	r2.tt.Frame()
 	r2.click(t, "host api-1")
 	r2.click(t, "Split right") // pane 2 is focused
-	r2.fb.conns[0].st = &keelclient.State{Status: "error", HostKey: unknownKey}
+	r2.fb.conns[0].st = &slimeclient.State{Status: "error", HostKey: unknownKey}
 	r2.tt.Frame()
 	if r2.has("dialog Unknown host key") || !r2.has("banner failed") {
 		t.Fatal("an unfocused pane must show its failure banner only")
@@ -244,14 +244,14 @@ func TestChangedHostKeyDialogReplaces(t *testing.T) {
 // A role chip has a glyph before its words, steering for who drives and the owner, an eye for a
 // follower. The glyph is 0.923rem, before the words, inside the pill.
 func TestARoleChipHasItsGlyph(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
+	two := []slimeclient.Peer{{ID: 1, Name: "ann", Kind: slimeclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: slimeclient.KindWindow, Role: "follower"}}
 	for _, tc := range []struct {
 		label, glyph string
-		st           keelclient.State
+		st           slimeclient.State
 	}{
-		{"role Driving", "steering", keelclient.State{Status: "ready", Role: "driver", Attached: two, OwnerID: 1, YouID: 2, DriverID: 2}},
-		{"role Following", "eye", keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}},
-		{"role Owner", "steering", keelclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}},
+		{"role Driving", "steering", slimeclient.State{Status: "ready", Role: "driver", Attached: two, OwnerID: 1, YouID: 2, DriverID: 2}},
+		{"role Following", "eye", slimeclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}},
+		{"role Owner", "steering", slimeclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}},
 	} {
 		r := failedRig(t, tc.st, "h-api")
 		chip, ok := r.tt.Find(tc.label)
@@ -267,19 +267,19 @@ func TestARoleChipHasItsGlyph(t *testing.T) {
 }
 
 func TestRoleChipAndFollowerNotchOnlyWhenShared(t *testing.T) {
-	two := []keelclient.Peer{{ID: 1, Name: "ann", Kind: keelclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: keelclient.KindWindow, Role: "follower"}}
+	two := []slimeclient.Peer{{ID: 1, Name: "ann", Kind: slimeclient.KindWindow, Role: "driver"}, {ID: 2, Name: "me", Kind: slimeclient.KindWindow, Role: "follower"}}
 	for _, tc := range []struct {
 		name      string
-		st        keelclient.State
+		st        slimeclient.State
 		chipLabel string // "" when no chip
 		button    string // "" when no follower notch
 		notice    string
 	}{
-		{"alone", keelclient.State{Status: "ready", Role: "driver", Attached: two[:1], OwnerID: 1, YouID: 1, DriverID: 1}, "", "", ""},
-		{"driving", keelclient.State{Status: "ready", Role: "driver", Attached: two, OwnerID: 1, YouID: 2, DriverID: 2}, "role Driving", "", ""},
-		{"following", keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "role Following", "Ask for control", "ann is driving"},
-		{"owner", keelclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}, "role Owner", "Take control", "ann is driving"},
-		{"nobody", keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2}, "role Following", "Ask for control", "Nobody is driving"},
+		{"alone", slimeclient.State{Status: "ready", Role: "driver", Attached: two[:1], OwnerID: 1, YouID: 1, DriverID: 1}, "", "", ""},
+		{"driving", slimeclient.State{Status: "ready", Role: "driver", Attached: two, OwnerID: 1, YouID: 2, DriverID: 2}, "role Driving", "", ""},
+		{"following", slimeclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "role Following", "Ask for control", "ann is driving"},
+		{"owner", slimeclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}, "role Owner", "Take control", "ann is driving"},
+		{"nobody", slimeclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2}, "role Following", "Ask for control", "Nobody is driving"},
 	} {
 		r := failedRig(t, tc.st, "h-api")
 		for _, l := range []string{"role Driving", "role Following", "role Owner"} {
@@ -296,12 +296,12 @@ func TestRoleChipAndFollowerNotchOnlyWhenShared(t *testing.T) {
 			t.Errorf("%s: follower notch present=%v, notice %q", tc.name, r.has("presence following"), tc.notice)
 		}
 	}
-	r := failedRig(t, keelclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "h-api")
+	r := failedRig(t, slimeclient.State{Status: "ready", Role: "follower", Attached: two, OwnerID: 1, YouID: 2, DriverID: 1}, "h-api")
 	r.click(t, "Ask for control")
 	if c := r.fb.conns[0]; c.asked != 1 || c.took != 0 {
 		t.Errorf("Ask for control: asked %d took %d", c.asked, c.took)
 	}
-	r = failedRig(t, keelclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}, "h-api")
+	r = failedRig(t, slimeclient.State{Status: "ready", Role: "owner", Attached: two, OwnerID: 2, YouID: 2, DriverID: 1}, "h-api")
 	r.click(t, "Take control")
 	if c := r.fb.conns[0]; c.took != 1 || c.asked != 0 {
 		t.Errorf("Take control: asked %d took %d", c.asked, c.took)

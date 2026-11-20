@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/agent/redact"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/agent/redact"
 )
 
 func TestDescriptors(t *testing.T) {

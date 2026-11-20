@@ -2,7 +2,7 @@ package service
 
 // Plain language → command in a pane (docs/ui-redesign.md §5.5).
 //
-// Three calls, all on the user's own session socket, so keel serve knows
+// Three calls, all on the user's own session socket, so slime serve knows
 // the asking client's role in the pane (a follower gets nothing, §6.6):
 //
 //   - Detect: is the prompt line plain language? `#` lines always are (no
@@ -13,11 +13,11 @@ package service
 //     history.go; then the model provider, source "generated"); every
 //     candidate is rated by the code rule and returned at once. The
 //     returned RiskCheck then asks Jev and may make the stored rating
-//     stricter (never looser); keel serve pushes that to the card. An
+//     stricter (never looser); slime serve pushes that to the card. An
 //     insert is always checked against the strictest rating known then.
 //   - AuthorizeInsert: the user pressed ⇥ / ⇧⇥ on a suggestion. Checks
 //     the suggestion, the bytes, the ⇧ rule and the driver, and logs
-//     agent.insert. It writes nothing: keel serve writes the approved
+//     agent.insert. It writes nothing: slime serve writes the approved
 //     bytes through the inject ticket path afterwards.
 //
 // Everything sent off the machine is the prompt line or a candidate
@@ -32,11 +32,11 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/store"
 )
 
 var (
@@ -123,12 +123,12 @@ type SuggestInput struct {
 	Redactor *redact.Redactor
 }
 
-// Candidate is a command a suggester offers, before Keel rates it.
+// Candidate is a command a suggester offers, before Slime rates it.
 type Candidate struct {
 	Command string
 	Why     string
 	// ModelRisk is the suggester's own rating, if any; it can only make
-	// Keel's rating stricter.
+	// Slime's rating stricter.
 	ModelRisk string
 	Source    string
 }
@@ -371,7 +371,7 @@ func (s *Service) flushDetect(sessionID string) {
 }
 
 // Close writes the detection summaries still open, so lines sent to Jev
-// in the last window before keel serve stops are logged too.
+// in the last window before slime serve stops are logged too.
 func (s *Service) Close() {
 	s.sug.mu.Lock()
 	ids := make([]string, 0, len(s.sug.detectLogs))
@@ -585,7 +585,7 @@ type RiskUpdate struct {
 	Stricter     bool         `json:"-"`
 }
 
-// SuggestTiming says where a suggestion's time went, for keel serve's
+// SuggestTiming says where a suggestion's time went, for slime serve's
 // own log (never keel.log's content: it holds no words).
 type SuggestTiming struct {
 	Model    string
@@ -771,7 +771,7 @@ func (s *Service) keepSuggestion(sug *Suggestion) {
 	s.sug.suggestions[sug.ID] = &cp
 }
 
-// InsertRequest is the user's ⇥ or ⇧⇥ on a suggestion, as keel serve sees
+// InsertRequest is the user's ⇥ or ⇧⇥ on a suggestion, as slime serve sees
 // it on the session socket.
 type InsertRequest struct {
 	SuggestionID string
@@ -782,13 +782,13 @@ type InsertRequest struct {
 	Shift        bool       // ⇧ was held
 }
 
-// AuthorizeInsert checks an insert before keel serve writes it, through
+// AuthorizeInsert checks an insert before slime serve writes it, through
 // authorize (authorize.go, pathInsert): the client drives the session; the
 // suggestion exists, has not expired, has not been inserted already and
 // targets this session; the bytes are the option's; the ⇧ rule holds, with
 // the host counted as production if it was when suggested, is now, or can
 // no longer be found. It then reserves the suggestion, so a resent insert
-// is refused. It writes and logs nothing: keel serve writes, then calls
+// is refused. It writes and logs nothing: slime serve writes, then calls
 // InsertDone, which logs agent.insert only for a write that happened.
 func (s *Service) AuthorizeInsert(req InsertRequest) (InsertGrant, error) {
 	sub := suggestionSubject{s: s, id: req.SuggestionID, option: req.Option}

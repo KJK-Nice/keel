@@ -1,9 +1,9 @@
-// Package limits holds the numbers, defaults and small validators that keel
+// Package limits holds the numbers, defaults and small validators that slime
 // serve enforces and the window shows: how long a startup command may be,
 // how deep folders nest, how long a notebook name is, what an agent setting
 // defaults to. internal/store and the agent service export them under their
 // own names; the window imports them here instead of keeping a copy. It is a
-// leaf: it imports no keel package but wire (leaf_test.go checks).
+// leaf: it imports no slime package but wire (leaf_test.go checks).
 package limits
 
 import (
@@ -31,7 +31,7 @@ const (
 // StartupCommandProblem says why cmd is not a startup command, in the words
 // the API answers with; "" when it is one: one line of printable text, no
 // newline, carriage return, tab or other control character, at most
-// MaxStartupCommand bytes. Keel adds the Enter itself.
+// MaxStartupCommand bytes. Slime adds the Enter itself.
 func StartupCommandProblem(cmd string) string {
 	if cmd == "" {
 		return ""

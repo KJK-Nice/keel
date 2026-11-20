@@ -8,8 +8,8 @@ import (
 
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // key is a made-up link key; it opens nothing. The MAC itself is sharelink's and is pinned there.

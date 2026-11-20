@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The suggestion machine's cases.
@@ -49,13 +49,13 @@ func TestWorthDetecting(t *testing.T) {
 }
 
 func TestInsertGate(t *testing.T) {
-	if ok, why := insertGate(&keelclient.SuggestOption{NeedsShift: true}, false); ok || why != needsShiftReason {
+	if ok, why := insertGate(&slimeclient.SuggestOption{NeedsShift: true}, false); ok || why != needsShiftReason {
 		t.Errorf("plain on a ⇧ option: %v %q", ok, why)
 	}
-	if ok, _ := insertGate(&keelclient.SuggestOption{NeedsShift: true}, true); !ok {
+	if ok, _ := insertGate(&slimeclient.SuggestOption{NeedsShift: true}, true); !ok {
 		t.Error("⇧ on a ⇧ option")
 	}
-	if ok, _ := insertGate(&keelclient.SuggestOption{}, false); !ok {
+	if ok, _ := insertGate(&slimeclient.SuggestOption{}, false); !ok {
 		t.Error("plain on a plain option")
 	}
 	if ok, _ := insertGate(nil, true); ok {
@@ -87,13 +87,13 @@ func TestUndoKey(t *testing.T) {
 }
 
 func TestCardWordsAndRiskRules(t *testing.T) {
-	if got := riskWords(keelclient.SuggestOption{Risk: "destructive", Command: "rm -rf /tmp/x"}); got != "Deletes files" {
+	if got := riskWords(slimeclient.SuggestOption{Risk: "destructive", Command: "rm -rf /tmp/x"}); got != "Deletes files" {
 		t.Errorf("rm: %q", got)
 	}
-	if got := riskWords(keelclient.SuggestOption{Risk: "destructive", Command: "dd if=/dev/zero of=/dev/sda"}); got != "Destructive" {
+	if got := riskWords(slimeclient.SuggestOption{Risk: "destructive", Command: "dd if=/dev/zero of=/dev/sda"}); got != "Destructive" {
 		t.Errorf("dd: %q", got)
 	}
-	if got := riskWords(keelclient.SuggestOption{Risk: "readonly"}); got != "Read-only" {
+	if got := riskWords(slimeclient.SuggestOption{Risk: "readonly"}); got != "Read-only" {
 		t.Errorf("readonly: %q", got)
 	}
 	for src, want := range map[string]string{"history": "From this pane's scrollback", "snippet": "From your snippets", "generated": "Suggested from your words", "": "Suggested from your words"} {
@@ -139,7 +139,7 @@ type sentFrame struct {
 }
 
 type insertCall struct {
-	sug   *keelclient.Suggestion
+	sug   *slimeclient.Suggestion
 	i     int
 	shift bool
 	words string
@@ -157,7 +157,7 @@ func newHarness(t *testing.T) *harness {
 		mode:        func() sugMode { return h.mode },
 		sendDetect:  func(seq int, l string) { h.sent = append(h.sent, sentFrame{"detect", seq, l}) },
 		sendSuggest: func(seq int, l string) { h.sent = append(h.sent, sentFrame{"suggest", seq, l}) },
-		insert: func(s *keelclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {
+		insert: func(s *slimeclient.Suggestion, i int, shift bool, words string, done func(insertResult)) {
 			h.inserts = append(h.inserts, insertCall{s, i, shift, words})
 			if h.auto != nil {
 				done(*h.auto)
@@ -187,10 +187,10 @@ func (h *harness) state(want sugState) {
 
 func kd(name string) sugKey { return sugKey{Name: name} }
 
-func opts(cmds ...string) *keelclient.Suggestion {
-	s := &keelclient.Suggestion{ID: "s_1"}
+func opts(cmds ...string) *slimeclient.Suggestion {
+	s := &slimeclient.Suggestion{ID: "s_1"}
 	for _, c := range cmds {
-		s.Options = append(s.Options, keelclient.SuggestOption{Command: c, Risk: "readonly"})
+		s.Options = append(s.Options, slimeclient.SuggestOption{Command: c, Risk: "readonly"})
 	}
 	return s
 }
@@ -253,7 +253,7 @@ func TestDestructiveNeedsShift(t *testing.T) {
 	h.fire()
 	h.m.OnDetect(1, true, "hash")
 	h.m.OnKey(kd("Tab"))
-	h.m.OnSuggest(h.sent[1].seq, true, &keelclient.Suggestion{ID: "s", Options: []keelclient.SuggestOption{{Command: "rm -rf /tmp/x", Risk: "destructive", NeedsShift: true}}}, "", "")
+	h.m.OnSuggest(h.sent[1].seq, true, &slimeclient.Suggestion{ID: "s", Options: []slimeclient.SuggestOption{{Command: "rm -rf /tmp/x", Risk: "destructive", NeedsShift: true}}}, "", "")
 	h.m.OnKey(kd("Tab"))
 	if len(h.inserts) != 0 {
 		t.Fatal("plain ⇥ inserted a destructive command")
@@ -291,7 +291,7 @@ func TestEscKeepsTheWordsAndTheNoticeDoesNotComeBack(t *testing.T) {
 	}
 }
 
-// Esc on the notice is Keel's, not the shell's (a shell given it would eat the next key as Meta+key); the
+// Esc on the notice is Slime's, not the shell's (a shell given it would eat the next key as Meta+key); the
 // key typed right after goes to the session, and Esc with nothing showing stays the shell's.
 func TestEscOnTheNoticeIsNotTheShellsAndTheNextKeyIs(t *testing.T) {
 	h := newHarness(t)
@@ -422,17 +422,17 @@ func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) {
 	h.fire()
 	h.m.OnDetect(1, true, "jev")
 	h.m.OnKey(kd("Tab"))
-	sug := &keelclient.Suggestion{ID: "s_9", Options: []keelclient.SuggestOption{{Command: "echo keel-jev-slow", Risk: "readonly"}}}
+	sug := &slimeclient.Suggestion{ID: "s_9", Options: []slimeclient.SuggestOption{{Command: "echo keel-jev-slow", Risk: "readonly"}}}
 	h.m.OnSuggest(h.sent[1].seq, true, sug, "", "")
-	opt := func() keelclient.SuggestOption { return h.m.View().Sug.Options[0] }
+	opt := func() slimeclient.SuggestOption { return h.m.View().Sug.Options[0] }
 	if riskWords(opt()) != "Read-only" {
 		t.Fatal("not read-only at first")
 	}
-	h.m.OnRisk("s_other", []keelclient.SuggestOption{{Risk: "destructive", NeedsShift: true, Judged: true}}) // another suggestion
+	h.m.OnRisk("s_other", []slimeclient.SuggestOption{{Risk: "destructive", NeedsShift: true, Judged: true}}) // another suggestion
 	if opt().Risk != "readonly" {
 		t.Fatal("an update for another suggestion was applied")
 	}
-	h.m.OnRisk("s_9", []keelclient.SuggestOption{{Risk: "destructive", NeedsShift: true, Judged: true}})
+	h.m.OnRisk("s_9", []slimeclient.SuggestOption{{Risk: "destructive", NeedsShift: true, Judged: true}})
 	if h.m.State() != sugCard || opt().Risk != "destructive" || !opt().NeedsShift {
 		t.Fatalf("not stricter: %+v", opt())
 	}
@@ -440,7 +440,7 @@ func TestALaterStricterRatingChangesTheBadgeNeverALooserOne(t *testing.T) {
 	if len(h.inserts) != 0 || !strings.Contains(h.m.View().Note, "Press ⇧⇥") {
 		t.Fatalf("plain ⇥ after a stricter rating: inserts %v note %q", h.inserts, h.m.View().Note)
 	}
-	h.m.OnRisk("s_9", []keelclient.SuggestOption{{Risk: "readonly", NeedsShift: false, Judged: true}}) // never looser
+	h.m.OnRisk("s_9", []slimeclient.SuggestOption{{Risk: "readonly", NeedsShift: false, Judged: true}}) // never looser
 	if opt().Risk != "destructive" || !opt().NeedsShift {
 		t.Fatalf("loosened: %+v", opt())
 	}

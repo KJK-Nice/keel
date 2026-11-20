@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 func (s *Server) listIdentities(w http.ResponseWriter, _ *http.Request) {

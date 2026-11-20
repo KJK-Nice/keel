@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
 )
 
 // Dragging a pane to the tab strip and a tab onto a pane (panedrag.go: extractPane and dockTab). Nothing opens or closes a session.

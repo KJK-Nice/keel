@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/hostimport"
-	"keel/internal/runtime"
-	"keel/internal/store"
-	"keel/internal/tunnel"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/hostimport"
+	"slime/internal/runtime"
+	"slime/internal/store"
+	"slime/internal/tunnel"
 )
 
 // answerOf is what writeErr sends for err: the status and the decoded body.
@@ -59,7 +59,7 @@ func TestOneErrorPolicy(t *testing.T) {
 		{"history, a route's words", worded(store.ErrHistoryUnavailable, store.ErrHistoryUnavailable, "Not saved"), 409, "Not saved", "history"},
 		{"notebook conflict", store.ErrNotebookConflict, 409, "The notebook changed since then. Open History on the notebook to restore an earlier version.", "conflict"},
 		{"notebook conflict in History", historyWords(store.ErrNotebookConflict), 409, "The notebook changed meanwhile. Look at History again before you restore.", "conflict"},
-		{"notebook private", store.ErrNotebookPrivate, 403, "This notebook is private now. Keel did not change it.", "private"},
+		{"notebook private", store.ErrNotebookPrivate, 403, "This notebook is private now. Slime did not change it.", "private"},
 		{"notes unreadable", wrapped(store.ErrMemoryUnreadable), 409, "while saving: saved notes cannot be read; Delete all notes in Settings · Agent starts a fresh file", ""},
 		{"no key", service.ErrNoKey, 412, service.ErrNoKey.Error(), "no-key"},
 		{"provider", &service.ProviderError{Msg: "quota"}, 502, "quota", "provider"},
@@ -67,9 +67,9 @@ func TestOneErrorPolicy(t *testing.T) {
 		{"expired card", service.ErrNoteExpired, 410, service.ErrNoteExpired.Error(), ""},
 		{"nothing to draft", service.ErrNothingToDraft, 422, service.ErrNothingToDraft.Error(), ""},
 		{"no group run", service.ErrNoGroupRun, 404, service.ErrNoGroupRun.Error(), ""},
-		{"keel mcp, pane not readable", mcpWords(agent.ErrNotReadable), 403, "the agent may not read this pane: turn on \"Agent can read\" for its host in Keel", ""},
-		{"keel mcp, no such pane", mcpWords(service.ErrNotFound), 404, "no such pane or proposal (list_panes gives the open panes)", ""},
-		{"keel mcp, locked", mcpWords(store.ErrLocked), 423, "vault locked", ""},
+		{"slime mcp, pane not readable", mcpWords(agent.ErrNotReadable), 403, "the agent may not read this pane: turn on \"Agent can read\" for its host in Slime", ""},
+		{"slime mcp, no such pane", mcpWords(service.ErrNotFound), 404, "no such pane or proposal (list_panes gives the open panes)", ""},
+		{"slime mcp, locked", mcpWords(store.ErrLocked), 423, "vault locked", ""},
 		{"import request", &hostimport.RequestError{Msg: "x is not a host"}, 400, "x is not a host", ""},
 		{"unknown", errors.New("disk full"), 500, "disk full", ""},
 		{"unknown, the route's status", otherwise(errors.New("bind: in use"), 400), 400, "bind: in use", ""},
@@ -99,7 +99,7 @@ func TestErrorPolicyCarriesTheRefusedHostKey(t *testing.T) {
 // 500 before (deleteHost, deleteSnippet, upsertNotebook). withVault stops a
 // request before it reaches them, so the handlers are called directly.
 func TestHandlersAnswerLockedWith423(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestAgentRoutesSayWhyTheAgentIsUnavailable(t *testing.T) {
 // The routes that answer while the vault is locked are the ones Handler
 // registered as such, and no other.
 func TestLockedVaultExemptionsComeFromTheRouteTable(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestLockedVaultExemptionsComeFromTheRouteTable(t *testing.T) {
 // Close stops the agent's retention timer, which ran until the process
 // ended.
 func TestCloseStopsRetention(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(dir+"/keel.json", store.TestVault())
 	if err != nil {

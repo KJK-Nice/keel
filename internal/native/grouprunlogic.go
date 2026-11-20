@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of a group run (docs/ui-redesign.md §17, §6 rules 10 and 11), pinned by grouprunlogic_test.go and
 // grouprun_test.go. Nothing here
-// talks to keel serve, draws or types. A row of the approve dialog holds bytes keel serve gave (the proposal's, or the
+// talks to slime serve, draws or types. A row of the approve dialog holds bytes slime serve gave (the proposal's, or the
 // fill's); nothing here builds, edits or substitutes into them.
 
 const (
@@ -34,7 +34,7 @@ func modeShort(mode string) string {
 }
 
 // targetLabel says where a step runs: "Role worker · 5 hosts", "One control-plane host", "Every host · 8 hosts", "You check it".
-func targetLabel(step keelclient.GroupRunStep) string {
+func targetLabel(step slimeclient.GroupRunStep) string {
 	if step.Command == "" {
 		return "No command · you check it"
 	}
@@ -65,7 +65,7 @@ type cellText struct{ glyph, text, kind, state string }
 var cellGlyph = map[string]string{wire.StepDone: "✓", wire.StepFailed: "✗", wire.StepTyped: "◌", wire.StepTyping: "◌", wire.StepProposed: "·", wire.StepWaiting: "·", wire.StepSkipped: "–"}
 
 // cellView never says more than the shell reported.
-func cellView(c *keelclient.GroupRunCell) cellText {
+func cellView(c *slimeclient.GroupRunCell) cellText {
 	if c == nil {
 		return cellText{kind: "wait", state: "none"}
 	}
@@ -119,7 +119,7 @@ func cellView(c *keelclient.GroupRunCell) cellText {
 }
 
 // stepSummary is the results head: "2 of 5 done · 1 failed".
-func stepSummary(step keelclient.GroupRunStep) string {
+func stepSummary(step slimeclient.GroupRunStep) string {
 	if len(step.Cells) == 0 {
 		switch {
 		case step.Done:
@@ -159,7 +159,7 @@ func stepSummary(step keelclient.GroupRunStep) string {
 // typeable are the current step's cells whose proposal waits to be typed, with a pane open in this window and driven by it
 // (paneOpen(sessionID)). Nothing else is ever offered for typing: not a typed, skipped or waiting host, not a stopped run,
 // not a pane that is closed, followed or joined.
-func typeable(run *keelclient.GroupRun, paneOpen func(sessionID string) bool) (out []keelclient.GroupRunCell) {
+func typeable(run *slimeclient.GroupRun, paneOpen func(sessionID string) bool) (out []slimeclient.GroupRunCell) {
 	if run == nil || run.Status != wire.RunActive || run.Current < 0 || run.Current >= len(run.Steps) {
 		return nil
 	}
@@ -171,7 +171,7 @@ func typeable(run *keelclient.GroupRun, paneOpen func(sessionID string) bool) (o
 	return out
 }
 
-// groupRow is a row of the group approve dialog: a host, the pane it would be typed into, and the exact bytes keel serve
+// groupRow is a row of the group approve dialog: a host, the pane it would be typed into, and the exact bytes slime serve
 // gave for that host (the proposal's own bytes, or the fill's, with the values put in). checked is the user's tick and
 // nothing else sets it.
 type groupRow struct {
@@ -179,7 +179,7 @@ type groupRow struct {
 	sessionID    string
 	proposalID   string
 	bytes        string
-	used         []keelclient.FillUsed
+	used         []slimeclient.FillUsed
 	production   bool
 	needsShift   bool
 	checked      bool
@@ -187,13 +187,13 @@ type groupRow struct {
 	paneLabel    string
 
 	attempted bool   // the Type reached this row: it is final, nothing is retried
-	outcome   string // "Typed." or keel serve's refusal in its words
+	outcome   string // "Typed." or slime serve's refusal in its words
 	typedOK   bool
 }
 
 // approveRows are the dialog's checklist: one row per host, never ticked in advance unless it is the only one (the one-host
 // case, which is the ordinary approval).
-func approveRows(cells []keelclient.GroupRunCell) []*groupRow {
+func approveRows(cells []slimeclient.GroupRunCell) []*groupRow {
 	one := len(cells) == 1
 	var out []*groupRow
 	for _, c := range cells {
@@ -204,11 +204,11 @@ func approveRows(cells []keelclient.GroupRunCell) []*groupRow {
 	return out
 }
 
-// fillRows puts keel serve's fills on the dialog's rows: each row's exact bytes, what went in, and the ⇧ rule on the filled
+// fillRows puts slime serve's fills on the dialog's rows: each row's exact bytes, what went in, and the ⇧ rule on the filled
 // command. A row whose fill failed (a missing or unsafe value) keeps no bytes, cannot be ticked and says why; a row with no
 // fill at all cannot be ticked either.
-func fillRows(rows []*groupRow, fills []keelclient.GroupFill) {
-	byID := map[string]keelclient.GroupFill{}
+func fillRows(rows []*groupRow, fills []slimeclient.GroupFill) {
+	byID := map[string]slimeclient.GroupFill{}
 	for _, f := range fills {
 		byID[f.ProposalRef] = f
 	}
@@ -290,7 +290,7 @@ func bytesLine(b string) string {
 // haltLine is the rolling stop banner: which host failed and which were not touched.
 type halt struct{ title, sub, hostID string }
 
-func haltLine(run *keelclient.GroupRun) *halt {
+func haltLine(run *slimeclient.GroupRun) *halt {
 	if run == nil || run.Halted == "" || run.Current < 0 || run.Current >= len(run.Steps) {
 		return nil
 	}
@@ -302,7 +302,7 @@ func haltLine(run *keelclient.GroupRun) *halt {
 			break
 		}
 	}
-	var failed keelclient.GroupRunCell
+	var failed slimeclient.GroupRunCell
 	var rest []string
 	if i >= 0 {
 		failed = cells[i]
@@ -335,7 +335,7 @@ func listWords(xs []string) string {
 }
 
 // stepMark is a step's mark in the steps list.
-func stepMark(run *keelclient.GroupRun, i int) (mark, state string) {
+func stepMark(run *slimeclient.GroupRun, i int) (mark, state string) {
 	st := run.Steps[i]
 	all := len(st.Cells) > 0
 	failed := false
@@ -361,7 +361,7 @@ func stepMark(run *keelclient.GroupRun, i int) (mark, state string) {
 }
 
 // runStatusLine is the run's line in the head and the status bar.
-func runStatusLine(run *keelclient.GroupRun) string {
+func runStatusLine(run *slimeclient.GroupRun) string {
 	if run == nil {
 		return ""
 	}
@@ -375,7 +375,7 @@ func runStatusLine(run *keelclient.GroupRun) string {
 }
 
 // stoppedAt is "stopped at step N": the current step, else the last.
-func stoppedAt(run *keelclient.GroupRun) int {
+func stoppedAt(run *slimeclient.GroupRun) int {
 	if n := run.Current + 1; n > 0 {
 		return n
 	}

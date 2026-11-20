@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // rowMenu right-clicks a host row and returns the menu's items.
@@ -59,7 +59,7 @@ func TestCopySSHCommandPutsTheCommandOnTheClipboardOnly(t *testing.T) {
 }
 
 func TestSSHCommandCases(t *testing.T) {
-	hosts := []keelclient.Host{
+	hosts := []slimeclient.Host{
 		{ID: "j", Name: "bastion", Address: "bastion.example", Port: 2200, Username: "ed", AuthType: "password"},
 		{ID: "jd", Address: "bastion", Username: "-oProxyCommand=id", AuthType: "password"},
 		{ID: "ja", Address: "-oProxyCommand=id", Username: "ed", AuthType: "password"},
@@ -67,28 +67,28 @@ func TestSSHCommandCases(t *testing.T) {
 	}
 	for _, c := range []struct {
 		name string
-		h    keelclient.Host
+		h    slimeclient.Host
 		want string
 	}{
-		{"plain", keelclient.Host{Address: "10.0.0.5", Port: 22, Username: "ubuntu", AuthType: "password"}, "ssh ubuntu@10.0.0.5"},
-		{"port", keelclient.Host{Address: "db.lan", Port: 2222, Username: "pg", AuthType: "key"}, "ssh -p 2222 pg@db.lan"},
-		{"no user", keelclient.Host{Address: "db.lan", AuthType: "password"}, "ssh db.lan"},
-		{"jump", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "j"}, "ssh -J ed@bastion.example:2200 app@10.1.0.9"},
-		{"ipv6", keelclient.Host{Address: "fe80::1", Username: "root", AuthType: "password"}, "ssh root@[fe80::1]"},
-		{"quoted", keelclient.Host{Address: "web", Username: "o'neil", AuthType: "password"}, `ssh 'o'\''neil@web'`},
-		{"dash user", keelclient.Host{Address: "web", Username: "-oProxyCommand=touch /tmp/x", AuthType: "password"}, ""},
-		{"dash user no space", keelclient.Host{Address: "web", Username: "-oProxyCommand=id", AuthType: "password"}, ""},
-		{"dash address", keelclient.Host{Address: "-oProxyCommand=id", Username: "ops", AuthType: "password"}, ""},
-		{"dash address no user", keelclient.Host{Address: "-oProxyCommand=id", AuthType: "password"}, ""},
-		{"space user", keelclient.Host{Address: "web", Username: "o neil", AuthType: "password"}, ""},
-		{"newline address", keelclient.Host{Address: "web\nid", Username: "ops", AuthType: "password"}, ""},
-		{"control user", keelclient.Host{Address: "web", Username: "ops\x1b", AuthType: "password"}, ""},
+		{"plain", slimeclient.Host{Address: "10.0.0.5", Port: 22, Username: "ubuntu", AuthType: "password"}, "ssh ubuntu@10.0.0.5"},
+		{"port", slimeclient.Host{Address: "db.lan", Port: 2222, Username: "pg", AuthType: "key"}, "ssh -p 2222 pg@db.lan"},
+		{"no user", slimeclient.Host{Address: "db.lan", AuthType: "password"}, "ssh db.lan"},
+		{"jump", slimeclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "j"}, "ssh -J ed@bastion.example:2200 app@10.1.0.9"},
+		{"ipv6", slimeclient.Host{Address: "fe80::1", Username: "root", AuthType: "password"}, "ssh root@[fe80::1]"},
+		{"quoted", slimeclient.Host{Address: "web", Username: "o'neil", AuthType: "password"}, `ssh 'o'\''neil@web'`},
+		{"dash user", slimeclient.Host{Address: "web", Username: "-oProxyCommand=touch /tmp/x", AuthType: "password"}, ""},
+		{"dash user no space", slimeclient.Host{Address: "web", Username: "-oProxyCommand=id", AuthType: "password"}, ""},
+		{"dash address", slimeclient.Host{Address: "-oProxyCommand=id", Username: "ops", AuthType: "password"}, ""},
+		{"dash address no user", slimeclient.Host{Address: "-oProxyCommand=id", AuthType: "password"}, ""},
+		{"space user", slimeclient.Host{Address: "web", Username: "o neil", AuthType: "password"}, ""},
+		{"newline address", slimeclient.Host{Address: "web\nid", Username: "ops", AuthType: "password"}, ""},
+		{"control user", slimeclient.Host{Address: "web", Username: "ops\x1b", AuthType: "password"}, ""},
 		//lint:ignore ST1018 the zero-width space in the address is the test input
-		{"format char address", keelclient.Host{Address: "web​", Username: "ops", AuthType: "password"}, ""},
-		{"dash jump user", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "jd"}, ""},
-		{"dash jump address", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "ja"}, ""},
-		{"space jump address", keelclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "js"}, ""},
-		{"local", keelclient.Host{Name: "Local Shell", AuthType: "local"}, ""},
+		{"format char address", slimeclient.Host{Address: "web​", Username: "ops", AuthType: "password"}, ""},
+		{"dash jump user", slimeclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "jd"}, ""},
+		{"dash jump address", slimeclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "ja"}, ""},
+		{"space jump address", slimeclient.Host{Address: "10.1.0.9", Username: "app", AuthType: "password", JumpHost: "js"}, ""},
+		{"local", slimeclient.Host{Name: "Local Shell", AuthType: "local"}, ""},
 	} {
 		if got := sshCommand(c.h, hosts); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
@@ -178,7 +178,7 @@ func TestHostsReloadAfterAWriteKeepFilterGroupsAndTabs(t *testing.T) {
 	r.w.prefs.Collapsed["staging"] = true
 	r.tt.Frame()
 	before := r.fb.hostsCalls
-	r.fb.hosts = append(r.fb.hosts, keelclient.Host{ID: "h-new", Name: "pg-replica", Group: "production", AuthType: "key", Address: "10.0.0.9", Username: "dba"})
+	r.fb.hosts = append(r.fb.hosts, slimeclient.Host{ID: "h-new", Name: "pg-replica", Group: "production", AuthType: "key", Address: "10.0.0.9", Username: "dba"})
 	r.w.reloadHosts()
 	r.tt.Frame()
 	if r.fb.hostsCalls != before+1 || !r.tt.HasText("pg-replica") {
@@ -211,7 +211,7 @@ func TestARevChangeReloadsOnceAndSameRevNever(t *testing.T) {
 	if r.fb.hostsCalls != base {
 		t.Fatalf("a poll with the same rev read the hosts (%d)", r.fb.hostsCalls-base)
 	}
-	r.fb.hosts = append(r.fb.hosts, keelclient.Host{ID: "h-x", Name: "from-elsewhere", AuthType: "key", Address: "a", Username: "u"})
+	r.fb.hosts = append(r.fb.hosts, slimeclient.Host{ID: "h-x", Name: "from-elsewhere", AuthType: "key", Address: "a", Username: "u"})
 	r.fb.vault.Rev = "e.2"
 	r.w.pollTick()
 	r.tt.Frame()
@@ -251,7 +251,7 @@ func TestRelockShowsUnlockAndKeepsTheTabs(t *testing.T) {
 	r.click(t, "host api-1")
 	r.click(t, "Split right")
 	panes, conns := r.w.paneCount(), len(r.fb.conns)
-	r.fb.vault = keelclient.Vault{Locked: true, Sessions: 2}
+	r.fb.vault = slimeclient.Vault{Locked: true, Sessions: 2}
 	r.w.pollTick()
 	r.tt.Frame()
 	if r.w.gate == nil || !r.tt.HasText("Unlock your vault") || r.tt.HasText("Filter hosts") {
@@ -290,7 +290,7 @@ func TestUnlockedElsewhereTakesTheScreenAway(t *testing.T) {
 	if r.w.gate == nil {
 		t.Fatal("no Unlock screen")
 	}
-	r.fb.vault = keelclient.Vault{Rev: "e.1"}
+	r.fb.vault = slimeclient.Vault{Rev: "e.1"}
 	r.w.pollTick()
 	r.tt.Frame()
 	if r.w.gate != nil || !r.tt.HasText("Filter hosts") || !r.tt.HasText("Local Shell") {

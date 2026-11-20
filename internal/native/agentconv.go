@@ -9,19 +9,19 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Saved conversations (docs/ui-redesign.md §5.4.1, the panel's title button) and the Agent tab page's use of the same
 // one conversation (§5.4.2).
 //
 // What this file does and does not do:
-//   - keel serve saves the conversation in the vault, redacted as sent. This client reads the list and a transcript into
+//   - slime serve saves the conversation in the vault, redacted as sent. This client reads the list and a transcript into
 //     memory when the user asks to see them and writes none of it anywhere: not to keel-native.json, not to the saved
 //     workspace (which may hold the page tab's name and nothing of what was said).
 //   - A resumed conversation carries on under its own id; the ask sends exactly what any other ask sends.
-//   - A proposal keel serve does not hold any more comes back Expired. Its card has Copy and Propose again and no Type and no Edit,
-//     and nothing in this file sends either request for it: Propose again asks keel serve for a new proposal, which is
+//   - A proposal slime serve does not hold any more comes back Expired. Its card has Copy and Propose again and no Type and no Edit,
+//     and nothing in this file sends either request for it: Propose again asks slime serve for a new proposal, which is
 //     handled like any other (typeAgentProposal, the Approve before type dialog).
 //   - Delete and Delete all ask first.
 
@@ -41,7 +41,7 @@ type sessUI struct {
 	sel     int  // the row the arrow keys are on; -1 is the search field
 }
 
-// historyDays is how long keel serve keeps conversations as far as this window knows: the last list, else the settings.
+// historyDays is how long slime serve keeps conversations as far as this window knows: the last list, else the settings.
 // nil until one of them was read.
 func (a *agentPanel) historyDays() *int {
 	if a.list.historyDays != nil {
@@ -87,7 +87,7 @@ func (a *agentPanel) questions() (n int) {
 	return n
 }
 
-// known is a conversation keel serve knows: one that was asked or resumed. Rename and Delete need one.
+// known is a conversation slime serve knows: one that was asked or resumed. Rename and Delete need one.
 func (a *agentPanel) known() bool { return len(a.turns) > 0 }
 
 // agentPageShown is whether the Agent page is the tab on screen.
@@ -100,10 +100,10 @@ func (w *workspace) agentPageShown() bool {
 // loadConversations reads the saved conversations (GET /api/agent/conversations).
 func (w *workspace) loadConversations() {
 	a := w.agent
-	callOnce(w, &a.listLoading, nil, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+	callOnce(w, &a.listLoading, nil, w.be.Conversations, func(l slimeclient.ConversationList, err error) {
 		if err != nil {
 			a.list.sessions = nil
-			var se *keelclient.StatusError
+			var se *slimeclient.StatusError
 			if errors.As(err, &se) && se.Code == 423 {
 				a.list.err = msgListLocked
 			} else {
@@ -133,7 +133,7 @@ func (w *workspace) closeSessions() {
 // ---- resume ----
 
 // resumeConversation opens a saved conversation in the window's one conversation, which the panel and the page both show.
-// Nothing is read or sent: the transcript comes from keel serve, and the next ask reads the panes in scope as they are
+// Nothing is read or sent: the transcript comes from slime serve, and the next ask reads the panes in scope as they are
 // then.
 func (w *workspace) resumeConversation(id string) {
 	a := w.agent
@@ -148,10 +148,10 @@ func (w *workspace) resumeConversation(id string) {
 	a.resumedSeq++
 	seq := a.resumedSeq
 	callIf(w, func() bool { return a.resumedSeq == seq }, // another resume, or a new conversation, began meanwhile
-		func(c context.Context) (keelclient.Transcript, error) { return w.be.Conversation(c, id) },
-		func(t keelclient.Transcript, err error) {
+		func(c context.Context) (slimeclient.Transcript, error) { return w.be.Conversation(c, id) },
+		func(t slimeclient.Transcript, err error) {
 			if err != nil {
-				var se *keelclient.StatusError
+				var se *slimeclient.StatusError
 				if errors.As(err, &se) && se.Code == 404 {
 					w.warn(msgConvGone)
 				} else {
@@ -165,7 +165,7 @@ func (w *workspace) resumeConversation(id string) {
 }
 
 // showTranscript makes the transcript the window's conversation: in memory only.
-func (w *workspace) showTranscript(t keelclient.Transcript) {
+func (w *workspace) showTranscript(t slimeclient.Transcript) {
 	a := w.agent
 	w.closeSessions()
 	if a.busy != nil {
@@ -205,7 +205,7 @@ func (w *workspace) showTranscript(t keelclient.Transcript) {
 	a.focusInput = true
 }
 
-// resumedAfter is the index of the last turn read from keel serve, which the "Resumed" divider and its note follow, or -1
+// resumedAfter is the index of the last turn read from slime serve, which the "Resumed" divider and its note follow, or -1
 // when the conversation was not resumed. A later ask appends below it.
 func (a *agentPanel) resumedAfter() int {
 	if a.resumedAt.IsZero() {
@@ -230,7 +230,7 @@ func (w *workspace) beginConvRename(id, title string) {
 
 func (w *workspace) endConvRename() { w.agent.renameID = "" }
 
-// renameConversation is PATCH /api/agent/conversations/{id}, on the id keel serve gave. An empty title is not sent.
+// renameConversation is PATCH /api/agent/conversations/{id}, on the id slime serve gave. An empty title is not sent.
 func (w *workspace) renameConversation(id, title string) {
 	a := w.agent
 	title = strings.TrimSpace(title)
@@ -255,7 +255,7 @@ func (w *workspace) renameConversation(id, title string) {
 }
 
 // deleteConversation is Delete on a row or on the page: at once, asking nothing (only Delete all and Disconnect
-// ask), on the id keel serve gave.
+// ask), on the id slime serve gave.
 func (w *workspace) deleteConversation(id string) {
 	if id == "" {
 		return
@@ -266,7 +266,7 @@ func (w *workspace) deleteConversation(id string) {
 			w.warn(errText("delete the conversation", err))
 			return
 		}
-		a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s keelclient.ConversationSummary) bool { return s.ID == id })
+		a.list.sessions = slices.DeleteFunc(slices.Clone(a.list.sessions), func(s slimeclient.ConversationSummary) bool { return s.ID == id })
 		if id == a.conv {
 			w.newAgentConversation()
 			a.focusInput = false
@@ -297,7 +297,7 @@ func (w *workspace) deleteAllConversations() {
 
 // ---- Propose again ----
 
-// proposeAgain is an expired card's Propose again: keel serve rates the saved command again and makes a new proposal,
+// proposeAgain is an expired card's Propose again: slime serve rates the saved command again and makes a new proposal,
 // which comes back as a live card and is typed, if at all, like any other. The answer is dropped when the conversation
 // changed while it was asked.
 func (w *workspace) proposeAgain(id string) {
@@ -307,8 +307,8 @@ func (w *workspace) proposeAgain(id string) {
 		return
 	}
 	conv := a.conv
-	callIf(w, func() bool { return a.conv == conv }, func(c context.Context) (keelclient.Proposal, error) { return w.be.ProposeAgain(c, conv, id) },
-		func(p keelclient.Proposal, err error) {
+	callIf(w, func() bool { return a.conv == conv }, func(c context.Context) (slimeclient.Proposal, error) { return w.be.ProposeAgain(c, conv, id) },
+		func(p slimeclient.Proposal, err error) {
 			if err != nil {
 				w.warn(errText("propose again", err))
 				return

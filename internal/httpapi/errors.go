@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strings"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/hostimport"
-	"keel/internal/runtime"
-	"keel/internal/share"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/hostimport"
+	"slime/internal/runtime"
+	"slime/internal/share"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // One error policy for every route: writeErr is the only place that turns
@@ -42,7 +42,7 @@ var rules = []rule{
 	{err: service.ErrTooManyRuns, status: http.StatusConflict},
 	{err: service.ErrNotebookClosed, status: http.StatusConflict},
 	{err: store.ErrNotebookConflict, status: http.StatusConflict, reason: "conflict", words: "The notebook changed since then. Open History on the notebook to restore an earlier version."},
-	{err: store.ErrNotebookPrivate, status: http.StatusForbidden, reason: "private", words: "This notebook is private now. Keel did not change it."},
+	{err: store.ErrNotebookPrivate, status: http.StatusForbidden, reason: "private", words: "This notebook is private now. Slime did not change it."},
 	{err: service.ErrNotebookExpired, status: http.StatusGone},
 	{err: store.ErrHistoryUnavailable, status: http.StatusConflict, reason: "history"},
 	{err: service.ErrNoNotebooks, status: http.StatusServiceUnavailable},
@@ -60,7 +60,7 @@ var rules = []rule{
 	{err: store.ErrMemoryUnreadable, status: http.StatusConflict, tail: "; Delete all notes in Settings · Agent starts a fresh file"},
 	{err: service.ErrGroupVarSecret, status: http.StatusBadRequest, words: strings.TrimPrefix(service.ErrGroupVarSecret.Error(), "agent: ")},
 
-	// The agent's conversations and keel mcp.
+	// The agent's conversations and slime mcp.
 	{err: service.ErrNoKey, status: http.StatusPreconditionFailed, reason: "no-key"},
 	{err: service.ErrBadRequest, status: http.StatusBadRequest},
 	{err: service.ErrNotProvider, status: http.StatusBadRequest},

@@ -17,13 +17,13 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/joinpeer"
+	"slime/internal/native/joinpeer"
 )
 
-// Share and Join end to end. The owner is a window on a scratch keel serve with KEEL_SIGNAL on a loopback
-// keel-signal; the joiner is a second window on its own scratch keel serve, as a second machine would be. The joiner's
+// Share and Join end to end. The owner is a window on a scratch slime serve with SLIME_SIGNAL on a loopback
+// slime-signal; the joiner is a second window on its own scratch slime serve, as a second machine would be. The joiner's
 // peers have no ICE server (e2eJoiner) and the signal server is loopback. The one request that leaves the machine is
-// the STUN binding request keel serve's own share hub makes after Allow (internal/share/hub.go acceptPeer), which
+// the STUN binding request slime serve's own share hub makes after Allow (internal/share/hub.go acceptPeer), which
 // the maintainer allowed for these tests.
 
 // e2eJoiner opens the peer of a join with no ICE server and loopback candidates, and keeps it for the assertions.
@@ -112,12 +112,12 @@ func (e *win) noOffMachine() {
 	}
 }
 
-// startSignal runs bin/keel-signal on a free loopback port and returns its URL.
+// startSignal runs bin/slime-signal on a free loopback port and returns its URL.
 func startSignal(t *testing.T, dir string) string {
 	t.Helper()
-	bin := filepath.Join(repoRoot(t), "bin", "keel-signal")
+	bin := filepath.Join(repoRoot(t), "bin", "slime-signal")
 	if _, err := os.Stat(bin); err != nil {
-		t.Fatalf("%s is missing: run make native-e2e (it builds bin/keel-signal first)", bin)
+		t.Fatalf("%s is missing: run make native-e2e (it builds bin/slime-signal first)", bin)
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", freePort(t))
 	logf, err := os.Create(filepath.Join(dir, "signal.log"))
@@ -125,7 +125,7 @@ func startSignal(t *testing.T, dir string) string {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(bin)
-	cmd.Env = append(os.Environ(), "KEEL_SIGNAL_ADDR="+addr)
+	cmd.Env = append(os.Environ(), "SLIME_SIGNAL_ADDR="+addr)
 	cmd.Stdout, cmd.Stderr = logf, logf
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
@@ -154,15 +154,15 @@ func startSignal(t *testing.T, dir string) string {
 		}
 		select {
 		case <-done:
-			t.Fatalf("keel-signal exited early; see %s", filepath.Join(dir, "signal.log"))
+			t.Fatalf("slime-signal exited early; see %s", filepath.Join(dir, "signal.log"))
 		default:
 		}
 	}
-	t.Fatalf("keel-signal did not come up; see %s", filepath.Join(dir, "signal.log"))
+	t.Fatalf("slime-signal did not come up; see %s", filepath.Join(dir, "signal.log"))
 	return ""
 }
 
-// noPasteboard is a directory with a pbcopy that does nothing: keel serve puts a new link on the system pasteboard
+// noPasteboard is a directory with a pbcopy that does nothing: slime serve puts a new link on the system pasteboard
 // (internal/httpapi shareSession), which a test must not do to the person running it.
 func noPasteboard(t *testing.T, dir string) string {
 	t.Helper()
@@ -176,7 +176,7 @@ func noPasteboard(t *testing.T, dir string) string {
 	return bin + string(os.PathListSeparator) + os.Getenv("PATH")
 }
 
-// shareRig is the owner A (on a keel serve with the signal server) and the joiner B (its own keel serve and data).
+// shareRig is the owner A (on a slime serve with the signal server) and the joiner B (its own slime serve and data).
 type shareE2E struct {
 	a, b *win
 	sid  string // A's session
@@ -190,7 +190,7 @@ func newShareE2E(t *testing.T, withSignal bool) *shareE2E {
 	env := []string{"PATH=" + noPasteboard(t, dir)}
 	if withSignal {
 		r.sig = startSignal(t, dir)
-		env = append(env, "KEEL_SIGNAL="+r.sig)
+		env = append(env, "SLIME_SIGNAL="+r.sig)
 	}
 	addrA, _ := startServeAt(t, dir, "serve-a", true, env...)
 	dirB := filepath.Join(dir, "b")
@@ -357,7 +357,7 @@ func TestE2ENoSignalServer(t *testing.T) {
 	r.a.shot("TestE2ENoSignalServer-popover")
 }
 
-// A second window on the same keel serve follows like a joiner would, over the session socket instead of WebRTC: it
+// A second window on the same slime serve follows like a joiner would, over the session socket instead of WebRTC: it
 // takes no hub and no STUN, so the control rules can run for real. Its typing goes nowhere until A hands over.
 func TestE2EFollowerAsksForControlAndTheOwnerAnswers(t *testing.T) {
 	addr, dir := startServe(t, true)

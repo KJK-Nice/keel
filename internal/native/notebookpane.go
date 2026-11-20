@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // A notebook pane: the pane bar, the
@@ -109,7 +109,7 @@ func (w *workspace) notebookBody(c *ui.Context, t *tab, p *pane) {
 
 // notebookReview is the banner on a notebook the agent edited that the user has not reviewed (syncNotebookReview): View
 // changes, Undo and Mark reviewed. Only Mark reviewed clears the mark.
-func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
+func (w *workspace) notebookReview(c *ui.Context, rec slimeclient.Notebook) {
 	head := "Edited by the agent"
 	if rec.Source == byAgent && rec.LastBy == byAgent {
 		head = "Written by the agent"
@@ -140,7 +140,7 @@ func (w *workspace) notebookReview(c *ui.Context, rec keelclient.Notebook) {
 	})
 }
 
-func agentWhen(rec keelclient.Notebook) string {
+func agentWhen(rec slimeclient.Notebook) string {
 	if rec.AgentEditedAt == nil {
 		return ""
 	}
@@ -149,7 +149,7 @@ func agentWhen(rec keelclient.Notebook) string {
 
 // notebookMeta is the line under the title: Notebook · Updated Mon D · the terminal fences type into (or "No terminal in
 // this tab") · Private · History · the Edited by agent badge; and Edit or Done.
-func (w *workspace) notebookMeta(c *ui.Context, t *tab, p *pane, rec keelclient.Notebook, saved bool) {
+func (w *workspace) notebookMeta(c *ui.Context, t *tab, p *pane, rec slimeclient.Notebook, saved bool) {
 	n := p.nb
 	sep := func() { text(c, "·", inkFaint, captionSize, weightRegular) }
 	ui.Row(c).FillWidth().Gap(space2).Wrap().AlignItems(ui.Center).Margin(space2, 0, 0).Label("notebook meta").Children(func() {

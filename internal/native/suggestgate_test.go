@@ -239,7 +239,7 @@ func caretCell(t *testing.T, tt *ui.Tester) ui.Rect {
 	return r
 }
 
-// gateStack is the terminal's family list in the gate tests: Keel's default (JetBrains Mono) on macOS, where the window registers
+// gateStack is the terminal's family list in the gate tests: Slime's default (JetBrains Mono) on macOS, where the window registers
 // it; the system mono elsewhere. On Linux the window registers no bundled font (registerFonts), but the fontconfig of a test
 // process holds the shipped woff2 files its font tests registered, under their own family names too, and those measure about
 // 1.9 times too wide: the gate must not depend on which tests ran before it.

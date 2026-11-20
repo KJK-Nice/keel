@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// runvars is imported by the window and by keel serve: it may import no keel package but wire.
+// runvars is imported by the window and by slime serve: it may import no slime package but wire.
 func TestStaysALeaf(t *testing.T) {
 	files, _ := filepath.Glob("*.go")
 	for _, name := range files {
@@ -23,7 +23,7 @@ func TestStaysALeaf(t *testing.T) {
 		}
 		for _, imp := range f.Imports {
 			p := strings.Trim(imp.Path.Value, `"`)
-			if strings.HasPrefix(p, "keel/") && p != "keel/internal/wire" {
+			if strings.HasPrefix(p, "slime/") && p != "slime/internal/wire" {
 				t.Errorf("%s imports %s", name, p)
 			}
 		}

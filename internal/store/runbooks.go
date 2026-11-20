@@ -9,8 +9,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"keel/internal/limits"
-	"keel/internal/runvars"
+	"slime/internal/limits"
+	"slime/internal/runvars"
 )
 
 // Runbooks for the agent (docs/ui-redesign.md §16): user-curated, ordered
@@ -106,9 +106,9 @@ type RunbookStep struct {
 	// node. A single-host run ignores both.
 	Role    string `json:"role,omitempty"`
 	OneHost bool   `json:"oneHost,omitempty"`
-	// Captures are values Keel takes from this step's output on each host
+	// Captures are values Slime takes from this step's output on each host
 	// of a group run (§17, part 2, board CaptureVars): a pattern applied by
-	// keel serve to the output the shell's OSC 133 marks delimit, kept in
+	// slime serve to the output the shell's OSC 133 marks delimit, kept in
 	// memory for that run, and filled in where a later step says {{name}}.
 	Captures []StepCapture `json:"captures,omitempty"`
 }

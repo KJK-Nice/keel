@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/authtoken"
+	"slime/internal/authtoken"
 )
 
 func TestAdmitShareRoute(t *testing.T) {

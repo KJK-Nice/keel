@@ -7,15 +7,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"keel/internal/hostimport"
-	"keel/internal/paths"
-	"keel/internal/sshconfig"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/hostimport"
+	"slime/internal/paths"
+	"slime/internal/sshconfig"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // First-run host import (docs/ui-redesign.md §5.15) over HTTP. The import
-// itself, reading ~/.ssh/config (KEEL_SSH_DIR in keel serve) and adding
+// itself, reading ~/.ssh/config (SLIME_SSH_DIR in slime serve) and adding
 // the hosts the user picks, is internal/hostimport.
 
 func (s *Server) WithSSHDir(dir string) *Server {

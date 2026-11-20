@@ -1,8 +1,8 @@
-// Package wire is the contract between keel serve and its clients: every
+// Package wire is the contract between slime serve and its clients: every
 // name and shape both ends of the session socket match on (a WebSocket for
 // the window, a WebRTC data channel for a joined peer), and the words they
 // share elsewhere (client kinds, roles, statuses, host-key refusals, risk).
-// It is a leaf: it imports no other keel package, and both ends import it,
+// It is a leaf: it imports no other slime package, and both ends import it,
 // so a frame or a word is renamed here once or not at all.
 //
 // A binary frame is PTY bytes: the session's output one way, the driver's
@@ -16,10 +16,10 @@ import (
 
 // Kind says what a session's client is.
 const (
-	// KindWindow is the Keel window on this machine.
+	// KindWindow is the Slime window on this machine.
 	KindWindow = "window"
 	// KindJoined is a peer who joined through a share link, over WebRTC.
-	// keel serve never types for one, and it never owns a session.
+	// slime serve never types for one, and it never owns a session.
 	KindJoined = "webrtc"
 )
 
@@ -64,7 +64,7 @@ const (
 	// TypeInjectChallenge asks for a one-time nonce for exactly Command.
 	// The answer has the same type and carries Nonce.
 	TypeInjectChallenge = "inject-challenge"
-	// TypeInject asks keel serve to type Command, with the Nonce it issued
+	// TypeInject asks slime serve to type Command, with the Nonce it issued
 	// for those bytes. Direct, Agent, Suggestion and Notebook say where the
 	// bytes come from.
 	TypeInject = "inject"
@@ -74,7 +74,7 @@ const (
 	TypeAgentSuggest = "agent-suggest"
 )
 
-// Text frame types keel serve sends.
+// Text frame types slime serve sends.
 const (
 	TypeReady    = "ready"    // State: attached
 	TypeStatus   = "status"   // State: the connection state changed
@@ -145,7 +145,7 @@ const (
 type DirectType struct {
 	// AltScreen and PromptLine are what the client's terminal shows:
 	// whether it is on its alternate screen, and the line the cursor is
-	// on. keel serve ORs them with its own view of the output: they can
+	// on. slime serve ORs them with its own view of the output: they can
 	// only add a dialog.
 	AltScreen  bool   `json:"altScreen"`
 	Kind       string `json:"kind"`
@@ -165,7 +165,7 @@ type Client struct {
 	AttachedAt time.Time `json:"attachedAt"`
 }
 
-// State is keel serve's ready, status, presence, control and error frame,
+// State is slime serve's ready, status, presence, control and error frame,
 // and the share hub's join frames. Only a client of this machine is sent
 // HostID and HostKey.
 type State struct {
@@ -209,7 +209,7 @@ const (
 )
 
 // HostKey is a refused host key: the one shape for it on the session
-// socket, in a 409 body and in a trust request. Token names keel serve's
+// socket, in a 409 body and in a trust request. Token names slime serve's
 // one-time offer to trust exactly this key; String leaves it out, so that
 // printing a HostKey never shows it.
 type HostKey struct {
@@ -234,13 +234,13 @@ type TrustHostKey struct {
 	Replace     bool   `json:"replace"`
 }
 
-// Challenge is keel serve's inject-challenge answer.
+// Challenge is slime serve's inject-challenge answer.
 type Challenge struct {
 	Type  string `json:"type"`
 	Nonce string `json:"nonce"`
 }
 
-// TypeResult is keel serve's answer to an inject that names where its bytes
+// TypeResult is slime serve's answer to an inject that names where its bytes
 // come from: type-direct (Ref), agent-type (ProposalID) or agent-insert
 // (SuggestionID). OK means the bytes were written. Dialog (type-direct
 // only) means nothing was written and the approve dialog decides, for
@@ -256,7 +256,7 @@ type TypeResult struct {
 	Message      string `json:"message,omitempty"`
 }
 
-// Detect is keel serve's agent-detect answer.
+// Detect is slime serve's agent-detect answer.
 type Detect struct {
 	Type   string `json:"type"`
 	Seq    int    `json:"seq"`
@@ -278,7 +278,7 @@ const (
 	ReasonError       = "error"
 )
 
-// Suggest is keel serve's agent-suggest answer: the card, or why not.
+// Suggest is slime serve's agent-suggest answer: the card, or why not.
 type Suggest struct {
 	Type       string      `json:"type"`
 	Seq        int         `json:"seq"`
@@ -335,7 +335,7 @@ type OptionRisk struct {
 	Judged     bool `json:"judged"`
 }
 
-// SuggestRisk is keel serve's agent-suggest-risk frame: the rating of
+// SuggestRisk is slime serve's agent-suggest-risk frame: the rating of
 // every option of a shown suggestion, in order.
 type SuggestRisk struct {
 	Type         string       `json:"type"`

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15).
@@ -56,7 +56,7 @@ type NoteStore interface {
 // for is "host" (about the host of pane N) or "user" (the user's own
 // preference, every host); from is "pane" (the text comes from pane
 // output), "user" (the user said it) or "conversation" (the model's
-// summary). from can only make the warning stricter: Keel also checks
+// summary). from can only make the warning stricter: Slime also checks
 // the text against the panes it sent.
 const NoteFence = "keel-note"
 
@@ -104,14 +104,14 @@ type NoteProposal struct {
 	// From is what the model said ("pane", "user", "conversation").
 	From string `json:"from"`
 	// FromPane is set when the text came from terminal output: the model
-	// said so, or Keel found it in a pane it sent. SeenIn names that
+	// said so, or Slime found it in a pane it sent. SeenIn names that
 	// pane's host.
 	FromPane   bool       `json:"fromPane"`
 	SeenIn     string     `json:"seenIn,omitempty"`
 	Status     string     `json:"status"` // "open" | "saved" | "dismissed"
 	NoteID     string     `json:"noteId,omitempty"`
 	ProposedAt *time.Time `json:"proposedAt,omitempty"`
-	// Expired is set on a proposal from a saved conversation that keel
+	// Expired is set on a proposal from a saved conversation that slime
 	// serve no longer holds: it can be read, not saved.
 	Expired bool `json:"expired,omitempty"`
 	// PanesRead names the hosts whose panes were read for the answer that

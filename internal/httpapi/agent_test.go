@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 type agentFixture struct {
@@ -27,8 +27,8 @@ type agentFixture struct {
 
 func newAgentFixture(t *testing.T, token string) agentFixture {
 	t.Helper()
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
@@ -213,7 +213,7 @@ func TestAgentKeysNeverLeave(t *testing.T) {
 	if !bytes.Contains(logFile, []byte("agent key saved for Google Gemini")) {
 		t.Fatalf("key change not logged: %s", logFile)
 	}
-	// The key is there for keel serve to use.
+	// The key is there for slime serve to use.
 	if k, err := f.st.AgentKey("gemini"); err != nil || k != gem {
 		t.Fatal("key not stored")
 	}
@@ -244,7 +244,7 @@ func TestAgentRoutesNeedAuthAndUnlockedVault(t *testing.T) {
 		}
 	}
 	// Reopen the same data dir with no passphrase and no keychain: locked.
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	st, err := store.New(filepath.Join(f.dir, "keel.json"), store.TestVault())
 	if err != nil {
 		t.Fatal(err)

@@ -60,7 +60,7 @@ func TestClassify(t *testing.T) {
 		{"find . -name '*.tmp' -exec chmod 600 {} ;", RiskChanges},
 
 		// Destructive
-		{"rm -rf /tmp/keel-e2e", RiskDestructive},
+		{"rm -rf /tmp/slime-e2e", RiskDestructive},
 		{"sudo rm -rf /var/lib/postgresql", RiskDestructive},
 		{"/bin/rm file", RiskDestructive},
 		{"\\rm file", RiskDestructive},

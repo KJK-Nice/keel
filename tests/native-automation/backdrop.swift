@@ -1,5 +1,5 @@
 // A solid window placed just below a window of another process (argument 1: its pid), over the same rectangle, so that a
-// screen capture of a translucent window shows this and not whatever else is on the desktop (another Keel window, a
+// screen capture of a translucent window shows this and not whatever else is on the desktop (another Slime window, a
 // terminal). Built and run by ghost_test.go; it exits when stdin closes or after 120 s.
 import Cocoa
 

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15): the agent never writes a

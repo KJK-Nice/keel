@@ -10,9 +10,9 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 type memLog struct {

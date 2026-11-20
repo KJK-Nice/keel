@@ -1,7 +1,7 @@
 //go:build nativeautomation
 
 // Package nativeautomation drives the built native app from outside, through MyGo's automation socket:
-// a test binary (bin/keel-e2e, built with the tag keelautomation by make native-automation-build) opens a real
+// a test binary (bin/slime-e2e, built with the tag slimeautomation by make native-automation-build) opens a real
 // window, and these tests speak the socket's newline-delimited JSON protocol to it. Everything runs on scratch
 // data in a fresh temp directory, with a free loopback port, no keychain and the fake agent provider.
 package nativeautomation
@@ -58,7 +58,7 @@ func repoRoot(t *testing.T) string {
 	return filepath.Join(wd, "..", "..")
 }
 
-// freePort is a free loopback port that is none of the user's own Keel ports.
+// freePort is a free loopback port that is none of the user's own Slime ports.
 func freePort(t *testing.T) int {
 	t.Helper()
 	for i := 0; i < 20; i++ {
@@ -83,7 +83,7 @@ func alive(pid int) bool { return pid > 0 && syscall.Kill(pid, 0) == nil }
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	root := repoRoot(t)
-	bin := filepath.Join(root, "bin", "keel-e2e")
+	bin := filepath.Join(root, "bin", "slime-e2e")
 	if _, err := os.Stat(bin); err != nil {
 		t.Fatalf("%s is missing: run make native-automation (it builds it)", bin)
 	}
@@ -102,16 +102,16 @@ func newRig(t *testing.T) *rig {
 	return r
 }
 
-// env is the process environment of every Keel binary here. Nothing of the user's KEEL_ or MYGO_ settings passes.
+// env is the process environment of every Slime binary here. Nothing of the user's SLIME_, KEEL_ or MYGO_ settings passes.
 func (r *rig) env(extra ...string) []string {
 	var env []string
 	for _, kv := range os.Environ() {
-		if !strings.HasPrefix(kv, "KEEL_") && !strings.HasPrefix(kv, "MYGO_") && !strings.HasPrefix(kv, "SHELL=") {
+		if !strings.HasPrefix(kv, "SLIME_") && !strings.HasPrefix(kv, "KEEL_") && !strings.HasPrefix(kv, "MYGO_") && !strings.HasPrefix(kv, "SHELL=") {
 			env = append(env, kv)
 		}
 	}
-	env = append(env, "KEEL_ADDR="+r.addr, "KEEL_DATA="+r.data, "KEEL_KEYRING=off", "KEEL_AGENT_PROVIDER=fake",
-		"KEEL_SSH_DIR="+filepath.Join(r.dir, "ssh"), "SHELL=/bin/sh")
+	env = append(env, "SLIME_ADDR="+r.addr, "SLIME_DATA="+r.data, "SLIME_KEYRING=off", "SLIME_AGENT_PROVIDER=fake",
+		"SLIME_SSH_DIR="+filepath.Join(r.dir, "ssh"), "SHELL=/bin/sh")
 	return append(env, extra...)
 }
 
@@ -134,7 +134,7 @@ func (r *rig) start(name string, extraEnv []string, args ...string) (*exec.Cmd, 
 // startServe runs the scratch daemon with a scratch vault (no first run), so the window opens on the workspace.
 func (r *rig) startServe() {
 	r.t.Helper()
-	r.serve, r.serveDone = r.start("serve", []string{"KEEL_VAULT_PASSPHRASE=" + scratchPass}, "serve")
+	r.serve, r.serveDone = r.start("serve", []string{"SLIME_VAULT_PASSPHRASE=" + scratchPass}, "serve")
 	for i := 0; i < 150; i++ {
 		if c, err := net.DialTimeout("tcp", r.addr, time.Second); err == nil {
 			c.Close()

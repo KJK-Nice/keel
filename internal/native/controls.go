@@ -9,13 +9,13 @@ import (
 
 // workingBlocks is the mark of the model at work: MyGo's loading.Blocks, sized to the line it sits in, in
 // the accent or, in muted text, that colour, and named for assistive technology. It means "the model is working" and nothing
-// else: a wait on keel serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
+// else: a wait on slime serve or the network that does not end at the provider uses ui.Spinner. The plugin stands still and
 // asks for no frames where the desktop asks for less motion, and it takes no input, so Stop stays clickable.
 func workingBlocks(c *ui.Context, col ui.Color, name string) ui.Element {
 	return loading.Blocks(c, loading.Options{Size: iconSize, Color: col}).Label(name).Shrink(0)
 }
 
-// The shared control layer: Keel's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
+// The shared control layer: Slime's buttons are MyGo's. ctlButton is ui.Button or ui.PrimaryButton with the
 // two looks MyGo has no variant for: quiet (no face until hovered) and destructive (the flare colours of the Destructive
 // badge). Colours come from the theme MyGo sets from the tokens (theme.go), so a control follows the system accent.
 
@@ -89,7 +89,7 @@ func ctlIconButton(c *ui.Context, tip string, size float32) ui.Element {
 		Border(1, ui.Transparent).Background(ui.Transparent)
 }
 
-// waitHelp is a wait that does not end at the model (keel serve, the network, a load): MyGo's spinner, named by the words,
+// waitHelp is a wait that does not end at the model (slime serve, the network, a load): MyGo's spinner, named by the words,
 // beside the words in help text. Blocks stay for the model alone (workingBlocks).
 func waitHelp(c *ui.Context, msg string) {
 	ui.Row(c).Gap(space1_5).AlignItems(ui.Center).Children(func() {
@@ -98,7 +98,7 @@ func waitHelp(c *ui.Context, msg string) {
 	})
 }
 
-// busyMark is MyGo's spinner beside the button of an action that waits on keel serve (a save, a restore) while on is true.
+// busyMark is MyGo's spinner beside the button of an action that waits on slime serve (a save, a restore) while on is true.
 func busyMark(c *ui.Context, on bool, name string) {
 	if on {
 		ui.Spinner(c).Label(name).Shrink(0)
@@ -106,7 +106,7 @@ func busyMark(c *ui.Context, on bool, name string) {
 }
 
 // modalChrome gives a dialog MyGo's Modal look (the dimmed backdrop, the theme's panel with its radius, border and shadow, sized
-// to fit the window) on a ui.DialogBase, which is the part of ui.Modal that lets Keel set the panel's width, label and keys.
+// to fit the window) on a ui.DialogBase, which is the part of ui.Modal that lets Slime set the panel's width, label and keys.
 func modalChrome(c *ui.Context, backdrop, panel ui.Element) {
 	t := c.Theme()
 	w, h := c.Size()

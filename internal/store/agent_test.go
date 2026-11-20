@@ -12,8 +12,8 @@ import (
 
 func agentStore(t *testing.T) (*Store, string) {
 	t.Helper()
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	path := filepath.Join(t.TempDir(), "keel.json")
 	st, err := New(path, TestVault())
 	if err != nil {
@@ -511,7 +511,7 @@ func TestAgentSettingsRetiredDefaultModel(t *testing.T) {
 	}
 }
 
-// Claude Code (keel mcp) is off until the user turns it on, and settings
+// Claude Code (slime mcp) is off until the user turns it on, and settings
 // saved before the field existed read as off (§6 rule 14).
 func TestAgentSettingsClaudeCodeOffByDefault(t *testing.T) {
 	st, path := agentStore(t)

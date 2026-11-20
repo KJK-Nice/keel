@@ -1,4 +1,4 @@
-/* Keel workspace screens: layout pieces shared by the artboards. Tokens only. */
+/* Slime workspace screens: layout pieces shared by the artboards. Tokens only. */
 a{color:var(--brass-ink)}a:hover{color:var(--ink)}
 .kw-root{display:flex;flex-direction:column;overflow:hidden;background:var(--stage);color:var(--ink);font-family:var(--font-sans);font-size:13px;line-height:18px}
 .kw-ico{display:block;flex:none}

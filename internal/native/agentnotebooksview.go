@@ -7,8 +7,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // The agent's notebooks drawn: the chips and the picker of the composer, and the card of what the agent did to a notebook. A card's buttons ask the workspace (agentnotebooks.go); none of them changes a
@@ -192,7 +192,7 @@ func nbBtn(c *ui.Context, act, title string, busy bool) bool {
 var nbCardLabels = map[string]string{actOpen: "Open", actUndo: "Undo", actRestore: "Restore", actKeep: "Keep", actDelete: "Delete…"}
 
 // agentNbCard is what the agent did to a notebook, or a delete it proposes. Its buttons are
-// requests to keel serve; Delete asks first, and nothing is deleted until the user confirms.
+// requests to slime serve; Delete asks first, and nothing is deleted until the user confirms.
 func (w *workspace) agentNbCard(c *ui.Context, id string) {
 	rec := w.agent.nbProps[id]
 	if rec == nil {
@@ -243,13 +243,13 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 			status := cardStatus(p)
 			switch {
 			case p.Expired && live:
-				cardNote(c, "agent-info", inkMuted, "Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")
+				cardNote(c, "agent-info", inkMuted, "Slime no longer holds this conversation's changes. Use History on the notebook to see or restore a version.")
 			case status != "" && p.Status == wire.CardRefused:
 				cardNote(c, "alert", signal, status)
 			case status != "":
 				cardNote(c, "agent-info", inkMuted, status)
 			}
-			if p.Kind == "" && p.Body != "" { // a draft from an earlier Keel: its text as it was, never saved
+			if p.Kind == "" && p.Body != "" { // a draft from an earlier Slime: its text as it was, never saved
 				ui.Scroll(c).FillWidth().MaxHeight(sizeRow*5).Padding(space2, space3).Radius(radiusSm).Background(stage).Border(1, line).Label("notebook draft").Children(func() {
 					ui.Text(c, p.Body).TextColor(ink).FontSize(captionSize).Font(monoStack).MaxLines(0)
 				})
@@ -264,10 +264,10 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 				warnBlock(c, paneWarning(p))
 			}
 			if live && p.Withheld {
-				cardNote(c, "agent-info", signal, "It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.")
+				cardNote(c, "agent-info", signal, "It names values Slime keeps from the agent as {{name}}. Replace them before you use a command.")
 			}
 			if live && p.Placeholders {
-				cardNote(c, "agent-info", signal, "It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one.")
+				cardNote(c, "agent-info", signal, "It holds placeholders such as [secret:1]. Fill them in before you use a command: Slime will not type a block that holds one.")
 			}
 			if rec.err != "" {
 				cardNote(c, "alert", flare, rec.err)
@@ -292,7 +292,7 @@ func (w *workspace) agentNbCard(c *ui.Context, id string) {
 }
 
 // cardAction is a card button: Open shows the notebook, the others are requests (Delete asks first).
-func (w *workspace) cardAction(p keelclient.NotebookProposal, act string) {
+func (w *workspace) cardAction(p slimeclient.NotebookProposal, act string) {
 	if act == actOpen {
 		w.openNotebook(p.NotebookID)
 		return

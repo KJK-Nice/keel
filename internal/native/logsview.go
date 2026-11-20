@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 const (
@@ -25,7 +25,7 @@ func pageHead(c *ui.Context, title, desc string, actions func()) {
 
 func (w *workspace) logsView(c *ui.Context, p *logsPage) {
 	ui.Column(c).Grow(1).FillWidth().FillHeight().Background(w.ground(surface)).Children(func() {
-		pageHead(c, "Logs", "What Keel did on this machine, newest first. Secrets are never written here.", func() {
+		pageHead(c, "Logs", "What Slime did on this machine, newest first. Secrets are never written here.", func() {
 			if textBtn(c, "Refresh", btnDefault) {
 				w.act(w.loadLogs)
 			}
@@ -84,7 +84,7 @@ func (w *workspace) logsView(c *ui.Context, p *logsPage) {
 }
 
 // logRow is one row: time, kind, target and event (with the counts of an agent entry).
-func (w *workspace) logRow(c *ui.Context, i int, e keelclient.LogEntry) {
+func (w *workspace) logRow(c *ui.Context, i int, e slimeclient.LogEntry) {
 	r := hairline(ui.Row(c).FillWidth().MinHeight(sizeControlLg).Padding(space1, space6, space1, space8).Gap(space3).Key(i).Label("log "+e.Kind), 0, 0, 1, 0)
 	if r.Hovered() {
 		r.Background(hoverGround)

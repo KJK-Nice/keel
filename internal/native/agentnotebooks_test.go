@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Attaching notebooks to a question, "Ask the agent about this notebook", and the trace lines. These are
@@ -34,7 +34,7 @@ func nbAgentRig(t *testing.T) *rig {
 	return r
 }
 
-func (r *rig) lastAsk(t *testing.T) keelclient.AskRequest {
+func (r *rig) lastAsk(t *testing.T) slimeclient.AskRequest {
 	t.Helper()
 	if len(r.fb.agent.asks) == 0 {
 		t.Fatal("no ask was sent")
@@ -286,8 +286,8 @@ func TestTheNotebookPaneBarAsksTheAgentOnlyForASavedNotebookThatIsNotPrivate(t *
 
 func TestTheTraceDrawsTheNotebookLinesOfKeelServe(t *testing.T) {
 	r := nbAgentRig(t)
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Trace: []keelclient.TraceStep{
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Answer: "ok", Trace: []slimeclient.TraceStep{
 			{Status: "notebook-index", Count: 3},
 			{Status: "notebook", Notebook: "Deploy", NotebookID: "nb1", Bytes: 2048, Redactions: map[string]int{"secret": 2}},
 			{Status: "notebook", Notebook: "Backups", Bytes: 10, Asked: true},
@@ -298,7 +298,7 @@ func TestTheTraceDrawsTheNotebookLinesOfKeelServe(t *testing.T) {
 	}
 	r.ask(t, "q")
 	if miss := r.lacks("Sent the titles of 3 notebooks (not private)", "Sent notebook Deploy (2048 bytes, 2 redacted)", "Read notebook Backups (10 bytes, 0 redacted) · the agent asked",
-		"Not sent · a private notebook (the agent cannot read it)", "Skipped a notebook · it was deleted", "Stopped reading notebooks · Keel's limit for one question"); len(miss) > 0 {
+		"Not sent · a private notebook (the agent cannot read it)", "Skipped a notebook · it was deleted", "Stopped reading notebooks · Slime's limit for one question"); len(miss) > 0 {
 		t.Fatalf("missing %q in %q", miss, r.tt.Texts())
 	}
 }
@@ -342,7 +342,7 @@ func TestADraftFromANotebookIsOneRequestWithTheIdAndIsNotKeptUntilSave(t *testin
 			t.Fatalf("no %q", l)
 		}
 	}
-	r.fb.nbc = &fakeNBCards{draft: keelclient.RunbookDraft{Name: "Disk check", Steps: []keelclient.RunbookStep{{Title: "Look", Command: "df -h"}}, Source: "notebook", SourceRef: "Disk check", DraftID: "dr_nb1"}}
+	r.fb.nbc = &fakeNBCards{draft: slimeclient.RunbookDraft{Name: "Disk check", Steps: []slimeclient.RunbookStep{{Title: "Look", Command: "df -h"}}, Source: "notebook", SourceRef: "Disk check", DraftID: "dr_nb1"}}
 	r.click(t, "draft from notebook Disk check")
 	if !slices.Equal(r.fb.nbc.draftReq, []string{"nb1"}) || len(r.fb.mem.runbooks) != 0 || len(r.fb.mem.rbSaved) != 0 {
 		t.Fatalf("draft requests %v, saved %v", r.fb.nbc.draftReq, r.fb.mem.rbSaved)
@@ -356,7 +356,7 @@ func TestADraftFromANotebookIsOneRequestWithTheIdAndIsNotKeptUntilSave(t *testin
 	}
 
 	// A private notebook: the draft says so (a runbook is not private).
-	r.fb.nbc.draft = keelclient.RunbookDraft{Name: "Keys", Steps: []keelclient.RunbookStep{{Title: "Look", Command: "df -h"}}, Source: "notebook", SourceRef: "Keys", DraftID: "dr_nb2", FromPrivate: true}
+	r.fb.nbc.draft = slimeclient.RunbookDraft{Name: "Keys", Steps: []slimeclient.RunbookStep{{Title: "Look", Command: "df -h"}}, Source: "notebook", SourceRef: "Keys", DraftID: "dr_nb2", FromPrivate: true}
 	r.click(t, "From a notebook…")
 	r.click(t, "draft from notebook Keys")
 	if !r.onScreen("The notebook is private, but a runbook is not: once saved, the agent can be sent this runbook when you use it.") {
@@ -365,7 +365,7 @@ func TestADraftFromANotebookIsOneRequestWithTheIdAndIsNotKeptUntilSave(t *testin
 
 	// Nothing to make steps from: 422, and the toast says why.
 	r.press(ui.Cmd, ui.KeyS) // the editor holds no unsaved draft now, so it does not ask
-	r.fb.nbc.draftErr = &keelclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
+	r.fb.nbc.draftErr = &slimeclient.StatusError{Code: 422, Status: "422 Unprocessable Entity", Msg: "nothing to make steps from"}
 	r.click(t, "From a notebook…")
 	r.click(t, "draft from notebook Disk check")
 	if !r.tt.HasText("Nothing to make steps from: no headings or shell blocks, or no proposals.") {

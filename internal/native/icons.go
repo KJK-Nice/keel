@@ -2,7 +2,7 @@ package native
 
 import "github.com/egoist/mygo/ui"
 
-// Icon paths (Hugeicons, stroke 1.5, 24 grid; Keel uses Hugeicons, not Lucide).
+// Icon paths (Hugeicons, stroke 1.5, 24 grid; Slime uses Hugeicons, not Lucide).
 var iconPaths = map[string]string{
 	"panel-left":      `<path d="M13 3H11C7.22876 3 5.34315 3 4.17157 4.17157C3 5.34315 3 7.22876 3 11V13C3 16.7712 3 18.6569 4.17157 19.8284C5.34315 21 7.22876 21 11 21H13C16.7712 21 18.6569 21 19.8284 19.8284C21 18.6569 21 16.7712 21 13V11C21 7.22876 21 5.34315 19.8284 4.17157C18.6569 3 16.7712 3 13 3Z" /><path d="M9 3V21" />`,
 	"add-01":          `<path d="M12.001 5.00003V19.002" /><path d="M19.002 12.002L4.99998 12.002" />`,

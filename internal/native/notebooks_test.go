@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Notebooks on the fake backend: the sidebar section, the page, the row menu, the pane (read rendered, edit as Markdown),
@@ -29,7 +29,7 @@ func nbRig(t *testing.T, mds ...string) *rig {
 	st := drivingState
 	r.fb.conns[0].st = &st
 	r.screen(false, "user@h $")
-	r.fb.conns[0].directRes = keelclient.DirectResult{Typed: true}
+	r.fb.conns[0].directRes = slimeclient.DirectResult{Typed: true}
 	r.tt.Frame()
 	return r
 }
@@ -211,14 +211,14 @@ func TestDeleteAsksFirstAndAsksAgainWhenKeelServeCannotKeepIt(t *testing.T) {
 		t.Fatalf("delete: %v", r.fb.nb.reqs)
 	}
 	// The history refusal: asks the permanent question and retries with ?permanent=1.
-	r.fb.nb.deleteErr = &keelclient.StatusError{Code: 409, Reason: "history", Msg: "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?"}
+	r.fb.nb.deleteErr = &slimeclient.StatusError{Code: 409, Reason: "history", Msg: "Slime cannot keep this notebook in Recently deleted right now. Delete it permanently?"}
 	r.tt.RightClick("notebook Backups")
 	r.tt.Frame()
 	r.tt.ChooseMenuItem("Delete")
 	r.frames(2)
 	r.click(t, "Remove")
 	r.frames(2)
-	if !r.tt.HasText("Keel cannot keep “Backups” in Recently deleted right now, so it cannot be restored. Delete it permanently?") {
+	if !r.tt.HasText("Slime cannot keep “Backups” in Recently deleted right now, so it cannot be restored. Delete it permanently?") {
 		t.Fatalf("no permanent question: %q", r.tt.Texts())
 	}
 	if r.fb.nb.reqsWith("delete nb2 permanent") != 0 {
@@ -259,7 +259,7 @@ func TestANotebookOpensBesideTheTerminalOfASessionTab(t *testing.T) {
 		t.Fatalf("a second pane: %d", len(tb.panes))
 	}
 	// A notebook is not a session: the status bar counts the terminal only.
-	if !r.tt.HasText("keel serve · 1 session") {
+	if !r.tt.HasText("slime serve · 1 session") {
 		t.Error("the status bar counts the notebook as a session")
 	}
 	if r.fb.nb.reqsWith("put") != 0 || r.fb.nb.reqsWith("post") != 0 {

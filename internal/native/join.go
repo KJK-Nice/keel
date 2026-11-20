@@ -6,11 +6,11 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/joinpeer"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/native/joinpeer"
+	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // Join a session (docs/ui-redesign.md §5.7, docs/sharing.md); the peer is
@@ -21,7 +21,7 @@ import (
 
 const (
 	joinTitle = "Join a session"
-	joinDesc  = "Paste the Share link from the other Keel. You follow until they pass control. You never see their hosts or vault."
+	joinDesc  = "Paste the Share link from the other Slime. You follow until they pass control. You never see their hosts or vault."
 )
 
 type joinDialog struct {
@@ -90,7 +90,7 @@ open:
 			case w.closed:
 				conn.Close()
 			default:
-				p := w.newPane(keelclient.Host{Name: joinedFallback, Address: strings.TrimPrefix(strings.TrimPrefix(l.Origin, "https://"), "http://")}, conn)
+				p := w.newPane(slimeclient.Host{Name: joinedFallback, Address: strings.TrimPrefix(strings.TrimPrefix(l.Origin, "https://"), "http://")}, conn)
 				p.remote, p.joinKey = true, k
 				t := &tab{root: layout.Leaf(p.id), panes: map[string]*pane{p.id: p}, focused: p.id, remote: true}
 				w.tabs = append(w.tabs, t)
@@ -123,7 +123,7 @@ func (w *workspace) joinedActive() bool {
 // when a follower types. Feedback only: nothing was sent.
 const followNotice = "Typing is off while you follow"
 
-func (w *workspace) noteBlocked(p *pane, st keelclient.State) {
+func (w *workspace) noteBlocked(p *pane, st slimeclient.State) {
 	if st.Blocked == p.blockedSeen {
 		return
 	}

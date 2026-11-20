@@ -1,18 +1,18 @@
 {
-  "name": "Keel",
-  "slug": "keel",
+  "name": "Slime",
+  "slug": "slime",
   "identifier": "app.keel.desktop",
   "version": "0.2.5",
-  "main": "./cmd/keel",
+  "main": "./cmd/slime",
   "out": "build",
   "icon": "packaging/macos/icon.png",
   "updates": {
     "publicKey": "hHAEAQf2iG8b1mA+QOizLRDjrRPktRbev2XN/RuIVU8=",
-    "github": "KJK-Nice/keel"
+    "github": "KJK-Nice/slime"
   },
   "resources": ["LICENSE", "THIRD_PARTY_NOTICES"],
   "macos": {
-    "icon": "packaging/macos/Keel.icns",
+    "icon": "packaging/macos/Slime.icns",
     "minimumSystemVersion": "13.0",
     "entitlements": "packaging/macos/entitlements.plist",
     "notarize": { "keychainProfile": "notary" },
@@ -22,6 +22,6 @@
     "comment": "Local SSH workspace",
     "categories": ["Network", "System"],
     "webview": false,
-    "command": "keel"
+    "command": "slime"
   }
 }

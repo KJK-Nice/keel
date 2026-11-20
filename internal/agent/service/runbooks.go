@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
-	"keel/internal/shellmark"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
+	"slime/internal/shellmark"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Runbooks (docs/ui-redesign.md §16).
@@ -34,12 +34,12 @@ import (
 //     (SaveRunbookProposal), and what is saved starts with "Agent may pick"
 //     off until the user reviews it.
 //   - Using one: the user picks it (AskRequest.RunbookID), or the agent
-//     picks one of the runbooks Keel offered for the question (a
+//     picks one of the runbooks Slime offered for the question (a
 //     ```keel-runbook-use block naming it by number). From then on every
 //     ask in the conversation sends the runbook, framed as user-curated
 //     context, with the steps' progress, through the Auditor (scope: only
 //     with a pane read the agent may read; redaction; agent.runbook).
-//   - Walking it: Keel itself turns the current step's command into one
+//   - Walking it: Slime itself turns the current step's command into one
 //     ordinary command proposal (never the model's text, never more than
 //     one, never the next step before this one is done or skipped). It is
 //     typed only through the approve-before-type path, like any proposal
@@ -60,7 +60,7 @@ type RunbookStore interface {
 }
 
 // StepSource finds the command a runbook step started in a pane, from its
-// shell-integration marks. The runtime adapter in keel serve satisfies it
+// shell-integration marks. The runtime adapter in slime serve satisfies it
 // (with the pane's stream offset taken right before the step was typed).
 type StepSource interface {
 	CommandsAfter(sessionID string, from uint64) []shellmark.Command
@@ -74,7 +74,7 @@ type NotebookSource interface {
 
 const (
 	// RunbookUseFence is the block in which the model picks one of the
-	// runbooks Keel offered: {"runbook": N, "why": "…"}.
+	// runbooks Slime offered: {"runbook": N, "why": "…"}.
 	RunbookUseFence = "keel-runbook-use"
 	// RunbookFence is the block in which the model proposes a new runbook:
 	// {"name": "…", "when": "…", "steps": [{"title", "description",
@@ -110,11 +110,11 @@ var (
 	// ErrSecretInCommand refuses a step command the save Redactor would
 	// change: kept, it would hold a literal placeholder such as [secret:1]
 	// (a shell glob) that could be typed.
-	ErrSecretInCommand = errors.New("agent: a step command holds a secret or a secret-looking value, and Keel does not keep secrets in runbooks; read it from an environment variable set outside the runbook, or ask for it with a prompt such as read -s DB_PASS")
+	ErrSecretInCommand = errors.New("agent: a step command holds a secret or a secret-looking value, and Slime does not keep secrets in runbooks; read it from an environment variable set outside the runbook, or ask for it with a prompt such as read -s DB_PASS")
 	runbookStatusValid = map[string]bool{CardOpen: true, CardSaved: true, CardDismissed: true}
 )
 
-// RunbookStepView is a step as the Runbooks page shows it, with Keel's own
+// RunbookStepView is a step as the Runbooks page shows it, with Slime's own
 // rating of its command.
 type RunbookStepView struct {
 	store.RunbookStep
@@ -150,7 +150,7 @@ type RunbookInput struct {
 	Hosts        []string            `json:"hosts"`
 	AgentMayPick bool                `json:"agentMayPick"`
 	Steps        []store.RunbookStep `json:"steps"`
-	// Source and SourceRef are set by keel serve: a save takes them from
+	// Source and SourceRef are set by slime serve: a save takes them from
 	// the draft DraftID names (made by RunbookDraft), never from the
 	// client; without a draft the runbook is the user's own.
 	Source    string `json:"source,omitempty"`
@@ -161,7 +161,7 @@ type RunbookInput struct {
 	FromPrivate bool `json:"fromPrivate,omitempty"`
 }
 
-// draftOrigin is where a draft came from, kept by keel serve so a save
+// draftOrigin is where a draft came from, kept by slime serve so a save
 // cannot claim to be the user's own writing.
 type draftOrigin struct {
 	source, ref string
@@ -401,7 +401,7 @@ func (s *Service) AddRunbook(in RunbookInput) (SavedRunbook, error) {
 	if s.books == nil {
 		return SavedRunbook{}, ErrNoRunbooks
 	}
-	// The source comes from keel serve's own record of the draft, never
+	// The source comes from slime serve's own record of the draft, never
 	// from the client: without a known draft it is the user's own.
 	in.Source, in.SourceRef = store.RunbookSourceUser, ""
 	if d, ok := s.takeDraft(in.DraftID); ok {
@@ -921,7 +921,7 @@ func runbookFrame(run *store.AgentChatRunbook, scope agent.Scope) string {
 		state := st.State
 		switch {
 		case i == cur && (st.State == stepNext || st.State == stepProposed):
-			state = "current step: Keel proposes it to the user, do not propose it yourself"
+			state = "current step: Slime proposes it to the user, do not propose it yourself"
 		case st.State == stepTyped && st.Result == ResultReported && st.Exit != nil:
 			state = "typed by the user, waiting for the user to confirm it"
 		case st.State == stepTyped:
@@ -958,7 +958,7 @@ func runbookFrame(run *store.AgentChatRunbook, scope agent.Scope) string {
 	return b.String()
 }
 
-// runbookAfter applies the model's pick, if Keel offered runbooks, and
+// runbookAfter applies the model's pick, if Slime offered runbooks, and
 // then proposes the current step of the runbook in use, if it needs a
 // proposal and a pane was read. It makes at most one proposal: the
 // current step's, from the saved command, never the model's text.
@@ -1003,7 +1003,7 @@ func (s *Service) runbookAfter(c *conversation, t *runbookTurn, use *rawRunbookU
 		s.mu.Unlock()
 		return nil, trace
 	}
-	// The pane, picked by Keel, not the model: only a pane read on a host
+	// The pane, picked by Slime, not the model: only a pane read on a host
 	// the runbook is for (its folders and tags; any host when it lists
 	// none), and once a step was proposed, only on that same host (the
 	// run is pinned to it until the user moves it). None: no proposal,

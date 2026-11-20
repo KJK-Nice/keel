@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/inject"
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/inject"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 type fakeBridge struct {
@@ -62,7 +62,7 @@ func (f *fakeBridge) ExitKind() session.ExitKind {
 
 func testStore(t *testing.T) *store.Store {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)

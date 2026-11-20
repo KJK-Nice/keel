@@ -6,10 +6,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// What the folder menus, the folder dialog and a drop do. keel serve keeps the folders; this client reads them again after every write and keeps
+// What the folder menus, the folder dialog and a drop do. slime serve keeps the folders; this client reads them again after every write and keeps
 // none on disk but which of them the tree shows closed (groupCollapsed). Deleting a folder moves its hosts and subfolders up one level (store.DeleteGroup) and asks first.
 
 const (
@@ -42,14 +42,14 @@ type folderRename struct {
 }
 
 func (w *workspace) reloadFolders() {
-	call(w, w.be.Groups, func(groups []keelclient.Group, err error) {
+	call(w, w.be.Groups, func(groups []slimeclient.Group, err error) {
 		if err == nil { // a failed list leaves the tree as it was
 			w.folders = groups
 		}
 	})
 }
 
-// folderWrite runs one write about folders; a refusal is shown in keel serve's words, an answer reads them again.
+// folderWrite runs one write about folders; a refusal is shown in slime serve's words, an answer reads them again.
 func (w *workspace) folderWrite(do func(context.Context) error) {
 	callErr(w, do, func(err error) {
 		if err != nil {
@@ -60,7 +60,7 @@ func (w *workspace) folderWrite(do func(context.Context) error) {
 	})
 }
 
-// afterFolderWrite reads the folders and the hosts again: a host's Group (its folder's name) is keel serve's.
+// afterFolderWrite reads the folders and the hosts again: a host's Group (its folder's name) is slime serve's.
 func (w *workspace) afterFolderWrite() {
 	w.reloadFolders()
 	w.reloadHosts()
@@ -92,7 +92,7 @@ func (w *workspace) saveFolderDialog() {
 	if d == nil || d.saving {
 		return
 	}
-	g := keelclient.Group{ID: d.id, Name: strings.TrimSpace(d.name), ParentID: d.parent}
+	g := slimeclient.Group{ID: d.id, Name: strings.TrimSpace(d.name), ParentID: d.parent}
 	if g.Name == "" {
 		d.err = folderNeedsLabel
 		return
@@ -217,6 +217,6 @@ func (w *workspace) dropOnFolder(dest string, d *treeDrag) {
 
 // newHostIn is the folder menu's New host: New host with that folder picked.
 func (w *workspace) newHostIn(groupID string) {
-	h := keelclient.Host{GroupID: groupID}
+	h := slimeclient.Host{GroupID: groupID}
 	w.openHostDialog(&h, nil, "")
 }

@@ -3,7 +3,7 @@ package service
 import (
 	"fmt"
 
-	"keel/internal/shellmark"
+	"slime/internal/shellmark"
 )
 
 // shellReport is what a pane's shell reported for a typed step.

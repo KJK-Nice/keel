@@ -10,8 +10,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // A card's buttons ask the workspace (agent.go); none of them types. Type into pane opens Approve before type.
@@ -304,7 +304,7 @@ func (w *workspace) agentEmpty(c *ui.Context, onPage bool) {
 // agentConnect is "Connect Gemini": the provider's warning and the masked key field (PUT /api/agent/keys/{provider}).
 func (w *workspace) agentConnect(c *ui.Context) {
 	a := w.agent
-	d := keelclient.AgentProvider{Name: "Google Gemini", ShortName: "Gemini", KeyLabel: "Gemini API key"}
+	d := slimeclient.AgentProvider{Name: "Google Gemini", ShortName: "Gemini", KeyLabel: "Gemini API key"}
 	if a.provider != nil {
 		d = *a.provider
 	}
@@ -435,7 +435,7 @@ func (w *workspace) agentTurn(c *ui.Context, t *agentTurn) {
 
 func (w *workspace) agentError(c *ui.Context, err error) {
 	title, detail := "The agent could not answer.", err.Error()
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) {
 		switch {
 		case se.Code == 412:
@@ -514,7 +514,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 		bg, fg = flareSoft, flare
 	}
 	border := line
-	if p.Risk == keelclient.RiskDestructive {
+	if p.Risk == slimeclient.RiskDestructive {
 		border = flare
 	}
 	card := ui.Column(c).FillWidth().Key(id).Radius(radiusMd).Background(controlFill(raised)).Border(1, border).Clip().Label("Proposal")
@@ -554,7 +554,7 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 			case offerNone:
 				cardNote(c, "agent-info", haze, "No pane named for this command. Copy it instead.")
 			case offerPlaceholder:
-				cardNote(c, "alert", signal, "It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Keel will not type it: edit it to the real value or an environment variable first.")
+				cardNote(c, "alert", signal, "It holds a redacted placeholder such as [secret:1], which a shell would read as a pattern. Slime will not type it: edit it to the real value or an environment variable first.")
 			}
 			if st := rec.status; st != nil {
 				col, glyph := flare, "alert"
@@ -594,9 +594,9 @@ func (w *workspace) agentCard(c *ui.Context, id string, onPage bool) {
 	}
 }
 
-// agentExpiredCard is a proposal saved from an earlier run. keel serve does not hold it any more,
+// agentExpiredCard is a proposal saved from an earlier run. slime serve does not hold it any more,
 // so it cannot be typed and cannot be edited: the card has Copy and Propose again and nothing else. Propose again asks
-// keel serve for a new proposal, which is a live card like any other.
+// slime serve for a new proposal, which is a live card like any other.
 func (w *workspace) agentExpiredCard(c *ui.Context, id string) {
 	rec := w.agent.props[id]
 	p := rec.p
@@ -698,7 +698,7 @@ func (w *workspace) typeButton(c *ui.Context, id, offer string, onPage bool) {
 	}
 	b.Background(bg)
 	// The app's key cap is ↵, or ⇧↵ for a proposal that needs ⇧. MyGo gives a button pressed from the keyboard no modifier, so
-	// ⇧↵ cannot be offered: a ⇧ proposal says ⇧ (held with a click) instead, and ↵ is a plain Type, which keel serve and
+	// ⇧↵ cannot be offered: a ⇧ proposal says ⇧ (held with a click) instead, and ↵ is a plain Type, which slime serve and
 	// the card refuse for it (docs/native.md).
 	cap := "↵"
 	if offer == offerShift {

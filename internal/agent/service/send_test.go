@@ -8,11 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // §6 rule 4, by type: what send can carry holds terminal text only as
@@ -25,8 +25,8 @@ func TestSendCarriesOnlySafeText(t *testing.T) {
 			t.Fatalf("redact.Safe.%s is exported: a Safe could be built from any string", safe.Field(i).Name)
 		}
 	}
-	// Strings that are not text from a pane: names Keel picks from its own
-	// tables, and the judge's questions, written in Keel's source.
+	// Strings that are not text from a pane: names Slime picks from its own
+	// tables, and the judge's questions, written in Slime's source.
 	plain := map[string]bool{
 		"Request.Model": true, "Request.Thinking": true, "Message.Role": true,
 		"Question.Type": true, "Question.Instructions": true, "Question.True": true, "Question.False": true,
@@ -175,7 +175,7 @@ func TestAnUnloggedWriteIsOwed(t *testing.T) {
 	}
 }
 
-// A type without the dialog fails closed on anything Keel could not find
+// A type without the dialog fails closed on anything Slime could not find
 // out about Jev: only "no key" means Jev is not asked.
 func TestDirectFailsClosedWhenTheJudgeCannotBeBuilt(t *testing.T) {
 	f := newSuggestFixture(t, "")
@@ -261,7 +261,7 @@ func (brokenVars) AllGroupVars() (map[string][]store.GroupVar, error) {
 	return nil, errors.New("vault: cannot read the groups")
 }
 
-// §6 rule 11: when the values Keel withholds cannot be read, no Redactor
+// §6 rule 11: when the values Slime withholds cannot be read, no Redactor
 // that needs them is built, so nothing is redacted without them and
 // nothing is sent.
 func TestNoRedactorWithoutTheWithheldValues(t *testing.T) {

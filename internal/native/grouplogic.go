@@ -6,17 +6,17 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/runvars"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/runvars"
+	"slime/internal/wire"
 )
 
 // The pure rules of the Group page and of group variables and captures (docs/ui-redesign.md §17), pinned by
-// grouplogic_test.go. They mirror internal/runvars, which keel serve enforces; these only
-// shape what the window shows and decide whether a request is worth sending. Nothing here talks to keel serve, draws or
+// grouplogic_test.go. They mirror internal/runvars, which slime serve enforces; these only
+// shape what the window shows and decide whether a request is worth sending. Nothing here talks to slime serve, draws or
 // types, and nothing here ever holds a variable's value except the one the user is typing.
 
-// cleanRole is a typed role as keel serve keeps it: trimmed, lower case. ok is false for anything that is not one word of
+// cleanRole is a typed role as slime serve keeps it: trimmed, lower case. ok is false for anything that is not one word of
 // letters, digits, -, _ or . (empty is ok: no role).
 func cleanRole(text string) (role string, ok bool) {
 	role = strings.ToLower(strings.TrimSpace(text))
@@ -31,7 +31,7 @@ type roleCount struct {
 }
 
 // roleCounts is the head's chips: hosts per role, most first, then "no role" when some hosts have none.
-func roleCounts(members []keelclient.GroupMember) []roleCount {
+func roleCounts(members []slimeclient.GroupMember) []roleCount {
 	counts := map[string]int{}
 	none := 0
 	for _, m := range members {
@@ -58,7 +58,7 @@ func roleCounts(members []keelclient.GroupMember) []roleCount {
 }
 
 // roleNames are the roles used in the group, for the role menus.
-func roleNames(members []keelclient.GroupMember) []string {
+func roleNames(members []slimeclient.GroupMember) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, m := range members {
@@ -72,7 +72,7 @@ func roleNames(members []keelclient.GroupMember) []string {
 }
 
 // groupLine is the page's sub line: "Folder · 8 hosts · production".
-func groupLine(members []keelclient.GroupMember, hosts []keelclient.Host) string {
+func groupLine(members []slimeclient.GroupMember, hosts []slimeclient.Host) string {
 	n := len(members)
 	prod := 0
 	for _, m := range members {
@@ -106,10 +106,10 @@ const (
 
 var varValueTooBig = fmt.Sprintf("A value is at most %d bytes.", maxVarValue)
 
-// validVarName is a variable name as keel serve accepts one.
+// validVarName is a variable name as slime serve accepts one.
 func validVarName(name string) bool { return runvars.ValidName(name) }
 
-// badValueChar: a control, C1, zero-width, bidi, separator or BOM character (keel serve refuses them; runvars.CheckValue).
+// badValueChar: a control, C1, zero-width, bidi, separator or BOM character (slime serve refuses them; runvars.CheckValue).
 func badValueChar(v string) bool {
 	for _, r := range v {
 		if r < 0x20 || (r >= 0x7f && r <= 0x9f) || (r >= 0x200b && r <= 0x200f) || (r >= 0x2028 && r <= 0x202e) || (r >= 0x2060 && r <= 0x2064) || r == 0xfeff {
@@ -119,7 +119,7 @@ func badValueChar(v string) bool {
 	return false
 }
 
-// cleanVar is a typed variable as keel serve keeps it: the name trimmed and lower case, the value trimmed. err is the
+// cleanVar is a typed variable as slime serve keeps it: the name trimmed and lower case, the value trimmed. err is the
 // words to show, "" when it can be sent.
 func cleanVar(name, value string) (n, v, err string) {
 	n = strings.ToLower(strings.TrimSpace(name))
@@ -159,7 +159,7 @@ func splitVars(bytes string) (out []varSeg) {
 }
 
 // capturedBefore: the names steps before index i capture.
-func capturedBefore(steps []keelclient.GroupRunStep, i int) map[string]bool {
+func capturedBefore(steps []slimeclient.GroupRunStep, i int) map[string]bool {
 	out := map[string]bool{}
 	for k := 0; k < i && k < len(steps); k++ {
 		for _, c := range steps[k].Captures {
@@ -171,7 +171,7 @@ func capturedBefore(steps []keelclient.GroupRunStep, i int) map[string]bool {
 
 // usesLine is the step card's note: "Uses 2 captured values · filled in at Type", "Uses 1 group variable and 1 captured
 // value · filled in at Type", or "" when the command names none.
-func usesLine(step keelclient.GroupRunStep, steps []keelclient.GroupRunStep, i int) string {
+func usesLine(step slimeclient.GroupRunStep, steps []slimeclient.GroupRunStep, i int) string {
 	if len(step.Vars) == 0 {
 		return ""
 	}
@@ -207,7 +207,7 @@ var captureText = map[string]string{
 	wire.CaptureBlocked:  "not kept: it holds a value from the vault",
 	wire.CaptureRefused:  "not kept: a line break, control character or over 512 bytes",
 	wire.CaptureTooShort: "not kept: under 3 bytes, too short to keep from the agent",
-	wire.CaptureFull:     "not kept: Keel already withholds 1024 captured values from the agent. Restart Keel to clear them",
+	wire.CaptureFull:     "not kept: Slime already withholds 1024 captured values from the agent. Restart Slime to clear them",
 	wire.CaptureNoOutput: "not captured: the shell sent no command marks (OSC 133)",
 	wire.CaptureExpired:  "expired",
 }
@@ -216,7 +216,7 @@ var captureText = map[string]string{
 const captureMask = "••••••••••••"
 
 // captureView is one host's capture as words: never the value. A captured value shows as a mask and its length.
-func captureView(cv *keelclient.CaptureView) (mask, text, state string) {
+func captureView(cv *slimeclient.CaptureView) (mask, text, state string) {
 	if cv == nil {
 		return "", "not captured yet", "waiting"
 	}
@@ -229,9 +229,9 @@ func captureView(cv *keelclient.CaptureView) (mask, text, state string) {
 	return "", cv.State, cv.State
 }
 
-// expiryLine is "Kept in keel serve's memory for this run only. Deleted when the runbook ends, or at 11:14."
-func expiryLine(step keelclient.GroupRunStep) string {
-	var first *keelclient.CaptureView
+// expiryLine is "Kept in slime serve's memory for this run only. Deleted when the runbook ends, or at 11:14."
+func expiryLine(step slimeclient.GroupRunStep) string {
+	var first *slimeclient.CaptureView
 	for _, c := range step.Cells {
 		for i := range c.Captures {
 			cv := &c.Captures[i]
@@ -247,11 +247,11 @@ func expiryLine(step keelclient.GroupRunStep) string {
 	if first != nil {
 		at = "at " + clockHM(*first.ExpiresAt)
 	}
-	return "Kept in keel serve's memory for this run only. Deleted when the runbook ends, or " + at + "."
+	return "Kept in slime serve's memory for this run only. Deleted when the runbook ends, or " + at + "."
 }
 
 // usedLine lists what went into one host's bytes: "{{join_token}} captured on cp-1 · step 1, {{ver}} group variable".
-func usedLine(used []keelclient.FillUsed) string {
+func usedLine(used []slimeclient.FillUsed) string {
 	var parts []string
 	for _, u := range used {
 		q := ""
@@ -263,21 +263,21 @@ func usedLine(used []keelclient.FillUsed) string {
 	return strings.Join(parts, ", ")
 }
 
-// cleanCaptures is the editor's captures as keel serve takes them (empty rows dropped, names lower case).
-func cleanCaptures(list []keelclient.StepCapture) []keelclient.StepCapture {
-	out := []keelclient.StepCapture{}
+// cleanCaptures is the editor's captures as slime serve takes them (empty rows dropped, names lower case).
+func cleanCaptures(list []slimeclient.StepCapture) []slimeclient.StepCapture {
+	out := []slimeclient.StepCapture{}
 	for _, c := range list {
 		n := strings.ToLower(strings.TrimSpace(c.Name))
 		p := strings.TrimSpace(c.Pattern)
 		if n != "" || p != "" {
-			out = append(out, keelclient.StepCapture{Name: n, Pattern: p})
+			out = append(out, slimeclient.StepCapture{Name: n, Pattern: p})
 		}
 	}
 	return out
 }
 
 // checkCaptures says what must change in the steps' captures, or "".
-func checkCaptures(steps []keelclient.RunbookStepInput) string {
+func checkCaptures(steps []slimeclient.RunbookStepInput) string {
 	seen := map[string]bool{}
 	for i, st := range steps {
 		if len(st.Captures) > maxCaptures {
@@ -289,7 +289,7 @@ func checkCaptures(steps []keelclient.RunbookStepInput) string {
 				return fmt.Sprintf("Step %d: a capture's name is lower-case letters, digits and _ (for example join_token).", i+1)
 			case c.Pattern == "":
 				return fmt.Sprintf("Step %d: %s needs a pattern with a group around the value, such as --token\\s+(\\S+).", i+1, c.Name)
-			case utf8.RuneCountInString(c.Pattern) > maxPattern: // keel serve checks bytes
+			case utf8.RuneCountInString(c.Pattern) > maxPattern: // slime serve checks bytes
 				return fmt.Sprintf("Step %d: a pattern is at most %d characters.", i+1, maxPattern)
 			case seen[c.Name]:
 				return fmt.Sprintf("Step %d: %s is captured by another step already.", i+1, c.Name)
@@ -301,7 +301,7 @@ func checkCaptures(steps []keelclient.RunbookStepInput) string {
 }
 
 // fileMeta is "32 lines · YAML" / "15 lines · INI".
-func fileMeta(f keelclient.ExportFile) string {
+func fileMeta(f slimeclient.ExportFile) string {
 	kind := "INI"
 	if strings.HasSuffix(f.Name, ".yml") || strings.HasSuffix(f.Name, ".yaml") {
 		kind = "YAML"
@@ -314,8 +314,8 @@ func fileMeta(f keelclient.ExportFile) string {
 }
 
 // dryRun is the board's hint after an export.
-func dryRun(files []keelclient.ExportFile) string {
-	var inv, pb *keelclient.ExportFile
+func dryRun(files []slimeclient.ExportFile) string {
+	var inv, pb *slimeclient.ExportFile
 	for i := range files {
 		switch files[i].Kind {
 		case "inventory":

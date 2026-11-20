@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/runtime"
-	"keel/internal/sessionsock"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/runtime"
+	"slime/internal/sessionsock"
+	"slime/internal/wire"
 )
 
 // In-pane suggestions (docs/ui-redesign.md §5.5) ride on the
-// session socket, so keel serve knows which client asks and its role in
+// session socket, so slime serve knows which client asks and its role in
 // the pane as it is now: only the driver gets a notice or a suggestion
 // (§6.6). Like agentask.go this file never writes to a session: the user's
 // ⇥ / ⇧⇥ goes through the inject ticket path in sessionWS, which asks
@@ -40,7 +40,7 @@ import (
 // code rating (whose denylist is final for destructive commands).
 
 // WithAgentJudge sets how the agent builds its detector (TypeSafe Jev).
-// keel serve passes the one that goes with its provider (WithAgentProvider);
+// slime serve passes the one that goes with its provider (WithAgentProvider);
 // tests pass a fake.
 func (s *Server) WithAgentJudge(f service.JudgeFactory) *Server {
 	s.agentJudge = f
@@ -224,7 +224,7 @@ func (s *Server) authorizeAgentInsert(sess *runtime.Session, clientID uint64, ms
 	})
 }
 
-// Close ends the agent's work for keel serve's shutdown: the retention
+// Close ends the agent's work for slime serve's shutdown: the retention
 // timer stops, and the detection summaries still open are written to
 // keel.log. It may be called more than once.
 func (s *Server) Close() {

@@ -4,7 +4,7 @@ import (
 	"io"
 	"strconv"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 type Bridge interface {

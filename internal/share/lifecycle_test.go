@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/signal"
-	"keel/internal/store"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/signal"
+	"slime/internal/store"
 )
 
 func shareFixture(t *testing.T) (*runtime.Runtime, string) {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)

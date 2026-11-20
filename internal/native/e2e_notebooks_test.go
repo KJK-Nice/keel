@@ -13,12 +13,12 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// Notebooks against a real keel serve and a real shell (Local Shell): the document is shown rendered and edited as plain
+// Notebooks against a real slime serve and a real shell (Local Shell): the document is shown rendered and edited as plain
 // Markdown, kept byte for byte, and a fence reaches the shell only through the snippet paths. Every command is a harmless
-// echo, df or uptime; the daemon is the test's own (KEEL_KEYRING=off, the fake agent provider).
+// echo, df or uptime; the daemon is the test's own (SLIME_KEYRING=off, the fake agent provider).
 
 // apiNotebook makes a notebook on the daemon the way another client would, and waits for the window to list it.
 func (e *win) apiNotebook(name, md string) string {
@@ -27,7 +27,7 @@ func (e *win) apiNotebook(name, md string) string {
 	if code != 201 {
 		e.t.Fatalf("POST /api/notebooks: %d %s", code, body)
 	}
-	var nb keelclient.Notebook
+	var nb slimeclient.Notebook
 	if err := json.Unmarshal([]byte(body), &nb); err != nil {
 		e.t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func (e *win) apiNotebook(name, md string) string {
 	return nb.ID
 }
 
-func (e *win) serverNotebooks() []keelclient.Notebook {
+func (e *win) serverNotebooks() []slimeclient.Notebook {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -47,7 +47,7 @@ func (e *win) serverNotebooks() []keelclient.Notebook {
 	return l
 }
 
-func (e *win) serverNotebook(id string) keelclient.Notebook {
+func (e *win) serverNotebook(id string) slimeclient.Notebook {
 	e.t.Helper()
 	for _, n := range e.serverNotebooks() {
 		if n.ID == id {
@@ -55,7 +55,7 @@ func (e *win) serverNotebook(id string) keelclient.Notebook {
 		}
 	}
 	e.t.Fatalf("notebook %s is not on the server", id)
-	return keelclient.Notebook{}
+	return slimeclient.Notebook{}
 }
 
 // openNotebookFromSidebar clicks the notebook's row in the sidebar's Snippets section, as a person does.
@@ -303,7 +303,7 @@ func TestE2ENotebookHistoryRestore(t *testing.T) {
 	e.putAgentKey()
 	first := "# Hist\n\nkeel-edit-me\n"
 	id := e.apiNotebook("Hist", first)
-	// The agent (the test's fake provider) edits it: keel serve keeps the version before the edit in History.
+	// The agent (the test's fake provider) edits it: slime serve keeps the version before the edit in History.
 	code, body := e.raw("POST", "/api/agent/ask", map[string]any{"conversationId": "conv-history-1", "question": "edit the notebook hist", "panes": []string{}})
 	if code != 200 {
 		t.Fatalf("ask: %d %s", code, body)

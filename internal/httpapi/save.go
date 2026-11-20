@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // The save helpers the JSON handlers call: each saves through the store, which checks what the caller sent, and

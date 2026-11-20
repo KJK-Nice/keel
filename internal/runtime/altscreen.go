@@ -4,7 +4,7 @@ import "strings"
 
 // altScreen follows whether a pane shows the terminal's alternate screen
 // buffer (vim, less, htop, a pager): DECSET / DECRST of private modes 47,
-// 1047 and 1049 in the output. keel serve reads it before typing a command
+// 1047 and 1049 in the output. slime serve reads it before typing a command
 // without the approve dialog (docs/ui-redesign.md §6 rule 13): there the
 // bytes would be keystrokes for that program, not a command line.
 //

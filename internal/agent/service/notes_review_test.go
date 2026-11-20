@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 // Vault values with runs of spaces, tabs, zero-width or bidi characters

@@ -9,21 +9,21 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // Every route Handler registers, read from its source so a new one is covered without a change here, refuses every
-// way in but its own credential: no header, a wrong token, the token in a cookie or a query parameter, keel mcp's token
+// way in but its own credential: no header, a wrong token, the token in a cookie or a query parameter, slime mcp's token
 // on a window route and the window's token on an mcp route, a foreign or null Origin with the right token, and a Host
 // that is not a loopback name with the right token. No refusal redirects or sets a cookie. Only GET /api/health is open.
 func TestEveryRouteTakesOnlyItsOwnCredential(t *testing.T) {
 	routes := loadTypedAPI(t).routes(t) // before HOME moves: the go command keeps its module cache there
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	t.Setenv("HOME", dir) // a handler the positive check runs finds no file of the user's
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())

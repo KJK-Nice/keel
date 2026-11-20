@@ -6,7 +6,7 @@ import (
 )
 
 // The signal server is saved in keel.json and read back after a restart,
-// even while the vault is locked: keel serve reads it at start.
+// even while the vault is locked: slime serve reads it at start.
 func TestSignalURLSurvivesARestartAndALock(t *testing.T) {
 	st := testStore(t)
 	if got := st.SignalURL(); got != "" {
@@ -19,8 +19,8 @@ func TestSignalURLSurvivesARestartAndALock(t *testing.T) {
 		t.Fatalf("SignalURL = %q", got)
 	}
 
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
-	t.Setenv("KEEL_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_KEYRING", "off")
 	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)

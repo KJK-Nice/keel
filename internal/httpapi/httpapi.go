@@ -15,17 +15,17 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/cmdrule"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/sessionsock"
-	"keel/internal/share"
-	"keel/internal/store"
-	"keel/internal/tunnel"
-	"keel/internal/wire"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/cmdrule"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/sessionsock"
+	"slime/internal/share"
+	"slime/internal/store"
+	"slime/internal/tunnel"
+	"slime/internal/wire"
 )
 
 var upgrader = websocket.Upgrader{
@@ -41,16 +41,16 @@ type Server struct {
 	tunnels *tunnel.Runtime
 	logs    *applog.Book
 	onStop  func()
-	// started, addr and dataDir describe this keel serve for GET /api/runtime.
+	// started, addr and dataDir describe this slime serve for GET /api/runtime.
 	started time.Time
 	addr    string
 	dataDir string
 	// authToken is required on privileged routes (auth.go).
 	authToken string
 	build     string
-	// mcpToken is keel mcp's token: it alone opens /api/mcp/ (auth.go).
+	// mcpToken is slime mcp's token: it alone opens /api/mcp/ (auth.go).
 	mcpToken string
-	// sshDir is ~/.ssh (KEEL_SSH_DIR), read by the first-run host import.
+	// sshDir is ~/.ssh (SLIME_SSH_DIR), read by the first-run host import.
 	sshDir string
 	// The agent panel (agentask.go). agent is nil without a log.
 	agent        *service.Service
@@ -124,7 +124,7 @@ func (s *Server) WithStop(fn func()) *Server {
 	return s
 }
 
-// Handler is the API. It panics when no token was set (WithAuth): keel
+// Handler is the API. It panics when no token was set (WithAuth): slime
 // serve never runs open.
 func (s *Server) Handler() http.Handler {
 	if s.authToken == "" {
@@ -344,7 +344,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// runtimeInfo describes this keel serve for Settings · Runtime. Behind the
+// runtimeInfo describes this slime serve for Settings · Runtime. Behind the
 // auth token like the rest of /api/ (unlike /api/health). It holds no
 // secret: paths, counts and times only.
 func (s *Server) runtimeInfo(w http.ResponseWriter, _ *http.Request) {
@@ -366,7 +366,7 @@ func (s *Server) runtimeInfo(w http.ResponseWriter, _ *http.Request) {
 
 // signalInfo is the signal server for Settings · Sharing: the one in use
 // (signalURL), where it comes from (signalSource: env, settings, build or
-// ""), and the one saved in Settings (signalSaved), which KEEL_SIGNAL
+// ""), and the one saved in Settings (signalSaved), which SLIME_SIGNAL
 // overrides for the run.
 func (s *Server) signalInfo() map[string]any {
 	return map[string]any{
@@ -745,7 +745,7 @@ func (s *Server) updateNotebook(w http.ResponseWriter, r *http.Request) {
 	// version in History (store.SaveUserNotebook).
 	saved, replaced, err := s.store.SaveUserNotebook(nb)
 	if err != nil {
-		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Not saved: this notebook holds an agent edit, and Keel cannot keep that version in History right now. Your typing is still in the page."))
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Not saved: this notebook holds an agent edit, and Slime cannot keep that version in History right now. Your typing is still in the page."))
 		return
 	}
 	writeJSON(w, http.StatusOK, savedNotebook{Notebook: saved, ReplacedAgentEdit: replaced})
@@ -756,7 +756,7 @@ func (s *Server) deleteNotebook(w http.ResponseWriter, r *http.Request) {
 	permanent := r.URL.Query().Get("permanent") == "1"
 	if err := s.store.DeleteNotebook(r.PathValue("id"), permanent); err != nil {
 		err = worded(err, store.ErrNotFound, "notebook not found")
-		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Keel cannot keep this notebook in Recently deleted right now. Delete it permanently?"))
+		writeErr(w, worded(err, store.ErrHistoryUnavailable, "Slime cannot keep this notebook in Recently deleted right now. Delete it permanently?"))
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -924,7 +924,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 	// stops with the socket.
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	// A WebSocket is the window on this machine: the one client keel serve
+	// A WebSocket is the window on this machine: the one client slime serve
 	// types for. The kind is the transport's, never the client's word.
 	c := sessionsock.Attach(sess, ws, sessionsock.Options{
 		Name: name, Kind: wire.KindWindow, Caps: sessionsock.Local, Cols: cols, Rows: rows,
@@ -952,7 +952,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		// Live keystrokes: written for the driver only, with no approval.
-		// Anything Keel types for the user is an inject frame instead.
+		// Anything Slime types for the user is an inject frame instead.
 		if c.Keys(msg) != nil {
 			return
 		}
@@ -963,7 +963,7 @@ func (s *Server) sessionWS(w http.ResponseWriter, r *http.Request) {
 // the session was still connecting or reconnecting: nothing was typed.
 const notReadyTypeMessage = "the session is not connected; nothing was typed"
 
-// socketTypist is how keel serve types for one window's socket and answers
+// socketTypist is how slime serve types for one window's socket and answers
 // its suggestion questions (sessionsock.Typist).
 type socketTypist struct {
 	srv *Server
@@ -994,7 +994,7 @@ func (t *socketTypist) Inject(ctl wire.Control) error {
 		return nil
 	}
 	if ctl.Direct != nil {
-		// One click, no dialog, no Enter (§6 rule 13): keel serve checks
+		// One click, no dialog, no Enter (§6 rule 13): slime serve checks
 		// again, off the read loop (a snippet or a notebook block may be
 		// rated by Jev), then writes.
 		s.goSocket(func() { s.typeDirect(t.ctx, c, ctl.Command, ctl.Nonce, ctl.Direct, ctl.Agent) })

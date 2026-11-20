@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Agent tab page (docs/ui-redesign.md §5.4.2) on the fake backend: it shows the window's one conversation, so the
@@ -178,7 +178,7 @@ func TestRenameAndDeleteOnThePageChangeThePanel(t *testing.T) {
 	if r.tt.HasText("Why is pg-2 lagging") {
 		t.Error("the deleted conversation is still listed")
 	}
-	// Rename and Delete are off for a conversation keel serve does not know.
+	// Rename and Delete are off for a conversation slime serve does not know.
 	if !r.has("Rename this conversation") || !r.has("Delete this conversation") {
 		t.Error("the header buttons are gone")
 	}
@@ -203,9 +203,9 @@ func TestTheHostChipsFilterTheList(t *testing.T) {
 		t.Error("All did not clear the filter")
 	}
 	// At most six hosts.
-	var many []keelclient.ConversationSummary
+	var many []slimeclient.ConversationSummary
 	for i := 0; i < 9; i++ {
-		many = append(many, keelclient.ConversationSummary{ID: "c" + string(rune('a'+i)), Title: "t", Hosts: []string{"h" + string(rune('a'+i))}, UpdatedAt: time.Now()})
+		many = append(many, slimeclient.ConversationSummary{ID: "c" + string(rune('a'+i)), Title: "t", Hosts: []string{"h" + string(rune('a'+i))}, UpdatedAt: time.Now()})
 	}
 	if got := hostFilters(many, hostChipMax); len(got) != 6 {
 		t.Errorf("%d chips", len(got))
@@ -214,11 +214,11 @@ func TestTheHostChipsFilterTheList(t *testing.T) {
 
 func TestTheContextColumnAddsUpFromTheTrace(t *testing.T) {
 	r := savedRig(t)
-	r.fb.agent.askReply = func(req keelclient.AskRequest) (keelclient.AskResponse, error) {
-		return keelclient.AskResponse{ConversationID: req.ConversationID, Title: "Counts", Answer: "ok",
-			Trace: []keelclient.TraceStep{{Host: "api-1", Status: "read", Lines: 100, Redactions: map[string]int{"secret": 2}}, {Host: "api-1", Status: "read", Lines: 20},
+	r.fb.agent.askReply = func(req slimeclient.AskRequest) (slimeclient.AskResponse, error) {
+		return slimeclient.AskResponse{ConversationID: req.ConversationID, Title: "Counts", Answer: "ok",
+			Trace: []slimeclient.TraceStep{{Host: "api-1", Status: "read", Lines: 100, Redactions: map[string]int{"secret": 2}}, {Host: "api-1", Status: "read", Lines: 20},
 				{Host: "db", Status: "skipped", Reason: "not-readable"}},
-			Proposals: []keelclient.Proposal{okProposal()}}, nil
+			Proposals: []slimeclient.Proposal{okProposal()}}, nil
 	}
 	r.openPageSettled()
 	r.ask2(t, "q")

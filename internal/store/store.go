@@ -18,10 +18,11 @@ import (
 	"filippo.io/age"
 	"github.com/zalando/go-keyring"
 
-	"keel/internal/limits"
-	"keel/internal/paths"
-	"keel/internal/randid"
-	"keel/internal/wire"
+	"slime/internal/env"
+	"slime/internal/limits"
+	"slime/internal/paths"
+	"slime/internal/randid"
+	"slime/internal/wire"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -352,7 +353,7 @@ type persistIdentity struct {
 type persistData struct {
 	Version int    `json:"version"`
 	Vault   string `json:"vault,omitempty"`
-	// FirstRun is set on a store Keel seeds itself and cleared when the
+	// FirstRun is set on a store Slime seeds itself and cleared when the
 	// first-run screens finish (FinishFirstRun). Files written before it
 	// existed lack it, so upgrades never see the first run.
 	FirstRun   bool              `json:"firstRun,omitempty"`
@@ -396,10 +397,10 @@ type Store struct {
 	// pending holds the secrets an old keel.json had in the clear while an
 	// existing keel.vault is locked; Unlock adds them to the vault.
 	pending map[string]hostSecret
-	// fromEnv is set when KEEL_VAULT_PASSPHRASE opened or created the vault
+	// fromEnv is set when SLIME_VAULT_PASSPHRASE opened or created the vault
 	// at start: a scripted setup, so the first-run screens are skipped.
 	fromEnv bool
-	// keyringOff is KEEL_KEYRING=off, or TestVault: the OS keychain is never
+	// keyringOff is SLIME_KEYRING=off, or TestVault: the OS keychain is never
 	// asked. scryptWork is 0 (age's own work factor) outside tests. Both are
 	// set once, in New.
 	keyringOff bool
@@ -476,7 +477,7 @@ func New(path string, opts ...Option) (*Store, error) {
 		path:       path,
 		vaultPath:  filepath.Join(filepath.Dir(path), "keel.vault"),
 		secrets:    map[string]hostSecret{},
-		keyringOff: os.Getenv(envKeyring) == "off",
+		keyringOff: env.Get(envKeyring) == "off",
 		keychain:   osKeychain{},
 		now:        time.Now,
 	}
@@ -1315,7 +1316,7 @@ func (s *Store) snapshotLocked() (saveSnapshot, error) {
 		return saveSnapshot{}, errors.New("vault has no recipient")
 	}
 	s.data.Version = 3
-	s.data.AgentDetectionDefault = true // every file Keel writes has the new detection default; a later "auto" is a choice
+	s.data.AgentDetectionDefault = true // every file Slime writes has the new detection default; a later "auto" is a choice
 	b, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
 		return saveSnapshot{}, err

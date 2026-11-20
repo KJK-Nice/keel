@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"keel/internal/agent/service"
+	"slime/internal/agent/service"
 )
 
 // Runbooks (docs/ui-redesign.md §16): the Runbooks page's list and editor,

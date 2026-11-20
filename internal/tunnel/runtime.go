@@ -11,9 +11,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"keel/internal/session"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/session"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 type Status string
@@ -107,7 +107,7 @@ func (r *Runtime) changed() {
 }
 
 // New makes the forwards' runtime. factory opens the SSH connection of a
-// forward: keel serve passes DefaultFactory, a test a fake.
+// forward: slime serve passes DefaultFactory, a test a fake.
 func New(st *store.Store, factory Factory) *Runtime {
 	return &Runtime{store: st, factory: factory, live: map[string]*live{}}
 }

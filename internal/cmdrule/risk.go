@@ -1,8 +1,8 @@
 // Package cmdrule holds the pure rules that decide what a command line is:
 // its risk (Classify), whether it may be typed without the approve dialog
 // (DirectSafe), whether it is one line (DirectLine) and what a redaction
-// placeholder looks like. keel serve and the window both import it, so the
-// rule is written once. It is a leaf: it imports no keel package but wire
+// placeholder looks like. slime serve and the window both import it, so the
+// rule is written once. It is a leaf: it imports no slime package but wire
 // (leaf_test.go checks).
 package cmdrule
 
@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Risk is how much a command can change on the host it runs on. It is the

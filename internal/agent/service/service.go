@@ -1,6 +1,6 @@
 // Package service runs the agent panel's conversations (docs/ui-redesign.md
-// §5.4). It is the one place in Keel that sends anything off the machine,
-// and only from Ask, which keel serve calls on the user's own request
+// §5.4). It is the one place in Slime that sends anything off the machine,
+// and only from Ask, which slime serve calls on the user's own request
 // (POST /api/agent/ask).
 //
 // An Ask reads the panes the user put in scope, through agent.Auditor
@@ -8,13 +8,13 @@
 // and sends only that redacted text (redact.Safe) to the provider. The
 // answer may carry command proposals; the service rates them and keeps
 // them, and never runs one. Typing a proposal is the user's action: the
-// panel sends it through the approve-before-type path, and keel serve asks
+// panel sends it through the approve-before-type path, and slime serve asks
 // AuthorizeType (the ⇧ rule, the driver check, the agent.type log line)
 // before it writes.
 //
 // Conversations live in memory, bounded. When Settings · Agent keeps
 // history (historyDays > 0) each one is also saved, encrypted in the vault,
-// after every answer, and can be resumed after keel serve restarts; saved
+// after every answer, and can be resumed after slime serve restarts; saved
 // ones past the retention are pruned (sessions.go). Deleting a conversation
 // removes it from both.
 package service
@@ -29,15 +29,15 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
-	"keel/internal/randid"
-	"keel/internal/runvars"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
+	"slime/internal/randid"
+	"slime/internal/runvars"
+	"slime/internal/store"
 )
 
-// Store is what the service reads from keel serve's store. *store.Store
+// Store is what the service reads from slime serve's store. *store.Store
 // satisfies it. The provider key is read only in providerFor, right before
 // a provider is built for an Ask.
 type Store interface {
@@ -52,7 +52,7 @@ type Store interface {
 }
 
 // Panes resolves runtime sessions to panes and reads their scrollback.
-// keel serve adapts *runtime.Runtime to it; the service sees no other part
+// slime serve adapts *runtime.Runtime to it; the service sees no other part
 // of the runtime.
 type Panes interface {
 	agent.ScrollbackSource
@@ -136,7 +136,7 @@ type Service struct {
 	groupRuns map[string]*groupRun
 	// withheld are every value a group run ever captured (groupvars.go),
 	// by value, with its name: redacted out of everything sent to the
-	// model for the life of this keel serve, never used to fill a command
+	// model for the life of this slime serve, never used to fill a command
 	// (under mu). The value outlives its run in the panes' scrollback.
 	withheld map[string]string
 	// saveMu orders saves and deletes of saved conversations, so an older
@@ -278,7 +278,7 @@ type TraceStep struct {
 	RunbookID string `json:"runbookId,omitempty"`
 	// Notebook (its name, redacted) and NotebookID are set on a step with
 	// Status "notebook": an attached notebook sent with the question,
-	// Bytes long after redaction (Truncated when Keel cut it).
+	// Bytes long after redaction (Truncated when Slime cut it).
 	Notebook   string `json:"notebook,omitempty"`
 	NotebookID string `json:"notebookId,omitempty"`
 	Bytes      int    `json:"bytes,omitempty"`
@@ -310,11 +310,11 @@ type Proposal struct {
 	// Expired is set on a saved proposal the service no longer holds
 	// (sessions.go): it can be copied or proposed again, not typed.
 	Expired bool `json:"expired,omitempty"`
-	// Runbook is set on a proposal Keel made from a runbook step
+	// Runbook is set on a proposal Slime made from a runbook step
 	// (runbooks.go): typed like any other, through approve-before-type.
 	Runbook *ProposalStep `json:"runbook,omitempty"`
 	// Vars are the variables a group run's step names ({{name}}): Command
-	// and Bytes keep the names; keel serve fills the values in only at
+	// and Bytes keep the names; slime serve fills the values in only at
 	// Type time (groupvars.go).
 	Vars []runvars.Ref `json:"vars,omitempty"`
 }
@@ -535,7 +535,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	if err != nil {
 		return AskResponse{}, err
 	}
-	// The model may ask to read notebooks from the index: keel serve reads
+	// The model may ask to read notebooks from the index: slime serve reads
 	// them (within the limits, never a private one) and asks again, at
 	// most maxNotebookReadRounds more times (notebooks.go).
 	usage := Usage{InputTokens: resp.InputTokens, OutputTokens: resp.OutputTokens}
@@ -589,7 +589,7 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	}
 	var made []*Proposal
 	// The runbook in use: the agent's pick, then the current step as one
-	// proposal made by Keel from the saved command (runbooks.go).
+	// proposal made by Slime from the saved command (runbooks.go).
 	stepProp, rbTrace := s.runbookAfter(conv, rbTurn, rbUse, excerpts, byID, r, now)
 	if len(rbTrace) > 0 {
 		trace = append(rbTrace, trace...)
@@ -640,11 +640,11 @@ func (s *Service) Ask(ctx context.Context, req AskRequest) (AskResponse, error) 
 	hq.WriteString(question)
 	modelText := truncate(resp.Text, maxAnswerBytes)
 	if len(nbW.notes) > 0 {
-		modelText += "\n\n[Keel: " + strings.Join(nbW.notes, ". ") + ".]"
+		modelText += "\n\n[Slime: " + strings.Join(nbW.notes, ". ") + ".]"
 	}
 	if resp.Stop != "" {
 		// The model hears that its reply was cut, so "continue" works.
-		modelText += "\n\n[Keel: this reply was cut off before it ended (" + resp.Stop + "); the user saw only the text above.]"
+		modelText += "\n\n[Slime: this reply was cut off before it ended (" + resp.Stop + "); the user saw only the text above.]"
 	}
 	userSafeTurn, modelSafe := r.Text(hq.String()), r.Text(modelText)
 	s.mu.Lock()
@@ -783,7 +783,7 @@ func (s *Service) EditProposal(convID, proposalID, command string) (Proposal, er
 	return out, nil
 }
 
-// TypeRequest is the user's Type into pane, as keel serve sees it on the
+// TypeRequest is the user's Type into pane, as slime serve sees it on the
 // session socket.
 type TypeRequest struct {
 	ConversationID string
@@ -798,7 +798,7 @@ type TypeRequest struct {
 }
 
 // AuthorizeType checks a Type into pane, approved in the dialog, before
-// keel serve writes it (authorize, authorize.go): the client drives the
+// slime serve writes it (authorize, authorize.go): the client drives the
 // session, the proposal exists and targets it, the bytes are the ones
 // shown, and the ⇧ rule holds (with the host's current production flag).
 // It then logs agent.type. It writes nothing.

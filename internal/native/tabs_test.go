@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 // splitRig opens api-1 and splits it right: one tab, two panes, the second focused.
@@ -126,7 +126,7 @@ func TestPaneMenuItems(t *testing.T) {
 	zoomed.w.zoomFocused()
 	zoomed.tt.Frame()
 	failed := openTabs(t, 1)
-	failed.fb.conns[0].st = &keelclient.State{Status: "error"}
+	failed.fb.conns[0].st = &slimeclient.State{Status: "error"}
 	failed.tt.Frame()
 	for _, tc := range []struct {
 		name string
@@ -183,7 +183,7 @@ func TestPaneMenuItemsAct(t *testing.T) {
 
 	// Reconnect asks for the session of that pane, and the menu offers it for a failed one only.
 	f := openTabs(t, 1)
-	f.fb.conns[0].st = &keelclient.State{Status: "exited"}
+	f.fb.conns[0].st = &slimeclient.State{Status: "exited"}
 	f.tt.Frame()
 	menuLabels(t, f, "pane bar 1")
 	choose(t, f, "Reconnect")
@@ -568,7 +568,7 @@ func TestReopenClosedIsANewSessionOnTheSameHost(t *testing.T) {
 func TestClosedListRules(t *testing.T) {
 	// Newest first, one entry per host and kind, at most 10; a pane is "pane" in a split tab.
 	w := newWorkspace(okBackend())
-	mk := func(id string) *pane { return &pane{host: keelclient.Host{ID: id, Name: id}} }
+	mk := func(id string) *pane { return &pane{host: slimeclient.Host{ID: id, Name: id}} }
 	for i := 0; i < 12; i++ {
 		w.recordClosed(mk(fmt.Sprint("h", i)), "tab")
 	}

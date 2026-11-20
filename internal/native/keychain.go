@@ -7,14 +7,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Keychain page (docs/ui-redesign.md §5.11): the identities in the vault, SSH keys then passwords, with the
 // selected one beside the list.
 //
 // What the page can show is what GET /api/identities says: the kind, the user, when it was added and whether a
-// secret is stored. It never holds or shows a private key, a passphrase or a password (keelclient.Identity has no
+// secret is stored. It never holds or shows a private key, a passphrase or a password (slimeclient.Identity has no
 // field for one). The fingerprint, public key, comment and algorithm badge of §5.11 are not in that answer, so they
 // wait for a server change (docs/native.md).
 
@@ -22,7 +22,7 @@ import (
 type keychainPage struct {
 	filter   string
 	selected string // the identity id; the first one while this is not in the list
-	idents   []keelclient.Identity
+	idents   []slimeclient.Identity
 	loaded   bool
 	err      string
 	filterH  ui.Handle
@@ -39,23 +39,23 @@ func (p *keychainPage) String() string {
 func (p *keychainPage) GoString() string { return p.String() }
 
 // identityKind is "Key" or "Password": anything but a key is a password.
-func identityKind(id keelclient.Identity) string {
-	if id.Kind == keelclient.AuthKey {
-		return keelclient.AuthKey
+func identityKind(id slimeclient.Identity) string {
+	if id.Kind == slimeclient.AuthKey {
+		return slimeclient.AuthKey
 	}
-	return keelclient.AuthPassword
+	return slimeclient.AuthPassword
 }
 
-func identityKindLabel(id keelclient.Identity) string {
-	if identityKind(id) == keelclient.AuthKey {
+func identityKindLabel(id slimeclient.Identity) string {
+	if identityKind(id) == slimeclient.AuthKey {
 		return "SSH key"
 	}
 	return "Password"
 }
 
 // identitiesOfKind lists the identities of one kind.
-func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Identity {
-	var out []keelclient.Identity
+func identitiesOfKind(ids []slimeclient.Identity, kind string) []slimeclient.Identity {
+	var out []slimeclient.Identity
 	for _, id := range ids {
 		if identityKind(id) == kind {
 			out = append(out, id)
@@ -65,10 +65,10 @@ func identitiesOfKind(ids []keelclient.Identity, kind string) []keelclient.Ident
 }
 
 // identityHostsOf are the hosts that sign in with id.
-func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
-	var out []keelclient.Host
+func identityHostsOf(hosts []slimeclient.Host, id string) []slimeclient.Host {
+	var out []slimeclient.Host
 	for _, h := range hosts {
-		if h.AuthType == keelclient.AuthIdentity && h.IdentityID == id {
+		if h.AuthType == slimeclient.AuthIdentity && h.IdentityID == id {
 			out = append(out, h)
 		}
 	}
@@ -76,7 +76,7 @@ func identityHostsOf(hosts []keelclient.Host, id string) []keelclient.Host {
 }
 
 // identitySubtitle is the list line under an identity: kind, user, hosts.
-func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
+func identitySubtitle(hosts []slimeclient.Host, id slimeclient.Identity) string {
 	parts := []string{identityKindLabel(id)}
 	if id.Username != "" {
 		parts = append(parts, id.Username)
@@ -86,12 +86,12 @@ func identitySubtitle(hosts []keelclient.Host, id keelclient.Identity) string {
 }
 
 // shown is the identities the filter keeps (name and user, any case).
-func (p *keychainPage) shown() []keelclient.Identity {
+func (p *keychainPage) shown() []slimeclient.Identity {
 	q := strings.ToLower(strings.TrimSpace(p.filter))
 	if q == "" {
 		return p.idents
 	}
-	var out []keelclient.Identity
+	var out []slimeclient.Identity
 	for _, id := range p.idents {
 		if strings.Contains(strings.ToLower(id.Name+" "+id.Username), q) {
 			out = append(out, id)
@@ -101,7 +101,7 @@ func (p *keychainPage) shown() []keelclient.Identity {
 }
 
 // current is the identity the detail shows: the selected one, else the first.
-func (p *keychainPage) current() (keelclient.Identity, bool) {
+func (p *keychainPage) current() (slimeclient.Identity, bool) {
 	for _, id := range p.idents {
 		if id.ID == p.selected {
 			return id, true
@@ -110,11 +110,11 @@ func (p *keychainPage) current() (keelclient.Identity, bool) {
 	if len(p.idents) > 0 {
 		return p.idents[0], true
 	}
-	return keelclient.Identity{}, false
+	return slimeclient.Identity{}, false
 }
 
 // dateLabel is a date in the form of logDateLabel: "Jan 2, 2006".
-func dateLabel(id keelclient.Identity) string {
+func dateLabel(id slimeclient.Identity) string {
 	if id.CreatedAt.IsZero() {
 		return ""
 	}
@@ -125,7 +125,7 @@ func dateLabel(id keelclient.Identity) string {
 
 // loadIdentities reads the identities (and with them the hosts, so that "Used by" is as the server has it).
 func (w *workspace) loadIdentities() {
-	call(w, w.be.Identities, func(ids []keelclient.Identity, err error) {
+	call(w, w.be.Identities, func(ids []slimeclient.Identity, err error) {
 		t := w.pageTab(pageKeychain)
 		if t == nil {
 			return
@@ -171,11 +171,11 @@ func (d *identityDialog) GoString() string { return d.String() }
 func (w *workspace) newIdentity() { w.openIdentityDialog(nil) }
 
 // editIdentity opens Edit identity: the name, user and kind of the saved one, and blank secrets.
-func (w *workspace) editIdentity(id keelclient.Identity) { w.openIdentityDialog(&id) }
+func (w *workspace) editIdentity(id slimeclient.Identity) { w.openIdentityDialog(&id) }
 
-func (w *workspace) openIdentityDialog(id *keelclient.Identity) {
+func (w *workspace) openIdentityDialog(id *slimeclient.Identity) {
 	w.closeIdentityDialog()
-	d := &identityDialog{f: identityForm{kind: keelclient.AuthPassword}, focus: true}
+	d := &identityDialog{f: identityForm{kind: slimeclient.AuthPassword}, focus: true}
 	if id != nil {
 		d.id = id.ID
 		d.f = identityForm{name: id.Name, username: id.Username, kind: identityKind(*id)}
@@ -203,10 +203,10 @@ func (f identityForm) validate() string {
 
 // input is the request this form makes: only the secret of the chosen kind is sent, and a blank one is left out so
 // that the server keeps the saved one.
-func (f identityForm) input(id string) keelclient.IdentityInput {
-	in := keelclient.IdentityInput{ID: id, Name: strings.TrimSpace(f.name), Username: strings.TrimSpace(f.username), Kind: f.kind}
+func (f identityForm) input(id string) slimeclient.IdentityInput {
+	in := slimeclient.IdentityInput{ID: id, Name: strings.TrimSpace(f.name), Username: strings.TrimSpace(f.username), Kind: f.kind}
 	switch f.kind {
-	case keelclient.AuthKey:
+	case slimeclient.AuthKey:
 		in.PrivateKey, in.Passphrase = f.privateKey, f.passphrase
 	default:
 		in.Password = f.password
@@ -227,11 +227,11 @@ func (w *workspace) saveIdentity() {
 	in := d.f.input(d.id)
 	d.saving, d.err = true, ""
 	d.f.password, d.f.privateKey, d.f.passphrase = "", "", "" // they are in in now, and in only goes in this request
-	call(w, func(c context.Context) (keelclient.Identity, error) {
+	call(w, func(c context.Context) (slimeclient.Identity, error) {
 		saved, err := w.be.SaveIdentity(c, in)
-		in = keelclient.IdentityInput{}
+		in = slimeclient.IdentityInput{}
 		return saved, err
-	}, func(saved keelclient.Identity, err error) {
+	}, func(saved slimeclient.Identity, err error) {
 		d.saving = false
 		if err != nil {
 			d.err = hostError(err)
@@ -252,7 +252,7 @@ func (w *workspace) saveIdentity() {
 
 // askDeleteIdentity is Delete identity: it asks first. An identity a host still uses is
 // not asked about: the server would clear it from those hosts, so the page refuses.
-func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
+func (w *workspace) askDeleteIdentity(id slimeclient.Identity) {
 	if n := len(identityHostsOf(w.hosts, id.ID)); n > 0 {
 		w.warn("Remove " + id.Name + " from " + countWord(n, "host", "hosts") + " first")
 		return
@@ -260,7 +260,7 @@ func (w *workspace) askDeleteIdentity(id keelclient.Identity) {
 	w.askConfirm(&confirmDialog{title: "Confirm", message: "Delete identity “" + id.Name + "”?", action: "Remove", run: func() { w.deleteIdentity(id) }})
 }
 
-func (w *workspace) deleteIdentity(id keelclient.Identity) {
+func (w *workspace) deleteIdentity(id slimeclient.Identity) {
 	callErr(w, func(c context.Context) error { return w.be.DeleteIdentity(c, id.ID) }, func(err error) {
 		if err != nil {
 			w.fail("delete identity", err)

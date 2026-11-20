@@ -1,11 +1,11 @@
 // Package authtoken manages the secret that authenticates clients of the
-// loopback keel serve API.
+// loopback slime serve API.
 //
 // The token lives in the data directory (paths.TokenFile, mode 0600), so
-// only the user who owns that directory can read it. keel serve requires it
-// on privileged routes; the desktop app and `keel serve stop` read it from
+// only the user who owns that directory can read it. slime serve requires it
+// on privileged routes; the desktop app and `slime serve stop` read it from
 // the same file. It persists across daemon restarts so a running window
-// keeps working when keel serve is restarted.
+// keeps working when slime serve is restarted.
 package authtoken
 
 import (
@@ -16,30 +16,58 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"keel/internal/paths"
+	"slime/internal/paths"
 )
 
 // Header carries the token on requests from native clients.
-const Header = "X-Keel-Token"
+const Header = "X-Slime-Token"
 
-// MCPHeader carries keel mcp's own token (paths.MCPTokenFile). keel serve
+// MCPHeader carries slime mcp's own token (paths.MCPTokenFile). slime serve
 // accepts it on /api/mcp/ only, and only it there.
-const MCPHeader = "X-Keel-MCP-Token"
+const MCPHeader = "X-Slime-MCP-Token"
+
+// OldHeader and OldMCPHeader are the two headers' names from before the
+// rename to Slime. slime serve reads either name and clients send both, so
+// an app and a slime serve from either side of the rename work together.
+const (
+	OldHeader    = "X-Keel-Token"
+	OldMCPHeader = "X-Keel-MCP-Token"
+)
+
+// Token is the window's token h carries, under either name.
+func Token(h http.Header) string { return either(h, Header, OldHeader) }
+
+// MCPToken is slime mcp's token h carries, under either name.
+func MCPToken(h http.Header) string { return either(h, MCPHeader, OldMCPHeader) }
+
+// SetToken puts the window's token in h under both names.
+func SetToken(h http.Header, tok string) { h.Set(Header, tok); h.Set(OldHeader, tok) }
+
+// SetMCPToken puts slime mcp's token in h under both names.
+func SetMCPToken(h http.Header, tok string) { h.Set(MCPHeader, tok); h.Set(OldMCPHeader, tok) }
+
+func either(h http.Header, name, old string) string {
+	if v := h.Get(name); v != "" {
+		return v
+	}
+	return h.Get(old)
+}
 
 const tokenBytes = 32
 
 // LoadOrCreate returns the token for dataDir, creating it if it is missing.
-// Concurrent callers (the desktop app and keel serve) agree on one token:
+// Concurrent callers (the desktop app and slime serve) agree on one token:
 // the file is published with a hard link, which fails if it already exists.
 func LoadOrCreate(dataDir string) (string, error) {
 	return loadOrCreate(dataDir, paths.TokenFile(dataDir))
 }
 
-// LoadOrCreateMCP is LoadOrCreate for keel mcp's token, a separate secret
+// LoadOrCreateMCP is LoadOrCreate for slime mcp's token, a separate secret
 // in its own file (paths.MCPTokenFile).
 func LoadOrCreateMCP(dataDir string) (string, error) {
 	return loadOrCreate(dataDir, paths.MCPTokenFile(dataDir))
@@ -102,8 +130,8 @@ func Read(dataDir string) (string, error) {
 	return read(paths.TokenFile(dataDir))
 }
 
-// ReadMCP returns keel mcp's token for dataDir. The error wraps
-// os.ErrNotExist when keel serve has not made one yet.
+// ReadMCP returns slime mcp's token for dataDir. The error wraps
+// os.ErrNotExist when slime serve has not made one yet.
 func ReadMCP(dataDir string) (string, error) {
 	return read(paths.MCPTokenFile(dataDir))
 }

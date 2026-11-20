@@ -14,7 +14,7 @@ const (
 	bodyLine = 4 << 10
 	// bodyNote: a note for the agent, the signal server's URL.
 	bodyNote = 8 << 10
-	// bodyAgent: agent settings, a provider key, keel mcp's requests.
+	// bodyAgent: agent settings, a provider key, slime mcp's requests.
 	bodyAgent = 16 << 10
 	// bodyAsk: a question for the agent and what goes with it.
 	bodyAsk = 32 << 10

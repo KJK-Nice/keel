@@ -18,13 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/applog"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/applog"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 const (
@@ -56,8 +56,8 @@ func bp(b bool) *bool { return &b }
 
 func newAskFixture(t *testing.T, withKey bool) *askFixture {
 	t.Helper()
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
@@ -425,7 +425,7 @@ func TestAgentTypeOverSessionSocket(t *testing.T) {
 
 // §6.1 at the source: the agent routes cannot write to a session. The
 // files that hold them (the ask, the settings and conversations, notes,
-// runbooks, groups and notebooks, and keel mcp's routes) call no write,
+// runbooks, groups and notebooks, and slime mcp's routes) call no write,
 // inject, spawn or resize method, and touch the runtime only through Get,
 // List, ReadScrollback, LastCommand, CommandsAfter and CommandOutput
 // (reads). TestAgentAndMCPRoutesReachNoWriter follows every handler, in

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The sidebar's Panes section: shown only while the active tab has two or more panes.
@@ -190,7 +190,7 @@ func TestPaneRowMenuAndMetaIcons(t *testing.T) {
 	r.click(t, "host api-1")
 	r.w.openHostInSplit(fb.hosts[2])
 	r.tt.Frame()
-	r.fb.conns[0].st = &keelclient.State{Status: "ready", Role: "driver", Subtitle: "deploy@10.0.0.1", Attached: []keelclient.Peer{{ID: 1}, {ID: 2}}, YouID: 2, DriverID: 2}
+	r.fb.conns[0].st = &slimeclient.State{Status: "ready", Role: "driver", Subtitle: "deploy@10.0.0.1", Attached: []slimeclient.Peer{{ID: 1}, {ID: 2}}, YouID: 2, DriverID: 2}
 	r.click(t, "Panes 2")
 	r.texts(t, "deploy@10.0.0.1")
 	if !r.has("You are driving") || !r.has("The agent can read this pane") {

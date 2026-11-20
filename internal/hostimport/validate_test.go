@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/sshconfig"
-	"keel/internal/store"
+	"slime/internal/sshconfig"
+	"slime/internal/store"
 )
 
 // The import saves through the store, so a host the API would refuse is

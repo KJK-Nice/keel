@@ -12,19 +12,19 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // ---- the rules of the New tab page ----
 
-func hostsNamed(ids ...string) (out []keelclient.Host) {
+func hostsNamed(ids ...string) (out []slimeclient.Host) {
 	for _, id := range ids {
-		out = append(out, keelclient.Host{ID: id, Name: "host-" + id, Address: id + ".example", Port: 22, Username: "u"})
+		out = append(out, slimeclient.Host{ID: id, Name: "host-" + id, Address: id + ".example", Port: 22, Username: "u"})
 	}
 	return
 }
 
-func idsOf(hs []keelclient.Host) (out []string) {
+func idsOf(hs []slimeclient.Host) (out []string) {
 	for _, h := range hs {
 		out = append(out, h.ID)
 	}
@@ -34,7 +34,7 @@ func idsOf(hs []keelclient.Host) (out []string) {
 // "recent cards are the recent hosts plus the local shell, at most six"
 func TestRecentCardsAreTheRecentHostsPlusTheLocalShell(t *testing.T) {
 	hosts := hostsNamed("a", "b", "c", "d", "e", "f", "g", "h")
-	local := keelclient.Host{ID: "loc", Name: "Local Shell", AuthType: "local"}
+	local := slimeclient.Host{ID: "loc", Name: "Local Shell", AuthType: "local"}
 	all := append(slices.Clone(hosts), local)
 	got := pickCards(nil, all, []string{"c", "a", "gone", "b", "d", "e", "f", "g"}, "", &local)
 	if want := []string{"loc", "c", "a", "b", "d", "e"}; !slices.Equal(idsOf(got), want) {
@@ -52,7 +52,7 @@ func TestRecentCardsAreTheRecentHostsPlusTheLocalShell(t *testing.T) {
 // "a query filters every host, recent ones first"
 func TestRecentCardsForAQuery(t *testing.T) {
 	hosts := hostsNamed("a", "b", "c", "d", "e", "f", "g", "h")
-	local := keelclient.Host{ID: "loc", Name: "Local Shell", AuthType: "local"}
+	local := slimeclient.Host{ID: "loc", Name: "Local Shell", AuthType: "local"}
 	got := pickCards(nil, append(slices.Clone(hosts), local), []string{"c"}, "host-", &local)
 	if got[0].ID != "c" || len(got) != recentCards {
 		t.Errorf("%v", idsOf(got))
@@ -67,7 +67,7 @@ func TestRecentCardsForAQuery(t *testing.T) {
 
 // The tags and the names of every folder above a host are searched too.
 func TestTheNewTabSearchReadsTagsAndTheFolderPath(t *testing.T) {
-	groups := []keelclient.Group{{ID: "g1", Name: "Infra"}, {ID: "g2", Name: "Replicas", ParentID: "g1"}}
+	groups := []slimeclient.Group{{ID: "g1", Name: "Infra"}, {ID: "g2", Name: "Replicas", ParentID: "g1"}}
 	hosts := hostsNamed("a", "b", "c")
 	hosts[0].Tags = []string{"prod", "db"}
 	hosts[1].GroupID = "g2"
@@ -102,9 +102,9 @@ func TestAgeLabel(t *testing.T) {
 
 // startRig is a window on nine hosts with the local shell; the page is the empty window's.
 func startRig(t *testing.T) *rig {
-	hosts := []keelclient.Host{{ID: "h-local", Name: "Local Shell", Address: "localhost", Username: "me", AuthType: "local", Color: "var(--ansi-10)"}}
+	hosts := []slimeclient.Host{{ID: "h-local", Name: "Local Shell", Address: "localhost", Username: "me", AuthType: "local", Color: "var(--ansi-10)"}}
 	for i := 1; i <= 8; i++ {
-		hosts = append(hosts, keelclient.Host{ID: fmt.Sprintf("h%d", i), Name: fmt.Sprintf("srv-%d", i), Address: fmt.Sprintf("10.0.0.%d", i), Username: "ops", AuthType: "key", Group: "fleet"})
+		hosts = append(hosts, slimeclient.Host{ID: fmt.Sprintf("h%d", i), Name: fmt.Sprintf("srv-%d", i), Address: fmt.Sprintf("10.0.0.%d", i), Username: "ops", AuthType: "key", Group: "fleet"})
 	}
 	r := newRig(t, &fakeBackend{hosts: hosts})
 	diagWindow(t, r) // issue #140: on a failure, what differs from macOS (linuxdiag_test.go)
@@ -130,11 +130,11 @@ func cardNames(r *rig) (out []string) {
 // narrow window, and a tip on each carries the full text.
 func TestRecentCardTextStaysInsideTheCard(t *testing.T) {
 	defer setUISize(uiSizeDefault)
-	long := keelclient.Host{ID: "hl", Name: "production-database-replica-eu-central-1-az-b-primary", Address: "db-replica-01.eu-central-1.internal.example-corporation.com", Username: "deployment-automation", AuthType: "key"}
+	long := slimeclient.Host{ID: "hl", Name: "production-database-replica-eu-central-1-az-b-primary", Address: "db-replica-01.eu-central-1.internal.example-corporation.com", Username: "deployment-automation", AuthType: "key"}
 	sub := hostSubtitle(long)
 	for _, width := range []int{1280, 760} {
 		for size := uiSizeMin; size <= uiSizeMax; size++ {
-			r := newRig(t, &fakeBackend{hosts: []keelclient.Host{{ID: "h-local", Name: "Local Shell", Address: "localhost", AuthType: "local"}, long}})
+			r := newRig(t, &fakeBackend{hosts: []slimeclient.Host{{ID: "h-local", Name: "Local Shell", Address: "localhost", AuthType: "local"}, long}})
 			setUISize(size)
 			r.w.prefs.UISize = size
 			r.tt.SetSize(width, 720)
@@ -348,7 +348,7 @@ func TestAPastedCommandListsWhatWasLeftOut(t *testing.T) {
 	r.tt.Frame()
 	for _, s := range []string{
 		"Read as", "deploy@10.0.0.5:2222", "Left out (3), not applied", "-o StrictHostKeyChecking=no", "changes host key trust",
-		"-L 1:x:2", "opens a port forward; add it in Forwards", "uptime", "remote command; Keel opens a shell and does not run it",
+		"-L 1:x:2", "opens a port forward; add it in Forwards", "uptime", "remote command; Slime opens a shell and does not run it",
 		"Key file ~/.ssh/k was not read.",
 	} {
 		if !r.tt.HasText(s) {
@@ -381,11 +381,11 @@ func TestAnInvalidInputShowsTheError(t *testing.T) {
 	r = startRig(t)
 	r.tt.Type("deploy@-bad")
 	r.tt.Frame()
-	if r.tt.HasText("Host name has characters Keel does not accept") {
+	if r.tt.HasText("Host name has characters Slime does not accept") {
 		t.Fatal("a half-typed target is already an error")
 	}
 	r.press(0, ui.KeyEnter)
-	if !r.tt.HasText("Host name has characters Keel does not accept") {
+	if !r.tt.HasText("Host name has characters Slime does not accept") {
 		t.Error("↵ does not show the error")
 	}
 	if len(r.fb.spawned) != 0 {
@@ -413,7 +413,7 @@ func TestConnectOnceAsksForThePasswordAndSavesAQuickHost(t *testing.T) {
 	r.tt.Type(secret)
 	r.tt.Frame()
 	r.press(0, ui.KeyEnter)
-	want := keelclient.NewHost{
+	want := slimeclient.NewHost{
 		Name: "deploy@10.0.0.5", Group: "Quick connect", Address: "10.0.0.5", Port: 2222, Username: "deploy",
 		AuthType: "password", Password: secret, Color: "var(--ansi-12)",
 	}

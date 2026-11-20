@@ -3,9 +3,9 @@ package httpapi
 import (
 	"net/http"
 
-	"keel/internal/agent/service"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent/service"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Groups, part 1 (docs/ui-redesign.md §17, boards GroupRoles and
@@ -76,7 +76,7 @@ func (s *Server) agentGroupRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // agentProposeGroupStep makes the current step's due proposals for the
-// panes the window has open (session ids; keel serve resolves their hosts).
+// panes the window has open (session ids; slime serve resolves their hosts).
 func (s *Server) agentProposeGroupStep(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Panes []string `json:"panes"`

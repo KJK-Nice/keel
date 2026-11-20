@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Recent conversations drawn: a popover under the header with a
@@ -79,7 +79,7 @@ func (w *workspace) listGroups(query, host string) []sessionGroup {
 	return sessionGroups(a.list.sessions, query, time.Now(), host)
 }
 
-func flatRows(groups []sessionGroup) (out []keelclient.ConversationSummary) {
+func flatRows(groups []sessionGroup) (out []slimeclient.ConversationSummary) {
 	for _, g := range groups {
 		out = append(out, g.rows...)
 	}
@@ -88,7 +88,7 @@ func flatRows(groups []sessionGroup) (out []keelclient.ConversationSummary) {
 
 // sessionKey handles ↑ ↓ and ↵ typed in the search field: ↑↓ move between the search field and the rows, ↵ resumes the
 // row. A key typed while a row is being renamed is the rename field's.
-func (w *workspace) sessionKey(k ui.TextKey, rows []keelclient.ConversationSummary) bool {
+func (w *workspace) sessionKey(k ui.TextKey, rows []slimeclient.ConversationSummary) bool {
 	a := w.agent
 	if k.Mods != 0 || a.renameID != "" || len(rows) == 0 {
 		return false
@@ -144,7 +144,7 @@ func (w *workspace) sessionList(c *ui.Context, groups []sessionGroup, host strin
 }
 
 // sessionRow is one saved conversation.
-func (w *workspace) sessionRow(c *ui.Context, s keelclient.ConversationSummary, o rowOpts) {
+func (w *workspace) sessionRow(c *ui.Context, s slimeclient.ConversationSummary, o rowOpts) {
 	a := w.agent
 	title := orElse(s.Title, titleNewConv)
 	if o.actions && a.renameID == s.ID { // the inline title field (↵ saves, Esc leaves the title as it was)

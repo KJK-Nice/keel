@@ -14,18 +14,18 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/applog"
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/applog"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 const askMCPToken = "mcp-token-for-tests-0123456789abcdef0123456789abcdef0123456789ab"
 
-// mcpDo sends one request to an /api/mcp/ route with keel mcp's token
+// mcpDo sends one request to an /api/mcp/ route with slime mcp's token
 // (token "" sends none) and decodes the answer.
 func mcpDo(t *testing.T, base, method, path, token string, body any, extra map[string]string) (int, map[string]any) {
 	t.Helper()
@@ -53,7 +53,7 @@ func mcpDo(t *testing.T, base, method, path, token string, body any, extra map[s
 	return res.StatusCode, out
 }
 
-// allowClaudeCode turns on "Allow Claude Code (keel mcp)", which /api/mcp/
+// allowClaudeCode turns on "Allow Claude Code (slime mcp)", which /api/mcp/
 // needs (off by default).
 func allowClaudeCode(t *testing.T, st *store.Store) {
 	t.Helper()
@@ -67,12 +67,12 @@ func allowClaudeCode(t *testing.T, st *store.Store) {
 	}
 }
 
-// keel mcp's token opens /api/mcp/ and nothing else; the UI's token and
+// slime mcp's token opens /api/mcp/ and nothing else; the UI's token and
 // cookie do not open /api/mcp/; a request with an Origin (a page) is
 // refused there even with the token.
 func TestMCPRoutesTakeOnlyTheirOwnToken(t *testing.T) {
-	t.Setenv("KEEL_KEYRING", "off")
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_KEYRING", "off")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	st, err := store.New(filepath.Join(dir, "keel.json"), store.TestVault())
 	if err != nil {
@@ -133,7 +133,7 @@ func TestMCPRoutesClosedWithoutToken(t *testing.T) {
 	}
 }
 
-// §6 for keel mcp: it lists and reads only readable hosts' panes,
+// §6 for slime mcp: it lists and reads only readable hosts' panes,
 // redacted and logged (Source claude-code); a proposal waits in the
 // "Claude Code" conversation and reaches the PTY only through the driver's
 // approved Type; nothing calls a provider.
@@ -178,7 +178,7 @@ func TestMCPListReadPropose(t *testing.T) {
 		t.Fatalf("refused reads logged: %d entries", n)
 	}
 
-	// Propose: kept, rated by Keel, typed only by the driver's approval.
+	// Propose: kept, rated by Slime, typed only by the driver's approval.
 	code, prop := mcpDo(t, f.srv.URL, "POST", "/api/mcp/propose", askMCPToken, map[string]any{"paneId": web.ID, "command": "echo keel-mcp-ok", "why": "says hello"}, nil)
 	if code != 200 || prop["risk"] != "readonly" || prop["needsShift"] != false || prop["conversation"] != service.ExternalTitle {
 		t.Fatalf("propose %d %v", code, prop)
@@ -248,7 +248,7 @@ func TestMCPListReadPropose(t *testing.T) {
 		t.Fatalf("unknown proposal → %d", code)
 	}
 	if n := len(f.fake.Requests()); n != 0 {
-		t.Fatalf("keel mcp called the model provider %d times", n)
+		t.Fatalf("slime mcp called the model provider %d times", n)
 	}
 	suggests := f.logEntries(agent.EventSuggest)
 	if len(suggests) != 2 || suggests[0].Source != service.ExternalSource {
@@ -256,10 +256,10 @@ func TestMCPListReadPropose(t *testing.T) {
 	}
 }
 
-// §6 rule 14: until the user turns on "Allow Claude Code (keel mcp)"
-// (off by default), every /api/mcp/ route is refused with keel mcp's
+// §6 rule 14: until the user turns on "Allow Claude Code (slime mcp)"
+// (off by default), every /api/mcp/ route is refused with slime mcp's
 // token, before anything is read, proposed or logged; /api/health still
-// proves the token so keel mcp can say Claude Code is off. Settings · Agent
+// proves the token so slime mcp can say Claude Code is off. Settings · Agent
 // turns it on through PUT /api/agent/settings, and off again.
 func TestMCPRoutesRefusedUntilClaudeCodeIsOn(t *testing.T) {
 	f := newAskFixture(t, true)
@@ -330,7 +330,7 @@ func TestMCPRoutesRefusedUntilClaudeCodeIsOn(t *testing.T) {
 		}
 	}
 
-	// The proof still answers, so keel mcp gets the refusal above rather
+	// The proof still answers, so slime mcp gets the refusal above rather
 	// than "not proven".
 	res, err := http.Get(f.srv.URL + "/api/health?mcpNonce=n0nce")
 	if err != nil {

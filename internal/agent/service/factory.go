@@ -1,10 +1,10 @@
 package service
 
 import (
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/anthropic"
-	"keel/internal/agent/provider/gemini"
-	"keel/internal/agent/provider/jev"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/anthropic"
+	"slime/internal/agent/provider/gemini"
+	"slime/internal/agent/provider/jev"
 )
 
 // Factory builds the provider for one Ask from the provider id in the

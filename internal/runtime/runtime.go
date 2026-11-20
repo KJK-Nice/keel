@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/inject"
-	"keel/internal/paths"
-	"keel/internal/randid"
-	"keel/internal/scrollback"
-	"keel/internal/session"
-	"keel/internal/sharelink"
-	"keel/internal/shellmark"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/inject"
+	"slime/internal/paths"
+	"slime/internal/randid"
+	"slime/internal/scrollback"
+	"slime/internal/session"
+	"slime/internal/sharelink"
+	"slime/internal/shellmark"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Status, Role and Client are the session socket's own (internal/wire).
@@ -93,9 +93,9 @@ var (
 	ErrNotOwner   = errors.New("only the session owner can do that")
 	ErrNoClient   = errors.New("client is not attached")
 	ErrNotAllowed = errors.New("not allowed to pass control")
-	// ErrNotLocal refuses a joined peer what only a client attached in Keel
-	// itself may ask: Keel typing for it, and the agent.
-	ErrNotLocal = errors.New("only Keel on the session's own machine can do that")
+	// ErrNotLocal refuses a joined peer what only a client attached in Slime
+	// itself may ask: Slime typing for it, and the agent.
+	ErrNotLocal = errors.New("only Slime on the session's own machine can do that")
 	// ErrNotReady is Write while the session has no bridge (connecting,
 	// reconnecting, failed). Live keystrokes then are dropped, not buffered:
 	// buffered input would land in whatever prompt comes up first (a
@@ -142,7 +142,7 @@ func DefaultOpener(st *store.Store) Opener {
 }
 
 // New makes the sessions' runtime. opener opens a session's connection:
-// keel serve passes DefaultOpener, a test a fake.
+// slime serve passes DefaultOpener, a test a fake.
 func New(st *store.Store, opener Opener) *Runtime {
 	return &Runtime{
 		store:  st,
@@ -361,7 +361,7 @@ func (s *Session) Mark() uint64 {
 	return s.buf.Mark()
 }
 
-// Announce sends ev to the clients attached in Keel itself, not to share
+// Announce sends ev to the clients attached in Slime itself, not to share
 // viewers: it is for the host's own UI (e.g. "bob wants to watch").
 func (s *Session) Announce(ev Event) {
 	s.mu.Lock()
@@ -432,7 +432,7 @@ func (s *Session) dropClient(id uint64, slow bool) {
 	if s.ownerID == id {
 		s.ownerID = firstLocalClientID(s.clients)
 	}
-	// With no local client left, nobody from Keel watches the shell: a
+	// With no local client left, nobody from Slime watches the shell: a
 	// viewer handed control loses it.
 	if s.driverID == id || s.ownerID == 0 {
 		s.driverID = s.ownerID
@@ -496,8 +496,8 @@ func (s *Session) Inject(clientID uint64, p []byte, approved inject.Approval) er
 
 // IssueInjectTicket mints a one-shot nonce bound to this driver and command.
 // WS inject must consume it; a client approved:true flag is not enough. A
-// joined peer gets none, driving or not: Keel types only for a client
-// attached in Keel itself, and with no ticket InjectTicket writes nothing.
+// joined peer gets none, driving or not: Slime types only for a client
+// attached in Slime itself, and with no ticket InjectTicket writes nothing.
 func (s *Session) IssueInjectTicket(clientID uint64, command string) (string, error) {
 	s.mu.Lock()
 	c, ok := s.clients[clientID]
@@ -619,12 +619,12 @@ func (s *Session) AltScreen() bool {
 	return s.alt.on
 }
 
-// PromptState is what keel serve knows of the pane's prompt before a
+// PromptState is what slime serve knows of the pane's prompt before a
 // direct type (§6 rule 13): whether its shell sends OSC 133 marks, whether
 // those say it is at its prompt with no command open, and the last line of
 // its output (escape sequences taken out), to look for an input prompt
 // such as a password prompt. The line is read raw, not redacted (a mask
-// can swallow "password:"): it is only matched in keel serve, never sent
+// can swallow "password:"): it is only matched in slime serve, never sent
 // or logged. All of it is untrusted output.
 func (s *Session) PromptState() (marks, atPrompt bool, lastLine string) {
 	s.mu.Lock()
@@ -689,7 +689,7 @@ const maxCaptureOutput = 256 * 1024
 
 // CommandOutput returns a finished command's output as written to the
 // pane, raw (escape sequences included, no mask), between its C and D
-// marks. It is read only by keel serve's own capture code for a group
+// marks. It is read only by slime serve's own capture code for a group
 // run's step (agent/service/groupvars.go), which takes one value from it
 // with the step's pattern and never sends or logs the text. ok is false
 // for a command still running, or one whose output left the ring or is
@@ -1009,7 +1009,7 @@ func (s *Session) runLoop() {
 				s.br = nil
 			}
 			// The shell is gone: a command it left open ends here, before
-			// Keel's own note ("Connection lost — reconnecting…").
+			// Slime's own note ("Connection lost — reconnecting…").
 			s.marks.Reset(s.buf.Mark())
 			s.alt.Reset()
 			auto := s.host.AutoReconnect()

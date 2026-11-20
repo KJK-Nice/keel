@@ -5,25 +5,25 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The trace words, attaching, and the card words and actions. (The panel cases are agentnotebooks_test.go.)
 
 func TestTheTraceSaysWhichNotebooksWereSentReadOrNotSent(t *testing.T) {
 	for _, c := range []struct {
-		step keelclient.TraceStep
+		step slimeclient.TraceStep
 		want string
 	}{
-		{keelclient.TraceStep{Status: "notebook", Notebook: "Patroni failover", Bytes: 2048, Redactions: map[string]int{"secret": 2, "captured": 1}}, "Sent notebook Patroni failover (2048 bytes, 3 redacted)"},
-		{keelclient.TraceStep{Status: "notebook", Notebook: "Big", Bytes: 32768, Truncated: true}, "Sent notebook Big (32768 bytes, cut by Keel, 0 redacted)"},
-		{keelclient.TraceStep{Status: "notebook", Notebook: "Ops", Bytes: 10, Asked: true}, "Read notebook Ops (10 bytes, 0 redacted) · the agent asked"},
-		{keelclient.TraceStep{Status: "notebook", Notebook: "One", Bytes: 1}, "Sent notebook One (1 byte, 0 redacted)"},
-		{keelclient.TraceStep{Status: "notebook-index", Count: 3}, "Sent the titles of 3 notebooks (not private)"},
-		{keelclient.TraceStep{Status: "notebook-index", Count: 1}, "Sent the titles of 1 notebook (not private)"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-missing"}, "Skipped a notebook · it was deleted"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-private"}, "Not sent · a private notebook (the agent cannot read it)"},
-		{keelclient.TraceStep{Status: "skipped", Reason: "notebook-limit"}, "Stopped reading notebooks · Keel's limit for one question"},
+		{slimeclient.TraceStep{Status: "notebook", Notebook: "Patroni failover", Bytes: 2048, Redactions: map[string]int{"secret": 2, "captured": 1}}, "Sent notebook Patroni failover (2048 bytes, 3 redacted)"},
+		{slimeclient.TraceStep{Status: "notebook", Notebook: "Big", Bytes: 32768, Truncated: true}, "Sent notebook Big (32768 bytes, cut by Slime, 0 redacted)"},
+		{slimeclient.TraceStep{Status: "notebook", Notebook: "Ops", Bytes: 10, Asked: true}, "Read notebook Ops (10 bytes, 0 redacted) · the agent asked"},
+		{slimeclient.TraceStep{Status: "notebook", Notebook: "One", Bytes: 1}, "Sent notebook One (1 byte, 0 redacted)"},
+		{slimeclient.TraceStep{Status: "notebook-index", Count: 3}, "Sent the titles of 3 notebooks (not private)"},
+		{slimeclient.TraceStep{Status: "notebook-index", Count: 1}, "Sent the titles of 1 notebook (not private)"},
+		{slimeclient.TraceStep{Status: "skipped", Reason: "notebook-missing"}, "Skipped a notebook · it was deleted"},
+		{slimeclient.TraceStep{Status: "skipped", Reason: "notebook-private"}, "Not sent · a private notebook (the agent cannot read it)"},
+		{slimeclient.TraceStep{Status: "skipped", Reason: "notebook-limit"}, "Stopped reading notebooks · Slime's limit for one question"},
 	} {
 		if got := traceText(c.step); got != c.want {
 			t.Errorf("traceText(%+v) = %q, want %q", c.step, got, c.want)
@@ -32,7 +32,7 @@ func TestTheTraceSaysWhichNotebooksWereSentReadOrNotSent(t *testing.T) {
 			t.Errorf("%+v is a notebook step", c.step)
 		}
 	}
-	for _, s := range []keelclient.TraceStep{{Status: "read"}, {Status: "skipped", Reason: "not-open"}, {Status: "runbook"}, {Status: "notes"}} {
+	for _, s := range []slimeclient.TraceStep{{Status: "read"}, {Status: "skipped", Reason: "not-open"}, {Status: "runbook"}, {Status: "notes"}} {
 		if isNotebookStep(s) {
 			t.Errorf("%+v is not a notebook step", s)
 		}
@@ -40,7 +40,7 @@ func TestTheTraceSaysWhichNotebooksWereSentReadOrNotSent(t *testing.T) {
 }
 
 func TestAttachingIsAtMostTwoOnlySavedNotebooksNeverAPrivateOne(t *testing.T) {
-	list0 := []keelclient.Notebook{{ID: "a"}, {ID: "b"}, {ID: "c"}, {ID: "p", Private: true}}
+	list0 := []slimeclient.Notebook{{ID: "a"}, {ID: "b"}, {ID: "c"}, {ID: "p", Private: true}}
 	ids := toggleAttached(nil, "a", list0)
 	if got := toggleAttached(ids, "p", list0); !slices.Equal(got, []string{"a"}) {
 		t.Fatalf("a private notebook is not attached: %v", got)
@@ -58,7 +58,7 @@ func TestAttachingIsAtMostTwoOnlySavedNotebooksNeverAPrivateOne(t *testing.T) {
 	if got := reconcileAttached([]string{"a", "gone", "a", "b", "p"}, list0); !slices.Equal(got, []string{"a", "b"}) {
 		t.Fatalf("made private or gone: dropped, once each: %v", got)
 	}
-	list := attachable([]keelclient.Notebook{{ID: "z", Name: "zeta"}, {ID: "p", Name: "pinned", Pinned: true}, {ID: "a", Name: "alpha"}, {Name: "unsaved"}})
+	list := attachable([]slimeclient.Notebook{{ID: "z", Name: "zeta"}, {ID: "p", Name: "pinned", Pinned: true}, {ID: "a", Name: "alpha"}, {Name: "unsaved"}})
 	var got []string
 	for _, n := range list {
 		got = append(got, n.ID)
@@ -76,8 +76,8 @@ func TestAttachingIsAtMostTwoOnlySavedNotebooksNeverAPrivateOne(t *testing.T) {
 }
 
 func TestCardWordsAndActionsFollowWhatKeelServeDid(t *testing.T) {
-	np := func(kind, status string) keelclient.NotebookProposal {
-		return keelclient.NotebookProposal{Kind: kind, Status: status, NotebookID: "n"}
+	np := func(kind, status string) slimeclient.NotebookProposal {
+		return slimeclient.NotebookProposal{Kind: kind, Status: status, NotebookID: "n"}
 	}
 	eq := func(got []string, want ...string) {
 		t.Helper()
@@ -111,16 +111,16 @@ func TestCardWordsAndActionsFollowWhatKeelServeDid(t *testing.T) {
 	expired := np("edit", "edited")
 	expired.Expired = true
 	eq(cardActions(expired), "open") // an expired card cannot undo
-	if !strings.Contains(cardStatus(keelclient.NotebookProposal{Status: "open"}), "earlier version of Keel") {
-		t.Fatal(cardStatus(keelclient.NotebookProposal{Status: "open"}))
+	if !strings.Contains(cardStatus(slimeclient.NotebookProposal{Status: "open"}), "earlier version of Slime") {
+		t.Fatal(cardStatus(slimeclient.NotebookProposal{Status: "open"}))
 	}
-	if c := deleteConfirmText(keelclient.NotebookProposal{Title: "Ops"}); !strings.Contains(c, "“Ops”") || !strings.Contains(c, "Recently deleted") {
+	if c := deleteConfirmText(slimeclient.NotebookProposal{Title: "Ops"}); !strings.Contains(c, "“Ops”") || !strings.Contains(c, "Recently deleted") {
 		t.Fatal(c)
 	}
-	if warned(keelclient.NotebookProposal{PanesRead: []string{}}) || !warned(keelclient.NotebookProposal{PanesRead: []string{"web-1"}}) || !warned(keelclient.NotebookProposal{FromPane: true}) {
+	if warned(slimeclient.NotebookProposal{PanesRead: []string{}}) || !warned(slimeclient.NotebookProposal{PanesRead: []string{"web-1"}}) || !warned(slimeclient.NotebookProposal{FromPane: true}) {
 		t.Fatal("warned")
 	}
-	if w := paneWarning(keelclient.NotebookProposal{FromPane: true, SeenIn: "db-2"}); !strings.Contains(w, "matches pane db-2") {
+	if w := paneWarning(slimeclient.NotebookProposal{FromPane: true, SeenIn: "db-2"}); !strings.Contains(w, "matches pane db-2") {
 		t.Fatal(w)
 	}
 }
@@ -148,7 +148,7 @@ func TestEveryKindAndStatusHasItsHeadStatusAndButtons(t *testing.T) {
 		{"", "open", "Notebook draft", true, nil},
 	}
 	for _, r := range rows {
-		p := keelclient.NotebookProposal{Kind: r.kind, Status: r.status, NotebookID: "n"}
+		p := slimeclient.NotebookProposal{Kind: r.kind, Status: r.status, NotebookID: "n"}
 		if cardHead(p) != r.head || (cardStatus(p) != "") != r.status_ok || !slices.Equal(cardActions(p), r.actions) {
 			t.Errorf("%s/%s: head %q status %q actions %v", r.kind, r.status, cardHead(p), cardStatus(p), cardActions(p))
 		}
@@ -162,7 +162,7 @@ func TestEveryKindAndStatusHasItsHeadStatusAndButtons(t *testing.T) {
 		t.Fatal(refusedText("invalid"))
 	}
 	for _, reason := range []string{"private", "not-found", "deleted"} {
-		p := keelclient.NotebookProposal{Kind: "edit", Status: "refused", Reason: reason, NotebookID: "n"}
+		p := slimeclient.NotebookProposal{Kind: "edit", Status: "refused", Reason: reason, NotebookID: "n"}
 		if len(cardActions(p)) != 0 {
 			t.Errorf("%s: %v", reason, cardActions(p))
 		}

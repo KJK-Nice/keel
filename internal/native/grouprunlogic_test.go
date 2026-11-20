@@ -4,21 +4,21 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The rules of a group run, plus fillRows / approveGroups / sameSources.
 
-func tcell(hostID, state string, mut func(*keelclient.GroupRunCell)) keelclient.GroupRunCell {
-	c := keelclient.GroupRunCell{HostID: hostID, Host: strings.Replace(hostID, "h", "wk-", 1), State: state}
+func tcell(hostID, state string, mut func(*slimeclient.GroupRunCell)) slimeclient.GroupRunCell {
+	c := slimeclient.GroupRunCell{HostID: hostID, Host: strings.Replace(hostID, "h", "wk-", 1), State: state}
 	if mut != nil {
 		mut(&c)
 	}
 	return c
 }
 
-func tprop(id string, mut func(*keelclient.GroupProposal)) *keelclient.GroupProposal {
-	p := &keelclient.GroupProposal{ID: "p_" + id, SessionID: "s_" + id, Bytes: "\x15sudo systemctl restart kubelet\n"}
+func tprop(id string, mut func(*slimeclient.GroupProposal)) *slimeclient.GroupProposal {
+	p := &slimeclient.GroupProposal{ID: "p_" + id, SessionID: "s_" + id, Bytes: "\x15sudo systemctl restart kubelet\n"}
 	if mut != nil {
 		mut(p)
 	}
@@ -29,16 +29,16 @@ func ip(n int) *int { return &n }
 
 func TestWhereAStepRuns(t *testing.T) { // "where a step runs"
 	for _, c := range []struct {
-		step keelclient.GroupRunStep
+		step slimeclient.GroupRunStep
 		want string
 	}{
-		{keelclient.GroupRunStep{Command: "x", Role: "worker", Cells: make([]keelclient.GroupRunCell, 2)}, "Role worker · 2 hosts"},
-		{keelclient.GroupRunStep{Command: "x", Role: "control-plane", OneHost: true, Cells: make([]keelclient.GroupRunCell, 1)}, "One control-plane host"},
-		{keelclient.GroupRunStep{Command: "x"}, "No host the agent may read"},
-		{keelclient.GroupRunStep{}, "No command · you check it"},
-		{keelclient.GroupRunStep{Command: "x", Cells: make([]keelclient.GroupRunCell, 1)}, "Every host · 1 host"},
-		{keelclient.GroupRunStep{Command: "x", Role: "db"}, "Role db · no host has it"},
-		{keelclient.GroupRunStep{Command: "x", OneHost: true}, "One host in the group"},
+		{slimeclient.GroupRunStep{Command: "x", Role: "worker", Cells: make([]slimeclient.GroupRunCell, 2)}, "Role worker · 2 hosts"},
+		{slimeclient.GroupRunStep{Command: "x", Role: "control-plane", OneHost: true, Cells: make([]slimeclient.GroupRunCell, 1)}, "One control-plane host"},
+		{slimeclient.GroupRunStep{Command: "x"}, "No host the agent may read"},
+		{slimeclient.GroupRunStep{}, "No command · you check it"},
+		{slimeclient.GroupRunStep{Command: "x", Cells: make([]slimeclient.GroupRunCell, 1)}, "Every host · 1 host"},
+		{slimeclient.GroupRunStep{Command: "x", Role: "db"}, "Role db · no host has it"},
+		{slimeclient.GroupRunStep{Command: "x", OneHost: true}, "One host in the group"},
 	} {
 		if got := targetLabel(c.step); got != c.want {
 			t.Errorf("targetLabel = %q, want %q", got, c.want)
@@ -48,17 +48,17 @@ func TestWhereAStepRuns(t *testing.T) { // "where a step runs"
 
 func TestACellsWordsNeverSayMoreThanTheShellReported(t *testing.T) { // "a cell's words never say more than the shell reported"
 	for _, c := range []struct {
-		cell keelclient.GroupRunCell
+		cell slimeclient.GroupRunCell
 		want string
 	}{
-		{tcell("h1", "done", func(c *keelclient.GroupRunCell) { c.Exit, c.Result = ip(0), "reported" }), "exit 0"},
-		{tcell("h1", "done", func(c *keelclient.GroupRunCell) { c.Result = "user" }), "marked done"},
-		{tcell("h1", "failed", func(c *keelclient.GroupRunCell) { c.Exit = ip(3) }), "exit 3"},
-		{tcell("h1", "typed", func(c *keelclient.GroupRunCell) { c.Exit, c.Confirm = ip(0), true }), "exit 0 · confirm"},
-		{tcell("h1", "typed", func(c *keelclient.GroupRunCell) { c.Result = "unreported" }), "no exit status"},
-		{tcell("h1", "typed", func(c *keelclient.GroupRunCell) { c.Result = "abandoned" }), "shell went away"},
+		{tcell("h1", "done", func(c *slimeclient.GroupRunCell) { c.Exit, c.Result = ip(0), "reported" }), "exit 0"},
+		{tcell("h1", "done", func(c *slimeclient.GroupRunCell) { c.Result = "user" }), "marked done"},
+		{tcell("h1", "failed", func(c *slimeclient.GroupRunCell) { c.Exit = ip(3) }), "exit 3"},
+		{tcell("h1", "typed", func(c *slimeclient.GroupRunCell) { c.Exit, c.Confirm = ip(0), true }), "exit 0 · confirm"},
+		{tcell("h1", "typed", func(c *slimeclient.GroupRunCell) { c.Result = "unreported" }), "no exit status"},
+		{tcell("h1", "typed", func(c *slimeclient.GroupRunCell) { c.Result = "abandoned" }), "shell went away"},
 		{tcell("h1", "typed", nil), "running"},
-		{tcell("h1", "waiting", func(c *keelclient.GroupRunCell) { c.Blocked = "No pane" }), "needs a pane"},
+		{tcell("h1", "waiting", func(c *slimeclient.GroupRunCell) { c.Blocked = "No pane" }), "needs a pane"},
 		{tcell("h1", "typing", nil), "typing"},
 		{tcell("h1", "proposed", nil), "waiting for you"},
 		{tcell("h1", "skipped", nil), "skipped"},
@@ -70,10 +70,10 @@ func TestACellsWordsNeverSayMoreThanTheShellReported(t *testing.T) { // "a cell'
 }
 
 func TestTheApproveDialogOneRowPerHostNothingTickedUnlessItIsTheOnlyOne(t *testing.T) { // "the approve dialog: one row per host, …"
-	cells := []keelclient.GroupRunCell{
-		tcell("h1", "proposed", func(c *keelclient.GroupRunCell) { c.Proposal = tprop("1", nil) }),
-		tcell("h2", "proposed", func(c *keelclient.GroupRunCell) {
-			c.Proposal = tprop("2", func(p *keelclient.GroupProposal) { p.Production, p.NeedsShift = true, true })
+	cells := []slimeclient.GroupRunCell{
+		tcell("h1", "proposed", func(c *slimeclient.GroupRunCell) { c.Proposal = tprop("1", nil) }),
+		tcell("h2", "proposed", func(c *slimeclient.GroupRunCell) {
+			c.Proposal = tprop("2", func(p *slimeclient.GroupProposal) { p.Production, p.NeedsShift = true, true })
 		}),
 	}
 	rows := approveRows(cells)
@@ -114,10 +114,10 @@ func TestTheApproveDialogOneRowPerHostNothingTickedUnlessItIsTheOnlyOne(t *testi
 }
 
 func TestOnlyProposalsWaitingInAnOpenPaneCanBeTyped(t *testing.T) { // "only proposals waiting in an open pane can be typed"
-	run := &keelclient.GroupRun{Status: "active", Steps: []keelclient.GroupRunStep{{Cells: []keelclient.GroupRunCell{
-		tcell("h1", "proposed", func(c *keelclient.GroupRunCell) { c.Proposal = tprop("1", nil) }),
-		tcell("h2", "typed", func(c *keelclient.GroupRunCell) { c.Proposal = tprop("2", nil) }),
-		tcell("h3", "proposed", func(c *keelclient.GroupRunCell) { c.Proposal = tprop("3", nil) }),
+	run := &slimeclient.GroupRun{Status: "active", Steps: []slimeclient.GroupRunStep{{Cells: []slimeclient.GroupRunCell{
+		tcell("h1", "proposed", func(c *slimeclient.GroupRunCell) { c.Proposal = tprop("1", nil) }),
+		tcell("h2", "typed", func(c *slimeclient.GroupRunCell) { c.Proposal = tprop("2", nil) }),
+		tcell("h3", "proposed", func(c *slimeclient.GroupRunCell) { c.Proposal = tprop("3", nil) }),
 		tcell("h4", "proposed", nil),
 	}}}}
 	got := typeable(run, func(sid string) bool { return sid != "s_3" })
@@ -140,15 +140,15 @@ func TestOnlyProposalsWaitingInAnOpenPaneCanBeTyped(t *testing.T) { // "only pro
 }
 
 func TestRollingHaltSaysWhichHostsWereNotTouched(t *testing.T) { // "rolling halt says which hosts were not touched"
-	run := &keelclient.GroupRun{Halted: "wk-3", Steps: []keelclient.GroupRunStep{{Cells: []keelclient.GroupRunCell{
+	run := &slimeclient.GroupRun{Halted: "wk-3", Steps: []slimeclient.GroupRunStep{{Cells: []slimeclient.GroupRunCell{
 		tcell("h1", "done", nil), tcell("h2", "done", nil),
-		tcell("h3", "failed", func(c *keelclient.GroupRunCell) { c.Exit = ip(1) }),
+		tcell("h3", "failed", func(c *slimeclient.GroupRunCell) { c.Exit = ip(1) }),
 		tcell("h4", "waiting", nil), tcell("h5", "waiting", nil)}}}}
 	h := haltLine(run)
 	if h == nil || h.title != "wk-3 failed with exit 1. Rolling stopped before wk-4." || h.sub != "wk-4 and wk-5 were not touched." || h.hostID != "h3" {
 		t.Fatalf("halt %+v", h)
 	}
-	if got := haltLine(&keelclient.GroupRun{Steps: run.Steps}); got != nil {
+	if got := haltLine(&slimeclient.GroupRun{Steps: run.Steps}); got != nil {
 		t.Errorf("no halt says %+v", got)
 	}
 	if got := stepSummary(run.Steps[0]); got != "2 of 5 done · 1 failed" {
@@ -157,7 +157,7 @@ func TestRollingHaltSaysWhichHostsWereNotTouched(t *testing.T) { // "rolling hal
 	if _, state := stepMark(run, 0); state != "failed" {
 		t.Errorf("mark %q", state)
 	}
-	if _, state := stepMark(&keelclient.GroupRun{Current: 0, Steps: []keelclient.GroupRunStep{{Skipped: true}}}, 0); state != "skipped" {
+	if _, state := stepMark(&slimeclient.GroupRun{Current: 0, Steps: []slimeclient.GroupRunStep{{Skipped: true}}}, 0); state != "skipped" {
 		t.Errorf("skipped step mark %q", state)
 	}
 }
@@ -167,8 +167,8 @@ func TestFillRowsExactFilledBytesPerHostAFailedFillCannotBeTicked(t *testing.T) 
 		return &groupRow{proposalID: id, host: host, bytes: "\x15x {{t}}\n", checked: checked}
 	}
 	rows := []*groupRow{mk("p1", "wk-1", true), mk("p2", "wk-2", false), mk("p3", "wk-3", false)}
-	fillRows(rows, []keelclient.GroupFill{
-		{ProposalRef: "p1", Bytes: "\x15x abc\n", Used: []keelclient.FillUsed{{Name: "t", From: "group variable"}}, NeedsShift: true},
+	fillRows(rows, []slimeclient.GroupFill{
+		{ProposalRef: "p1", Bytes: "\x15x abc\n", Used: []slimeclient.FillUsed{{Name: "t", From: "group variable"}}, NeedsShift: true},
 		{ProposalRef: "p2", Error: "{{t}} has no value for wk-2"},
 	})
 	if rows[0].bytes != "\x15x abc\n" || !rows[0].needsShift {
@@ -182,7 +182,7 @@ func TestFillRowsExactFilledBytesPerHostAFailedFillCannotBeTicked(t *testing.T) 
 	}
 	// A failed fill unticks a row even if it was the only one: it cannot be typed.
 	one := []*groupRow{mk("p1", "wk-1", true)}
-	fillRows(one, []keelclient.GroupFill{{ProposalRef: "p1", Error: "nope"}})
+	fillRows(one, []slimeclient.GroupFill{{ProposalRef: "p1", Error: "nope"}})
 	if one[0].checked || one[0].err != "nope" {
 		t.Errorf("a failed fill left the row ticked: %+v", one[0])
 	}
@@ -196,16 +196,16 @@ func TestFillRowsExactFilledBytesPerHostAFailedFillCannotBeTicked(t *testing.T) 
 }
 
 func TestSameSourcesSameBytesFromDifferentPlacesAreListedPerHost(t *testing.T) { // "sameSources: …"
-	a := &groupRow{used: []keelclient.FillUsed{{Name: "t", From: "captured on cp-1 · step 1"}}}
-	b := &groupRow{used: []keelclient.FillUsed{{Name: "t", From: "group variable"}}}
-	a2 := &groupRow{used: []keelclient.FillUsed{{Name: "t", From: "captured on cp-1 · step 1"}}}
+	a := &groupRow{used: []slimeclient.FillUsed{{Name: "t", From: "captured on cp-1 · step 1"}}}
+	b := &groupRow{used: []slimeclient.FillUsed{{Name: "t", From: "group variable"}}}
+	a2 := &groupRow{used: []slimeclient.FillUsed{{Name: "t", From: "captured on cp-1 · step 1"}}}
 	if !sameSources([]*groupRow{a, a2}) || sameSources([]*groupRow{a, b}) || !sameSources(nil) {
 		t.Error("sameSources is not the app's")
 	}
 }
 
 func TestRunStatusLines(t *testing.T) {
-	run := &keelclient.GroupRun{Status: "active", Current: 1, Mode: "parallel", Steps: make([]keelclient.GroupRunStep, 3)}
+	run := &slimeclient.GroupRun{Status: "active", Current: 1, Mode: "parallel", Steps: make([]slimeclient.GroupRunStep, 3)}
 	if got := runStatusLine(run); got != "Runbook · step 2 of 3 · parallel" {
 		t.Errorf("active: %q", got)
 	}

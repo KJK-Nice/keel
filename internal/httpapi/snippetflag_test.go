@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 // "Let the agent suggest this snippet" changes only when a payload carries

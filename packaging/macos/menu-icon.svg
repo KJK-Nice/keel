@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The tray menu header's icon (internal/native/macos/app-icon.png at 32 px): Slime.icon's slime without a ground, filling MyGo's fixed 16pt menu icon box. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fd6fa"/>
+      <stop offset="1" stop-color="#3fa9ee"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(16 16.5) scale(.0405) translate(-512 -512)">
+    <path fill="url(#body)" stroke="#12304a" stroke-width="26" d="M511.6 220C718 220 890 380 890 592C890 748 734 804 511.6 804C313.2 804 134.8 732 134.8 592C134.8 380 305.2 220 511.6 220Z"/>
+    <g fill="none" stroke="#12304a" stroke-width="62" stroke-linecap="round"><path d="M267.6 488.8C294 481.6 334 485.6 366 499.2"/> <path d="M517.2 508.8C550 501.6 602 509.6 636.4 528"/> </g>
+  </g>
+</svg>

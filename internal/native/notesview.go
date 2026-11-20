@@ -3,8 +3,8 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // Notes for the agent drawn: the list in Edit host and in Settings · Agent
@@ -115,7 +115,7 @@ func emptyNotesText(e *notesEditor, host bool) string {
 }
 
 // noteRow is one note: its text, where it came from, and Edit and Delete; or the field it is edited in.
-func (w *workspace) noteRow(c *ui.Context, e *notesEditor, n keelclient.Note) {
+func (w *workspace) noteRow(c *ui.Context, e *notesEditor, n slimeclient.Note) {
 	ui.Column(c).FillWidth().Key(n.ID).Padding(space2, space3).Gap(space1_5).Radius(radiusSm).Background(stage).Border(1, line).Label("note").Children(func() {
 		if e.editing == n.ID {
 			ui.Column(c).FillWidth().Padding(space1_5, space2).Radius(radiusSm).Background(stage).Border(1, lineStrong).Children(func() {

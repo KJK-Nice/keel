@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // The pure rules of saved conversations (docs/ui-redesign.md §5.4.1, §5.4.2): the groups of the list, its labels, the
@@ -89,15 +89,15 @@ func proposalsLabel(n int) string {
 // sessionGroup is a heading of the list and its rows.
 type sessionGroup struct {
 	label string
-	rows  []keelclient.ConversationSummary
+	rows  []slimeclient.ConversationSummary
 }
 
 // sessionGroups filters the saved conversations by the search text (title or host, any case) and groups them Today /
-// Yesterday / Older, keeping keel serve's order (most recent first). Empty groups are left out. host, when set, keeps only
+// Yesterday / Older, keeping slime serve's order (most recent first). Empty groups are left out. host, when set, keeps only
 // conversations that read or proposed for that host (the Agent page's host filter).
-func sessionGroups(sessions []keelclient.ConversationSummary, query string, now time.Time, host string) []sessionGroup {
+func sessionGroups(sessions []slimeclient.ConversationSummary, query string, now time.Time, host string) []sessionGroup {
 	q := strings.ToLower(strings.TrimSpace(query))
-	match := func(s keelclient.ConversationSummary) bool {
+	match := func(s slimeclient.ConversationSummary) bool {
 		if host != "" && !slices.Contains(s.Hosts, host) {
 			return false
 		}
@@ -156,7 +156,7 @@ func retentionNote(historyDays int) string {
 
 // hostFilters are the Agent page's host chips: the hosts the saved conversations read or proposed for, most recent
 // conversation first, at most max of them.
-func hostFilters(sessions []keelclient.ConversationSummary, max int) []string {
+func hostFilters(sessions []slimeclient.ConversationSummary, max int) []string {
 	var out []string
 	for _, s := range sessions {
 		for _, h := range s.Hosts {
@@ -173,8 +173,8 @@ func hostFilters(sessions []keelclient.ConversationSummary, max int) []string {
 
 // convTurn is a turn as the context column reads it: what was read and what was proposed.
 type convTurn struct {
-	trace     []keelclient.TraceStep
-	proposals []keelclient.Proposal
+	trace     []slimeclient.TraceStep
+	proposals []slimeclient.Proposal
 	again     bool
 }
 
@@ -239,7 +239,7 @@ func readSummary(turns []convTurn) []readRow {
 }
 
 // proposalState is a proposal's badge in the page's Proposals list. typed is true when it was typed in this window.
-func proposalState(p keelclient.Proposal, typed bool) (label, kind string) {
+func proposalState(p slimeclient.Proposal, typed bool) (label, kind string) {
 	switch {
 	case typed || p.TypedAt != nil:
 		if p.Edited {
@@ -284,7 +284,7 @@ func sessionsEmptyText(c convListState, groups int) string {
 
 // convListState is the last session list as the panel and the page share it.
 type convListState struct {
-	sessions    []keelclient.ConversationSummary
+	sessions    []slimeclient.ConversationSummary
 	historyDays *int // nil until read
 	saveError   string
 	unreadable  bool

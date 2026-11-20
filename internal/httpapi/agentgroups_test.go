@@ -9,9 +9,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/store"
 )
 
 func typeGroupOverSocket(t *testing.T, conn *websocket.Conn, bytes, runID, proposalID string, shift bool) map[string]any {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Agent tab page (docs/ui-redesign.md §5.4.2); its words and rules are in agentconvlogic.go.
@@ -26,7 +26,7 @@ const (
 )
 
 // agentPage is the state of the Agent tab: only what the page itself holds. No conversation text is kept here: the
-// conversation is the window's (agentPanel), read from keel serve into memory.
+// conversation is the window's (agentPanel), read from slime serve into memory.
 type agentPage struct {
 	filter  string
 	filterH ui.Handle
@@ -118,7 +118,7 @@ func (w *workspace) pageScopePanes() (out []agentPane) {
 
 // pageProposals are the conversation's proposals once each, in order, with their state.
 type pageProp struct {
-	p     keelclient.Proposal
+	p     slimeclient.Proposal
 	typed bool
 }
 

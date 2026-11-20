@@ -9,10 +9,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/runtime"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/runtime"
+	"slime/internal/wire"
 )
 
 // Over the session socket: lines that need the approve dialog go to it, a Jev call that got no

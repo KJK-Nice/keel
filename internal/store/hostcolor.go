@@ -1,6 +1,6 @@
 package store
 
-import "keel/internal/limits"
+import "slime/internal/limits"
 
 // HostColor is one swatch of the host label palette (internal/limits holds
 // the palette: the window shows the same one).
@@ -12,7 +12,7 @@ var HostColors = limits.HostColors
 // DefaultHostColor is the swatch a new host starts with.
 var DefaultHostColor = HostColors[0].Value
 
-// legacyHostColors maps the hex swatches older Keel versions stored to the
+// legacyHostColors maps the hex swatches older Slime versions stored to the
 // token that replaced each, by hue.
 var legacyHostColors = map[string]string{
 	"#5ee0b5": "var(--ansi-10)",

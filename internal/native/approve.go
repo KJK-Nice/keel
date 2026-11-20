@@ -6,30 +6,30 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/cmdrule"
-	"keel/internal/native/keelclient"
+	"slime/internal/cmdrule"
+	"slime/internal/native/slimeclient"
 )
 
-// Approve before type (docs/ui-redesign.md §6): keel-native types nothing on the user's behalf until the user has seen
-// the exact bytes and pressed Type, except one plainly read-only line that keel serve agrees to type with no dialog and
-// no Enter (typenow.go, rule 13). This file is the only caller of keelclient.ApprovedInject, and Type is its only
+// Approve before type (docs/ui-redesign.md §6): slime-native types nothing on the user's behalf until the user has seen
+// the exact bytes and pressed Type, except one plainly read-only line that slime serve agrees to type with no dialog and
+// no Enter (typenow.go, rule 13). This file is the only caller of slimeclient.ApprovedInject, and Type is its only
 // trigger (guard_test.go keeps both true).
 //
 // The group approve dialog (docs/ui-redesign.md §6 rule 10, §17; groupapproveview.go) is this same dialog and this same Type
 // action: its Type presses approveType, which makes one job per ticked row (groupJobs) and runs them in one loop through the
 // one ApprovedInject call, each on its row's own pane with that row's own proposal and so its own server nonce. Nothing is ticked
 // for the user unless there is only one host; only ticked rows are typed; a refusal for one row is that row's and does not
-// stop the others; nothing is retried. A row's bytes are keel serve's: the proposal's, or the fill's with the values in (rule 11).
+// stop the others; nothing is retried. A row's bytes are slime serve's: the proposal's, or the fill's with the values in (rule 11).
 //
 // The bytes: the command gets a trailing newline if it has none, the dialog shows that
 // text, and what is sent is Ctrl-U (it clears the line first, as the dialog says) followed by exactly that text.
-// keel serve writes the bytes it is given and adds nothing (runtime.Session.InjectTicket). Nothing is kept: the
+// slime serve writes the bytes it is given and adds nothing (runtime.Session.InjectTicket). Nothing is kept: the
 // dialog asks its source for the command every time it draws and every time Type is pressed.
 //
 // There is no production or ⇧ rule for snippets. An agent proposal is typed through the same
-// dialog (agent.go typeAgentProposal): the dialog then shows the proposal's own bytes, as keel serve holds them (Ctrl-U,
+// dialog (agent.go typeAgentProposal): the dialog then shows the proposal's own bytes, as slime serve holds them (Ctrl-U,
 // the command, a newline, the control characters drawn as glyphs), sends exactly those with the reference to the
-// proposal, and shows keel serve's answer: a refusal types nothing and is never retried. The ⇧ rule is keel serve's, and
+// proposal, and shows slime serve's answer: a refusal types nothing and is never retried. The ⇧ rule is slime serve's, and
 // the card's.
 
 // clearLine is Ctrl-U: the shell clears what is typed on the line before the snippet.
@@ -71,7 +71,7 @@ type approveSource interface {
 	sessionLine(p *pane) string
 	// prepare turns the one-pane job (Ctrl-U and the bytes shown) into this source's, or says why it cannot be typed.
 	prepare(j *typeJob, shown string) string
-	// answered takes keel serve's answer to a Type, and reports that the dialog closes whatever it was.
+	// answered takes slime serve's answer to a Type, and reports that the dialog closes whatever it was.
 	answered(err error) bool
 	// dropped is told the dialog closed with nothing typed; busy: a Type was still waiting.
 	dropped(busy bool)
@@ -107,14 +107,14 @@ type approveNotebook struct {
 func (n approveNotebook) words() (string, string, bool) { return approveHintNotebook, n.note, false }
 
 func (approveNotebook) prepare(j *typeJob, shown string) string {
-	if cmdrule.HasPlaceholder(shown) { // keel serve refuses it too (the notebook-labelled inject)
+	if cmdrule.HasPlaceholder(shown) { // slime serve refuses it too (the notebook-labelled inject)
 		return placeholderRefused
 	}
-	j.command, j.opts = shown, []keelclient.InjectOption{keelclient.FromNotebook}
+	j.command, j.opts = shown, []slimeclient.InjectOption{slimeclient.FromNotebook}
 	return ""
 }
 
-// shown is the proposal's bytes as keel serve holds them: nothing is added, not even a newline.
+// shown is the proposal's bytes as slime serve holds them: nothing is added, not even a newline.
 func (a *approveAgent) shown() (string, bool) { return a.source() }
 
 func (a *approveAgent) words() (string, string, bool) { return approveHint, "", true }
@@ -123,11 +123,11 @@ func (a *approveAgent) sessionLine(*pane) string      { return a.session }
 // prepare: the proposal's bytes already start with Ctrl-U and end with the newline.
 func (a *approveAgent) prepare(j *typeJob, shown string) string {
 	j.command = shown
-	j.ref = &keelclient.AgentRef{ConversationID: a.conv, ProposalID: a.proposal, Shift: a.shift}
+	j.ref = &slimeclient.AgentRef{ConversationID: a.conv, ProposalID: a.proposal, Shift: a.shift}
 	return ""
 }
 
-// answered: keel serve's answer is final, shown on the card.
+// answered: slime serve's answer is final, shown on the card.
 func (a *approveAgent) answered(err error) bool { a.done(err); return true }
 func (a *approveAgent) dropped(bool)            { a.cancelled() }
 
@@ -162,9 +162,9 @@ type approveGroup struct {
 type typeJob struct {
 	conn    session
 	command string
-	ref     *keelclient.AgentRef
-	opts    []keelclient.InjectOption // FromNotebook for a notebook fence
-	row     *groupRow                 // nil for the one-pane dialogs
+	ref     *slimeclient.AgentRef
+	opts    []slimeclient.InjectOption // FromNotebook for a notebook fence
+	row     *groupRow                  // nil for the one-pane dialogs
 }
 
 // The words of a row that cannot be typed.
@@ -175,13 +175,13 @@ const (
 )
 
 // approveAgent is what an agent proposal's Type adds to the dialog: which proposal it is, the line after "Session:", where
-// the proposal's bytes are read from (the panel's copy of what keel serve holds), and what the card is told.
+// the proposal's bytes are read from (the panel's copy of what slime serve holds), and what the card is told.
 type approveAgent struct {
 	conv, proposal string
 	shift          bool
 	session        string
 	source         func() (string, bool)
-	done           func(err error) // keel serve's answer: nil when it typed, else its refusal
+	done           func(err error) // slime serve's answer: nil when it typed, else its refusal
 	cancelled      func()          // the dialog closed with nothing typed
 }
 
@@ -292,8 +292,8 @@ func (w *workspace) closeApprove() {
 	}
 }
 
-// approveType is the Type button (and its key): the one place keel-native asks to type. It sends the bytes the
-// dialog shows now, behind Ctrl-U, through the one writer; keel serve decides, and a refusal stays in the dialog.
+// approveType is the Type button (and its key): the one place slime-native asks to type. It sends the bytes the
+// dialog shows now, behind Ctrl-U, through the one writer; slime serve decides, and a refusal stays in the dialog.
 func (w *workspace) approveType(shift bool) {
 	d := w.approve
 	if d == nil || d.busy {
@@ -324,7 +324,7 @@ func (w *workspace) approveType(shift bool) {
 	d.busy, d.err = true, ""
 	w.work(func() {
 		// One call, for every dialog: a snippet's, a proposal's and each ticked row of a group's. Each job is its own
-		// ApprovedInject on its own pane's connection, so each asks keel serve for its own nonce for exactly its own bytes. A
+		// ApprovedInject on its own pane's connection, so each asks slime serve for its own nonce for exactly its own bytes. A
 		// refusal in one does not stop the others, and nothing is retried.
 		errs := make([]error, len(jobs))
 		for i, j := range jobs {
@@ -380,7 +380,7 @@ func (g *approveGroup) rowBlocked(r *groupRow) string {
 	return ""
 }
 
-// effective are the rows a Type would type now: ticked by the user, not reached by an earlier Type, with bytes keel serve gave,
+// effective are the rows a Type would type now: ticked by the user, not reached by an earlier Type, with bytes slime serve gave,
 // and a pane that is open, driven and ready. A row ticked whose pane has since closed or become a followed one is not among them.
 func (g *approveGroup) effective() (out []*groupRow) {
 	for _, r := range g.rows {
@@ -409,7 +409,7 @@ func (w *workspace) groupJobs(d *approveDialog, shift bool) (jobs []typeJob) {
 	for _, r := range pick {
 		p := g.pane(r.sessionID)
 		jobs = append(jobs, typeJob{conn: p.p.conn, command: r.bytes, row: r,
-			ref: &keelclient.AgentRef{GroupRunID: g.runID, ProposalID: r.proposalID, Shift: shift}})
+			ref: &slimeclient.AgentRef{GroupRunID: g.runID, ProposalID: r.proposalID, Shift: shift}})
 	}
 	return jobs
 }

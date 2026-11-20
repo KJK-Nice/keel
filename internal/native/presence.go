@@ -6,8 +6,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // Presence: who else is in a live pane of this window, said by a ring around the terminal and a notch on its top
@@ -29,7 +29,7 @@ type presence struct {
 }
 
 // presenceOf reads a pane's state. A joined pane (§5.7) has its own banner and is never asked.
-func presenceOf(st keelclient.State) presence {
+func presenceOf(st slimeclient.State) presence {
 	switch {
 	case !st.Ready():
 		return presence{}
@@ -42,7 +42,7 @@ func presenceOf(st keelclient.State) presence {
 	case st.Driving():
 		var who []string
 		for _, a := range st.Attached {
-			if a.Kind == keelclient.KindJoined {
+			if a.Kind == slimeclient.KindJoined {
 				who = append(who, watcherName(a.Name))
 			}
 		}

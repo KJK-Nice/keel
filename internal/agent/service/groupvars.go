@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
-	"keel/internal/runvars"
-	"keel/internal/shellmark"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
+	"slime/internal/runvars"
+	"slime/internal/shellmark"
+	"slime/internal/store"
 )
 
 // Group variables and captured values in group runs (docs/ui-redesign.md
@@ -22,13 +22,13 @@ import (
 //     shell word) or {{name|q}} (single-quoted). Its value is a value
 //     captured earlier in the same run, or one of the group's variables.
 //   - A step may capture values: after its command ends with a reported
-//     exit 0 on a host, keel serve applies the step's pattern to that
+//     exit 0 on a host, slime serve applies the step's pattern to that
 //     command's output on that host, between the shell's OSC 133 C and D
 //     marks (CaptureSource), and keeps the value in memory, in the run, for
 //     that host, for at most captureTTL. The model plays no part: patterns
 //     are applied by this code, and a group run sends nothing to a
 //     provider.
-//   - Values are filled in only at Type time, by keel serve, for one host's
+//   - Values are filled in only at Type time, by slime serve, for one host's
 //     proposal (fillProposal): the approve dialog asks for the filled bytes
 //     (FillGroupProposals) and shows them; AuthorizeType fills again and
 //     compares the client's bytes with those, so what is typed is exactly
@@ -48,7 +48,7 @@ const captureTTL = time.Hour
 var (
 	// ErrVarsOutsideRun refuses typing a command that names a variable
 	// anywhere but a group run's step: nothing else fills them in.
-	ErrVarsOutsideRun = errors.New("agent: this command names a variable such as {{name}}, which Keel fills in only in a group run's steps; edit it to the real value first")
+	ErrVarsOutsideRun = errors.New("agent: this command names a variable such as {{name}}, which Slime fills in only in a group run's steps; edit it to the real value first")
 	// ErrFill is a variable that cannot be filled in now (missing, unsafe
 	// or a vault value); the message names it.
 	ErrFill = errors.New("agent: a variable cannot be filled in")
@@ -56,7 +56,7 @@ var (
 	ErrGroupVarSecret = errors.New("agent: that value looks like a secret or holds a value from the vault; group variables are not secret (they are shown, filled into commands and exported). Keep secrets in the vault")
 )
 
-// CaptureSource reads a finished command's raw output. keel serve's
+// CaptureSource reads a finished command's raw output. slime serve's
 // runtime satisfies it (through httpapi's agentPanes).
 type CaptureSource interface {
 	CommandOutput(sessionID string, cmd shellmark.Command) ([]byte, bool)
@@ -137,7 +137,7 @@ func (s *Service) holdsVaultValue(texts ...string) (bool, error) {
 
 // HoldsVaultValue reports whether a value holds a vault value, or (6 bytes
 // or longer) is part of one: a captured piece of a vault secret is as much
-// a secret as the whole. A captured value that does is not kept, and keel
+// a secret as the whole. A captured value that does is not kept, and slime
 // serve's Ansible export leaves out a group variable saved before its
 // value went into the vault. It fails closed (true) when the vault cannot
 // be read.
@@ -156,7 +156,7 @@ const maxWithheld = 1024
 const minCapturedBytes = 3
 
 // withholdLocked adds a captured value to the redact-only set, kept for
-// the life of this keel serve whatever happens to its run (finished,
+// the life of this slime serve whatever happens to its run (finished,
 // stopped, evicted, expired, retried): the value stays in the scrollback
 // of the pane it was captured from and of every pane it was typed into.
 // It reports false when the set is full. Call with s.mu held.
@@ -289,7 +289,7 @@ func (s *Service) runCaptures(sessionID string, mark uint64, want int, caps []st
 			out = append(out, captureResult{name: c.Name, value: v, state: CaptureCaptured})
 		}
 	}
-	// A value that holds a vault value is never kept: Keel will not carry
+	// A value that holds a vault value is never kept: Slime will not carry
 	// a vault secret into a command through a variable. (Fails closed: no
 	// vault answer, nothing kept.)
 	for i := range out {
@@ -422,7 +422,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 				return v, fmt.Errorf("%w: {{%s}} has no value for %s: it was captured on %s by a step that runs on each host, so it is that host's own value. Capture it on %s too, or make the capturing step One host only", ErrFill, name, snap.Host, strings.Join(hosts, ", "), snap.Host)
 			}
 			if len(vals) > 1 {
-				return v, fmt.Errorf("%w: {{%s}} was captured with different values on %s; Keel will not pick one for %s. Skip the hosts whose value you do not want, or retry the step", ErrFill, name, strings.Join(hosts, ", "), snap.Host)
+				return v, fmt.Errorf("%w: {{%s}} was captured with different values on %s; Slime will not pick one for %s. Skip the hosts whose value you do not want, or retry the step", ErrFill, name, strings.Join(hosts, ", "), snap.Host)
 			}
 			v, found = runvars.Value{Value: any.value, From: fmt.Sprintf("captured on %s · step %d", any.host, any.stepNo)}, true
 		}
@@ -437,7 +437,7 @@ func (s *Service) fillProposal(runID, proposalID string) (GroupFill, error) {
 			return v, fmt.Errorf("%w: {{%s}} has no value for %s: no earlier step of this run captured it (or it expired after an hour) and the group has no variable with that name. Add it on the group's page, or retry the step that captures it", ErrFill, name, snap.Host)
 		}
 		if vault.HoldsKnown(v.Value) || vault.InsideKnown(v.Value) {
-			return v, fmt.Errorf("%w: {{%s}} (%s) holds a value from the vault; Keel never types a vault secret from a variable", ErrFill, name, v.From)
+			return v, fmt.Errorf("%w: {{%s}} (%s) holds a value from the vault; Slime never types a vault secret from a variable", ErrFill, name, v.From)
 		}
 		return v, nil
 	}

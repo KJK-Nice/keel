@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/ansible"
-	"keel/internal/cmdrule"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/agent"
+	"slime/internal/ansible"
+	"slime/internal/cmdrule"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // Groups, part 2 (docs/ui-redesign.md §17, boards CaptureVars,
@@ -82,7 +82,7 @@ type ExportFile struct {
 // groupAnsible is GET /api/groups/{id}/ansible?format=ini|yaml
 // [&runbookId=…&mode=rolling|parallel][&user=0][&jump=1]: the group's
 // inventory (its members, roles as Ansible groups, its variables) and, with
-// a runbook, a playbook of its steps. Keel never runs Ansible: the page
+// a runbook, a playbook of its steps. Slime never runs Ansible: the page
 // offers the text to copy or download. The export is built from fields
 // with no secret in them (ansible.Host has no field for a password, key
 // or passphrase); a host whose key or password is in the vault gets a

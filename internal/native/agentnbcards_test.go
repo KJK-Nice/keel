@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The cards of what the agent did to notebooks : every kind and status draws its head, status and
-// buttons; each button is one request to keel serve and the card shows what it answers; Delete asks first; an agent edit of
+// buttons; each button is one request to slime serve and the card shows what it answers; Delete asks first; an agent edit of
 // an open notebook shows in its pane, or is refused while the user is typing. Cards are also in saved conversations.
 
-func nbCard(kind, status string) keelclient.NotebookProposal {
-	return keelclient.NotebookProposal{ID: "nbc_1", Kind: kind, Status: status, NotebookID: "nb1", Title: "Deploy", Bytes: 40, Rev: 2}
+func nbCard(kind, status string) slimeclient.NotebookProposal {
+	return slimeclient.NotebookProposal{ID: "nbc_1", Kind: kind, Status: status, NotebookID: "nb1", Title: "Deploy", Bytes: 40, Rev: 2}
 }
 
 func TestEveryKindAndStatusIsDrawnWithTheAppsHeadStatusAndButtons(t *testing.T) {
@@ -76,8 +76,8 @@ func TestACardShowsItsBadgesTheSizeTheSummaryAndTheWarningAfterAPaneWasRead(t *t
 	r.answersNbs(p)
 	r.ask(t, "q")
 	if miss := r.lacks("Edited by agent", "From pane output", "Placeholders", "Adds a restart step", "40 bytes · rev 2", paneWarning(p),
-		"It names values Keel keeps from the agent as {{name}}. Replace them before you use a command.",
-		"It holds placeholders such as [secret:1]. Fill them in before you use a command: Keel will not type a block that holds one."); len(miss) > 0 {
+		"It names values Slime keeps from the agent as {{name}}. Replace them before you use a command.",
+		"It holds placeholders such as [secret:1]. Fill them in before you use a command: Slime will not type a block that holds one."); len(miss) > 0 {
 		t.Fatalf("missing %q", miss)
 	}
 	// Read panes, text not from them: the other badge.
@@ -130,11 +130,11 @@ func TestACreatedNotebookIsInTheListMarkedFromAgentAndItsUndoMovesItToRecentlyDe
 		t.Fatalf("no banner on the notebook the agent wrote: %q", r.tt.Texts())
 	}
 
-	r.fb.nbCards().answer = func(route, id string) (keelclient.NotebookAction, error) {
+	r.fb.nbCards().answer = func(route, id string) (slimeclient.NotebookAction, error) {
 		vid := r.fb.agentRemove(rec.ID)
 		p := card
 		p.Record, p.Status, p.VersionID = nil, "undone", vid
-		return keelclient.NotebookAction{Proposal: p}, nil
+		return slimeclient.NotebookAction{Proposal: p}, nil
 	}
 	r.click(t, "Undo Runbook for disks")
 	if n := len(r.fb.nbCards().reqs); n != 1 || r.fb.nbCards().reqs[0] != "undo "+r.w.agentState().conv+"/nbc_1" {
@@ -154,12 +154,12 @@ func TestACreatedNotebookIsInTheListMarkedFromAgentAndItsUndoMovesItToRecentlyDe
 		t.Fatal("the pane of a notebook that is gone stays open")
 	}
 	// Restore brings it back: one more request, and the answer's notebook is in the list.
-	r.fb.nbCards().answer = func(route, id string) (keelclient.NotebookAction, error) {
+	r.fb.nbCards().answer = func(route, id string) (slimeclient.NotebookAction, error) {
 		nb, err := r.fb.RestoreDeletedNotebook(context.Background(), "tnb"+strings.TrimPrefix(rec.ID, "nb"))
 		_ = err
 		p := card
 		p.Record, p.Status = nil, "created"
-		return keelclient.NotebookAction{Proposal: p, Notebook: &nb}, nil
+		return slimeclient.NotebookAction{Proposal: p, Notebook: &nb}, nil
 	}
 	r.click(t, "Restore Runbook for disks")
 	r.frames(2)
@@ -187,11 +187,11 @@ func TestAnAgentEditShowsInTheOpenPaneWithItsBannerAndUndoBringsTheOldTextBack(t
 		t.Fatalf("no review banner: %q", r.tt.Texts())
 	}
 	// Undo is the user's route; the pane then shows the old text.
-	r.fb.nbCards().answer = func(route, id string) (keelclient.NotebookAction, error) {
+	r.fb.nbCards().answer = func(route, id string) (slimeclient.NotebookAction, error) {
 		nb := r.fb.agentUndo("nb1")
 		c := card
 		c.Record, c.Status = nil, "undone"
-		return keelclient.NotebookAction{Proposal: c, Notebook: &nb}, nil
+		return slimeclient.NotebookAction{Proposal: c, Notebook: &nb}, nil
 	}
 	r.click(t, "Undo Deploy")
 	r.frames(3)
@@ -219,7 +219,7 @@ func TestAnEditRefusedWhileTheUserIsTypingKeepsTheTypingAndSaysWhy(t *testing.T)
 	if !slices.Equal(r.lastAsk(t).Editing, []string{"nb1"}) {
 		t.Fatalf("the ask did not name the notebook being typed in: %v", r.lastAsk(t).Editing)
 	}
-	if !r.tt.HasText("You were typing in it, so Keel did not apply the agent's edit.") {
+	if !r.tt.HasText("You were typing in it, so Slime did not apply the agent's edit.") {
 		t.Fatalf("the card does not say so: %q", r.tt.Texts())
 	}
 	if !strings.HasSuffix(p.nb.md, " my typing") {
@@ -274,10 +274,10 @@ func TestADeleteTheAgentProposesDeletesNothingUntilTheUserConfirms(t *testing.T)
 		t.Fatalf("Cancel posted %v", r.fb.nbCards().reqs)
 	}
 	// Keep: one request, nothing deleted.
-	r.fb.nbCards().answer = func(route, id string) (keelclient.NotebookAction, error) {
+	r.fb.nbCards().answer = func(route, id string) (slimeclient.NotebookAction, error) {
 		c := card
 		c.Status = "dismissed"
-		return keelclient.NotebookAction{Proposal: c}, nil
+		return slimeclient.NotebookAction{Proposal: c}, nil
 	}
 	r.click(t, "Keep Deploy")
 	if n := len(r.fb.nbCards().reqs); n != 1 || !strings.HasPrefix(r.fb.nbCards().reqs[0], "keep ") || len(r.fb.nb.list) != 4 || !r.tt.HasText("Kept. Nothing was deleted.") {
@@ -294,20 +294,20 @@ func TestConfirmingADeleteRequestsItOnceThenRestoreBringsTheNotebookBack(t *test
 	card := nbCard("delete", "proposed")
 	r.answersNbs(card)
 	r.ask(t, "delete it")
-	r.fb.nbCards().answer = func(route, id string) (keelclient.NotebookAction, error) {
+	r.fb.nbCards().answer = func(route, id string) (slimeclient.NotebookAction, error) {
 		switch route {
 		case "delete":
 			vid := r.fb.agentRemove("nb1")
 			c := card
 			c.Status, c.VersionID = "deleted", vid
-			return keelclient.NotebookAction{Proposal: c}, nil
+			return slimeclient.NotebookAction{Proposal: c}, nil
 		case "restore":
 			nb, _ := r.fb.RestoreDeletedNotebook(context.Background(), "tnb1")
 			c := card
 			c.Status, c.VersionID = "restored", ""
-			return keelclient.NotebookAction{Proposal: c, Notebook: &nb}, nil
+			return slimeclient.NotebookAction{Proposal: c, Notebook: &nb}, nil
 		}
-		return keelclient.NotebookAction{}, errAgentDown
+		return slimeclient.NotebookAction{}, errAgentDown
 	}
 	r.click(t, "Delete… Deploy")
 	if len(r.fb.nbCards().reqs) != 0 {
@@ -347,7 +347,7 @@ func TestACardOpensItsNotebookAndAnExpiredCardOnlyOpens(t *testing.T) {
 	if _, ok := r2.tt.Find("Undo Deploy"); ok {
 		t.Fatal("an expired card offers Undo")
 	}
-	if _, ok := r2.tt.Find("Open Deploy"); !ok || !r2.tt.HasText("Keel no longer holds this conversation's changes. Use History on the notebook to see or restore a version.") {
+	if _, ok := r2.tt.Find("Open Deploy"); !ok || !r2.tt.HasText("Slime no longer holds this conversation's changes. Use History on the notebook to see or restore a version.") {
 		t.Fatalf("an expired card: %q", r2.tt.Texts())
 	}
 }
@@ -356,15 +356,15 @@ func TestACardRefusedByKeelServeShowsItsWordsAndTheCardStays(t *testing.T) {
 	r := nbAgentRig(t)
 	r.answersNbs(nbCard("edit", "edited"))
 	r.ask(t, "q")
-	r.fb.nbCards().answer = func(string, string) (keelclient.NotebookAction, error) {
-		return keelclient.NotebookAction{}, &keelclient.StatusError{Code: 410, Msg: "This proposal has expired."}
+	r.fb.nbCards().answer = func(string, string) (slimeclient.NotebookAction, error) {
+		return slimeclient.NotebookAction{}, &slimeclient.StatusError{Code: 410, Msg: "This proposal has expired."}
 	}
 	r.click(t, "Undo Deploy")
-	if !r.tt.HasText("Keel no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted.") {
+	if !r.tt.HasText("Slime no longer holds this conversation's changes. Use History on the notebook, or Notebooks · Recently deleted.") {
 		t.Fatalf("%q", r.tt.Texts())
 	}
-	r.fb.nbCards().answer = func(string, string) (keelclient.NotebookAction, error) {
-		return keelclient.NotebookAction{}, &keelclient.StatusError{Code: 409, Msg: "The notebook changed since then. Open History on the notebook to restore an earlier version."}
+	r.fb.nbCards().answer = func(string, string) (slimeclient.NotebookAction, error) {
+		return slimeclient.NotebookAction{}, &slimeclient.StatusError{Code: 409, Msg: "The notebook changed since then. Open History on the notebook to restore an earlier version."}
 	}
 	r.click(t, "Undo Deploy")
 	if !r.tt.HasText("The notebook changed since then. Open History on the notebook to restore an earlier version.") {
@@ -396,12 +396,12 @@ func TestACardsRightClickMenuIsItsOwnButtonsInOrder(t *testing.T) {
 
 func TestSavedConversationsShowTheirNotebookCardsAndALegacyDraftHasNoSave(t *testing.T) {
 	r := nbAgentRig(t)
-	legacy := keelclient.NotebookProposal{ID: "nbc_9", Kind: "", Status: "open", Title: "Old draft", Body: "# Old\n\nbody words of the draft"}
-	r.w.showTranscript(keelclient.Transcript{ID: "c-saved-0001", Title: "Earlier", Saved: true, Turns: []keelclient.SavedTurn{
-		{Question: "make one", Answer: "done", Notebooks: []keelclient.NotebookProposal{nbCard("create", "created"), legacy}},
+	legacy := slimeclient.NotebookProposal{ID: "nbc_9", Kind: "", Status: "open", Title: "Old draft", Body: "# Old\n\nbody words of the draft"}
+	r.w.showTranscript(slimeclient.Transcript{ID: "c-saved-0001", Title: "Earlier", Saved: true, Turns: []slimeclient.SavedTurn{
+		{Question: "make one", Answer: "done", Notebooks: []slimeclient.NotebookProposal{nbCard("create", "created"), legacy}},
 	}})
 	r.frames(3)
-	if miss := r.lacks("Created notebook", "Notebook draft", "Old draft", "A draft from an earlier version of Keel. It was not saved; ask the agent again.", "# Old"); len(miss) > 0 {
+	if miss := r.lacks("Created notebook", "Notebook draft", "Old draft", "A draft from an earlier version of Slime. It was not saved; ask the agent again.", "# Old"); len(miss) > 0 {
 		for _, m := range miss {
 			if _, ok := r.tt.Find(m); !ok && !r.onScreen(m) {
 				t.Errorf("missing %q in %q", m, r.tt.Texts())
@@ -442,7 +442,7 @@ func editedRig(t *testing.T) (*rig, *pane, string) {
 
 func TestViewChangesOpensHistoryOnTheVersionBeforeTheAgentsEdit(t *testing.T) {
 	r, _, _ := editedRig(t)
-	r.fb.nb.history["nb1"] = append([]keelclient.NotebookVersion{{ID: "newer", NotebookID: "nb1", Event: "session", By: "user", At: lt(time.March, 4, 9, 0)}}, r.fb.nb.history["nb1"]...)
+	r.fb.nb.history["nb1"] = append([]slimeclient.NotebookVersion{{ID: "newer", NotebookID: "nb1", Event: "session", By: "user", At: lt(time.March, 4, 9, 0)}}, r.fb.nb.history["nb1"]...)
 	r.click(t, "View changes")
 	r.frames(2)
 	d := r.w.nbDlg
@@ -499,7 +499,7 @@ func TestUndoAsksFirstWhenTheUserChangedTheNotebookAfterTheAgentAndSaysSoWhenThe
 	r2, _, _ := editedRig(t)
 	r2.fb.nb.history["nb1"] = nil
 	r2.click(t, "Undo agent edit")
-	if !r2.tt.HasText("Keel has no version from before the agent's edit. Open History to choose one.") {
+	if !r2.tt.HasText("Slime has no version from before the agent's edit. Open History to choose one.") {
 		t.Fatalf("%q", r2.tt.Texts())
 	}
 }

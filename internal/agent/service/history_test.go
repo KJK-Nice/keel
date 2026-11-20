@@ -13,13 +13,13 @@ import (
 	"sync"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/jev"
-	"keel/internal/agent/provider/providertest"
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/jev"
+	"slime/internal/agent/provider/providertest"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/store"
 )
 
 // egress is the agent.read entries for text sent off the machine (they
@@ -525,7 +525,7 @@ func TestHistoryRedactsBeforeEgress(t *testing.T) {
 	}
 }
 
-// The fake Jev keel serve uses in end-to-end tests maps words to a marker
+// The fake Jev slime serve uses in end-to-end tests maps words to a marker
 // command, so the e2e flow can see a history card.
 func TestScriptedJudgeHistoryPick(t *testing.T) {
 	historyReq := func(words string, cmds []string) provider.JudgeRequest {

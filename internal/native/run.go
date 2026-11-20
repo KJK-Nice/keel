@@ -12,12 +12,12 @@ import (
 	updatewin "github.com/egoist/mygo/plugins/updater/native"
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/authtoken"
-	"keel/internal/native/keelclient"
-	"keel/internal/paths"
+	"slime/internal/authtoken"
+	"slime/internal/native/slimeclient"
+	"slime/internal/paths"
 )
 
-// terminalTheme is Keel's terminal palette from the tokens of the theme in use.
+// terminalTheme is Slime's terminal palette from the tokens of the theme in use.
 func terminalTheme() *terminal.Theme {
 	return terminalColors(accent, termFg, termBg, ansi)
 }
@@ -62,7 +62,7 @@ func liveBodyT(p *pane, transparent bool) {
 	case rightNothing:
 		right = terminal.RightClickIgnore
 	}
-	th := p.theme() // the same colours in a light and a dark window: the theme is Keel's choice, not the window's
+	th := p.theme() // the same colours in a light and a dark window: the theme is Slime's choice, not the window's
 	term, err := terminal.New(terminal.Options{
 		Conn: newSyncConn(p), Theme: th, DarkTheme: th, Transparent: transparent, CopyOnSelect: copySel, RightClick: right, MinimumContrast: p.contrast,
 		Cursor: p.cursor, NoBlink: p.noBlink, OptionAsAlt: p.optionAsAlt,
@@ -122,10 +122,10 @@ func liveBodyT(p *pane, transparent bool) {
 	}
 }
 
-// Options say which keel serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
-// what keel app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
-// Name is the display name keel app was started with (--name, else KEEL_NAME, else the user name); "" leaves it to
-// the environment (keel-native parses no flags).
+// Options say which slime serve the window talks to. Addr and DataDir are the ones internal/paths gives (Run), or
+// what slime app already prepared. AppBuild is the build id of the app (internal/buildid); "" never warns.
+// Name is the display name slime app was started with (--name, else SLIME_NAME, else the user name); "" leaves it to
+// the environment (slime-native parses no flags).
 type Options struct {
 	Addr, DataDir, AppBuild string
 	Name                    string
@@ -134,8 +134,8 @@ type Options struct {
 // launchName is Options.Name. RunWith sets it once, before any window; defaultName reads it.
 var launchName string
 
-// Run opens the window on a running keel serve (the address and data directory of internal/paths) and blocks
-// until the app quits. It does not start keel serve.
+// Run opens the window on a running slime serve (the address and data directory of internal/paths) and blocks
+// until the app quits. It does not start slime serve.
 func Run() error {
 	return RunWith(Options{Addr: paths.Addr(), DataDir: paths.DataDir()})
 }
@@ -144,9 +144,9 @@ func Run() error {
 func RunWith(o Options) error {
 	tok, err := authtoken.Read(o.DataDir)
 	if err != nil {
-		return fmt.Errorf("read the keel serve token (is keel serve running?): %w", err)
+		return fmt.Errorf("read the slime serve token (is slime serve running?): %w", err)
 	}
-	cl := keelclient.NewAt(o.Addr, tok)
+	cl := slimeclient.NewAt(o.Addr, tok)
 	cl.Name, launchName = o.Name, o.Name
 	pr := loadPrefs(o.DataDir)
 	registerFonts()
@@ -171,7 +171,7 @@ func RunWith(o Options) error {
 	mygo.App.SetWindowStateStore(newWindowStateStore(o.DataDir))
 	mygo.App.WhenReady(func() {
 		win := mygo.NewWindow(mygo.WindowOptions{
-			Title: "Keel", Width: 1280, Height: 800, StateKey: "main",
+			Title: "Slime", Width: 1280, Height: 800, StateKey: "main",
 			TitleBarStyle: mygo.TitleBarHidden,
 			// Hidden, not HiddenInset: HiddenInset's toolbar makes a taller bar than sizeTitlebar. The position
 			// centres the lights vertically in that row; x is the usual window padding.
@@ -206,7 +206,7 @@ func blurOnce(win *mygo.Window, radius int) func() {
 	return func() {
 		go func() {
 			if err := setWindowBlur(win, radius); err != nil {
-				once.Do(func() { fmt.Fprintln(os.Stderr, "keel-native: window blur:", err) })
+				once.Do(func() { fmt.Fprintln(os.Stderr, "slime-native: window blur:", err) })
 			}
 		}()
 	}

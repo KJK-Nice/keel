@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // nbGate is a backend whose notebook saves can be held or made to meet, and which keeps the fake's shared state behind a lock
@@ -26,7 +26,7 @@ type nbGate struct {
 	hangFor context.Context // when set, a save waits for its own context to end
 }
 
-func (g *nbGate) SaveNotebook(ctx context.Context, id string, in keelclient.NotebookSave) (keelclient.SavedNotebook, error) {
+func (g *nbGate) SaveNotebook(ctx context.Context, id string, in slimeclient.NotebookSave) (slimeclient.SavedNotebook, error) {
 	g.mu.Lock()
 	g.running++
 	g.peak = max(g.peak, g.running)
@@ -49,7 +49,7 @@ func (g *nbGate) SaveNotebook(ctx context.Context, id string, in keelclient.Note
 	}
 	if g.hangFor != nil {
 		<-ctx.Done()
-		return keelclient.SavedNotebook{}, ctx.Err()
+		return slimeclient.SavedNotebook{}, ctx.Err()
 	}
 	g.base.Lock()
 	defer g.base.Unlock()

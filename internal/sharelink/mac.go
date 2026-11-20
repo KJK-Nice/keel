@@ -1,8 +1,8 @@
 // Package sharelink is what both halves of a share agree on: the join link
 // (built by the host, read by the joiner), the end-to-end MAC that vouches
 // for each side's WebRTC fingerprints, the signal server's socket URL and
-// the STUN server. keel serve's share hub and the window's joinpeer both
-// import it, so the two cannot drift. It is a leaf: it imports no keel
+// the STUN server. slime serve's share hub and the window's joinpeer both
+// import it, so the two cannot drift. It is a leaf: it imports no slime
 // package but wire (leaf_test.go checks).
 //
 // The MAC is the check of a peer that does not depend on the signal

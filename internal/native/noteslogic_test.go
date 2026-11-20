@@ -6,36 +6,36 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 func TestNoteSourceLineSaysWhoWroteItAndFromWhichPane(t *testing.T) {
 	at := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
 	for _, c := range []struct {
-		n    keelclient.Note
+		n    slimeclient.Note
 		want string
 	}{
-		{keelclient.Note{Source: "user", CreatedAt: at}, `^You · Oct 1[12]$`},
-		{keelclient.Note{Source: "agent", CreatedAt: at}, `^Proposed by the agent · Oct 1[12] · you approved$`},
-		{keelclient.Note{Source: "agent", FromPane: true, SeenIn: "prod-db-02", Edited: true, CreatedAt: at}, `^Proposed by the agent from pane prod-db-02 · Oct 1[12] · you edited$`},
+		{slimeclient.Note{Source: "user", CreatedAt: at}, `^You · Oct 1[12]$`},
+		{slimeclient.Note{Source: "agent", CreatedAt: at}, `^Proposed by the agent · Oct 1[12] · you approved$`},
+		{slimeclient.Note{Source: "agent", FromPane: true, SeenIn: "prod-db-02", Edited: true, CreatedAt: at}, `^Proposed by the agent from pane prod-db-02 · Oct 1[12] · you edited$`},
 	} {
 		if got := noteSourceLabel(c.n); !regexp.MustCompile(c.want).MatchString(got) {
 			t.Errorf("%+v: %q, want %s", c.n, got, c.want)
 		}
 	}
-	if got := noteSourceLabel(keelclient.Note{}); got != "You" {
+	if got := noteSourceLabel(slimeclient.Note{}); got != "You" {
 		t.Errorf("an empty note: %q", got)
 	}
 }
 
 func TestNoteCountLineAndOneLineCleaningLikeKeelServe(t *testing.T) {
 	for _, c := range []struct {
-		notes []keelclient.Note
+		notes []slimeclient.Note
 		want  string
 	}{
 		{nil, "0 notes · 0 chars"},
-		{[]keelclient.Note{{Text: "abc"}, {Text: "de"}}, "2 notes · 5 chars"},
-		{[]keelclient.Note{{Text: "a"}}, "1 note · 1 char"},
+		{[]slimeclient.Note{{Text: "abc"}, {Text: "de"}}, "2 notes · 5 chars"},
+		{[]slimeclient.Note{{Text: "a"}}, "1 note · 1 char"},
 	} {
 		if got := notesCountLabel(c.notes); got != c.want {
 			t.Errorf("%q, want %q", got, c.want)
@@ -58,8 +58,8 @@ func TestNoteCountLineAndOneLineCleaningLikeKeelServe(t *testing.T) {
 }
 
 func TestHostNotesAndYourNotesArePickedApart(t *testing.T) {
-	all := []keelclient.Note{{ID: "1", HostID: "h1"}, {ID: "2"}, {ID: "3", HostID: "h2"}, {ID: "4", HostID: "h1"}, {ID: "5", GroupID: "g1"}}
-	ids := func(ns []keelclient.Note) (out []string) {
+	all := []slimeclient.Note{{ID: "1", HostID: "h1"}, {ID: "2"}, {ID: "3", HostID: "h2"}, {ID: "4", HostID: "h1"}, {ID: "5", GroupID: "g1"}}
+	ids := func(ns []slimeclient.Note) (out []string) {
 		for _, n := range ns {
 			out = append(out, n.ID)
 		}
@@ -77,7 +77,7 @@ func TestHostNotesAndYourNotesArePickedApart(t *testing.T) {
 }
 
 func TestAProposedNoteSaysWhoseNotesItJoinsWhereItCameFromAndWhenItIsSent(t *testing.T) {
-	host := keelclient.NoteProposal{For: "host", Host: "prod-db-01", From: "conversation"}
+	host := slimeclient.NoteProposal{For: "host", Host: "prod-db-01", From: "conversation"}
 	eq := func(what, got, want string) {
 		t.Helper()
 		if got != want {
@@ -87,29 +87,29 @@ func TestAProposedNoteSaysWhoseNotesItJoinsWhereItCameFromAndWhenItIsSent(t *tes
 	eq("target", noteProposalTarget(host), "Host notes · prod-db-01")
 	eq("source", noteProposalSource(host), "From this conversation · agent summary")
 	eq("scope", noteProposalScope(host), "Sent when prod-db-01 is in scope")
-	mine := keelclient.NoteProposal{For: "user", From: "user"}
+	mine := slimeclient.NoteProposal{For: "user", From: "user"}
 	eq("your target", noteProposalTarget(mine), "Your notes · every host")
 	eq("your source", noteProposalSource(mine), "From your messages in this conversation")
 	if !strings.HasPrefix(noteProposalScope(mine), "Sent with questions that read a pane") {
 		t.Errorf("your scope: %q", noteProposalScope(mine))
 	}
-	eq("pane source", noteProposalSource(keelclient.NoteProposal{For: "host", FromPane: true, SeenIn: "prod-db-02"}), "Seen in pane prod-db-02 · terminal output")
+	eq("pane source", noteProposalSource(slimeclient.NoteProposal{For: "host", FromPane: true, SeenIn: "prod-db-02"}), "Seen in pane prod-db-02 · terminal output")
 	host.Status, mine.Status = "saved", "saved"
 	eq("done host", noteProposalDone(host), "Saved to host notes · prod-db-01")
 	eq("done yours", noteProposalDone(mine), "Saved to your notes")
-	eq("dismissed", noteProposalDone(keelclient.NoteProposal{Status: "dismissed"}), "Dismissed. Nothing was saved.")
-	eq("open", noteProposalDone(keelclient.NoteProposal{Status: "open"}), "")
+	eq("dismissed", noteProposalDone(slimeclient.NoteProposal{Status: "dismissed"}), "Dismissed. Nothing was saved.")
+	eq("open", noteProposalDone(slimeclient.NoteProposal{Status: "open"}), "")
 	if !strings.Contains(noteFromPaneWarning, "terminal output, not from you") {
 		t.Error("the from-pane warning")
 	}
 }
 
 func TestEveryProposalFromAnAnswerThatReadAPaneIsWarnedANoteAboutYouMostStrongly(t *testing.T) {
-	plain := keelclient.NoteProposal{For: "host", Host: "web-1"}
+	plain := slimeclient.NoteProposal{For: "host", Host: "web-1"}
 	if noteProposalWarn(plain) || noteProposalWarning(plain) != "" {
 		t.Error("a proposal from no pane read is warned")
 	}
-	read := keelclient.NoteProposal{For: "host", Host: "web-1", PanesRead: []string{"web-1"}}
+	read := slimeclient.NoteProposal{For: "host", Host: "web-1", PanesRead: []string{"web-1"}}
 	if !noteProposalWarn(read) || !strings.HasPrefix(noteProposalWarning(read), "The agent read terminal output for this answer") {
 		t.Errorf("after reading panes: %q", noteProposalWarning(read))
 	}
@@ -118,7 +118,7 @@ func TestEveryProposalFromAnAnswerThatReadAPaneIsWarnedANoteAboutYouMostStrongly
 	if noteProposalWarning(fp) != noteFromPaneWarning {
 		t.Errorf("from pane: %q", noteProposalWarning(fp))
 	}
-	if w := noteProposalWarning(keelclient.NoteProposal{For: "user", PanesRead: []string{"web-1"}}); !strings.Contains(w, "every host the agent may read. Save it only if you would have written it yourself") {
+	if w := noteProposalWarning(slimeclient.NoteProposal{For: "user", PanesRead: []string{"web-1"}}); !strings.Contains(w, "every host the agent may read. Save it only if you would have written it yourself") {
 		t.Errorf("about you: %q", w)
 	}
 	eq := func(what, got, want string) {
@@ -134,23 +134,23 @@ func TestEveryProposalFromAnAnswerThatReadAPaneIsWarnedANoteAboutYouMostStrongly
 	seen := fp
 	seen.SeenIn = "db-2"
 	eq("origin: seen in", noteProposalOrigin(seen), "Seen in pane db-2; it would be saved to the notes of web-1.")
-	eq("origin: yours", noteProposalOrigin(keelclient.NoteProposal{For: "user", PanesRead: []string{"a", "b", "c"}}), "This answer read a, b and c; this note would be sent on every host.")
-	eq("origin: yours, nothing read", noteProposalOrigin(keelclient.NoteProposal{For: "user"}), "")
+	eq("origin: yours", noteProposalOrigin(slimeclient.NoteProposal{For: "user", PanesRead: []string{"a", "b", "c"}}), "This answer read a, b and c; this note would be sent on every host.")
+	eq("origin: yours, nothing read", noteProposalOrigin(slimeclient.NoteProposal{For: "user"}), "")
 }
 
 func TestTheTraceSaysWhichNotesWentWithAQuestionAndReadSoFarLeavesThemOut(t *testing.T) {
 	for _, c := range []struct {
-		s    keelclient.TraceStep
+		s    slimeclient.TraceStep
 		want string
 	}{
-		{keelclient.TraceStep{Status: "notes", NoteKind: "host", Host: "prod-db-01", Notes: 3}, "Used host notes · prod-db-01 (3)"},
-		{keelclient.TraceStep{Status: "notes", NoteKind: "user", Notes: 2}, "Used your notes (2)"},
+		{slimeclient.TraceStep{Status: "notes", NoteKind: "host", Host: "prod-db-01", Notes: 3}, "Used host notes · prod-db-01 (3)"},
+		{slimeclient.TraceStep{Status: "notes", NoteKind: "user", Notes: 2}, "Used your notes (2)"},
 	} {
 		if got := traceText(c.s); got != c.want {
 			t.Errorf("%q, want %q", got, c.want)
 		}
 	}
-	sum := readSummary([]convTurn{{trace: []keelclient.TraceStep{{Status: "notes", NoteKind: "host", Host: "web-1", Notes: 2}, {Status: "read", Host: "web-1", Lines: 10}}}})
+	sum := readSummary([]convTurn{{trace: []slimeclient.TraceStep{{Status: "notes", NoteKind: "host", Host: "web-1", Notes: 2}, {Status: "read", Host: "web-1", Lines: 10}}}})
 	if len(sum) != 1 || sum[0].host != "web-1" || sum[0].lines != 10 {
 		t.Errorf("read so far: %+v", sum)
 	}

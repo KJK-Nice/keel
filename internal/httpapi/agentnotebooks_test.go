@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/store"
 )
 
 // Notebooks and the agent (docs/ui-redesign.md §18, §6 rule 12) over the
@@ -292,7 +292,7 @@ func TestNotebookPlaceholderFenceRefused(t *testing.T) {
 	waitJSON(t, conn, "ready")
 	bridge := f.bridge(t, f.webID)
 	got := readPTY(bridge)
-	cmd := "export KEEL_TOKEN=[secret:1]\n"
+	cmd := "export SLIME_TOKEN=[secret:1]\n"
 	if err := conn.WriteJSON(map[string]any{"type": "inject-challenge", "command": cmd}); err != nil {
 		t.Fatal(err)
 	}

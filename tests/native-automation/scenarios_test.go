@@ -27,7 +27,7 @@ func openShell(r *rig) {
 func TestStartsAndShowsFirstRun(t *testing.T) {
 	r := newRig(t)
 	r.startApp() // no vault: the app starts its own daemon on the scratch data
-	r.waitFor("the First run heading", has("Welcome to Keel"))
+	r.waitFor("the First run heading", has("Welcome to Slime"))
 	r.capture("first-run")
 	r.quit()
 }
@@ -108,7 +108,7 @@ func TestMenuBar(t *testing.T) {
 	choose("File", "Close Tab")
 	r.waitFor("the New Tab closed", lacks("tab New Tab"))
 	choose("File", "Reopen Tab")
-	for _, item := range []string{"New Host", "Quick Connect", "Join Session", "Split Notebook", "Stop Keel runtime"} {
+	for _, item := range []string{"New Host", "Quick Connect", "Join Session", "Split Notebook", "Stop Slime runtime"} {
 		choose("File", item)
 		dismiss()
 	}
@@ -157,7 +157,7 @@ func TestCloseWindowHidesAndKeepsRunning(t *testing.T) {
 }
 
 // 4. Real keys into a real terminal. The terminal's text is not in the tree (the "Terminal" element has no value),
-// so the proof is keel serve's scrollback, read with the scratch token (never printed).
+// so the proof is slime serve's scrollback, read with the scratch token (never printed).
 func TestRealKeysIntoARealTerminal(t *testing.T) {
 	r := newRig(t)
 	r.startServe()
@@ -234,12 +234,12 @@ func TestGuardRefusesTheDefaultDataDir(t *testing.T) {
 	for name, data := range map[string]string{"unset": "", "default": def} {
 		env := []string{}
 		for _, kv := range r.env("MYGO_AUTOMATION="+r.sock, "HOME="+home) {
-			if !strings.HasPrefix(kv, "KEEL_DATA=") {
+			if !strings.HasPrefix(kv, "SLIME_DATA=") {
 				env = append(env, kv)
 			}
 		}
 		if data != "" {
-			env = append(env, "KEEL_DATA="+data)
+			env = append(env, "SLIME_DATA="+data)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		cmd := exec.CommandContext(ctx, r.bin, "app")

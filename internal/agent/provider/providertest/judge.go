@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
 )
 
-// ScriptedJudge is the test detector `keel serve` uses with
-// KEEL_AGENT_PROVIDER=fake, in place of TypeSafe Jev. Like Scripted it
+// ScriptedJudge is the test detector `slime serve` uses with
+// SLIME_AGENT_PROVIDER=fake, in place of TypeSafe Jev. Like Scripted it
 // sends nothing anywhere: it answers in this process from simple rules,
 // and keeps the last few requests for Go tests.
 //

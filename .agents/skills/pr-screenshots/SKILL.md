@@ -1,13 +1,13 @@
 ---
 name: pr-screenshots
-description: Put before/after UI screenshots in a GitHub pull request body. Use when a PR changes how Keel looks (tokens, fonts, views) and the reviewer should see the difference, or when asked to add or refresh PR screenshots.
+description: Put before/after UI screenshots in a GitHub pull request body. Use when a PR changes how Slime looks (tokens, fonts, views) and the reviewer should see the difference, or when asked to add or refresh PR screenshots.
 ---
 
 # PR screenshots
 
 `gh` cannot upload images to a PR (the `user-attachments` upload is web-only), so images live on an orphan branch, `pr-assets`, and the PR body links them. Never merge `pr-assets`.
 
-The shots are the native window's: `make native-e2e` writes PNGs to `.scratch-native/e2e/<name>.png`, named by the test that calls `shot(name)` (usually dark; `TestE2EThemeSwitch-light*` are light). Read `.agents/skills/verify-keel/SKILL.md` first (scratch data only, `KEEL_KEYRING=off`). Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
+The shots are the native window's: `make native-e2e` writes PNGs to `.scratch-native/e2e/<name>.png`, named by the test that calls `shot(name)` (usually dark; `TestE2EThemeSwitch-light*` are light). Read `.agents/skills/verify-slime/SKILL.md` first (scratch data only, `SLIME_KEYRING=off`). Below, `N` is the PR number, `BASE` the ref the PR is compared to, `$S` a scratch dir.
 
 ## 1. Before (base ref, in a worktree)
 
@@ -25,7 +25,7 @@ git worktree remove --force $S/wt-before
 make native-e2e && mkdir -p $S/prN-after && cp .scratch-native/e2e/*.png $S/prN-after/
 ```
 
-Never stop the user's Keel on 127.0.0.1:47241; the e2e uses its own ports and data.
+Never stop the user's Slime on 127.0.0.1:47241; the e2e uses its own ports and data.
 
 ## 3. Pick the screens
 

@@ -47,7 +47,7 @@ func TestTokensMatchJSON(t *testing.T) {
 			return v
 		}
 		p := th.p
-		// The look is MyGo's (TestPaletteIsMyGos); what still has to match tokens.json is what is Keel's own: the
+		// The look is MyGo's (TestPaletteIsMyGos); what still has to match tokens.json is what is Slime's own: the
 		// meaning colours, the terminal's theme, the stage behind it, the scrim.
 		colors := map[string]string{
 			"stage": p.stage, "tide": p.tide, "signal": p.signal, "flare": p.flare,

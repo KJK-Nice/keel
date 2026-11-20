@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/transport"
-	"keel/internal/agent/redact"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/transport"
+	"slime/internal/agent/redact"
 )
 
 // All tests talk to an httptest server on loopback; nothing leaves the

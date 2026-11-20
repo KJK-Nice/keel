@@ -11,35 +11,35 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // Runbooks (docs/ui-redesign.md §16): the page, the cards and the walk. The service is internal/httpapi/agentrunbooks.go;
 // the words and rules are in runbookslogic.go.
 //
 // What this file does and does not do:
-//   - Runbooks live in keel serve (keel.memory, in the vault). This client holds them in memory only and writes none to disk.
-//     keel serve redacts every text for secrets before it keeps it; the editor shows what it kept and how many values it
-//     replaced, and a command the redactor would change is refused by keel serve and the editor shows its reason.
+//   - Runbooks live in slime serve (keel.memory, in the vault). This client holds them in memory only and writes none to disk.
+//     slime serve redacts every text for secrets before it keeps it; the editor shows what it kept and how many values it
+//     replaced, and a command the redactor would change is refused by slime serve and the editor shows its reason.
 //   - The agent never writes a runbook. One it proposes is a card; the card's Save (saveBookProposal) is the only thing that
 //     keeps it, with Agent may pick off, and Dismiss keeps nothing.
-//   - A runbook step is an ordinary proposal. Propose step N is an ordinary ask: keel serve makes the proposal for the current
+//   - A runbook step is an ordinary proposal. Propose step N is an ordinary ask: slime serve makes the proposal for the current
 //     step only, rates it, and the card is typed by agent.go's Type path like any other (Approve before type). Nothing here
-//     types, builds a proposal or knows a step's bytes; Mark done, Skip and Retry only tell keel serve what the user decided.
-//   - A step that holds a redaction placeholder is never typed: its card has no Type button (typeOffer) and keel serve refuses
+//     types, builds a proposal or knows a step's bytes; Mark done, Skip and Retry only tell slime serve what the user decided.
+//   - A step that holds a redaction placeholder is never typed: its card has no Type button (typeOffer) and slime serve refuses
 //     it too.
 //   - "Agent may pick" is off unless the user turns it on.
 
 // ---- a runbook the agent proposes ----
 
 type agentBook struct {
-	b    keelclient.RunbookProposal
+	b    slimeclient.RunbookProposal
 	busy bool
 	err  string
 }
 
-func (a *agentPanel) registerBook(b keelclient.RunbookProposal) { a.books[b.ID] = &agentBook{b: b} }
+func (a *agentPanel) registerBook(b slimeclient.RunbookProposal) { a.books[b.ID] = &agentBook{b: b} }
 
 func (a *agentPanel) resetMemory() {
 	a.notes, a.books, a.runs = map[string]*agentNote{}, map[string]*agentBook{}, runUse{}
@@ -56,7 +56,9 @@ func (w *workspace) saveBookProposal(id string) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	call(w, func(c context.Context) (keelclient.SavedRunbook, error) { return w.be.SaveProposedRunbook(c, conv, id) }, func(res keelclient.SavedRunbook, err error) {
+	call(w, func(c context.Context) (slimeclient.SavedRunbook, error) {
+		return w.be.SaveProposedRunbook(c, conv, id)
+	}, func(res slimeclient.SavedRunbook, err error) {
 		rec.busy = false
 		if a.conv != conv {
 			return
@@ -88,12 +90,12 @@ func (w *workspace) bookProposalAction(id string, undo bool) {
 	}
 	conv := a.conv
 	rec.busy, rec.err = true, ""
-	call(w, func(c context.Context) (keelclient.RunbookProposal, error) {
+	call(w, func(c context.Context) (slimeclient.RunbookProposal, error) {
 		if undo {
 			return w.be.UndoProposedRunbook(c, conv, id)
 		}
 		return w.be.DismissProposedRunbook(c, conv, id)
-	}, func(b keelclient.RunbookProposal, err error) {
+	}, func(b slimeclient.RunbookProposal, err error) {
 		rec.busy = false
 		if a.conv != conv {
 			return
@@ -112,7 +114,7 @@ func (w *workspace) bookProposalAction(id string, undo bool) {
 // ---- a runbook in use ----
 
 type runUse struct {
-	run   *keelclient.ChatRunbook
+	run   *slimeclient.ChatRunbook
 	none  bool // the user's "Don't use": the agent is not offered runbooks again here
 	names map[string]string
 
@@ -139,7 +141,7 @@ const (
 )
 
 // runOnLabel is a proposal card's "Run on", or "Step 2 · Run on" for the step of a runbook .
-func runOnLabel(p keelclient.Proposal) string {
+func runOnLabel(p slimeclient.Proposal) string {
 	if p.Runbook != nil && p.Runbook.Step > 0 {
 		return "Step " + strconv.Itoa(p.Runbook.Step) + " · Run on"
 	}
@@ -147,7 +149,7 @@ func runOnLabel(p keelclient.Proposal) string {
 }
 
 // setRun makes run the one in use, and puts its card under "Agent" of the turn that started it: once per run.
-func (w *workspace) setRun(run *keelclient.ChatRunbook, turn *agentTurn) {
+func (w *workspace) setRun(run *slimeclient.ChatRunbook, turn *agentTurn) {
 	u := &w.agent.runs
 	u.run = run
 	if run == nil {
@@ -172,7 +174,7 @@ func (w *workspace) setRun(run *keelclient.ChatRunbook, turn *agentTurn) {
 }
 
 // showSavedRun is a resumed conversation's run: its card sits under the agent turn that started it, else the last one.
-func (w *workspace) showSavedRun(t keelclient.Transcript) {
+func (w *workspace) showSavedRun(t slimeclient.Transcript) {
 	a := w.agent
 	a.runs.none = t.NoRunbook
 	if t.Runbook == nil {
@@ -216,8 +218,8 @@ func (w *workspace) runTick() {
 	u.pollLeft--
 	conv := a.conv
 	callOnce(w, &u.polling, func() bool { return a.conv == conv },
-		func(c context.Context) (keelclient.RunState, error) { return w.be.RunbookState(c, conv) },
-		func(res keelclient.RunState, err error) {
+		func(c context.Context) (slimeclient.RunState, error) { return w.be.RunbookState(c, conv) },
+		func(res slimeclient.RunState, err error) {
 			if err == nil && res.Runbook != nil { // a locked vault or a restart: the next change tries again
 				w.setRun(res.Runbook, nil)
 			}
@@ -237,7 +239,7 @@ func (w *workspace) scopeRbPanes() (out []rbPane) {
 	return out
 }
 
-// proposeRunStep is Propose step N (and the Retry after a step was reset): an ordinary ask. keel serve makes the proposal for
+// proposeRunStep is Propose step N (and the Retry after a step was reset): an ordinary ask. slime serve makes the proposal for
 // the current step, and only that one.
 func (w *workspace) proposeRunStep() {
 	a := w.agent
@@ -257,7 +259,7 @@ func (w *workspace) proposeRunStep() {
 	w.agentAsk(continueQuestion(act.step))
 }
 
-// runStepAction is Mark done, Confirm done, Skip and Retry on the current step: keel serve refuses any other step.
+// runStepAction is Mark done, Confirm done, Skip and Retry on the current step: slime serve refuses any other step.
 func (w *workspace) runStepAction(stepID, action string) {
 	a := w.agent
 	u := &a.runs
@@ -266,7 +268,7 @@ func (w *workspace) runStepAction(stepID, action string) {
 	}
 	conv := a.conv
 	u.busy, u.err = true, ""
-	call(w, func(c context.Context) (keelclient.RunState, error) { return w.be.StepAction(c, conv, stepID, action) }, func(res keelclient.RunState, err error) {
+	call(w, func(c context.Context) (slimeclient.RunState, error) { return w.be.StepAction(c, conv, stepID, action) }, func(res slimeclient.RunState, err error) {
 		u.busy = false
 		if a.conv != conv {
 			return
@@ -284,7 +286,7 @@ func (w *workspace) runStepAction(stepID, action string) {
 
 // stopRun is Don't use: the agent is not offered runbooks again in this conversation until the user starts one.
 func (w *workspace) stopRun() {
-	w.runCall(w.be.StopRunbook, func(res keelclient.RunState) {
+	w.runCall(w.be.StopRunbook, func(res slimeclient.RunState) {
 		u := &w.agent.runs
 		u.none, u.choosing, u.err = true, false, ""
 		w.setRun(res.Runbook, nil)
@@ -293,18 +295,18 @@ func (w *workspace) stopRun() {
 
 // moveRun is Move the run to another host: the user's choice only.
 func (w *workspace) moveRun() {
-	w.runCall(w.be.MoveRunbook, func(res keelclient.RunState) {
+	w.runCall(w.be.MoveRunbook, func(res slimeclient.RunState) {
 		w.agent.runs.err = ""
 		w.setRun(res.Runbook, nil)
 	})
 }
 
-func (w *workspace) runCall(do func(context.Context, string) (keelclient.RunState, error), ok func(keelclient.RunState)) {
+func (w *workspace) runCall(do func(context.Context, string) (slimeclient.RunState, error), ok func(slimeclient.RunState)) {
 	a := w.agent
 	u := &a.runs
 	conv := a.conv
 	u.busy = true
-	call(w, func(c context.Context) (keelclient.RunState, error) { return do(c, conv) }, func(res keelclient.RunState, err error) {
+	call(w, func(c context.Context) (slimeclient.RunState, error) { return do(c, conv) }, func(res slimeclient.RunState, err error) {
 		u.busy = false
 		if a.conv != conv {
 			return
@@ -338,7 +340,7 @@ func (w *workspace) useRunbook(id, name string) {
 		ask()
 		return
 	}
-	call(w, w.be.AgentSettings, func(s keelclient.AgentSettings, err error) {
+	call(w, w.be.AgentSettings, func(s slimeclient.AgentSettings, err error) {
 		if err == nil {
 			w.takeAgentSettings(s)
 		}
@@ -357,7 +359,7 @@ func (w *workspace) toggleChoose() {
 	}
 	conv := a.conv
 	panes := w.scopeRbPanes()
-	callIf(w, func() bool { return a.conv == conv && u.choosing }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+	callIf(w, func() bool { return a.conv == conv && u.choosing }, w.be.Runbooks, func(l slimeclient.RunbookList, err error) {
 		u.listed = true
 		u.others = []runOther{}
 		if err != nil {
@@ -380,7 +382,7 @@ type runbooksPage struct {
 	filter  string
 	filterH ui.Handle
 
-	list       []keelclient.Runbook
+	list       []slimeclient.Runbook
 	unreadable bool
 	err        string
 	loaded     bool
@@ -394,7 +396,7 @@ type runbooksPage struct {
 
 	menuNB    bool // From a notebook…: the list is the window's notebooks
 	menu      bool // From a conversation…
-	menuItems []keelclient.ConversationSummary
+	menuItems []slimeclient.ConversationSummary
 	menuEmpty string
 	menuLoad  bool
 }
@@ -446,7 +448,7 @@ func (e *rbEditor) edit() rbEdit {
 	return ed
 }
 
-func (e *rbEditor) input() keelclient.RunbookInput { return toRunbookInput(e.edit()) }
+func (e *rbEditor) input() slimeclient.RunbookInput { return toRunbookInput(e.edit()) }
 
 func (e *rbEditor) sig() string {
 	b, _ := json.Marshal(e.input())
@@ -455,21 +457,21 @@ func (e *rbEditor) sig() string {
 
 func (e *rbEditor) dirty() bool { return e.forced || e.sig() != e.orig }
 
-func (e *rbEditor) asRunbook() keelclient.Runbook {
-	rb := keelclient.Runbook{ID: e.id, Name: e.name, Source: e.source, SourceRef: e.sourceRef, FromPane: e.fromPane, AgentMayPick: e.agentMayPick,
+func (e *rbEditor) asRunbook() slimeclient.Runbook {
+	rb := slimeclient.Runbook{ID: e.id, Name: e.name, Source: e.source, SourceRef: e.sourceRef, FromPane: e.fromPane, AgentMayPick: e.agentMayPick,
 		CreatedAt: e.createdAt, LastUsedAt: e.lastUsedAt, LastUsedOn: e.lastUsedOn}
 	for _, s := range e.steps {
-		rb.Steps = append(rb.Steps, keelclient.RunbookStep{Title: s.title, Command: s.command, Risk: s.risk})
+		rb.Steps = append(rb.Steps, slimeclient.RunbookStep{Title: s.title, Command: s.command, Risk: s.risk})
 	}
 	return rb
 }
 
-func newRbStep(s keelclient.RunbookStep) *rbStepState {
+func newRbStep(s slimeclient.RunbookStep) *rbStepState {
 	return &rbStepState{rbEditStep: rbEditStep{id: s.ID, title: s.Title, description: s.Description, command: s.Command, expect: s.Expect,
 		role: s.Role, oneHost: s.OneHost, captures: slices.Clone(s.Captures)}, risk: s.Risk}
 }
 
-func editorFromRunbook(rb keelclient.Runbook) *rbEditor {
+func editorFromRunbook(rb slimeclient.Runbook) *rbEditor {
 	e := &rbEditor{id: rb.ID, name: rb.Name, when: rb.When, hosts: slices.Clone(rb.Hosts), agentMayPick: rb.AgentMayPick, source: orElse(rb.Source, "user"),
 		sourceRef: rb.SourceRef, fromPane: rb.FromPane, createdAt: rb.CreatedAt, lastUsedAt: rb.LastUsedAt, lastUsedOn: rb.LastUsedOn}
 	for _, s := range rb.Steps {
@@ -479,9 +481,9 @@ func editorFromRunbook(rb keelclient.Runbook) *rbEditor {
 	return e
 }
 
-// editorFromDraft is an unsaved draft keel serve made from a conversation: dirty from the start, with Agent may pick off.
-func editorFromDraft(d keelclient.RunbookDraft) *rbEditor {
-	e := editorFromRunbook(keelclient.Runbook{Name: d.Name, When: d.When, Hosts: d.Hosts, Steps: d.Steps, Source: d.Source, SourceRef: d.SourceRef})
+// editorFromDraft is an unsaved draft slime serve made from a conversation: dirty from the start, with Agent may pick off.
+func editorFromDraft(d slimeclient.RunbookDraft) *rbEditor {
+	e := editorFromRunbook(slimeclient.Runbook{Name: d.Name, When: d.When, Hosts: d.Hosts, Steps: d.Steps, Source: d.Source, SourceRef: d.SourceRef})
 	e.draftID, e.fromPrivate, e.forced = d.DraftID, d.FromPrivate, true
 	return e
 }
@@ -496,9 +498,9 @@ func (w *workspace) loadRunbooks() {
 	if p == nil {
 		return
 	}
-	callIf(w, func() bool { return w.runbooksPage() == p }, w.be.Runbooks, func(l keelclient.RunbookList, err error) {
+	callIf(w, func() bool { return w.runbooksPage() == p }, w.be.Runbooks, func(l slimeclient.RunbookList, err error) {
 		p.loaded = true
-		var se *keelclient.StatusError
+		var se *slimeclient.StatusError
 		switch {
 		case errors.As(err, &se) && se.Code == 423:
 			p.list, p.err = nil, "Unlock the vault to see runbooks."
@@ -525,13 +527,13 @@ func (w *workspace) reloadRunbooksPage() {
 	}
 }
 
-func (p *runbooksPage) find(id string) (keelclient.Runbook, bool) {
+func (p *runbooksPage) find(id string) (slimeclient.Runbook, bool) {
 	for _, rb := range p.list {
 		if rb.ID == id {
 			return rb, true
 		}
 	}
-	return keelclient.Runbook{}, false
+	return slimeclient.Runbook{}, false
 }
 
 func (p *runbooksPage) closeEditor() { p.ed, p.selected = nil, "" }
@@ -551,7 +553,7 @@ func (w *workspace) newRunbook() {
 		return
 	}
 	w.leaveEditor(p, func() {
-		p.selected, p.ed = "", editorFromRunbook(keelclient.Runbook{Source: "user", AgentMayPick: true, Steps: []keelclient.RunbookStep{{}}})
+		p.selected, p.ed = "", editorFromRunbook(slimeclient.Runbook{Source: "user", AgentMayPick: true, Steps: []slimeclient.RunbookStep{{}}})
 		p.ed.focusName = true
 	})
 }
@@ -568,7 +570,7 @@ func (w *workspace) selectRunbook(id string) {
 	})
 }
 
-// saveRunbook is Save (⌘S): POST or PUT the editor; the editor then shows what keel serve kept.
+// saveRunbook is Save (⌘S): POST or PUT the editor; the editor then shows what slime serve kept.
 func (w *workspace) saveRunbook() {
 	p := w.runbooksPage()
 	if p == nil || p.ed == nil || p.saving {
@@ -581,15 +583,15 @@ func (w *workspace) saveRunbook() {
 		return
 	}
 	p.saving, e.err = true, ""
-	call(w, func(c context.Context) (keelclient.SavedRunbook, error) { return w.be.SaveRunbook(c, e.id, in) }, func(res keelclient.SavedRunbook, err error) {
+	call(w, func(c context.Context) (slimeclient.SavedRunbook, error) { return w.be.SaveRunbook(c, e.id, in) }, func(res slimeclient.SavedRunbook, err error) {
 		p.saving = false
 		if err != nil {
 			e.err = hostError(err)
 			return
 		}
 		rb := res.Runbook
-		p.list = append(slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == rb.ID }), rb)
-		slices.SortFunc(p.list, func(a, b keelclient.Runbook) int {
+		p.list = append(slices.DeleteFunc(slices.Clone(p.list), func(b slimeclient.Runbook) bool { return b.ID == rb.ID }), rb)
+		slices.SortFunc(p.list, func(a, b slimeclient.Runbook) int {
 			return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
 		})
 		p.selected, p.ed = rb.ID, editorFromRunbook(rb)
@@ -622,7 +624,7 @@ func (w *workspace) deleteRunbook(id string) {
 			return
 		}
 		if p := w.runbooksPage(); p != nil {
-			p.list = slices.DeleteFunc(slices.Clone(p.list), func(b keelclient.Runbook) bool { return b.ID == id })
+			p.list = slices.DeleteFunc(slices.Clone(p.list), func(b slimeclient.Runbook) bool { return b.ID == id })
 			p.closeEditor()
 		}
 		w.say("Runbook deleted")
@@ -631,7 +633,7 @@ func (w *workspace) deleteRunbook(id string) {
 
 // setRunbookPick is the list's "Agent may pick" switch and the review banner's Enable: only the user's press turns it on.
 func (w *workspace) setRunbookPick(id string, on bool) {
-	call(w, func(c context.Context) (keelclient.Runbook, error) { return w.be.SetRunbookPick(c, id, on) }, func(rb keelclient.Runbook, err error) {
+	call(w, func(c context.Context) (slimeclient.Runbook, error) { return w.be.SetRunbookPick(c, id, on) }, func(rb slimeclient.Runbook, err error) {
 		p := w.runbooksPage()
 		if err != nil {
 			w.warn(hostError(err))
@@ -669,7 +671,7 @@ func (w *workspace) openConversationMenu() {
 	}
 	p.menuNB = false
 	p.menu, p.menuLoad, p.menuItems, p.menuEmpty = true, true, nil, ""
-	callIf(w, func() bool { return p.menu }, w.be.Conversations, func(l keelclient.ConversationList, err error) {
+	callIf(w, func() bool { return p.menu }, w.be.Conversations, func(l slimeclient.ConversationList, err error) {
 		p.menuLoad = false
 		switch {
 		case err != nil:
@@ -691,7 +693,7 @@ func (w *workspace) openNotebookMenu() {
 	p.menuNB = !p.menuNB
 }
 
-// draftRunbook makes an unsaved draft from a saved conversation: keel serve turns its proposals into steps. Nothing is kept
+// draftRunbook makes an unsaved draft from a saved conversation: slime serve turns its proposals into steps. Nothing is kept
 // until the user presses Save, and the draft starts with Agent may pick off.
 func (w *workspace) draftRunbook(conversationID string) {
 	p := w.runbooksPage()
@@ -700,14 +702,14 @@ func (w *workspace) draftRunbook(conversationID string) {
 	}
 	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
-		call(w, func(c context.Context) (keelclient.RunbookDraft, error) { return w.be.DraftRunbook(c, conversationID) }, func(d keelclient.RunbookDraft, err error) {
+		call(w, func(c context.Context) (slimeclient.RunbookDraft, error) { return w.be.DraftRunbook(c, conversationID) }, func(d slimeclient.RunbookDraft, err error) {
 			w.showDraft(p, d, err)
 		})
 	})
 }
 
 // draftRunbookOfNotebook makes the same draft from a notebook: its headings become steps and its shell blocks their
-// commands. One request with the notebook's id; keel serve reads the text it stores. Typing in the notebook is saved first,
+// commands. One request with the notebook's id; slime serve reads the text it stores. Typing in the notebook is saved first,
 // so the draft is of what the user sees. Nothing is kept until the user presses Save in the editor.
 func (w *workspace) draftRunbookOfNotebook(notebookID string) {
 	p := w.runbooksPage()
@@ -717,9 +719,9 @@ func (w *workspace) draftRunbookOfNotebook(notebookID string) {
 	p.menu, p.menuNB = false, false
 	w.leaveEditor(p, func() {
 		w.nbFlushID(notebookID, func() {
-			call(w, func(c context.Context) (keelclient.RunbookDraft, error) {
+			call(w, func(c context.Context) (slimeclient.RunbookDraft, error) {
 				return w.be.DraftRunbookOfNotebook(c, notebookID)
-			}, func(d keelclient.RunbookDraft, err error) {
+			}, func(d slimeclient.RunbookDraft, err error) {
 				w.showDraft(p, d, err)
 			})
 		})
@@ -727,11 +729,11 @@ func (w *workspace) draftRunbookOfNotebook(notebookID string) {
 }
 
 // showDraft opens a draft in the editor, or says why there is none (a 422 is "nothing to make steps from").
-func (w *workspace) showDraft(p *runbooksPage, d keelclient.RunbookDraft, err error) {
+func (w *workspace) showDraft(p *runbooksPage, d slimeclient.RunbookDraft, err error) {
 	if w.closed {
 		return
 	}
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	switch {
 	case errors.As(err, &se) && se.Code == 422:
 		w.warn("Nothing to make steps from: no headings or shell blocks, or no proposals.")

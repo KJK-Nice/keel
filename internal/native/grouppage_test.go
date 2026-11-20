@@ -9,19 +9,19 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Group page on the fake backend: its hosts and roles, notes, variables, the list of runbooks and the Ansible drawer, and
-// what each action sends. Every value is made up; a secret-looking one is refused by the fake as keel serve refuses it.
+// what each action sends. Every value is made up; a secret-looking one is refused by the fake as slime serve refuses it.
 
 func groupRig(t *testing.T) *rig {
 	t.Helper()
 	r := folderRig(t)
 	r.tt.SetSize(1280, 1800) // the page is long: every control is on screen
-	r.fb.mem.runbooks = []keelclient.Runbook{
-		{ID: "rb1", Name: "Restart workers", Steps: []keelclient.RunbookStep{{ID: "s1", Title: "Restart", Command: "echo restart", Role: "worker"}, {ID: "s2", Title: "Check", Command: "echo check", Role: "control-plane"}}},
-		{ID: "rb2", Name: "Look around", Steps: []keelclient.RunbookStep{{ID: "s1", Title: "Look", Command: "echo look"}}},
+	r.fb.mem.runbooks = []slimeclient.Runbook{
+		{ID: "rb1", Name: "Restart workers", Steps: []slimeclient.RunbookStep{{ID: "s1", Title: "Restart", Command: "echo restart", Role: "worker"}, {ID: "s2", Title: "Check", Command: "echo check", Role: "control-plane"}}},
+		{ID: "rb2", Name: "Look around", Steps: []slimeclient.RunbookStep{{ID: "s1", Title: "Look", Command: "echo look"}}},
 		{ID: "rb3", Name: "Empty", Steps: nil},
 	}
 	return r
@@ -125,14 +125,14 @@ func TestARoleOfTwoWordsIsRefusedBeforeARequestAndKeelServesRefusalIsShown(t *te
 	if len(r.fb.grp.roleReqs) != 0 || p.err != groupRoleBad || !r.tt.HasText(groupRoleBad) {
 		t.Fatalf("requests %v, error %q", r.fb.grp.roleReqs, p.err)
 	}
-	// An empty field leaves it. keel serve's own refusal is shown as it said it.
+	// An empty field leaves it. slime serve's own refusal is shown as it said it.
 	p.roleFor = "h1"
 	p.roleText = ""
 	r.w.endNewRole(p, true)
 	if p.roleFor != "" || len(r.fb.grp.roleReqs) != 0 {
 		t.Error("an empty role sent a request or kept the field")
 	}
-	r.fb.grp.roleErr = &keelclient.StatusError{Code: 400, Msg: "a group has at most 16 roles"}
+	r.fb.grp.roleErr = &slimeclient.StatusError{Code: 400, Msg: "a group has at most 16 roles"}
 	r.w.setRole(p, "h1", "extra")
 	r.tt.Frame()
 	if !r.tt.HasText("a group has at most 16 roles") {
@@ -172,7 +172,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	r.fill(t, "Variable value", "1.31.2")
 	r.click(t, "Add variable")
 	g, _ := groupByID(r.fb.groups, "infra")
-	if len(g.Vars) != 1 || g.Vars[0] != (keelclient.GroupVar{Name: "k8s_version", Value: "1.31.2"}) {
+	if len(g.Vars) != 1 || g.Vars[0] != (slimeclient.GroupVar{Name: "k8s_version", Value: "1.31.2"}) {
 		t.Fatalf("variables %+v", g.Vars)
 	}
 	if miss := r.lacks("k8s_version", "1.31.2"); len(miss) > 0 || p.varName != "" || p.varValue != "" {
@@ -203,7 +203,7 @@ func TestVariablesAreAddedEditedAndRemovedAndASecretLookingValueIsRefused(t *tes
 	if p.varsErr != varNameHelp || len(r.fb.grp.varReqs) != n {
 		t.Errorf("a bad name: error %q, requests %v", p.varsErr, r.fb.grp.varReqs)
 	}
-	// A secret-looking value is keel serve's refusal: the words are shown, the value is not kept, listed or exported.
+	// A secret-looking value is slime serve's refusal: the words are shown, the value is not kept, listed or exported.
 	r.fill(t, "Variable name", "api_token")
 	r.fill(t, "Variable value", fakeVarSecret)
 	r.click(t, "Add variable")
@@ -263,19 +263,19 @@ func TestTheRunbookListOffersRunbooksWithStepsAndTheirRoles(t *testing.T) {
 
 func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	r := groupRig(t)
-	r.fb.grp.files = []keelclient.ExportFile{
-		{Name: "inventory.ini", Kind: "inventory", Lines: 3, Content: "[infra]\npg-1\n# old_pw: left out: its value is also in Keel's vault\n"},
+	r.fb.grp.files = []slimeclient.ExportFile{
+		{Name: "inventory.ini", Kind: "inventory", Lines: 3, Content: "[infra]\npg-1\n# old_pw: left out: its value is also in Slime's vault\n"},
 		{Name: "playbooks/restart.yml", Kind: "playbook", Lines: 2, Content: "- hosts: infra\n"},
 	}
 	p := r.openGroup(t, "Infra")
 	r.click(t, "Export to Ansible")
 	if !p.ex.open || len(r.fb.grp.ansibleQs) == 0 {
-		t.Fatal("the drawer did not ask keel serve for the export")
+		t.Fatal("the drawer did not ask slime serve for the export")
 	}
 	if q := r.fb.grp.ansibleQs[len(r.fb.grp.ansibleQs)-1]; q.Format != "ini" || q.RunbookID != "" || !q.User || q.Jump {
 		t.Errorf("first query %+v", q)
 	}
-	for _, s := range []string{groupExportHelp, "inventory.ini", "playbooks/restart.yml", "3 lines · INI · from this folder's roles and variables", "# old_pw: left out: its value is also in Keel's vault", "Try it first: ansible-playbook -i inventory.ini playbooks/restart.yml --check", groupExportSafe} {
+	for _, s := range []string{groupExportHelp, "inventory.ini", "playbooks/restart.yml", "3 lines · INI · from this folder's roles and variables", "# old_pw: left out: its value is also in Slime's vault", "Try it first: ansible-playbook -i inventory.ini playbooks/restart.yml --check", groupExportSafe} {
 		if !r.tt.HasText(s) {
 			t.Errorf("the drawer lacks %q: %v", s, r.tt.Texts())
 		}
@@ -288,7 +288,7 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 	r.click(t, "Use ansible_user from each host's saved user")
 	r.click(t, "Include the jump host as ansible_ssh_common_args")
 	last := r.fb.grp.ansibleQs[len(r.fb.grp.ansibleQs)-1]
-	if want := (keelclient.AnsibleQuery{Format: "yaml", RunbookID: "rb1", Mode: "parallel", User: false, Jump: true}); last != want {
+	if want := (slimeclient.AnsibleQuery{Format: "yaml", RunbookID: "rb1", Mode: "parallel", User: false, Jump: true}); last != want {
 		t.Errorf("last query %+v, want %+v", last, want)
 	}
 	if p.ex.file != 1 {
@@ -321,7 +321,7 @@ func TestTheAnsibleDrawerShowsWhatKeelServeBuiltAndCopiesIt(t *testing.T) {
 // file's own name; a cancelled dialog writes nothing; a failure is said.
 func TestTheAnsibleDrawersDownloadSavesTheShownFileWhereTheDialogSays(t *testing.T) {
 	r := groupRig(t)
-	r.fb.grp.files = []keelclient.ExportFile{
+	r.fb.grp.files = []slimeclient.ExportFile{
 		{Name: "inventory.ini", Kind: "inventory", Lines: 1, Content: "[infra]\npg-1\n"},
 		{Name: "playbooks/restart.yml", Kind: "playbook", Lines: 1, Content: "- hosts: infra\n"},
 	}
@@ -385,7 +385,7 @@ func TestTheGroupPageComesBackWithTheWorkspace(t *testing.T) {
 func TestAGroupPageForAFolderThatIsGoneSaysSo(t *testing.T) {
 	r := groupRig(t)
 	p := r.openGroup(t, "Infra")
-	r.fb.groups = slices.DeleteFunc(r.fb.groups, func(g keelclient.Group) bool { return g.ID == "infra" })
+	r.fb.groups = slices.DeleteFunc(r.fb.groups, func(g slimeclient.Group) bool { return g.ID == "infra" })
 	r.w.loadGroupPage()
 	r.tt.Frame()
 	if p.err == "" {
@@ -417,7 +417,7 @@ func TestTheRunbookEditorEditsARoleOneHostOnlyAndCaptures(t *testing.T) {
 	}
 	in := r.fb.mem.rbSaved[0]
 	s1 := in.Steps[0]
-	if s1.Role != "control-plane" || !s1.OneHost || !slices.Equal(s1.Captures, []keelclient.StepCapture{{Name: "join_token", Pattern: `--token\s+(\S+)`}}) {
+	if s1.Role != "control-plane" || !s1.OneHost || !slices.Equal(s1.Captures, []slimeclient.StepCapture{{Name: "join_token", Pattern: `--token\s+(\S+)`}}) {
 		t.Errorf("step 1 %+v", s1)
 	}
 	if in.Steps[1].Role != "worker" || in.Steps[1].OneHost || len(in.Steps[1].Captures) != 0 || in.Steps[1].Command != "kubeadm join --token {{join_token}}" {
@@ -428,7 +428,7 @@ func TestTheRunbookEditorEditsARoleOneHostOnlyAndCaptures(t *testing.T) {
 	if got := r.w.runbooksPage().ed.steps[0].captures; len(got) != 0 {
 		t.Fatalf("Remove capture left %v", got)
 	}
-	r.w.runbooksPage().ed.steps[1].captures = []keelclient.StepCapture{{Name: "x", Pattern: "(a)"}}
+	r.w.runbooksPage().ed.steps[1].captures = []slimeclient.StepCapture{{Name: "x", Pattern: "(a)"}}
 	r.tt.Frame()
 	n := len(r.fb.mem.rbSaved)
 	r.click(t, "Capture a value") // step 1's: the first button

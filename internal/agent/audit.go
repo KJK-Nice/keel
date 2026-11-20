@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"keel/internal/agent/redact"
-	"keel/internal/applog"
-	"keel/internal/shellmark"
+	"slime/internal/agent/redact"
+	"slime/internal/applog"
+	"slime/internal/shellmark"
 )
 
 // Logger is where audit entries go. *applog.Book (keel.log) satisfies it.
@@ -27,7 +27,7 @@ type ScrollbackSource interface {
 }
 
 // CommandSource is a ScrollbackSource that also knows a pane's last
-// command from its shell-integration marks (OSC 133). keel serve's pane
+// command from its shell-integration marks (OSC 133). slime serve's pane
 // source satisfies it; a source without it reads the tail as before.
 type CommandSource interface {
 	LastCommand(sessionID string) (shellmark.Block, bool)
@@ -176,7 +176,7 @@ func (c CommandEnd) reported() string {
 // the last lines of the scrollback.
 //
 // source is "" for the agent panel; another reader names itself
-// ("claude-code" for keel mcp), and the agent.read entry records it
+// ("claude-code" for slime mcp), and the agent.read entry records it
 // (Source, and "for <source>" in the message).
 func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int, r *redact.Redactor, source string) (Excerpt, error) {
 	if !scope.Allows(p) {
@@ -200,7 +200,7 @@ func (a *Auditor) ReadPane(src ScrollbackSource, scope Scope, p Pane, lines int,
 // exit status, the cwd and where the output starts and ends come from the
 // remote's own output, and a program (cat of a crafted file) can print
 // fake ones. So the excerpt never uses a prompt-like "$ " that would read
-// as Keel's own statement. And the excerpt always covers at least the
+// as Slime's own statement. And the excerpt always covers at least the
 // pane's plain tail (the last lines setting): what the marked parts do not
 // show of it is shown first, as the pane's earlier text, raw. So marks a
 // program printed (a fake end, then a fake command and output) cannot
@@ -456,7 +456,7 @@ type Timing struct {
 // (Read-only, Changes state, Destructive); source is "" for the agent
 // panel, else who or what it came from: "generated" (the model provider),
 // "history" (a command from the pane's scrollback), "snippet" (a snippet
-// marked agent-usable), "claude-code" (keel mcp). t is the time an in-pane
+// marked agent-usable), "claude-code" (slime mcp). t is the time an in-pane
 // suggestion's calls took, so a slow one shows where the time went; the
 // zero Timing otherwise. It logs no content.
 func (a *Auditor) Suggest(p Pane, rep redact.Report, risk, source string, t Timing) {

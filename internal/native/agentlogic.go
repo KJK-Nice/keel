@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/randid"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/randid"
+	"slime/internal/wire"
 )
 
 // The agent panel's pure rules: scope, counts, the bytes as the card draws them, the trace, and what a proposal's card
@@ -17,7 +17,7 @@ import (
 // agentconvlogic.go.
 //
 // Nothing here types. typeOffer and typeGate only decide whether the card shows Type into pane and whether a press may
-// open the Approve before type dialog; keel serve checks the same rules again before it writes (agent service
+// open the Approve before type dialog; slime serve checks the same rules again before it writes (agent service
 // AuthorizeType).
 
 // agentPane is a pane as the panel sees it: the session, how the picker and the card name it, and
@@ -111,7 +111,7 @@ func toggleScope(ids []string, p *agentPane) []string {
 	return append(out, p.sessionID)
 }
 
-// lineCount counts lines the way keel serve logs them: a trailing newline ends the last line, it does not start one.
+// lineCount counts lines the way slime serve logs them: a trailing newline ends the last line, it does not start one.
 func lineCount(bytes string) int {
 	s := strings.TrimRight(bytes, "\n")
 	if s == "" {
@@ -176,16 +176,16 @@ func bytesText(bytes string) string {
 // riskBadge is the card's kind: Read-only, Changes state or Destructive. An unknown kind is never shown as read-only.
 func riskBadge(risk string) (label, kind string) {
 	switch risk {
-	case keelclient.RiskReadOnly:
+	case slimeclient.RiskReadOnly:
 		return "Read-only", "tide"
-	case keelclient.RiskDestructive:
+	case slimeclient.RiskDestructive:
 		return "Destructive", "flare"
 	}
 	return "Changes state", "signal"
 }
 
 // changesState reports a rated command that is not read-only; an unrated one ("") is not counted.
-func changesState(risk string) bool { return risk != "" && risk != keelclient.RiskReadOnly }
+func changesState(risk string) bool { return risk != "" && risk != slimeclient.RiskReadOnly }
 
 func redactedNote(counts map[string]int) string {
 	held, n := 0, 0
@@ -201,13 +201,13 @@ func redactedNote(counts map[string]int) string {
 		out = fmt.Sprintf(" · %d redacted", n)
 	}
 	if held > 0 {
-		out += " · " + countWord(held, "value", "values") + " withheld by Keel"
+		out += " · " + countWord(held, "value", "values") + " withheld by Slime"
 	}
 	return out
 }
 
 // traceText is one line of the trace: what the agent read, or why not.
-func traceText(s keelclient.TraceStep) string {
+func traceText(s slimeclient.TraceStep) string {
 	switch s.Status {
 	case wire.TraceNotes:
 		switch s.NoteKind {
@@ -253,7 +253,7 @@ const (
 	offerPlaceholder = "placeholder"       // no Type: it holds [secret:N], which a shell would read as a pattern
 )
 
-func typeOffer(p keelclient.Proposal, pane *agentPane) string {
+func typeOffer(p slimeclient.Proposal, pane *agentPane) string {
 	switch {
 	case p.Expired:
 		return offerExpired
@@ -277,7 +277,7 @@ func typeOffer(p keelclient.Proposal, pane *agentPane) string {
 const gateShift = "needs-shift"
 
 // typeGate says whether a Type press may open the Approve before type dialog, and if not why.
-func typeGate(p keelclient.Proposal, pane *agentPane, shift bool) (ok bool, reason string) {
+func typeGate(p slimeclient.Proposal, pane *agentPane, shift bool) (ok bool, reason string) {
 	switch offer := typeOffer(p, pane); {
 	case offer == offerType:
 		return true, ""
@@ -291,8 +291,8 @@ func typeGate(p keelclient.Proposal, pane *agentPane, shift bool) (ok bool, reas
 }
 
 // shiftReason says why a proposal needs ⇧.
-func shiftReason(p keelclient.Proposal) string {
-	if p.Risk == keelclient.RiskDestructive {
+func shiftReason(p slimeclient.Proposal) string {
+	if p.Risk == slimeclient.RiskDestructive {
 		return "Destructive"
 	}
 	return "Changes state on a production host"
@@ -312,7 +312,7 @@ func atTrigger(s string) bool {
 	return r == ' ' || r == '\n' || r == '\t' || r == '\r'
 }
 
-// newConversationID makes an id for keel serve's in-memory history: it matches the server's ^[A-Za-z0-9_-]{8,64}$.
+// newConversationID makes an id for slime serve's in-memory history: it matches the server's ^[A-Za-z0-9_-]{8,64}$.
 func newConversationID() string { return "c" + randid.Hex(10) }
 
 // cutNotice is the line under an answer the provider cut before the model finished it: a cut answer is never shown as

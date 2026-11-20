@@ -13,12 +13,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/sharelink"
-	"keel/internal/signal"
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/sharelink"
+	"slime/internal/signal"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // shareRig is a session with a fake PTY, a local client watching for join
@@ -35,7 +35,7 @@ type shareRig struct {
 
 func newShareRig(t *testing.T) *shareRig {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -382,7 +382,7 @@ func TestShareRejectsUnverifiedAnswer(t *testing.T) {
 	}
 }
 
-// Over a real share, a joined peer cannot make keel serve type for it or
+// Over a real share, a joined peer cannot make slime serve type for it or
 // ask the agent, even while it drives: every inject and agent frame it
 // sends over the data channel is refused, it is given no nonce, it is told
 // nothing of the host, and nothing reaches the PTY but its own keystrokes.

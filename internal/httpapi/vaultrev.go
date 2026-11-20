@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"sync"
 
-	"keel/internal/randid"
+	"slime/internal/randid"
 )
 
 // vaultRev names the vault's state as of now: GET /api/vault reports it as "rev", and the native client polls it to
@@ -12,7 +12,7 @@ import (
 // store.OnChange and tunnel.Runtime.OnChange).
 type vaultRev struct {
 	mu sync.Mutex
-	// epoch and changes make up the rev: changes counts bump calls, epoch tells this keel serve process from the
+	// epoch and changes make up the rev: changes counts bump calls, epoch tells this slime serve process from the
 	// next, whose count restarts.
 	epoch   string
 	changes uint64

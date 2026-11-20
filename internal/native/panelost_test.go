@@ -3,7 +3,7 @@ package native
 import (
 	"testing"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Issue #139: while a pane's session is not ready (connecting, failed, lost) its terminal view is not in the

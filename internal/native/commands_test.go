@@ -27,7 +27,7 @@ Focus View|CmdOrCtrl+Shift+enter
 Zoom In|CmdOrCtrl+=
 Zoom Out|CmdOrCtrl+-
 Actual Size|CmdOrCtrl+0
-Stop Keel runtime|`
+Stop Slime runtime|`
 
 const wantPaletteMac = `New tab|Tabs|⌘T|add-01
 New Local Shell|Tabs||
@@ -64,7 +64,7 @@ Smaller text|Terminal|⌘-|
 Reset text size|Terminal|⌘0|
 Share session (join link)|Terminal||
 Stop sharing this session|Terminal||
-Stop Keel runtime|Terminal||`
+Stop Slime runtime|Terminal||`
 
 const wantKeyboardMac = `General|Command palette|⌘K
 Tabs|New tab|⌘T

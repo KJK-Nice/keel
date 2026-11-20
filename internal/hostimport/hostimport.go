@@ -15,11 +15,11 @@ import (
 	"strconv"
 	"strings"
 
-	"keel/internal/sshconfig"
-	"keel/internal/store"
+	"slime/internal/sshconfig"
+	"slime/internal/store"
 )
 
-// ErrNotSetUp is returned when keel serve has no ssh folder to read.
+// ErrNotSetUp is returned when slime serve has no ssh folder to read.
 var ErrNotSetUp = errors.New("ssh config import is not set up")
 
 // Host is one config host as the import screen lists it.
@@ -199,7 +199,7 @@ func alreadySaved(saved []store.Host, h sshconfig.Host) bool {
 }
 
 // Request names what the user picked. It carries no addresses or paths of
-// its own: Import parses the config again, so a request cannot make keel
+// its own: Import parses the config again, so a request cannot make slime
 // serve read a file the config does not name.
 type Request struct {
 	Hosts []string `json:"hosts"`
@@ -223,7 +223,7 @@ type Failure struct {
 }
 
 // Result is what Import added. Hosts and Identities are as the store
-// returned them: the caller redacts them before they leave keel serve.
+// returned them: the caller redacts them before they leave slime serve.
 type Result struct {
 	Path       string
 	Hosts      []store.Host
@@ -242,7 +242,7 @@ func (e *RequestError) Error() string { return e.Msg }
 type JumpError struct{ Hosts []string }
 
 func (e *JumpError) Error() string {
-	return "Keel cannot keep the jump host of " + strings.Join(e.Hosts, ", ") + ": add its jump host too, or tick Without the jump to add it as a direct host"
+	return "Slime cannot keep the jump host of " + strings.Join(e.Hosts, ", ") + ": add its jump host too, or tick Without the jump to add it as a direct host"
 }
 
 // KeyError is a key that could not be read. Kind is "passphrase" (one is

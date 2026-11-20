@@ -16,7 +16,7 @@ import (
 
 	"filippo.io/age"
 
-	"keel/internal/limits"
+	"slime/internal/limits"
 )
 
 // Notes for the agent (docs/ui-redesign.md §15): host notes, about one

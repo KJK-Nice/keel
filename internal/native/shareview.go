@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // The Share controls and popover (§5.6), and the Allow / Deny and control-request prompts.

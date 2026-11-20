@@ -24,10 +24,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/authtoken"
-	"keel/internal/native/joinpeer"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/authtoken"
+	"slime/internal/native/joinpeer"
+	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 const e2eWait = 15 * time.Second
@@ -62,7 +62,7 @@ func freePort(t *testing.T) int {
 	}
 }
 
-// e2ePass is the scratch vault passphrase of these tests (KEEL_VAULT_PASSPHRASE of a daemon, typed by the one
+// e2ePass is the scratch vault passphrase of these tests (SLIME_VAULT_PASSPHRASE of a daemon, typed by the one
 // that tests Unlock). It opens nothing but a vault under .scratch-native; no test prints it.
 const e2ePass = "native-e2e-scratch"
 
@@ -77,7 +77,7 @@ func scratchDir(t *testing.T) string {
 	return dir
 }
 
-// startServe runs a scratch keel serve (bin/keel) and stops it when the test ends. A passphrase
+// startServe runs a scratch slime serve (bin/slime) and stops it when the test ends. A passphrase
 // opens a scratch vault; without one the vault is locked.
 func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 	t.Helper()
@@ -86,23 +86,23 @@ func startServe(t *testing.T, passphrase bool) (addr, dataDir string) {
 	return addr, filepath.Join(dir, "data")
 }
 
-// startServeAt runs a keel serve on dir/data, with its log in dir/<name>.log, and returns its address and a
+// startServeAt runs a slime serve on dir/data, with its log in dir/<name>.log, and returns its address and a
 // function that stops it (the cleanup does too). With a passphrase the daemon opens, or creates, the scratch
 // vault; without one a vault that exists stays locked.
 func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...string) (addr string, stop func()) {
 	t.Helper()
 	root := repoRoot(t)
-	bin := filepath.Join(root, "bin", "keel")
+	bin := filepath.Join(root, "bin", "slime")
 	if _, err := os.Stat(bin); err != nil {
-		t.Fatalf("%s is missing: run make native-e2e (it builds bin/keel first)", bin)
+		t.Fatalf("%s is missing: run make native-e2e (it builds bin/slime first)", bin)
 	}
 	dataDir := filepath.Join(dir, "data")
 	addr = fmt.Sprintf("127.0.0.1:%d", freePort(t))
-	// KEEL_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from keel serve's in-process fake and
+	// SLIME_AGENT_PROVIDER=fake on every daemon a test starts: the agent then answers from slime serve's in-process fake and
 	// nothing is sent to a model provider, whatever key a scenario stores (only ever a made-up one).
-	env := append(os.Environ(), "KEEL_ADDR="+addr, "KEEL_DATA="+dataDir, "KEEL_KEYRING=off", "SHELL=/bin/sh", "KEEL_AGENT_PROVIDER=fake")
+	env := append(os.Environ(), "SLIME_ADDR="+addr, "SLIME_DATA="+dataDir, "SLIME_KEYRING=off", "SHELL=/bin/sh", "SLIME_AGENT_PROVIDER=fake")
 	if passphrase {
-		env = append(env, "KEEL_VAULT_PASSPHRASE="+e2ePass)
+		env = append(env, "SLIME_VAULT_PASSPHRASE="+e2ePass)
 	}
 	env = append(env, extraEnv...)
 	logf, err := os.Create(filepath.Join(dir, name+".log"))
@@ -142,11 +142,11 @@ func startServeAt(t *testing.T, dir, name string, passphrase bool, extraEnv ...s
 		}
 		select {
 		case <-done:
-			t.Fatalf("keel serve exited early; see %s", filepath.Join(dir, name+".log"))
+			t.Fatalf("slime serve exited early; see %s", filepath.Join(dir, name+".log"))
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	t.Fatalf("keel serve did not come up; see %s", filepath.Join(dir, name+".log"))
+	t.Fatalf("slime serve did not come up; see %s", filepath.Join(dir, name+".log"))
 	return
 }
 
@@ -156,7 +156,7 @@ type countingBackend struct {
 	sessions int
 }
 
-func (c *countingBackend) Sessions(ctx context.Context) ([]keelclient.Session, error) {
+func (c *countingBackend) Sessions(ctx context.Context) ([]slimeclient.Session, error) {
 	c.sessions++
 	return c.backend.Sessions(ctx)
 }
@@ -166,7 +166,7 @@ type win struct {
 	t     *testing.T
 	w     *workspace
 	tt    *ui.Tester
-	cl    *keelclient.Client
+	cl    *slimeclient.Client
 	addr  string
 	token string
 	posts chan func()
@@ -187,7 +187,7 @@ func newWinH(t *testing.T, addr, dataDir string, wrap func(backend) backend, hei
 	if err != nil {
 		t.Fatal("read token: ", err)
 	}
-	e := &win{t: t, addr: addr, token: tok, cl: keelclient.NewAt(addr, tok), posts: make(chan func(), 4096)}
+	e := &win{t: t, addr: addr, token: tok, cl: slimeclient.NewAt(addr, tok), posts: make(chan func(), 4096)}
 	var be backend = clientBackend{e.cl}
 	if wrap != nil {
 		be = wrap(be)
@@ -277,7 +277,7 @@ func (e *win) typeLine(s string) {
 	e.key(0, ui.KeyEnter)
 }
 
-func (e *win) sessions() []keelclient.Session {
+func (e *win) sessions() []slimeclient.Session {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -574,7 +574,7 @@ func TestE2ELockedVault(t *testing.T) {
 	addr, dir := startServe(t, false)
 	var cb *countingBackend
 	e := newWin(t, addr, dir, func(b backend) backend { cb = &countingBackend{backend: b}; return cb })
-	e.pump(func() bool { return e.tt.HasText("Welcome to Keel") }, "First run step 1")
+	e.pump(func() bool { return e.tt.HasText("Welcome to Slime") }, "First run step 1")
 	e.settle(300 * time.Millisecond)
 	if cb.sessions != 0 {
 		t.Errorf("Sessions was called %d times on a locked vault", cb.sessions)
@@ -625,14 +625,14 @@ func pumpAll(t *testing.T, wins []*win, cond func() bool, what string) {
 }
 
 // snap is the first pane's last report in the active tab.
-func (e *win) snap() keelclient.State {
+func (e *win) snap() slimeclient.State {
 	if p := e.w.focusedPane(); p != nil {
 		return p.conn.Snapshot()
 	}
-	return keelclient.State{}
+	return slimeclient.State{}
 }
 
-// sshFixture is a keel-sshtest (a throwaway SSH server on loopback) and the saved host that points at it.
+// sshFixture is a slime-sshtest (a throwaway SSH server on loopback) and the saved host that points at it.
 type sshFixture struct {
 	cmd         *exec.Cmd
 	done        chan struct{}
@@ -650,9 +650,9 @@ type sshFixture struct {
 	}
 }
 
-// startSSH runs bin/keel-sshtest, creates a password host for its target on the daemon through
+// startSSH runs bin/slime-sshtest, creates a password host for its target on the daemon through
 // POST /api/hosts (the client itself never creates hosts) and returns the fixture. The password is
-// read from the file keel-sshtest writes and goes only into that request.
+// read from the file slime-sshtest writes and goes only into that request.
 func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 	t.Helper()
 	f := startSSHOnly(t, dataDir)
@@ -678,18 +678,18 @@ func startSSH(t *testing.T, addr, dataDir string) *sshFixture {
 	return f
 }
 
-// startSSHOnly runs bin/keel-sshtest and reads its target; no host is saved. The password is in the fixture,
+// startSSHOnly runs bin/slime-sshtest and reads its target; no host is saved. The password is in the fixture,
 // for a test that types it into a field. It is never printed or logged.
 func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 	t.Helper()
 	root := repoRoot(t)
-	bin := filepath.Join(root, "bin", "keel-sshtest")
+	bin := filepath.Join(root, "bin", "slime-sshtest")
 	if _, err := os.Stat(bin); err != nil {
 		t.Fatalf("%s is missing: run make native-e2e (it builds it)", bin)
 	}
 	out := filepath.Join(filepath.Dir(dataDir), "sshtest.json")
 	cmd := exec.Command(bin, "-out", out)
-	cmd.Env = append(os.Environ(), "KEEL_KEYRING=off")
+	cmd.Env = append(os.Environ(), "SLIME_KEYRING=off")
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -709,7 +709,7 @@ func startSSHOnly(t *testing.T, dataDir string) *sshFixture {
 			break
 		}
 		if time.Now().After(end) {
-			t.Fatal("keel-sshtest did not write its file")
+			t.Fatal("slime-sshtest did not write its file")
 		}
 	}
 	os.Remove(out) // it holds the fixture's password in the clear: it stays only in memory, never in a file of the run
@@ -771,7 +771,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	}
 	b.shot("TestE2EFollowerAndTakeControl-following")
 
-	// The follower's keystrokes are dropped by keel serve.
+	// The follower's keystrokes are dropped by slime serve.
 	b.clickBody("1")
 	b.typeLine("echo from-b")
 	for end := time.Now().Add(500 * time.Millisecond); time.Now().Before(end); time.Sleep(20 * time.Millisecond) {
@@ -783,7 +783,7 @@ func TestE2EFollowerAndTakeControl(t *testing.T) {
 	}
 
 	// A (the owner) passes control to B with a control frame, not a PTY write.
-	conn := a.w.focusedPane().conn.(*keelclient.Conn)
+	conn := a.w.focusedPane().conn.(*slimeclient.Conn)
 	if err := conn.GrantControl(b.snap().YouID); err != nil {
 		t.Fatal(err)
 	}
@@ -909,7 +909,7 @@ func TestE2ECopySSHCommand(t *testing.T) {
 
 // ---- tabs, panes and the workspace ----
 
-// sessionIDs is the ids keel serve lists.
+// sessionIDs is the ids slime serve lists.
 func (e *win) sessionIDs() (ids []string) {
 	for _, s := range e.sessions() {
 		ids = append(ids, s.ID)
@@ -1537,7 +1537,7 @@ func TestE2EPastedSSHCommand(t *testing.T) {
 	target := fmt.Sprintf("%s@%s:%d", f.user, f.host, f.port)
 	for _, s := range []string{
 		target, "Nothing has run.", "Left out (2), not applied", "-o StrictHostKeyChecking=no", "changes host key trust",
-		"uptime", "remote command; Keel opens a shell and does not run it", "Connect once",
+		"uptime", "remote command; Slime opens a shell and does not run it", "Connect once",
 	} {
 		if !e.tt.HasText(s) {
 			t.Errorf("the offer lacks %q", s)
@@ -1582,7 +1582,7 @@ func TestE2EPastedSSHCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var saved []keelclient.Host
+	var saved []slimeclient.Host
 	for _, h := range hosts {
 		if h.Group == "Quick connect" {
 			saved = append(saved, h)
@@ -1617,7 +1617,7 @@ func (e *win) raw(method, path string, body any) (int, string) {
 	return resp.StatusCode, string(b)
 }
 
-func (e *win) hostNamed(name string) (keelclient.Host, bool) {
+func (e *win) hostNamed(name string) (slimeclient.Host, bool) {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -1630,7 +1630,7 @@ func (e *win) hostNamed(name string) (keelclient.Host, bool) {
 			return h, true
 		}
 	}
-	return keelclient.Host{}, false
+	return slimeclient.Host{}, false
 }
 
 func (e *win) texts() string { return strings.Join(e.tt.Texts(), "\n") }
@@ -1665,10 +1665,10 @@ func TestE2EUnlock(t *testing.T) {
 	var cb *countingBackend
 	e := newWin(t, addr, dataDir, func(b backend) backend { cb = &countingBackend{backend: b}; return cb })
 	e.pump(func() bool { return e.tt.HasText("Unlock your vault") }, "the Unlock screen")
-	if e.tt.HasText("Welcome to Keel") || e.tt.HasText("Filter hosts") {
+	if e.tt.HasText("Welcome to Slime") || e.tt.HasText("Filter hosts") {
 		t.Fatal("First run or the workspace shows with the Unlock screen")
 	}
-	if !e.tt.HasText("Keel was started with KEEL_KEYRING=off, so it needs your passphrase.") || !e.tt.Focused("Vault passphrase") {
+	if !e.tt.HasText("Slime was started with SLIME_KEYRING=off, so it needs your passphrase.") || !e.tt.Focused("Vault passphrase") {
 		t.Error("the banner of a vault opened without the keychain, or the focused field, is missing")
 	}
 	e.settle(300 * time.Millisecond)

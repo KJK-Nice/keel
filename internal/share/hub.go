@@ -17,14 +17,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/runtime"
-	"keel/internal/sessionsock"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/runtime"
+	"slime/internal/sessionsock"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 type Hub struct {
-	// The signal server comes from, strongest first: env (KEEL_SIGNAL for
+	// The signal server comes from, strongest first: env (SLIME_SIGNAL for
 	// this run, or New's argument), saved (Settings · Sharing, SetSaved)
 	// and build (DefaultSignal). saved changes at run time, under mu.
 	env, saved, build string
@@ -105,10 +105,10 @@ var (
 	ErrNoRequest     = errors.New("no such join request (it may have expired)")
 )
 
-// DefaultSignal is the compile-time signaling URL. Finder-launched Keel.app
+// DefaultSignal is the compile-time signaling URL. Finder-launched Slime.app
 // has no shell env, so bake it in:
 //
-//	go build -ldflags "-X keel/internal/share.DefaultSignal=https://…"
+//	go build -ldflags "-X slime/internal/share.DefaultSignal=https://…"
 var DefaultSignal string
 
 // New makes a hub on signalURL, which no saved setting overrides.
@@ -121,7 +121,7 @@ func New(signalURL string, rt *runtime.Runtime) *Hub {
 	}
 }
 
-// ForServe makes keel serve's hub: on signalURL (KEEL_SIGNAL, read by the
+// ForServe makes slime serve's hub: on signalURL (SLIME_SIGNAL, read by the
 // caller) when it is set, falling back to the saved server (SetSaved) and
 // then DefaultSignal.
 func ForServe(signalURL string, rt *runtime.Runtime) *Hub {
@@ -219,7 +219,7 @@ func (h *Hub) JoinURL(sessionID string) string {
 func (h *Hub) Share(sessionID string) (string, error) {
 	signal := h.URL()
 	if signal == "" {
-		return "", errors.New("set a signal server in Settings · Sharing (or KEEL_SIGNAL) to share")
+		return "", errors.New("set a signal server in Settings · Sharing (or SLIME_SIGNAL) to share")
 	}
 	sess, err := h.rt.Get(sessionID)
 	if err != nil {
@@ -700,7 +700,7 @@ func (t *dcTransport) SendBytes(p []byte) error {
 
 // attachDataChannel attaches a joined peer to sess once its data channel
 // opens. The peer is a sessionsock.Joined client: it watches from mark on,
-// drives when the owner hands it control and passes control on. keel serve
+// drives when the owner hands it control and passes control on. slime serve
 // never types for it and tells it nothing of the host.
 func attachDataChannel(sess *runtime.Session, dc *webrtc.DataChannel, name string, mark uint64) {
 	dc.OnOpen(func() {

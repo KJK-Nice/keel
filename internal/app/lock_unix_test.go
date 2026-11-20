@@ -14,8 +14,8 @@ func TestLockDataDirIsExclusive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lockDataDir(dir); err == nil || !strings.Contains(err.Error(), "another keel serve") {
-		t.Fatalf("second lock = %v, want another keel serve error", err)
+	if _, err := lockDataDir(dir); err == nil || !strings.Contains(err.Error(), "another slime serve") {
+		t.Fatalf("second lock = %v, want another slime serve error", err)
 	}
 	release()
 	again, err := lockDataDir(dir)

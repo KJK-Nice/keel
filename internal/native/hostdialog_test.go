@@ -9,8 +9,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/native/slimeclient"
+	"slime/internal/native/sshparse"
 )
 
 // Made-up secrets for the fake backend: they open nothing.
@@ -24,8 +24,8 @@ func hostRig(t *testing.T) *rig {
 	t.Helper()
 	fb := okBackend()
 	fb.hosts = slices.Clone(testHosts)
-	fb.groups = []keelclient.Group{{ID: "g1", Name: "production"}, {ID: "g2", Name: "web", ParentID: "g1"}, {ID: "g3", Name: "Alpha"}}
-	fb.identities = []keelclient.Identity{{ID: "i1", Name: "deploy key", Kind: "key", Username: "deploy"}, {ID: "i2", Name: "ops", Kind: "password"}}
+	fb.groups = []slimeclient.Group{{ID: "g1", Name: "production"}, {ID: "g2", Name: "web", ParentID: "g1"}, {ID: "g3", Name: "Alpha"}}
+	fb.identities = []slimeclient.Identity{{ID: "i1", Name: "deploy key", Kind: "key", Username: "deploy"}, {ID: "i2", Name: "ops", Kind: "password"}}
 	r := newRig(t, fb)
 	r.tt.Frame()
 	return r
@@ -56,7 +56,7 @@ func TestNewHostDialogHasEveryGroupAndLabel(t *testing.T) {
 		"New host", "General", "Label", "Folder", "Color", "Tags", "Connection", "Hostname / IP", "Port", "Username", "Jump host",
 		"Connects to this saved host first, with its own key or password from the vault. One hop.",
 		"Authentication", "Password", "Private key", "Identity", "Local shell",
-		"Host key", "Not saved", "Trusted on first connect; Keel asks again if it changes.",
+		"Host key", "Not saved", "Trusted on first connect; Slime asks again if it changes.",
 		"Session", "Startup command",
 		"Typed once with Enter when a session opens. Not typed again on reconnect, nor for people who join. Do not put secrets here.",
 		"Keepalive", "Keepalive interval (sec)", "Auto reconnect",
@@ -89,13 +89,13 @@ func TestNewHostDialogHasEveryGroupAndLabel(t *testing.T) {
 
 func TestEditHostDialogHasDeleteAndTheSavedValues(t *testing.T) {
 	r := hostRig(t)
-	h := keelclient.Host{ID: "h-pg", Name: "pg-primary", GroupID: "g1", Address: "10.0.0.3", Port: 2222, Username: "dba", AuthType: "key",
+	h := slimeclient.Host{ID: "h-pg", Name: "pg-primary", GroupID: "g1", Address: "10.0.0.3", Port: 2222, Username: "dba", AuthType: "key",
 		Color: "var(--ansi-12)", Tags: []string{"db", "prod"}, StartupCommand: "tmux", KeepAliveSec: -1, NoAutoReconnect: true, AgentReadable: boolp(false)}
-	r.fb.savedKey = keelclient.KnownKey{Hostname: "10.0.0.3:2222", Fingerprint: "SHA256:xyz", KeyType: "ssh-ed25519", Known: true}
+	r.fb.savedKey = slimeclient.KnownKey{Hostname: "10.0.0.3:2222", Fingerprint: "SHA256:xyz", KeyType: "ssh-ed25519", Known: true}
 	r.w.editHost(h)
 	r.tt.Frame()
 	for _, s := range []string{"Edit host", "Delete host", "Trusted", "ED25519", "SHA256:xyz", "Forget host key",
-		"Saved for 10.0.0.3:2222. Keel refuses a different key until you replace it."} {
+		"Saved for 10.0.0.3:2222. Slime refuses a different key until you replace it."} {
 		if !r.tt.HasText(s) {
 			t.Errorf("Edit host: no %q", s)
 		}
@@ -178,7 +178,7 @@ func TestEntryPointsOpenNewHost(t *testing.T) {
 	// The failure banner's Edit host.
 	r := hostRig(t)
 	r.click(t, "host api-1")
-	r.fb.conns[0].st = &keelclient.State{Status: "error", Message: "refused"}
+	r.fb.conns[0].st = &slimeclient.State{Status: "error", Message: "refused"}
 	r.tt.Frame()
 	r.click(t, "Edit host")
 	if d := r.dlg(t); d.id != "h-api" || d.f.name != "api-1" {
@@ -223,7 +223,7 @@ func TestServerRefusalStaysInTheDialog(t *testing.T) {
 	r.tt.Frame()
 	d := r.dlg(t)
 	d.f.name, d.f.address, d.f.username, d.f.password = "x", "a", "u", typedPass
-	r.fb.saveErr = &keelclient.StatusError{Code: 400, Msg: "one hop only"}
+	r.fb.saveErr = &slimeclient.StatusError{Code: 400, Msg: "one hop only"}
 	r.click(t, "Save host")
 	if r.w.hostDlg == nil || !r.tt.HasText("one hop only") {
 		t.Fatal("the server's reason is not shown in the dialog")
@@ -249,7 +249,7 @@ func TestSaveSendsTheExpectedBodies(t *testing.T) {
 		t.Fatalf("%d saves", len(r.fb.saved))
 	}
 	got := r.fb.saved[0]
-	want := keelclient.HostDetail{
+	want := slimeclient.HostDetail{
 		Name: "web-1", GroupID: "g2", Tags: []string{"prod", "gpu"}, Address: "10.9.0.1", Port: 2200, Username: "ubuntu", AuthType: "password",
 		Password: typedPass, Color: "var(--ansi-10)", JumpHost: "h-api", KeepAliveSec: 30, AgentReadable: boolp(true), Production: boolp(false), AgentNotes: boolp(true),
 	}
@@ -348,25 +348,25 @@ func TestEscapeAndCancelSendNothingAndClearSecrets(t *testing.T) {
 
 func TestEachTestOutcomeRendersItsText(t *testing.T) {
 	cases := []struct {
-		res          keelclient.TestResult
+		res          slimeclient.TestResult
 		short, extra string
 	}{
-		{keelclient.TestResult{OK: true, Kind: "ok", LatencyMs: 12}, "Connected in 12 ms", ""},
-		{keelclient.TestResult{Kind: "auth", Message: "no more methods"}, "Authentication failed", "the server refused the password or key. no more methods"},
-		{keelclient.TestResult{Kind: "unknown-host", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:fp", KeyType: "ssh-ed25519", TrustToken: "tt"}, "Host key unknown",
-			"10.0.0.9:22 presented a key Keel has not seen. Compare it with the server's own fingerprint before you trust it."},
-		{keelclient.TestResult{Kind: "host-key-mismatch", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:new", Expected: "SHA256:old", KeyType: "ecdsa-sha2-nistp256", TrustToken: "tt"}, "Host key changed",
+		{slimeclient.TestResult{OK: true, Kind: "ok", LatencyMs: 12}, "Connected in 12 ms", ""},
+		{slimeclient.TestResult{Kind: "auth", Message: "no more methods"}, "Authentication failed", "the server refused the password or key. no more methods"},
+		{slimeclient.TestResult{Kind: "unknown-host", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:fp", KeyType: "ssh-ed25519", TrustToken: "tt"}, "Host key unknown",
+			"10.0.0.9:22 presented a key Slime has not seen. Compare it with the server's own fingerprint before you trust it."},
+		{slimeclient.TestResult{Kind: "host-key-mismatch", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:new", Expected: "SHA256:old", KeyType: "ecdsa-sha2-nistp256", TrustToken: "tt"}, "Host key changed",
 			"10.0.0.9:22 presented a different key than the one saved. Only replace it if you know the server was reinstalled."},
-		{keelclient.TestResult{Kind: "timeout", Message: "i/o timeout"}, "Timed out", "no answer within 10 seconds. i/o timeout"},
-		{keelclient.TestResult{Kind: "dns", Message: "no such host"}, "Host not found", "the name does not resolve. no such host"},
-		{keelclient.TestResult{Kind: "refused", Message: "connection refused"}, "Connection refused", "nothing accepts SSH on that port. connection refused"},
-		{keelclient.TestResult{Kind: "weird", Message: "boom"}, "Could not connect", "boom"},
-		{keelclient.TestResult{Kind: "auth", Hop: "jump", HopName: "bastion", Message: "m"}, "Authentication failed", "Jump host bastion: the server refused the password or key. m"},
-		{keelclient.TestResult{Kind: "refused", Hop: "target", Message: "m"}, "Connection refused", "Through the jump host: nothing accepts SSH on that port. m"},
+		{slimeclient.TestResult{Kind: "timeout", Message: "i/o timeout"}, "Timed out", "no answer within 10 seconds. i/o timeout"},
+		{slimeclient.TestResult{Kind: "dns", Message: "no such host"}, "Host not found", "the name does not resolve. no such host"},
+		{slimeclient.TestResult{Kind: "refused", Message: "connection refused"}, "Connection refused", "nothing accepts SSH on that port. connection refused"},
+		{slimeclient.TestResult{Kind: "weird", Message: "boom"}, "Could not connect", "boom"},
+		{slimeclient.TestResult{Kind: "auth", Hop: "jump", HopName: "bastion", Message: "m"}, "Authentication failed", "Jump host bastion: the server refused the password or key. m"},
+		{slimeclient.TestResult{Kind: "refused", Hop: "target", Message: "m"}, "Connection refused", "Through the jump host: nothing accepts SSH on that port. m"},
 	}
 	for _, c := range cases {
 		r := hostRig(t)
-		r.fb.testReply = []keelclient.TestResult{c.res}
+		r.fb.testReply = []slimeclient.TestResult{c.res}
 		r.w.newHost()
 		r.tt.Frame()
 		d := r.dlg(t)
@@ -397,8 +397,8 @@ func TestEachTestOutcomeRendersItsText(t *testing.T) {
 
 func TestTrustFromATestResultSendsTheOfferAndTestsAgain(t *testing.T) {
 	r := hostRig(t)
-	offer := keelclient.TestResult{Kind: "unknown-host", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:fp", KeyType: "ssh-ed25519", TrustToken: "tt-1"}
-	r.fb.testReply = []keelclient.TestResult{offer, {OK: true, Kind: "ok", LatencyMs: 7}}
+	offer := slimeclient.TestResult{Kind: "unknown-host", Hostname: "10.0.0.9:22", Fingerprint: "SHA256:fp", KeyType: "ssh-ed25519", TrustToken: "tt-1"}
+	r.fb.testReply = []slimeclient.TestResult{offer, {OK: true, Kind: "ok", LatencyMs: 7}}
 	r.w.newHost()
 	r.tt.Frame()
 	d := r.dlg(t)
@@ -427,7 +427,7 @@ func TestTrustFromATestResultSendsTheOfferAndTestsAgain(t *testing.T) {
 
 func TestReplacingAChangedKeyAsksFirst(t *testing.T) {
 	r := hostRig(t)
-	r.fb.testReply = []keelclient.TestResult{{Kind: "host-key-mismatch", Hostname: "h:22", Fingerprint: "SHA256:new", Expected: "SHA256:old", TrustToken: "tt"}, {OK: true, Kind: "ok"}}
+	r.fb.testReply = []slimeclient.TestResult{{Kind: "host-key-mismatch", Hostname: "h:22", Fingerprint: "SHA256:new", Expected: "SHA256:old", TrustToken: "tt"}, {OK: true, Kind: "ok"}}
 	r.w.newHost()
 	r.tt.Frame()
 	d := r.dlg(t)
@@ -452,7 +452,7 @@ func TestReplacingAChangedKeyAsksFirst(t *testing.T) {
 
 func TestEditingDropsTheTestResult(t *testing.T) {
 	r := hostRig(t)
-	r.fb.testReply = []keelclient.TestResult{{Kind: "unknown-host", Hostname: "h:22", Fingerprint: "SHA256:fp", TrustToken: "tt"}}
+	r.fb.testReply = []slimeclient.TestResult{{Kind: "unknown-host", Hostname: "h:22", Fingerprint: "SHA256:fp", TrustToken: "tt"}}
 	r.w.newHost()
 	r.tt.Frame()
 	d := r.dlg(t)
@@ -564,12 +564,12 @@ func TestDeletedHostKeepsItsOpenSession(t *testing.T) {
 
 func TestForgetHostKeyAsksFirst(t *testing.T) {
 	r := hostRig(t)
-	r.fb.savedKey = keelclient.KnownKey{Hostname: "10.0.0.1:22", Fingerprint: "SHA256:s", KeyType: "ssh-rsa", Known: true}
+	r.fb.savedKey = slimeclient.KnownKey{Hostname: "10.0.0.1:22", Fingerprint: "SHA256:s", KeyType: "ssh-rsa", Known: true}
 	r.w.editHost(testHosts[1])
 	r.tt.Frame()
 	r.click(t, "Forget host key")
 	if len(r.fb.forgot) != 0 || !r.tt.HasText("Forget host key?") ||
-		!r.tt.HasText("Keel forgets the saved key for api-1 (10.0.0.1:22). The next connect shows the server's key and asks you to trust it again.") {
+		!r.tt.HasText("Slime forgets the saved key for api-1 (10.0.0.1:22). The next connect shows the server's key and asks you to trust it again.") {
 		t.Fatal("no confirm, or it forgot already")
 	}
 	r.click(t, "Cancel")
@@ -589,7 +589,7 @@ func TestForgetHostKeyAsksFirst(t *testing.T) {
 }
 
 func TestPickersListGroupsAndHosts(t *testing.T) {
-	groups := []keelclient.Group{{ID: "g1", Name: "production"}, {ID: "g2", Name: "web", ParentID: "g1"}, {ID: "g3", Name: "alpha"}}
+	groups := []slimeclient.Group{{ID: "g1", Name: "production"}, {ID: "g2", Name: "web", ParentID: "g1"}, {ID: "g3", Name: "alpha"}}
 	var labels []string
 	for _, e := range folderEntries(groups) {
 		labels = append(labels, e.label)
@@ -597,7 +597,7 @@ func TestPickersListGroupsAndHosts(t *testing.T) {
 	if want := []string{"No group", "alpha", "production", "production / web"}; !slices.Equal(labels, want) {
 		t.Errorf("folders %v", labels)
 	}
-	hosts := []keelclient.Host{
+	hosts := []slimeclient.Host{
 		{ID: "a", Name: "a", AuthType: "key", Address: "a", Username: "u"}, {ID: "b", Name: "b", AuthType: "key", JumpHost: "a"},
 		{ID: "l", Name: "Local", AuthType: "local"}, {ID: "c", Name: "c", AuthType: "password", Address: "c", Username: "u", Port: 2222},
 	}
@@ -611,7 +611,7 @@ func TestPickersListGroupsAndHosts(t *testing.T) {
 	if e := jumpEntries(hosts, "x", "gone"); e[len(e)-1].label != "Missing host — pick another" {
 		t.Error("a missing jump host is not kept listed")
 	}
-	if e := identityEntries([]keelclient.Identity{{ID: "i", Name: "n", Kind: "key", Username: "u"}}, "i"); e[0].desc != "Private key · u" {
+	if e := identityEntries([]slimeclient.Identity{{ID: "i", Name: "n", Kind: "key", Username: "u"}}, "i"); e[0].desc != "Private key · u" {
 		t.Errorf("%+v", e)
 	}
 	if e := identityEntries(nil, "gone"); e[0].label != "Missing identity — pick another" {
@@ -675,13 +675,13 @@ func TestNoSecretInPrintedDialogState(t *testing.T) {
 }
 
 func TestAgentSwitchesAndKeepaliveDefaults(t *testing.T) {
-	if got := newHostForm(&keelclient.Host{KeepAliveSec: 0}); !got.keepAlive || got.keepSec != "30" {
+	if got := newHostForm(&slimeclient.Host{KeepAliveSec: 0}); !got.keepAlive || got.keepSec != "30" {
 		t.Errorf("%v", got)
 	}
-	if got := newHostForm(&keelclient.Host{KeepAliveSec: 45}); !got.keepAlive || got.keepSec != "45" {
+	if got := newHostForm(&slimeclient.Host{KeepAliveSec: 45}); !got.keepAlive || got.keepSec != "45" {
 		t.Errorf("%v", got)
 	}
-	if got := newHostForm(&keelclient.Host{KeepAliveSec: -1}); got.keepAlive || got.keepSec != "30" {
+	if got := newHostForm(&slimeclient.Host{KeepAliveSec: -1}); got.keepAlive || got.keepSec != "30" {
 		t.Errorf("%v", got)
 	}
 	f := newHostForm(nil)

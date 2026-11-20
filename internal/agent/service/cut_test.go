@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/agent/provider"
+	"slime/internal/agent/provider"
 )
 
 // A reply the provider cut (Gemini's MAX_TOKENS: a long think used up the

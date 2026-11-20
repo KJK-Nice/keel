@@ -23,6 +23,6 @@ var placeholderRe = regexp.MustCompile(`\[(secret|ip|host):\d+\]`)
 
 // HasPlaceholder reports whether text holds a redaction placeholder such
 // as [secret:1]: a shell glob, never the value. Nothing that holds one is
-// typed (§6 rule 9): the one gate refuses it, and keel serve refuses a
+// typed (§6 rule 9): the one gate refuses it, and slime serve refuses a
 // notebook fence that holds one.
 func HasPlaceholder(s string) bool { return placeholderRe.MatchString(s) }

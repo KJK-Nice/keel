@@ -7,7 +7,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
 )
 
 // splitStep is one "split target in direction d"; the new pane gets the next number.

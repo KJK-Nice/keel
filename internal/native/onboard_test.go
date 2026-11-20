@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 const (
@@ -15,22 +15,22 @@ const (
 	pathBad = "/h/.ssh/gone"
 )
 
-func testPreview() keelclient.SSHPreview {
-	return keelclient.SSHPreview{
+func testPreview() slimeclient.SSHPreview {
+	return slimeclient.SSHPreview{
 		Path: "~/.ssh/config", Found: true,
-		Hosts: []keelclient.ConfigHost{
+		Hosts: []slimeclient.ConfigHost{
 			{Alias: "web", HostName: "web.example.net", User: "deploy", Port: 22, IdentityFiles: []string{pathWeb}, Source: "~/.ssh/config:1"},
 			{Alias: "db", HostName: "10.0.0.5", User: "deploy", Port: 2222, IdentityFiles: []string{pathDB}, Saved: true, Source: "~/.ssh/config:5"},
 			{Alias: "jumpy", HostName: "10.0.0.9", User: "ops", Port: 22, Proxy: "ProxyJump", ProxyJump: "bastion", Source: "~/.ssh/config:9",
 				Notes: []string{"ProxyJump is not supported yet; the host is added without it", `Port "x" is not a port number; 22 used`}},
 		},
-		Patterns: []keelclient.ConfigPattern{{Pattern: "*.prod", Source: "~/.ssh/config:12"}},
-		Keys: []keelclient.ConfigKey{
+		Patterns: []slimeclient.ConfigPattern{{Pattern: "*.prod", Source: "~/.ssh/config:12"}},
+		Keys: []slimeclient.ConfigKey{
 			{Path: pathWeb, Display: "~/.ssh/id_web", Name: "id_web", Exists: true, UsedBy: []string{"web"}},
 			{Path: pathDB, Display: "~/.ssh/id_db", Name: "id_db", Exists: true, Encrypted: true, UsedBy: []string{"db"}},
 			{Path: pathBad, Display: "~/.ssh/gone", Name: "gone", Problem: "file not found"},
 		},
-		Notes: []keelclient.ConfigNote{{Source: "~/.ssh/config:14", Text: "Match block skipped: Keel imports Host blocks only"}},
+		Notes: []slimeclient.ConfigNote{{Source: "~/.ssh/config:14", Text: "Match block skipped: Slime imports Host blocks only"}},
 	}
 }
 
@@ -81,7 +81,7 @@ func TestImportRequestNamesHostsAndOnlyTheKeysTurnedOnWithAPassphraseWhereNeeded
 		t.Fatal("still missing")
 	}
 	req = importRequest(p, s)
-	want := []keelclient.ImportKey{{Path: pathWeb}, {Path: pathDB, Passphrase: "pw"}}
+	want := []slimeclient.ImportKey{{Path: pathWeb}, {Path: pathDB, Passphrase: "pw"}}
 	if !slices.Equal(req.Keys, want) {
 		t.Fatalf("keys %v", req.Keys) // an unreadable key is never sent; a passphrase only for a key that has one
 	}
@@ -89,7 +89,7 @@ func TestImportRequestNamesHostsAndOnlyTheKeysTurnedOnWithAPassphraseWhereNeeded
 
 func TestImportTableMarksSavedHostsFlagsProxiesAndKeepsPatternsApart(t *testing.T) {
 	p := testPreview()
-	if hostAddress(p.Hosts[1]) != "10.0.0.5:2222" || hostAddress(p.Hosts[0]) != "web.example.net" || hostAddress(keelclient.ConfigHost{Alias: "x"}) != "x" {
+	if hostAddress(p.Hosts[1]) != "10.0.0.5:2222" || hostAddress(p.Hosts[0]) != "web.example.net" || hostAddress(slimeclient.ConfigHost{Alias: "x"}) != "x" {
 		t.Error("hostAddress")
 	}
 	if v := viaOf(p.Hosts[2]); v.kind != "unused" || v.text != "ProxyJump bastion, not used" || !v.noJump {
@@ -118,34 +118,34 @@ func TestImportNotesMergeConfigAndHostNotesWithProxyNotesLeftToTheViaColumn(t *t
 
 func TestImportLeadAndResultText(t *testing.T) {
 	p := testPreview()
-	if got := leadText(p); got != "Keel found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed." {
+	if got := leadText(p); got != "Slime found ~/.ssh/config with 3 hosts. Pick the ones to add. Your config file is not changed." {
 		t.Error(got)
 	}
-	if got := leadText(keelclient.SSHPreview{Path: "~/.ssh/config"}); got != "Keel found no ~/.ssh/config. Add hosts later with New host." {
+	if got := leadText(slimeclient.SSHPreview{Path: "~/.ssh/config"}); got != "Slime found no ~/.ssh/config. Add hosts later with New host." {
 		t.Error(got)
 	}
-	two := []keelclient.Host{{}, {}}
-	if got := importedText(keelclient.ImportResult{Hosts: two, Identities: []keelclient.Identity{{}}}); got != "Added 2 hosts and 1 key" {
+	two := []slimeclient.Host{{}, {}}
+	if got := importedText(slimeclient.ImportResult{Hosts: two, Identities: []slimeclient.Identity{{}}}); got != "Added 2 hosts and 1 key" {
 		t.Error(got)
 	}
-	if got := importedText(keelclient.ImportResult{Hosts: two[:1]}); got != "Added 1 host" {
+	if got := importedText(slimeclient.ImportResult{Hosts: two[:1]}); got != "Added 1 host" {
 		t.Error(got)
 	}
-	if got := importedText(keelclient.ImportResult{Hosts: two[:1], Failed: []keelclient.ImportFailure{{Alias: "db", Error: "its jump host bastion was not added"}}}); got != "Added 1 host. Not added: db (its jump host bastion was not added)" {
+	if got := importedText(slimeclient.ImportResult{Hosts: two[:1], Failed: []slimeclient.ImportFailure{{Alias: "db", Error: "its jump host bastion was not added"}}}); got != "Added 1 host. Not added: db (its jump host bastion was not added)" {
 		t.Error(got)
 	}
 }
 
 func TestImportAProxyJumpKeelCanKeepShowsItsJumpHostInsteadOfTheFlag(t *testing.T) {
-	saved := keelclient.ConfigHost{Alias: "db2", Proxy: "ProxyJump", ProxyJump: "gate", JumpSaved: "gate"}
-	added := keelclient.ConfigHost{Alias: "db3", Proxy: "ProxyJump", ProxyJump: "bastion", JumpAlias: "bastion"}
+	saved := slimeclient.ConfigHost{Alias: "db2", Proxy: "ProxyJump", ProxyJump: "gate", JumpSaved: "gate"}
+	added := slimeclient.ConfigHost{Alias: "db3", Proxy: "ProxyJump", ProxyJump: "bastion", JumpAlias: "bastion"}
 	if v := viaOf(saved); v.kind != "saved" || v.text != "Via gate" || v.noJump {
 		t.Errorf("%+v", v)
 	}
 	if v := viaOf(added); v.kind != "if-added" || v.text != "Via bastion if added" || !v.noJump {
 		t.Errorf("%+v", v)
 	}
-	if v := viaOf(keelclient.ConfigHost{Alias: "c", Proxy: "ProxyCommand"}); v.kind != "unused" || v.text != "ProxyCommand, not used" || v.noJump {
+	if v := viaOf(slimeclient.ConfigHost{Alias: "c", Proxy: "ProxyCommand"}); v.kind != "unused" || v.text != "ProxyCommand, not used" || v.noJump {
 		t.Errorf("a ProxyCommand has no Without the jump box: %+v", v)
 	}
 }
@@ -168,7 +168,7 @@ func TestImportAProxyJumpHostWhoseJumpIsNotKeptNeedsWithoutTheJump(t *testing.T)
 		t.Errorf("withoutJump %v", got)
 	}
 	// Its config jump host being added keeps the jump; nothing to waive.
-	p.Hosts = append(p.Hosts, keelclient.ConfigHost{Alias: "db3", HostName: "10.0.0.7", User: "d", Port: 22, Proxy: "ProxyJump", ProxyJump: "web", JumpAlias: "web", JumpVia: "deploy@web.example.net:22"})
+	p.Hosts = append(p.Hosts, slimeclient.ConfigHost{Alias: "db3", HostName: "10.0.0.7", User: "d", Port: 22, Proxy: "ProxyJump", ProxyJump: "web", JumpAlias: "web", JumpVia: "deploy@web.example.net:22"})
 	s2 := defaultSelection(p)
 	s2.hosts["db3"] = true
 	if missingJump(p, s2) != nil {

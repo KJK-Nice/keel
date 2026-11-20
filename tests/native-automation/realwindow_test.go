@@ -3,7 +3,7 @@
 package nativeautomation
 
 // What the headless Tester cannot show. Typing is made as a keyboard makes it (a key press, the
-// text it produces, the release), a drag has a frame between its events, and the text on screen is judged by keel serve's
+// text it produces, the release), a drag has a frame between its events, and the text on screen is judged by slime serve's
 // scrollback and by captures (.scratch-native/automation/, with the pane corners cut out at 5x as <name>-corners.png).
 
 import (
@@ -181,7 +181,7 @@ func TestTypingWorksAfterDraggingTheSash(t *testing.T) {
 }
 
 // Lots of output, then the layout changes, with a capture after each. Looked at by eye
-// (the pane corners for a straight line out of the rounded border, the text against keel serve's scrollback); the test
+// (the pane corners for a straight line out of the rounded border, the text against slime serve's scrollback); the test
 // asserts only that the shell kept up.
 func TestTerminalCapturesAfterLayoutChanges(t *testing.T) {
 	r := newRig(t)

@@ -19,11 +19,11 @@ import (
 	"github.com/egoist/mygo/ui"
 	"golang.org/x/crypto/ssh"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// First run, Keychain and Logs against a scratch keel serve. Every daemon has KEEL_KEYRING=off, its own
-// KEEL_DATA under .scratch-native/e2e and, for the import, KEEL_SSH_DIR at a copy of tests/fixtures/ssh-home/.ssh
+// First run, Keychain and Logs against a scratch slime serve. Every daemon has SLIME_KEYRING=off, its own
+// SLIME_DATA under .scratch-native/e2e and, for the import, SLIME_SSH_DIR at a copy of tests/fixtures/ssh-home/.ssh
 // with two keys made here: the real ~/.ssh and the OS keychain are never touched. The passphrases and the identity
 // password below are scratch values; no test prints them and the checks at the end of each scenario look for them
 // in what the window drew.
@@ -92,16 +92,16 @@ func sshFixtureDir(t *testing.T, dir string) string {
 }
 
 // startFirstRunServe starts a daemon with no vault and no passphrase in its environment, so that it needs setup,
-// with KEEL_SSH_DIR at the fixture.
+// with SLIME_SSH_DIR at the fixture.
 func startFirstRunServe(t *testing.T) (addr, dir, dataDir string) {
 	t.Helper()
 	dir = scratchDir(t)
 	ssh := sshFixtureDir(t, dir)
-	addr, _ = startServeAt(t, dir, "serve", false, "KEEL_SSH_DIR="+ssh)
+	addr, _ = startServeAt(t, dir, "serve", false, "SLIME_SSH_DIR="+ssh)
 	return addr, dir, filepath.Join(dir, "data")
 }
 
-func (e *win) vault() keelclient.Vault {
+func (e *win) vault() slimeclient.Vault {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -129,7 +129,7 @@ func (e *win) hostNames() []string {
 	return out
 }
 
-func (e *win) identities() []keelclient.Identity {
+func (e *win) identities() []slimeclient.Identity {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -141,7 +141,7 @@ func (e *win) identities() []keelclient.Identity {
 }
 
 // logEntries is GET /api/logs.
-func (e *win) logEntries() []keelclient.LogEntry {
+func (e *win) logEntries() []slimeclient.LogEntry {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -166,7 +166,7 @@ func (e *win) noSecretDrawn(secrets ...string) {
 // createVault types the scratch passphrase twice on step 1 and creates the vault; it waits for step 2.
 func (e *win) createVault() {
 	e.t.Helper()
-	e.pump(func() bool { return e.tt.HasText("Welcome to Keel") && e.tt.Focused("Passphrase") }, "First run step 1 with the passphrase field focused")
+	e.pump(func() bool { return e.tt.HasText("Welcome to Slime") && e.tt.Focused("Passphrase") }, "First run step 1 with the passphrase field focused")
 	e.fillField("Passphrase", e2eFirstPass)
 	e.fillField("Repeat passphrase", e2eFirstPass)
 	e.click("Create vault")
@@ -176,7 +176,7 @@ func (e *win) createVault() {
 func TestE2EFirstRun(t *testing.T) {
 	addr, _, dir := startFirstRunServe(t)
 	e := newWin(t, addr, dir, nil)
-	e.pump(func() bool { return e.tt.HasText("Welcome to Keel") }, "First run step 1")
+	e.pump(func() bool { return e.tt.HasText("Welcome to Slime") }, "First run step 1")
 	if v := e.vault(); !v.NeedsSetup || !v.Locked {
 		t.Fatalf("the daemon does not need setup: %+v", v)
 	}
@@ -184,7 +184,7 @@ func TestE2EFirstRun(t *testing.T) {
 		t.Fatal("the workspace shows under First run")
 	}
 	for _, s := range []string{"Vault", "Hosts", "Agent", "Passphrase", "Repeat passphrase", "I already have a keel.vault…", "Create vault",
-		"Keel was started with KEEL_KEYRING=off, so it does not use the keychain."} {
+		"Slime was started with SLIME_KEYRING=off, so it does not use the keychain."} {
 		if !e.tt.HasText(s) {
 			t.Errorf("step 1 has no %q", s)
 		}
@@ -218,7 +218,7 @@ func TestE2EFirstRun(t *testing.T) {
 			t.Errorf("step 2 has no %q", s)
 		}
 	}
-	if !e.tt.HasText("Keel found " + e.w.first.sshConfig() + " with 5 hosts. Pick the ones to add. Your config file is not changed.") {
+	if !e.tt.HasText("Slime found " + e.w.first.sshConfig() + " with 5 hosts. Pick the ones to add. Your config file is not changed.") {
 		t.Errorf("the lead is %q", e.w.first.lead)
 	}
 	if got := sortedHosts(e.w.first.sel); !slices.Equal(got, []string{"e2e-api", "e2e-db", "e2e-web"}) {
@@ -246,7 +246,7 @@ func TestE2EFirstRun(t *testing.T) {
 	e.settle(300 * time.Millisecond)
 	e.shot("TestE2EFirstRun-agent")
 
-	// Choose Google Gemini and type a made-up key: nothing is saved until Open Keel, and the key is never drawn.
+	// Choose Google Gemini and type a made-up key: nothing is saved until Open Slime, and the key is never drawn.
 	e.click("Google Gemini")
 	e.pump(func() bool { return e.hasLabel("Gemini API key input") }, "the key field")
 	e.tt.Type(fakeAgentKey)
@@ -255,16 +255,16 @@ func TestE2EFirstRun(t *testing.T) {
 		t.Fatal("the key is drawn in the clear")
 	}
 	if code, body := e.raw("GET", "/api/agent/settings", nil); code != 200 || strings.Contains(body, `"configured":true`) {
-		t.Fatalf("a key was saved before Open Keel: %d", code)
+		t.Fatalf("a key was saved before Open Slime: %d", code)
 	}
 	e.shot("TestE2EFirstRun-agent-gemini")
 
-	// Open Keel ends the first run and opens the workspace.
+	// Open Slime ends the first run and opens the workspace.
 	if v := e.vault(); !v.FirstRun {
-		t.Fatal("the first run ended before Open Keel")
+		t.Fatal("the first run ended before Open Slime")
 	}
-	e.click("Open Keel")
-	e.pump(func() bool { return e.w.first == nil }, "Open Keel to end the first run")
+	e.click("Open Slime")
+	e.pump(func() bool { return e.w.first == nil }, "Open Slime to end the first run")
 	if code, body := e.raw("GET", "/api/agent/settings", nil); code != 200 || !strings.Contains(body, `"configured":true`) || !strings.Contains(body, `"suggestions":"on"`) {
 		t.Fatalf("the key and the switch were not saved: %d", code)
 	}
@@ -273,12 +273,12 @@ func TestE2EFirstRun(t *testing.T) {
 	}
 	e.pump(func() bool { return e.w.first == nil && e.hasLabel("host e2e-web") && e.tt.HasText("Filter hosts") }, "the workspace with the imported hosts")
 	if v := e.vault(); v.FirstRun || v.Locked || v.NeedsSetup {
-		t.Fatalf("after Open Keel: %+v", v)
+		t.Fatalf("after Open Slime: %+v", v)
 	}
 	// A second window on the same daemon opens straight to the workspace.
 	e2 := newWin(t, addr, dir, nil)
 	e2.pump(func() bool { return e2.hasLabel("host e2e-api") && e2.tt.HasText("Filter hosts") }, "the second window's workspace")
-	if e2.w.first != nil || e2.tt.HasText("Welcome to Keel") {
+	if e2.w.first != nil || e2.tt.HasText("Welcome to Slime") {
 		t.Fatal("the second window shows First run")
 	}
 	e2.noSecretDrawn(e2eFirstPass)
@@ -451,7 +451,7 @@ func TestE2ELogsPage(t *testing.T) {
 	addr, dir := startServe(t, true)
 	f := startSSH(t, addr, dir)
 	e := newWin(t, addr, dir, nil)
-	// Three things that happen: a session, a trusted host key, a deleted host. keel serve logs the first two and the
+	// Three things that happen: a session, a trusted host key, a deleted host. slime serve logs the first two and the
 	// host's creation, but not a host's deletion (httpapi writes no entry for it), so no row names the delete.
 	e.openLocal()
 	e.click("host e2e-ssh")

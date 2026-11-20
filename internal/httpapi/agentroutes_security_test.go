@@ -54,7 +54,7 @@ func loadTypedAPI(t *testing.T) *typedAPI {
 			t.Fatal(err)
 		}
 		exports[p.ImportPath] = p.Export
-		if p.ImportPath == "keel/internal/httpapi" {
+		if p.ImportPath == "slime/internal/httpapi" {
 			self = p
 		}
 	}
@@ -79,7 +79,7 @@ func loadTypedAPI(t *testing.T) *typedAPI {
 		}
 		return os.Open(exports[path])
 	})
-	if a.pkg, err = (&types.Config{Importer: imp}).Check("keel/internal/httpapi", a.fset, files, a.info); err != nil {
+	if a.pkg, err = (&types.Config{Importer: imp}).Check("slime/internal/httpapi", a.fset, files, a.info); err != nil {
 		t.Fatal(err)
 	}
 	return a
@@ -174,7 +174,7 @@ func writerName(obj types.Object) string {
 		return ""
 	}
 	switch path := obj.Pkg().Path(); path {
-	case "keel/internal/inject", "keel/internal/sessionsock":
+	case "slime/internal/inject", "slime/internal/sessionsock":
 		return path + "." + obj.Name()
 	}
 	fn, ok := obj.(*types.Func)
@@ -190,8 +190,8 @@ func writerName(obj types.Object) string {
 		rt = p.Elem()
 	}
 	if types.IsInterface(rt) {
-		// A call through an interface of Keel's own with a writer's name could land on a session.
-		if strings.HasPrefix(fn.Pkg().Path(), "keel/") {
+		// A call through an interface of Slime's own with a writer's name could land on a session.
+		if strings.HasPrefix(fn.Pkg().Path(), "slime/") {
 			for w := range writers {
 				if strings.HasSuffix(w, "."+fn.Name()) {
 					return "an interface's " + fn.Name()
@@ -200,7 +200,7 @@ func writerName(obj types.Object) string {
 		}
 		return ""
 	}
-	if named, ok := rt.(*types.Named); ok && fn.Pkg().Path() == "keel/internal/runtime" && writers[named.Obj().Name()+"."+fn.Name()] {
+	if named, ok := rt.(*types.Named); ok && fn.Pkg().Path() == "slime/internal/runtime" && writers[named.Obj().Name()+"."+fn.Name()] {
 		return named.Obj().Name() + "." + fn.Name()
 	}
 	return ""
@@ -255,10 +255,10 @@ func (a *typedAPI) reach(roots []*types.Func) (found []string, visited map[strin
 	return found, visited
 }
 
-// §6 rules 1 and 14: no agent route and no keel mcp route reaches a writer. Every handler Handler registers under
+// §6 rules 1 and 14: no agent route and no slime mcp route reaches a writer. Every handler Handler registers under
 // /api/agent/ or /api/mcp/, the service's setup (initAgent) and the panes it is given (agentPanes) are followed through
 // every function of this package they use, in any file, called or passed as a value; none uses a runtime method that
-// writes, spawns, kills or moves control, a name of internal/inject or internal/sessionsock, or a Keel interface method
+// writes, spawns, kills or moves control, a name of internal/inject or internal/sessionsock, or a Slime interface method
 // with a writer's name.
 func TestAgentAndMCPRoutesReachNoWriter(t *testing.T) {
 	a := loadTypedAPI(t)
@@ -279,7 +279,7 @@ func TestAgentAndMCPRoutesReachNoWriter(t *testing.T) {
 		if fn.Name() == "initAgent" {
 			roots = append(roots, fn)
 		}
-		if r := sig.Recv(); r != nil && types.TypeString(r.Type(), nil) == "keel/internal/httpapi.agentPanes" {
+		if r := sig.Recv(); r != nil && types.TypeString(r.Type(), nil) == "slime/internal/httpapi.agentPanes" {
 			roots = append(roots, fn)
 		}
 	}
@@ -287,8 +287,8 @@ func TestAgentAndMCPRoutesReachNoWriter(t *testing.T) {
 	for _, f := range found {
 		t.Errorf("an agent or mcp route reaches a writer: %s", f)
 	}
-	for _, want := range []string{"(*keel/internal/httpapi.Server).agentAsk", "(*keel/internal/httpapi.Server).mcpRead", "(*keel/internal/httpapi.Server).mcpPropose",
-		"(*keel/internal/httpapi.Server).initAgent", "(keel/internal/httpapi.agentPanes).ReadScrollback"} {
+	for _, want := range []string{"(*slime/internal/httpapi.Server).agentAsk", "(*slime/internal/httpapi.Server).mcpRead", "(*slime/internal/httpapi.Server).mcpPropose",
+		"(*slime/internal/httpapi.Server).initAgent", "(slime/internal/httpapi.agentPanes).ReadScrollback"} {
 		if !visited[want] {
 			t.Errorf("the walk never reached %s: the check is out of date", want)
 		}

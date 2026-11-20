@@ -9,7 +9,7 @@ import (
 // advance unless there is only one host. The keyboard starts on Cancel, so a stray ↵ never types. Type is a click (⇧ held
 // when a ticked host needs it), or Tab and ↵ on it.
 //
-// After a Type each row that was reached shows what happened to it: "Typed." or keel serve's refusal, in its words. A row
+// After a Type each row that was reached shows what happened to it: "Typed." or slime serve's refusal, in its words. A row
 // that was reached is final: it cannot be ticked again and nothing is retried.
 
 const (
@@ -24,7 +24,7 @@ const (
 func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {
 	g := d.group()
 	open := true
-	var typeable []*groupRow // the rows keel serve made bytes for
+	var typeable []*groupRow // the rows slime serve made bytes for
 	attempted := false
 	for _, r := range g.rows {
 		if r.err == "" {
@@ -52,7 +52,7 @@ func (w *workspace) groupApproveView(c *ui.Context, d *approveDialog) {
 		case len(typeable) > 0 && same:
 			count = bytesLine(typeable[0].bytes) + " · the same bytes in every pane"
 			if sameUsed && anyUsed(typeable) {
-				count += " · filled in by Keel: " + usedLine(typeable[0].used)
+				count += " · filled in by Slime: " + usedLine(typeable[0].used)
 			}
 		case len(typeable) > 0:
 			count = groupValuesDiffer
@@ -150,7 +150,7 @@ func (w *workspace) groupApproveRow(c *ui.Context, d *approveDialog, r *groupRow
 			help(c, meta)
 		case r.err == "" && !sameUsed:
 			if len(r.used) > 0 {
-				help(c, "Filled in by Keel: "+usedLine(r.used))
+				help(c, "Filled in by Slime: "+usedLine(r.used))
 			} else {
 				help(c, "No variables")
 			}

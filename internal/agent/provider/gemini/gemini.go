@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/provider/transport"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/provider/transport"
 )
 
 const (
@@ -59,7 +59,7 @@ func (c *Client) ID() string { return id }
 type part struct {
 	Text string `json:"text"`
 	// Thought marks a part that is the model's thinking, not its answer
-	// (sent only when includeThoughts is asked, which Keel never does).
+	// (sent only when includeThoughts is asked, which Slime never does).
 	Thought bool `json:"thought,omitempty"`
 }
 

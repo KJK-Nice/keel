@@ -9,11 +9,11 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
-// The Logs page (docs/ui-redesign.md §5.13): what Keel did on this machine, newest first. Entries carry counts, never
+// The Logs page (docs/ui-redesign.md §5.13): what Slime did on this machine, newest first. Entries carry counts, never
 // content: nothing here could show a secret.
 //
 // The chips are §5.13's: All, Sessions, Forwards, Vault, Sharing and Agent.
@@ -24,7 +24,7 @@ const logsLimit = 200 // GET /api/logs' own default, asked for by name
 type logsPage struct {
 	filter  string // the search box: kind and message
 	kind    string // the chip: all, sessions, forwards, vault, sharing or agent
-	entries []keelclient.LogEntry
+	entries []slimeclient.LogEntry
 	loaded  bool
 	reading bool // a logsTick read is out
 	err     string
@@ -64,9 +64,9 @@ func logGroup(kind string) string {
 
 // rows are the entries the search box and the chip keep, in the server's order (newest first). The search
 // matches the kind and the message, any case.
-func (p *logsPage) rows() []keelclient.LogEntry {
+func (p *logsPage) rows() []slimeclient.LogEntry {
 	q := strings.ToLower(strings.TrimSpace(p.filter))
-	var out []keelclient.LogEntry
+	var out []slimeclient.LogEntry
 	for _, e := range p.entries {
 		if p.kind != "all" && p.kind != "" && logGroup(e.Kind) != p.kind {
 			continue
@@ -79,7 +79,7 @@ func (p *logsPage) rows() []keelclient.LogEntry {
 	return out
 }
 
-func logTimeLabel(e keelclient.LogEntry) string {
+func logTimeLabel(e slimeclient.LogEntry) string {
 	if e.Time.IsZero() {
 		return ""
 	}
@@ -97,7 +97,7 @@ func logBadgeFailed(kind string) bool {
 
 // logTarget names what an entry is about: its host, or a dash. It names no forward
 // (docs/native.md).
-func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
+func logTarget(hosts []slimeclient.Host, e slimeclient.LogEntry) string {
 	if e.HostID != "" {
 		if h, ok := hostByID(hosts, e.HostID); ok {
 			return h.Name
@@ -107,7 +107,7 @@ func logTarget(hosts []keelclient.Host, e keelclient.LogEntry) string {
 }
 
 // logFacts lists the counts an agent entry carries, as short labels in this order.
-func logFacts(e keelclient.LogEntry) []string {
+func logFacts(e slimeclient.LogEntry) []string {
 	var out []string
 	if e.Count > 1 {
 		out = append(out, fmt.Sprintf("%d sent", e.Count))
@@ -137,7 +137,7 @@ func logFacts(e keelclient.LogEntry) []string {
 }
 
 // logFactsTitle spells out the redactions by kind for a tooltip.
-func logFactsTitle(e keelclient.LogEntry) string {
+func logFactsTitle(e slimeclient.LogEntry) string {
 	if len(e.Redactions) == 0 {
 		return ""
 	}
@@ -176,7 +176,7 @@ func (w *workspace) loadLogs() { w.readLogs(new(bool), false) }
 // readLogs is the one read of the log. busy is the in-flight flag a tick shares; quiet leaves a failed read
 // unreported.
 func (w *workspace) readLogs(busy *bool, quiet bool) {
-	callOnce(w, busy, nil, func(c context.Context) ([]keelclient.LogEntry, error) { return w.be.Logs(c, logsLimit) }, func(entries []keelclient.LogEntry, err error) {
+	callOnce(w, busy, nil, func(c context.Context) ([]slimeclient.LogEntry, error) { return w.be.Logs(c, logsLimit) }, func(entries []slimeclient.LogEntry, err error) {
 		t := w.pageTab(pageLogs)
 		switch {
 		case t == nil:

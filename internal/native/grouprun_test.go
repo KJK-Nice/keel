@@ -9,7 +9,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The group run on the fake backend (docs/ui-redesign.md §6 rules 10 and 11, §17): the run page, the group approve dialog and
@@ -19,14 +19,14 @@ import (
 const rawBytes = "\x15echo grp-1\n" // what a proposal types: Ctrl-U, the command, a newline
 
 // runRig is a window with n sessions this client drives, one per host wk-1…, and a group run of one step across them. The
-// run is held by the fake keel serve; cells are what it has proposed.
+// run is held by the fake slime serve; cells are what it has proposed.
 func runRig(t *testing.T, n int) *rig {
 	t.Helper()
 	fb := okBackend()
-	fb.groups = []keelclient.Group{{ID: "gx", Name: "gx"}}
+	fb.groups = []slimeclient.Group{{ID: "gx", Name: "gx"}}
 	fb.hosts = nil
 	for i := 1; i <= n; i++ {
-		fb.hosts = append(fb.hosts, keelclient.Host{ID: fmt.Sprintf("h%d", i), Name: fmt.Sprintf("wk-%d", i), GroupID: "gx", Group: "gx", AuthType: "key", Address: "10.0.0." + fmt.Sprint(i), Username: "ops"})
+		fb.hosts = append(fb.hosts, slimeclient.Host{ID: fmt.Sprintf("h%d", i), Name: fmt.Sprintf("wk-%d", i), GroupID: "gx", Group: "gx", AuthType: "key", Address: "10.0.0." + fmt.Sprint(i), Username: "ops"})
 	}
 	r := newRig(t, fb)
 	r.tt.SetSize(1280, 2000)
@@ -46,25 +46,25 @@ func runRig(t *testing.T, n int) *rig {
 }
 
 // runOf is a run with one step, a cell per host in state "proposed" with its own proposal (host i is on session s<i>).
-func runOf(command, risk string, n int, mut func(i int, c *keelclient.GroupRunCell)) keelclient.GroupRun {
-	st := keelclient.GroupRunStep{ID: "st1", Title: "Print a marker", Command: command, Risk: risk}
-	run := keelclient.GroupRun{ID: "gr1", RunbookID: "rb1", Name: "Print markers", GroupID: "gx", Group: "gx", Mode: "parallel", Status: "active", Current: 0}
+func runOf(command, risk string, n int, mut func(i int, c *slimeclient.GroupRunCell)) slimeclient.GroupRun {
+	st := slimeclient.GroupRunStep{ID: "st1", Title: "Print a marker", Command: command, Risk: risk}
+	run := slimeclient.GroupRun{ID: "gr1", RunbookID: "rb1", Name: "Print markers", GroupID: "gx", Group: "gx", Mode: "parallel", Status: "active", Current: 0}
 	for i := 1; i <= n; i++ {
 		id := fmt.Sprint(i)
-		c := keelclient.GroupRunCell{HostID: "h" + id, Host: "wk-" + id, State: "proposed", SessionID: "s" + id,
-			Proposal: &keelclient.GroupProposal{ID: "p" + id, SessionID: "s" + id, HostID: "h" + id, Host: "wk-" + id, Command: command, Bytes: "\x15" + command + "\n", Risk: risk}}
+		c := slimeclient.GroupRunCell{HostID: "h" + id, Host: "wk-" + id, State: "proposed", SessionID: "s" + id,
+			Proposal: &slimeclient.GroupProposal{ID: "p" + id, SessionID: "s" + id, HostID: "h" + id, Host: "wk-" + id, Command: command, Bytes: "\x15" + command + "\n", Risk: risk}}
 		if mut != nil {
 			mut(i, &c)
 		}
 		st.Cells = append(st.Cells, c)
-		run.Members = append(run.Members, keelclient.GroupRunMember{HostID: "h" + id, Host: "wk-" + id})
+		run.Members = append(run.Members, slimeclient.GroupRunMember{HostID: "h" + id, Host: "wk-" + id})
 	}
-	run.Steps = []keelclient.GroupRunStep{st}
+	run.Steps = []slimeclient.GroupRunStep{st}
 	return run
 }
 
 // startRun makes the fake hold the run and opens its page.
-func (r *rig) startRun(run keelclient.GroupRun) {
+func (r *rig) startRun(run slimeclient.GroupRun) {
 	r.fb.grp.run = &run
 	r.w.openGroupRun(run)
 	r.tt.Frame()
@@ -161,7 +161,7 @@ func TestGroupDialogNoRowIsTickedInAdvanceWithTwoOrMoreHostsAndNothingIsTypedBef
 	if !r.tt.Focused("Cancel") {
 		t.Error("the keyboard does not start on Cancel")
 	}
-	// Opening it, polling and pressing Type with nothing ticked type nothing, and ask keel serve for no fill (no variables).
+	// Opening it, polling and pressing Type with nothing ticked type nothing, and ask slime serve for no fill (no variables).
 	r.click(t, "Type")
 	r.w.approveType(false) // even called directly, with nothing ticked
 	r.w.approveType(true)
@@ -227,7 +227,7 @@ func TestGroupDialogOnlyTickedRowsAreTypedEachWithItsOwnProposalAndConnection(t 
 
 func TestGroupDialogAHostThatNeedsShiftIsTypedOnlyWithShift(t *testing.T) {
 	r := runRig(t, 2)
-	r.startRun(runOf("sudo systemctl restart kubelet", "changes", 2, func(i int, c *keelclient.GroupRunCell) {
+	r.startRun(runOf("sudo systemctl restart kubelet", "changes", 2, func(i int, c *slimeclient.GroupRunCell) {
 		if i == 2 {
 			c.Proposal.Production, c.Proposal.NeedsShift = true, true
 		}
@@ -258,7 +258,7 @@ func TestGroupDialogAHostThatNeedsShiftIsTypedOnlyWithShift(t *testing.T) {
 	if !r.groupDlg(t).shiftHint || !r.tt.HasText(groupShiftRefused) {
 		t.Error("the refusal is not said")
 	}
-	// ⇧ held with Type types both, and keel serve is told ⇧ was held.
+	// ⇧ held with Type types both, and slime serve is told ⇧ was held.
 	if err := r.tt.ClickWith(ui.Shift, "Type"); err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestGroupFollowersAndClosedPanesCannotBeTicked(t *testing.T) {
 	r := runRig(t, 4)
 	r.startRun(runOf("echo grp-1", "readonly", 4, nil))
 	// wk-2's pane is followed, wk-3's is closed: the window offers no row for them.
-	r.fb.conns[1].st = &keelclient.State{Status: "ready", Role: "follower"}
+	r.fb.conns[1].st = &slimeclient.State{Status: "ready", Role: "follower"}
 	r.w.closePane(r.w.tabAt(2), r.w.tabAt(2).focused)
 	r.tt.Frame()
 	r.pressTypeAll(t, 2)
@@ -288,7 +288,7 @@ func TestGroupFollowersAndClosedPanesCannotBeTicked(t *testing.T) {
 	// A pane that turns into a followed one, or closes, while the dialog is open: its row cannot be ticked and is never typed.
 	r.click(t, "Type into wk-1")
 	r.click(t, "Type into wk-4")
-	r.fb.conns[0].st = &keelclient.State{Status: "ready", Role: "follower"}
+	r.fb.conns[0].st = &slimeclient.State{Status: "ready", Role: "follower"}
 	r.tt.Frame()
 	if !r.tt.HasText(msgGroupPaneFollow) {
 		t.Errorf("the row does not say it is followed: %v", r.tt.Texts())
@@ -375,28 +375,28 @@ func TestAnUnreadyOrFollowedConnectionTypesNothingEvenIfAskedDirectly(t *testing
 	r := runRig(t, 1)
 	r.startRun(runOf("echo grp-1", "readonly", 1, nil))
 	r.pressTypeAll(t, 1)
-	r.fb.conns[0].st = &keelclient.State{Status: "connecting", Role: "driver"}
+	r.fb.conns[0].st = &slimeclient.State{Status: "connecting", Role: "driver"}
 	r.w.approveType(false)
 	r.nothingTyped(t)
 }
 
 // ---- rule 11 ----
 
-func varsRun(n int) keelclient.GroupRun {
+func varsRun(n int) slimeclient.GroupRun {
 	run := runOf("echo port-{{port}}", "readonly", n, nil)
 	for i := range run.Steps[0].Cells {
-		run.Steps[0].Cells[i].Proposal.Vars = []keelclient.VarRef{{Name: "port"}}
+		run.Steps[0].Cells[i].Proposal.Vars = []slimeclient.VarRef{{Name: "port"}}
 	}
-	run.Steps[0].Vars = []keelclient.VarRef{{Name: "port"}}
+	run.Steps[0].Vars = []slimeclient.VarRef{{Name: "port"}}
 	return run
 }
 
 func TestGroupVariablesAreNamesOnTheRunPageValuesOnlyInTheDialogAndTypedBytesAreTheFill(t *testing.T) {
 	r := runRig(t, 3)
 	r.startRun(varsRun(3))
-	r.fb.grp.fills = map[string]keelclient.GroupFill{
-		"p1": {HostID: "h1", Host: "wk-1", Bytes: "\x15echo port-8080\n", Used: []keelclient.FillUsed{{Name: "port", From: "group variable"}}},
-		"p2": {HostID: "h2", Host: "wk-2", Bytes: "\x15echo port-9090\n", Used: []keelclient.FillUsed{{Name: "port", From: "captured on cp-1 · step 1"}}},
+	r.fb.grp.fills = map[string]slimeclient.GroupFill{
+		"p1": {HostID: "h1", Host: "wk-1", Bytes: "\x15echo port-8080\n", Used: []slimeclient.FillUsed{{Name: "port", From: "group variable"}}},
+		"p2": {HostID: "h2", Host: "wk-2", Bytes: "\x15echo port-9090\n", Used: []slimeclient.FillUsed{{Name: "port", From: "captured on cp-1 · step 1"}}},
 		"p3": {HostID: "h3", Host: "wk-3", Error: "{{port}} has no value for wk-3: no earlier step of this run captured it"},
 	}
 	// The run page shows the name, the note and Copy — never a value, and no fill has been asked for.
@@ -449,20 +449,20 @@ func TestGroupVariablesAreNamesOnTheRunPageValuesOnlyInTheDialogAndTypedBytesAre
 func TestGroupDialogSameFilledBytesAreShownOnceWithWhereTheyCameFrom(t *testing.T) {
 	r := runRig(t, 2)
 	r.startRun(varsRun(2))
-	used := []keelclient.FillUsed{{Name: "port", From: "group variable"}}
-	r.fb.grp.fills = map[string]keelclient.GroupFill{
+	used := []slimeclient.FillUsed{{Name: "port", From: "group variable"}}
+	r.fb.grp.fills = map[string]slimeclient.GroupFill{
 		"p1": {Bytes: "\x15echo port-8080\n", Used: used},
 		"p2": {Bytes: "\x15echo port-8080\n", Used: used},
 	}
 	r.pressTypeAll(t, 2)
-	if !r.tt.HasText("1 line · 16 bytes · the same bytes in every pane · filled in by Keel: {{port}} group variable") {
+	if !r.tt.HasText("1 line · 16 bytes · the same bytes in every pane · filled in by Slime: {{port}} group variable") {
 		t.Errorf("no single description: %v", r.tt.Texts())
 	}
 }
 
 func TestGroupDialogAStepWithoutVariablesTypesTheProposalsOwnBytes(t *testing.T) {
 	r := runRig(t, 2)
-	run := runOf("echo grp-1", "readonly", 2, func(i int, c *keelclient.GroupRunCell) {
+	run := runOf("echo grp-1", "readonly", 2, func(i int, c *slimeclient.GroupRunCell) {
 		c.Proposal.Bytes = "\x15echo grp-1\n"
 	})
 	r.startRun(run)
@@ -482,7 +482,7 @@ func TestGroupDialogAStepWithoutVariablesTypesTheProposalsOwnBytes(t *testing.T)
 func TestThePageProposesForTheDrivenPanesOnlyAndNeverWhileTheDialogIsOpenOrTheRunIsOver(t *testing.T) {
 	r := runRig(t, 3)
 	r.startRun(runOf("echo grp-1", "readonly", 3, nil))
-	r.fb.conns[1].st = &keelclient.State{Status: "ready", Role: "follower"}
+	r.fb.conns[1].st = &slimeclient.State{Status: "ready", Role: "follower"}
 	r.fb.grp.runReqs = nil
 	r.w.groupRunTick()
 	if want := []string{"propose s1,s3"}; !slices.Equal(r.fb.grp.runReqs, want) {
@@ -513,21 +513,21 @@ func TestThePageProposesForTheDrivenPanesOnlyAndNeverWhileTheDialogIsOpenOrTheRu
 
 func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostCase(t *testing.T) {
 	r := runRig(t, 3)
-	run := runOf("echo grp-1", "readonly", 3, func(i int, c *keelclient.GroupRunCell) {
+	run := runOf("echo grp-1", "readonly", 3, func(i int, c *slimeclient.GroupRunCell) {
 		if i > 1 { // rolling: only the first host has a proposal
 			c.State, c.Proposal = "waiting", nil
 		}
 	})
 	run.Mode = "rolling"
 	r.startRun(run)
-	r.fb.grp.onPropose = func(run *keelclient.GroupRun, panes []string) {
-		// keel serve proposes the next host only once the previous one is done.
+	r.fb.grp.onPropose = func(run *slimeclient.GroupRun, panes []string) {
+		// slime serve proposes the next host only once the previous one is done.
 		cells := run.Steps[0].Cells
 		for i := range cells {
 			if cells[i].State == "done" && i+1 < len(cells) && cells[i+1].State == "waiting" {
 				id := fmt.Sprint(i + 2)
 				cells[i+1].State = "proposed"
-				cells[i+1].Proposal = &keelclient.GroupProposal{ID: "p" + id, SessionID: "s" + id, HostID: "h" + id, Host: "wk-" + id, Bytes: rawBytes}
+				cells[i+1].Proposal = &slimeclient.GroupProposal{ID: "p" + id, SessionID: "s" + id, HostID: "h" + id, Host: "wk-" + id, Bytes: rawBytes}
 			}
 		}
 	}
@@ -542,7 +542,7 @@ func TestRollingOffersOneHostAtATimeAsTheServerProposesAndTheDialogIsTheOneHostC
 	if got := r.injected(); len(got[0]) != 1 || len(got[1]) != 0 || len(got[2]) != 0 {
 		t.Fatalf("typed %q", got)
 	}
-	// keel serve marks wk-1 typed; wk-2 is offered only after wk-1 is done.
+	// slime serve marks wk-1 typed; wk-2 is offered only after wk-1 is done.
 	r.fb.grp.run.Steps[0].Cells[0].State = "typed"
 	r.w.groupRunTick()
 	r.tt.Frame()
@@ -578,7 +578,7 @@ func TestClosingAPaneKeepsTheRunAndOffersNothingForIt(t *testing.T) {
 func TestHostsWithNoPaneHaveAnOpenButtonThatOpensASessionAndTypesNothing(t *testing.T) {
 	r := runRig(t, 2)
 	run := runOf("echo grp-1", "readonly", 2, nil)
-	run.NeedPane = []keelclient.GroupRunHost{{HostID: "h2", Host: "wk-2"}}
+	run.NeedPane = []slimeclient.GroupRunHost{{HostID: "h2", Host: "wk-2"}}
 	r.startRun(run)
 	if !r.tt.HasText("wk-2 has no pane open here.") {
 		t.Fatalf("no note: %v", r.tt.Texts())
@@ -616,7 +616,7 @@ func TestTheModeSwitchIsOffWhileLockedAndSendsTheMode(t *testing.T) {
 
 func TestHostAndStepActionsSendTheAppsRequestsAndRefusalsAreShown(t *testing.T) {
 	r := runRig(t, 3)
-	run := runOf("echo grp-1", "readonly", 3, func(i int, c *keelclient.GroupRunCell) {
+	run := runOf("echo grp-1", "readonly", 3, func(i int, c *slimeclient.GroupRunCell) {
 		switch i {
 		case 1:
 			c.State, c.Exit, c.Result = "failed", ip(1), "reported"
@@ -644,8 +644,8 @@ func TestHostAndStepActionsSendTheAppsRequestsAndRefusalsAreShown(t *testing.T) 
 			t.Errorf("%s sent %v, want %q", c.button, r.fb.grp.runReqs, c.want)
 		}
 	}
-	// keel serve's 409 is shown in its words.
-	r.fb.grp.runErr = &keelclient.StatusError{Code: 409, Msg: "wk-2 is still reporting"}
+	// slime serve's 409 is shown in its words.
+	r.fb.grp.runErr = &slimeclient.StatusError{Code: 409, Msg: "wk-2 is still reporting"}
 	r.click(t, "Mark done wk-2")
 	if !r.tt.HasText("wk-2 is still reporting") {
 		t.Errorf("no refusal: %v", r.tt.Texts())
@@ -655,12 +655,12 @@ func TestHostAndStepActionsSendTheAppsRequestsAndRefusalsAreShown(t *testing.T) 
 
 func TestTheMatrixSaysWhatTheShellReportedAndWhatIsLeftOut(t *testing.T) {
 	r := runRig(t, 2)
-	run := runOf("echo grp-1", "readonly", 2, func(i int, c *keelclient.GroupRunCell) {
+	run := runOf("echo grp-1", "readonly", 2, func(i int, c *slimeclient.GroupRunCell) {
 		if i == 1 {
 			c.State, c.Exit, c.Result = "done", ip(0), "reported"
 		}
 	})
-	run.Members = append(run.Members, keelclient.GroupRunMember{HostID: "hoff", Host: "wx-off", Excluded: "Agent can read is off"})
+	run.Members = append(run.Members, slimeclient.GroupRunMember{HostID: "hoff", Host: "wx-off", Excluded: "Agent can read is off"})
 	r.startRun(run)
 	for _, s := range []string{"Results", "Step 1: 1 of 2 done", "✓ exit 0", "· waiting for you", "Left out: wx-off (Agent can read is off). The run never types into them.", runReportedLine} {
 		if !r.tt.HasText(s) {
@@ -702,16 +702,16 @@ func TestStopRunbookAsksFirstWithTheAppsWords(t *testing.T) {
 
 func TestACapturedValueIsAMaskAndALengthNeverTheValue(t *testing.T) {
 	r := runRig(t, 2)
-	run := runOf("kubeadm token create", "changes", 2, func(i int, c *keelclient.GroupRunCell) {
+	run := runOf("kubeadm token create", "changes", 2, func(i int, c *slimeclient.GroupRunCell) {
 		c.State = "done"
-		c.Captures = []keelclient.CaptureView{{Name: "join_token", State: "captured", Bytes: 23}}
+		c.Captures = []slimeclient.CaptureView{{Name: "join_token", State: "captured", Bytes: 23}}
 		if i == 2 {
 			c.Captures[0].State = "blocked"
 		}
 	})
-	run.Steps[0].Captures = []keelclient.StepCapture{{Name: "join_token", Pattern: `--token\s+(\S+)`}}
+	run.Steps[0].Captures = []slimeclient.StepCapture{{Name: "join_token", Pattern: `--token\s+(\S+)`}}
 	r.startRun(run)
-	for _, s := range []string{"Captured from step 1 · Print a marker", "Captured by Keel, never sent to the agent", "{{join_token}}", `--token\s+(\S+)`, "••••••••••••", "23 bytes", "not kept: it holds a value from the vault"} {
+	for _, s := range []string{"Captured from step 1 · Print a marker", "Captured by Slime, never sent to the agent", "{{join_token}}", `--token\s+(\S+)`, "••••••••••••", "23 bytes", "not kept: it holds a value from the vault"} {
 		if !r.tt.HasText(s) {
 			t.Errorf("no %q: %v", s, r.tt.Texts())
 		}
@@ -733,7 +733,7 @@ func TestTheRunPageComesBackWithTheWorkspaceAndSaysWhenKeelServeLostTheRun(t *te
 	if p := w2.w.groupRunPageState(); p == nil || p.run == nil || p.id != "gr1" || !w2.tt.HasText("Step 1 · Print a marker") {
 		t.Fatalf("the run page did not come back: %+v", p)
 	}
-	b3 := okBackend() // a keel serve restart: the run is gone
+	b3 := okBackend() // a slime serve restart: the run is gone
 	w3 := newRig(t, b3)
 	w3.w.restore(&d, nil)
 	w3.tt.Frame()
@@ -744,7 +744,7 @@ func TestTheRunPageComesBackWithTheWorkspaceAndSaysWhenKeelServeLostTheRun(t *te
 
 func TestStartingARunFromTheGroupPageOpensItsPageRollingAndTypesNothing(t *testing.T) {
 	r := runRig(t, 2)
-	r.fb.mem.runbooks = []keelclient.Runbook{{ID: "rb1", Name: "Print markers", Steps: []keelclient.RunbookStep{{ID: "s1", Title: "Print", Command: "echo grp-1"}}}}
+	r.fb.mem.runbooks = []slimeclient.Runbook{{ID: "rb1", Name: "Print markers", Steps: []slimeclient.RunbookStep{{ID: "s1", Title: "Print", Command: "echo grp-1"}}}}
 	r.fb.grp.startRun = runOf("echo grp-1", "readonly", 2, nil)
 	r.w.folders = r.fb.groups
 	r.w.openGroupPage("gx", true)

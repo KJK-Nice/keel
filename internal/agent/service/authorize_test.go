@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
 )
 
 // The one gate (authorize.go) runs its checks in one order on every path.

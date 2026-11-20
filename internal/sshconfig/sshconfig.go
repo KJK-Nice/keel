@@ -7,10 +7,10 @@
 //
 // Supported: Host, HostName, User, Port, IdentityFile, Include, plus
 // ProxyCommand, which is only reported, and ProxyJump, which the import
-// maps to a Keel jump host when it is one hop to a host that is imported
+// maps to a Slime jump host when it is one hop to a host that is imported
 // too or already saved (ParseJump; internal/httpapi/sshimport.go). Match
 // blocks are skipped with a note. Everything else is
-// ignored, as ssh would apply it and Keel has no use for it.
+// ignored, as ssh would apply it and Slime has no use for it.
 package sshconfig
 
 import (
@@ -38,7 +38,7 @@ const (
 )
 
 type Options struct {
-	// SSHDir is ~/.ssh (KEEL_SSH_DIR overrides it in keel serve). The config
+	// SSHDir is ~/.ssh (SLIME_SSH_DIR overrides it in slime serve). The config
 	// is SSHDir/config and a relative Include is relative to it.
 	SSHDir string
 	// Home is what ~ and %d stand for. Empty means the parent of SSHDir, so
@@ -73,7 +73,7 @@ type Host struct {
 }
 
 // Pattern is a Host name with a wildcard (*, ?) or a negation (!). It
-// matches other names; it is not a host Keel can connect to.
+// matches other names; it is not a host Slime can connect to.
 type Pattern struct {
 	Pattern string `json:"pattern"`
 	Source  string `json:"source"`
@@ -246,7 +246,7 @@ func (p *parser) readFile(path string, depth int, from string) {
 			continue
 		case "match":
 			inMatch = true
-			p.note(src, "Match block skipped: Keel imports Host blocks only")
+			p.note(src, "Match block skipped: Slime imports Host blocks only")
 			p.blocks = append(p.blocks, &block{match: true})
 			continue
 		case "include":
@@ -306,7 +306,7 @@ func (p *parser) readLimited(real, where, path string) ([]byte, bool) {
 func (p *parser) include(arg string, depth int, src string) {
 	pat, ok := p.expandPath(arg, "", src, false)
 	if !ok {
-		p.note(src, "Include %s uses tokens Keel does not expand; skipped", arg)
+		p.note(src, "Include %s uses tokens Slime does not expand; skipped", arg)
 		return
 	}
 	if !filepath.IsAbs(pat) {
@@ -406,7 +406,7 @@ func (p *parser) resolve() {
 							h.IdentityFiles = append(h.IdentityFiles, path)
 						}
 					} else {
-						h.Notes = append(h.Notes, fmt.Sprintf("IdentityFile %s uses tokens Keel does not expand; not offered", val))
+						h.Notes = append(h.Notes, fmt.Sprintf("IdentityFile %s uses tokens Slime does not expand; not offered", val))
 					}
 				case "proxycommand", "proxyjump":
 					if gotProxy {
@@ -471,10 +471,10 @@ var safeAlias = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // expandPath expands a leading ~ and the tokens %d (Home), %h (the alias,
 // when it is a plain name) and %%. Any other token, or ${ENV}, makes the
-// path unusable (ok false): Keel leaves it alone rather than guess.
+// path unusable (ok false): Slime leaves it alone rather than guess.
 func (p *parser) expandPath(val, alias, src string, allowHost bool) (string, bool) {
 	if strings.Contains(val, "${") {
-		p.note(src, "%s uses an environment variable; Keel does not expand those", val)
+		p.note(src, "%s uses an environment variable; Slime does not expand those", val)
 		return "", false
 	}
 	if val == "~" {

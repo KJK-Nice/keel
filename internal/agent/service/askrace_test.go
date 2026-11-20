@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"keel/internal/agent"
+	"slime/internal/agent"
 )
 
 // #147: Ask adds proposals to the conversation while the gate reads them

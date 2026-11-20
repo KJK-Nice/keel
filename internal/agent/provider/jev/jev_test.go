@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent/provider"
-	"keel/internal/agent/redact"
+	"slime/internal/agent/provider"
+	"slime/internal/agent/redact"
 )
 
 // All tests talk to an httptest server on loopback; nothing leaves the

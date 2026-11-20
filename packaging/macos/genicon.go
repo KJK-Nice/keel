@@ -1,7 +1,7 @@
 //go:build ignore
 
-// Generate Keel's macOS app icon (PNG + ICNS, plus Assets.car when actool
-// exists) from the Icon Composer document Keel.icon.
+// Generate Slime's macOS app icon (PNG + ICNS, plus Assets.car when actool
+// exists) from the Icon Composer document Slime.icon.
 //
 //	go run genicon.go
 package main
@@ -28,9 +28,9 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	iconDoc := filepath.Join(dir, "Keel.icon")
+	iconDoc := filepath.Join(dir, "Slime.icon")
 	if _, err := os.Stat(iconDoc); err != nil {
-		fatal(fmt.Errorf("Keel.icon: %w", err))
+		fatal(fmt.Errorf("Slime.icon: %w", err))
 	}
 	ictool, err := lookICTool()
 	if err != nil {
@@ -90,7 +90,7 @@ func main() {
 	if err := compileAssetCatalog(dir, iconDoc); err != nil {
 		fmt.Fprintf(os.Stderr, "Assets.car skipped: %v\n", err)
 	}
-	fmt.Println("wrote icon.png and Keel.icns from Keel.icon")
+	fmt.Println("wrote icon.png and Slime.icns from Slime.icon")
 }
 
 func padPNG(src []byte, size int) ([]byte, error) {
@@ -126,7 +126,7 @@ func compileAssetCatalog(dir, iconDoc string) error {
 		"--output-format", "human-readable-text",
 		"--notices", "--warnings", "--errors",
 		"--output-partial-info-plist", plist,
-		"--app-icon", "Keel",
+		"--app-icon", "Slime",
 		"--include-all-app-icons",
 		"--enable-on-demand-resources", "NO",
 		"--development-region", "en",
@@ -146,7 +146,7 @@ func compileAssetCatalog(dir, iconDoc string) error {
 	if err := os.WriteFile(filepath.Join(dir, "Assets.car"), data, 0o644); err != nil {
 		return err
 	}
-	fmt.Println("wrote Assets.car from Keel.icon")
+	fmt.Println("wrote Assets.car from Slime.icon")
 	return nil
 }
 
@@ -206,7 +206,7 @@ func packICNS(dir string, encoded map[int][]byte) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	set := filepath.Join(tmp, "Keel.iconset")
+	set := filepath.Join(tmp, "Slime.iconset")
 	if err := os.Mkdir(set, 0o755); err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func packICNS(dir string, encoded map[int][]byte) error {
 			return err
 		}
 	}
-	out, err := exec.Command("iconutil", "-c", "icns", set, "-o", filepath.Join(dir, "Keel.icns")).CombinedOutput()
+	out, err := exec.Command("iconutil", "-c", "icns", set, "-o", filepath.Join(dir, "Slime.icns")).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("iconutil: %w: %s", err, bytes.TrimSpace(out))
 	}

@@ -6,12 +6,12 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Toasts sit at the bottom right, show the newest three, keep each for 5 s, and draw a
 // failure with a status icon. MyGo keeps the queue, the timers (they stop while the pointer rests on a toast) and
-// the limit of three; this draws them with the Keel tokens. An action toast is a
+// the limit of three; this draws them with the Slime tokens. An action toast is a
 // title and one button that runs and closes it.
 
 const (
@@ -37,7 +37,7 @@ func (w *workspace) sayAction(msg, action string, run func()) {
 
 // errText is what a toast says for a failed call: the server's own reason, else what failed and why.
 func errText(what string, err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) && se.Msg != "" {
 		return se.Msg
 	}

@@ -1,11 +1,11 @@
 # Design boards
 
-Versioned snapshot of the Keel redesign canvas, so the native window is built against a fixed design.
+Versioned snapshot of the Slime redesign canvas, so the native window is built against a fixed design.
 
 - Canvas: https://claude.ai/artifact/GJaVi8YQSrxoNiDVXoi2sW
 - Artifact version snapshotted: `1791863098-3562`
 - Date: 2026-10-13
-- Design system the canvas was copied from: Keel, https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1 (version `1791859965-affb`)
+- Design system the canvas was copied from: Slime, https://claude.ai/artifact/3RUKjVH2znuvieFDaDjkS1 (version `1791859965-affb`)
 - Provenance: the boards were copied from the approved design canvas in October 2026 (2026-10-13 to 2026-10-18). `canvas.json` is not kept in sync: the canvas holds boards that are not in it.
 
 The boards are reference markup, not app code. They reference `./support.js` from the canvas runtime and use `<x-dc>` / `dc-import`, so they will not run standalone. Read them for structure, copy and state; the window implements them in `internal/native` with tokens from `docs/design/tokens.json`. Fonts are loaded from Google Fonts in the boards for preview only; the app ships woff2 locally.

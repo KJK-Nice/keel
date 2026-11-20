@@ -10,17 +10,17 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"keel/internal/authtoken"
-	"keel/internal/runtime"
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/authtoken"
+	"slime/internal/runtime"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 const testToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func authServer(t *testing.T) *httptest.Server {
 	t.Helper()
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestLoopbackHostRequired(t *testing.T) {
 }
 
 func TestHealthReportsBuild(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	st, err := store.New(t.TempDir()+"/keel.json", store.TestVault())
 	if err != nil {
 		t.Fatal(err)

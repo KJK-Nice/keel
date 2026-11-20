@@ -9,21 +9,21 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/updater"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// The app shell around the window: the menu bar, the menu bar item (tray) and keeping Keel there when the window is
+// The app shell around the window: the menu bar, the menu bar item (tray) and keeping Slime there when the window is
 // closed. Every item runs a workspace function the window already has (as the chord does), and none types into a session.
 
 //go:embed macos/tray-template.png
 var trayIcon []byte
 
-// appIcon is packaging/macos/icon.png at 32 px: the tray menu's header shows it at 16pt.
+// appIcon is packaging/macos/menu-icon.svg at 32 px: the tray menu's header shows it at 16pt, MyGo's fixed box.
 //
 //go:embed macos/app-icon.png
 var appIcon []byte
 
-// menuEntry is one item of a Keel submenu; an empty label is a separator.
+// menuEntry is one item of a Slime submenu; an empty label is a separator.
 type menuEntry struct {
 	label string
 	accel string
@@ -37,7 +37,7 @@ type shell struct {
 	menuBar  bool        // closing the window hides it, and the Dock icon; Quit quits
 	quitting atomic.Bool // Quit has begun: the window may close
 	tray     *mygo.Tray
-	status   *mygo.MenuItem // the header: "Keel Server" over the serve status
+	status   *mygo.MenuItem // the header: "Slime Server" over the serve status
 	appVer   *mygo.MenuItem
 	serveVer *mygo.MenuItem
 	toggle   *mygo.MenuItem
@@ -46,22 +46,22 @@ type shell struct {
 
 // Tray labels.
 const (
-	trayServer     = "Keel Server"
-	trayStop       = "Stop Keel Runtime…"
-	trayShow       = "Show Keel"
-	trayHide       = "Hide Keel"
+	trayServer     = "Slime Server"
+	trayStop       = "Stop Slime Runtime…"
+	trayShow       = "Show Slime"
+	trayHide       = "Hide Slime"
 	trayNewTab     = "New Tab"
 	trayQuick      = "Quick Connect…"
-	trayClaudeCode = "Allow Claude Code (keel mcp)"
+	trayClaudeCode = "Allow Claude Code (slime mcp)"
 	traySettings   = "Settings…"
-	trayQuit       = "Quit Keel"
+	trayQuit       = "Quit Slime"
 	// The session count and the Claude Code switch can change from another client. The tray reads GET /api/vault and
 	// GET /api/agent/settings for them; at 3 s that was one call a few seconds all day for a menu seen now and then (the
 	// window's own poll, pollEvery, is what notices a locked vault). Showing or hiding the window refreshes it at once.
 	trayRefresh = 20 * time.Second
 )
 
-// statusLabel is the header's second line: the state of keel serve.
+// statusLabel is the header's second line: the state of slime serve.
 func statusLabel(running, locked bool, sessions int) string {
 	switch {
 	case !running:
@@ -75,19 +75,19 @@ func statusLabel(running, locked bool, sessions int) string {
 	}
 }
 
-// versionLabels are the two version rows: the app (its release, then its commit) and the keel serve it talks to
+// versionLabels are the two version rows: the app (its release, then its commit) and the slime serve it talks to
 // (its commit; "" when it is not running). Builds are build ids (internal/buildid), shown short as About shows them.
 func versionLabels(release, appBuild, serveBuild string) (app, serve string) {
 	if release == "" {
 		release = "dev"
 	}
-	app = "Keel " + release
+	app = "Slime " + release
 	if v := versionOf(appBuild); v != "" {
 		app += " (" + v + ")"
 	}
-	serve = "keel serve —"
+	serve = "slime serve —"
 	if v := versionOf(serveBuild); v != "" {
-		serve = "keel serve " + v
+		serve = "slime serve " + v
 	}
 	return app, serve
 }
@@ -161,7 +161,7 @@ func (s *shell) show() {
 // start installs the menu bar, and on macOS the menu bar item and keep-in-menu-bar.
 func (s *shell) start() {
 	mygo.App.SetMenu(s.menu())
-	s.menuBar = isMac() // Keel lives in the menu bar on macOS
+	s.menuBar = isMac() // Slime lives in the menu bar on macOS
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { s.quitting.Store(true) })
 	if !s.menuBar {
 		return
@@ -174,7 +174,7 @@ func (s *shell) start() {
 		e.PreventDefault()
 		s.hide()
 	})
-	// Opening Keel again (Finder, Spotlight, the Dock while it is there) shows the window and the Dock icon.
+	// Opening Slime again (Finder, Spotlight, the Dock while it is there) shows the window and the Dock icon.
 	mygo.App.OnActivate(func(visible bool) {
 		if !visible && !s.quitting.Load() {
 			s.show()
@@ -210,11 +210,11 @@ func (s *shell) startTray() {
 	}}
 	s.claude = &mygo.MenuItem{Label: trayClaudeCode, Type: mygo.MenuItemCheckbox, Disabled: true, Click: func(it *mygo.MenuItem, _ *mygo.Window) {
 		on := it.Checked // toggled before Click runs
-		// Not saved here: the refresh shows what keel serve holds.
+		// Not saved here: the refresh shows what slime serve holds.
 		s.w.work(func() {
 			c, cancel := ctx()
 			defer cancel()
-			_, err := s.w.be.SaveAgentSettings(c, keelclient.AgentSettingsPatch{ClaudeCode: &on})
+			_, err := s.w.be.SaveAgentSettings(c, slimeclient.AgentSettingsPatch{ClaudeCode: &on})
 			s.w.post(func() {
 				if err != nil {
 					s.w.warn(errText("Claude Code", err))
@@ -236,7 +236,7 @@ func (s *shell) startTray() {
 		updater.MenuItem(), cmd(traySettings, "settings"),
 		{Label: trayQuit, Accelerator: "CmdOrCtrl+q", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})
-	tray, err := mygo.NewTray(mygo.TrayOptions{ID: "app.keel", Icon: trayIcon, IconIsTemplate: true, ToolTip: "Keel", Menu: menu})
+	tray, err := mygo.NewTray(mygo.TrayOptions{ID: "app.keel", Icon: trayIcon, IconIsTemplate: true, ToolTip: "Slime", Menu: menu})
 	if err != nil { // no menu bar item: closing the window then quits, as without one
 		s.menuBar = false
 		return
@@ -261,7 +261,7 @@ func (s *shell) refreshTray() {
 	}
 }
 
-// syncTray re-reads keel serve and the window into the menu. It makes HTTP calls: not on the UI thread.
+// syncTray re-reads slime serve and the window into the menu. It makes HTTP calls: not on the UI thread.
 func (s *shell) syncTray() {
 	if s.tray == nil {
 		return

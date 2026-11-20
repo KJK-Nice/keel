@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/native/slimeclient"
+	"slime/internal/native/sshparse"
 )
 
 // Quick connect, and "Connect once" on the New tab page, which is the same dialog. It saves a password host under the group "Quick
@@ -42,17 +42,17 @@ func (w *workspace) submitQuick() {
 		return
 	}
 	r := sshparse.ParseConnect(q.target)
-	// A typed ssh command with options Keel would drop is not a target: nothing is connected on a guess.
+	// A typed ssh command with options Slime would drop is not a target: nothing is connected on a guess.
 	if r == nil || !r.OK || r.User == "" || len(r.Dropped) > 0 {
 		q.err = "Could not parse user@host"
 		return
 	}
-	h := keelclient.NewHost{
+	h := slimeclient.NewHost{
 		Name: r.User + "@" + r.Host, Group: "Quick connect", Address: r.Host, Port: r.Port, Username: r.User,
-		AuthType: keelclient.AuthPassword, Password: q.password, Color: quickColor,
+		AuthType: slimeclient.AuthPassword, Password: q.password, Color: quickColor,
 	}
 	w.quick = nil // the password leaves the dialog with the request
-	call(w, func(c context.Context) (keelclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved keelclient.Host, err error) {
+	call(w, func(c context.Context) (slimeclient.Host, error) { return w.be.CreateHost(c, h) }, func(saved slimeclient.Host, err error) {
 		if err != nil {
 			w.fail("quick connect", err)
 			return

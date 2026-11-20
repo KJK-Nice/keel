@@ -282,8 +282,8 @@ func TestReportNeverHoldsValues(t *testing.T) {
 }
 
 func TestStaticIsConstantOnly(t *testing.T) {
-	s := Static("You are Keel's terminal assistant.")
-	if s.String() != "You are Keel's terminal assistant." {
+	s := Static("You are Slime's terminal assistant.")
+	if s.String() != "You are Slime's terminal assistant." {
 		t.Fatal(s)
 	}
 	// var v = "x"; Static(v) does not compile: staticText is unexported.

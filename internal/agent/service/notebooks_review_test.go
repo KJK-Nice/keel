@@ -38,7 +38,7 @@ func TestDefuseImages(t *testing.T) {
 	}
 }
 
-// A notebook the agent writes that names a value Keel withheld ({{name}})
+// A notebook the agent writes that names a value Slime withheld ({{name}})
 // says so, and never holds the value.
 func TestAgentNotebookWithheldFlag(t *testing.T) {
 	f := newNbFixture(t, "```keel-notebook\n{\"title\": \"T\", \"body\": \"kubeadm join --token "+nbCaptured+"\"}\n```")

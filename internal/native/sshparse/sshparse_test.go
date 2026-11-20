@@ -429,7 +429,7 @@ func TestDescribeDroppedListsEachEntryOnALine(t *testing.T) {
 	r := ParseConnect("ssh -J b -L 1:x:2 host ls")
 	want := []string{
 		"-L 1:x:2: opens a port forward; add it in Forwards",
-		"ls: remote command; Keel opens a shell and does not run it",
+		"ls: remote command; Slime opens a shell and does not run it",
 		"-J b: jump hosts are not supported yet",
 	}
 	if got := DescribeDropped(r.Dropped); !slices.Equal(got, want) {

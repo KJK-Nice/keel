@@ -1,4 +1,4 @@
-// Package provider is the seam between Keel's agent and a model provider.
+// Package provider is the seam between Slime's agent and a model provider.
 //
 // A Provider takes only redacted text (redact.Safe), so terminal output
 // cannot reach one without going through internal/agent/redact first. Real
@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/agent/redact"
+	"slime/internal/agent/redact"
 )
 
 // Role of a message in a conversation.
@@ -136,7 +136,7 @@ type Descriptor struct {
 // not what Google does.
 const GeminiWarning = "On the free tier of the Gemini API, Google may use the content you submit, " +
 	"and the responses, to improve its products, and human reviewers may read it. " +
-	"Keel redacts secrets before sending, but the rest of what you share with the agent is sent as is. " +
+	"Slime redacts secrets before sending, but the rest of what you share with the agent is sent as is. " +
 	"If that matters to you, use a key from a paid (billing-enabled) project, where the terms differ, " +
 	"and read Google's Gemini API terms."
 
@@ -218,7 +218,7 @@ func Thinking(providerID, model, level string) (string, error) {
 	return "", fmt.Errorf("%s: unknown thinking level %q", providerID, level)
 }
 
-// Descriptors lists the providers Keel knows, model providers first.
+// Descriptors lists the providers Slime knows, model providers first.
 func Descriptors() []Descriptor {
 	out := make([]Descriptor, len(descriptors))
 	for i, d := range descriptors {
@@ -257,7 +257,7 @@ func ListedElsewhere(id, model string) bool {
 // never generates text: each answer is a probability (Noul) or a pick from
 // options the caller wrote (Choice). Like a Provider it takes only
 // redacted text: every state value is Safe, and the questions are
-// constants written in Keel's code.
+// constants written in Slime's code.
 type Judge interface {
 	ID() string
 	Judge(ctx context.Context, req JudgeRequest) (JudgeResponse, error)

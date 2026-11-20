@@ -17,7 +17,7 @@ import (
 
 	"filippo.io/age"
 
-	"keel/internal/wire"
+	"slime/internal/wire"
 )
 
 // Saved agent conversations (docs/ui-redesign.md §5.4.1).
@@ -243,7 +243,7 @@ type AgentChatStep struct {
 	Runbook string `json:"runbook,omitempty"`
 	// Notebook (its name, redacted) and NotebookID are set on a step with
 	// Status "notebook": a notebook the user attached was sent, Bytes long
-	// (Truncated when Keel cut it). Never its text.
+	// (Truncated when Slime cut it). Never its text.
 	Notebook   string `json:"notebook,omitempty"`
 	NotebookID string `json:"notebookId,omitempty"`
 	Bytes      int    `json:"bytes,omitempty"`

@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The fake records attaches in the order they arrive and many tests read that order, so they attach one at a time.
@@ -46,7 +46,7 @@ func (g *attachGate) Attach(id string, cols, rows int) (session, error) {
 
 func TestStartAttachesSavedSessionsAtTheSameTimeAndKeepsTheirOrder(t *testing.T) {
 	fb := okBackend()
-	fb.sessions = []keelclient.Session{{ID: "s-a", HostID: "h-api"}, {ID: "s-b", HostID: "h-api"}, {ID: "s-c", HostID: "h-api"}, {ID: "s-d", HostID: "h-api"}}
+	fb.sessions = []slimeclient.Session{{ID: "s-a", HostID: "h-api"}, {ID: "s-b", HostID: "h-api"}, {ID: "s-c", HostID: "h-api"}, {ID: "s-d", HostID: "h-api"}}
 	attachWorkers = 4
 	t.Cleanup(func() { attachWorkers = 1 })
 	g := &attachGate{fakeBackend: fb}

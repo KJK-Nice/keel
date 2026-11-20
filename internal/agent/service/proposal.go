@@ -3,9 +3,9 @@ package service
 import (
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/redact"
-	"keel/internal/cmdrule"
+	"slime/internal/agent"
+	"slime/internal/agent/redact"
+	"slime/internal/cmdrule"
 )
 
 // Every proposal the user can type is made here (docs/ui-redesign.md §6
@@ -15,7 +15,7 @@ import (
 // and its placeholder scan.
 
 // seal sets everything a proposal's command decides, from p.Command and
-// p.Production: the exact bytes Type sends, the rating (Keel's code rule,
+// p.Production: the exact bytes Type sends, the rating (Slime's code rule,
 // never looser than floor), the ⇧ rule, and whether it holds a redaction
 // placeholder. Call it whenever either changes.
 func (p *Proposal) seal(floor agent.Risk) {
@@ -29,7 +29,7 @@ func (p *Proposal) seal(floor agent.Risk) {
 type proposalSpec struct {
 	Command string
 	Why     string
-	// Floor is a rating that can only make Keel's stricter: the model's
+	// Floor is a rating that can only make Slime's stricter: the model's
 	// own, or the saved one of a proposal made again. "" for none.
 	Floor agent.Risk
 	// Pane is where it may be typed. With no SessionID it is Copy only;

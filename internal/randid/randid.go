@@ -1,4 +1,4 @@
-// Package randid makes random hex ids. It is a leaf: it imports no keel package.
+// Package randid makes random hex ids. It is a leaf: it imports no slime package.
 package randid
 
 import (

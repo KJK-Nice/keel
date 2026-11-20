@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"keel/internal/limits"
+	"slime/internal/limits"
 )
 
 // Agent settings choices. The settings live in keel.json and hold no
@@ -63,7 +63,7 @@ type AgentSettings struct {
 	ScrollbackLines    int            `json:"scrollbackLines"`
 	Redact             AgentRedaction `json:"redact"`
 	HistoryDays        int            `json:"historyDays"`
-	// ClaudeCode lets keel mcp (Claude Code) use keel serve's /api/mcp/
+	// ClaudeCode lets slime mcp (Claude Code) use slime serve's /api/mcp/
 	// routes: list and read panes on hosts the agent may read, and propose
 	// commands that wait in the agent panel (docs/ui-redesign.md §6 rule
 	// 14). Off by default, and a keel.json saved without the field reads
@@ -159,7 +159,7 @@ func (a AgentSettings) HistorySuggestionsEnabled() bool {
 	return a.HistorySuggestions != SuggestionsOff
 }
 
-// ClaudeCodeEnabled reports whether keel mcp may use /api/mcp/ (off by
+// ClaudeCodeEnabled reports whether slime mcp may use /api/mcp/ (off by
 // default).
 func (a AgentSettings) ClaudeCodeEnabled() bool {
 	return a.ClaudeCode

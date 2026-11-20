@@ -8,8 +8,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/sshparse"
+	"slime/internal/native/slimeclient"
+	"slime/internal/native/sshparse"
 )
 
 // The New tab page: "Where to?", the input, the offer for a pasted command, the recent cards, the Start actions and the
@@ -141,7 +141,7 @@ func (w *workspace) startHead(c *ui.Context, t *tab) {
 		ui.RichText(c).FontSize(captionSize).TextColor(inkMuted).Children(func() {
 			ui.Text(c, "Paste ")
 			ui.Text(c, "ssh -J bastion deploy@10.0.4.21 -p 2222").Font(monoStack)
-			ui.Text(c, " and Keel reads it, shows what it kept and left out, then offers to save it as a host. Nothing runs.")
+			ui.Text(c, " and Slime reads it, shows what it kept and left out, then offers to save it as a host. Nothing runs.")
 		})
 	})
 }
@@ -161,7 +161,7 @@ func (w *workspace) section(c *ui.Context, head, note string, bodyFn func()) {
 }
 
 // card is one recent host: its tile, name and address, the live count and the ⌥ number.
-func (w *workspace) card(c *ui.Context, t *tab, h keelclient.Host) {
+func (w *workspace) card(c *ui.Context, t *tab, h slimeclient.Host) {
 	p := t.start
 	r := ui.Row(c).FillWidth().Padding(space3).Gap(space3).Radius(radiusMd).Background(controlFill(surface)).Label("start card " + h.Name).Cursor(ui.CursorPointer)
 	border := line

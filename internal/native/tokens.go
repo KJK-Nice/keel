@@ -7,7 +7,7 @@ import (
 )
 
 // hexPalette is one theme's colours as hex. The chrome's grounds, controls, text and lines are MyGo's own light
-// and dark themes (TestPaletteIsMyGos keeps them equal); what stays Keel's is the meaning colours (tide, signal, flare,
+// and dark themes (TestPaletteIsMyGos keeps them equal); what stays Slime's is the meaning colours (tide, signal, flare,
 // haze: Read-only, Changes state, Destructive, Production, live, failure), the terminal's theme and the stage behind it.
 // The accent is not here: it is the system's (theme.go useAccent). This file is the only place that names a hex value.
 type hexPalette struct {
@@ -200,7 +200,7 @@ var (
 
 // The accent family: the system accent colour, set by useAccent. accentFill is the fill (primary buttons, selected
 // marks), accentStrong its hover, onAccent the text on it, accentInk the accent as text or an icon on the page, accentSoft a
-// wash of it, focus the focus ring. Keel's brass is the app icon only.
+// wash of it, focus the focus ring. Slime's brass is the app icon only.
 var accentFill, accentInk, accentSoft, accentStrong, onAccent, focus ui.Color
 
 func init() { useTheme(true) }
@@ -228,7 +228,7 @@ func useTheme(dark bool) {
 	}
 }
 
-// hostTint is the colour of a host's label. keel serve stores it as var(--ansi-N), a reference to
+// hostTint is the colour of a host's label. slime serve stores it as var(--ansi-N), a reference to
 // an ANSI token; anything else (a legacy value) falls back to ink-muted.
 func hostTint(color string) ui.Color {
 	var n int

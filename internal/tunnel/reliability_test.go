@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 // fakeDialer is a Dialer whose connection can be failed on demand.

@@ -14,7 +14,7 @@ import (
 func renderIn(family string) []byte {
 	tt := ui.NewTester(func(c *ui.Context) {
 		ui.Box(c).Fill().Background(ui.Color{A: 255}).Children(func() {
-			ui.Text(c, "Keel 0Oo1lI {}[] wmi").Font(family).FontSize(28).TextColor(ui.Color{R: 255, G: 255, B: 255, A: 255})
+			ui.Text(c, "Slime 0Oo1lI {}[] wmi").Font(family).FontSize(28).TextColor(ui.Color{R: 255, G: 255, B: 255, A: 255})
 		})
 	}, 600, 80)
 	tt.Frame()

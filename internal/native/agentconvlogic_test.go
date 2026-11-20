@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 func lt(mo time.Month, d, h, m int) time.Time { return time.Date(2026, mo, d, h, m, 0, 0, time.Local) }
 
 func TestSavedConversationsGroupByLocalDayAndFilterByTitleOrHost(t *testing.T) {
 	now := lt(time.October, 18, 10, 0)
-	list := []keelclient.ConversationSummary{
+	list := []slimeclient.ConversationSummary{
 		{ID: "a", Title: "Why is pg-2 lagging?", Hosts: []string{"prod-db-01"}, UpdatedAt: lt(time.October, 18, 9, 14)},
 		{ID: "b", Title: "TLS cert", Hosts: []string{"ceph-rgw-1"}, UpdatedAt: lt(time.October, 17, 17, 40)},
 		{ID: "c", Title: "Disk full", Hosts: []string{"gitlab-runner-3"}, UpdatedAt: lt(time.October, 14, 16, 2)},
@@ -70,7 +70,7 @@ func TestSavedConversationsGroupByLocalDayAndFilterByTitleOrHost(t *testing.T) {
 
 func TestAgentPageHostChipsHostFilterAndContextColumn(t *testing.T) {
 	now := lt(time.October, 18, 10, 0)
-	list := []keelclient.ConversationSummary{
+	list := []slimeclient.ConversationSummary{
 		{ID: "a", Title: "pg lag", Hosts: []string{"prod-db-01", "prod-db-02"}, UpdatedAt: lt(time.October, 18, 9, 14)},
 		{ID: "b", Title: "502", Hosts: []string{"prod-api-01", "prod-db-01"}, UpdatedAt: lt(time.October, 18, 8, 2)},
 		{ID: "c", Title: "disk", Hosts: []string{"gitlab-runner-3"}, UpdatedAt: lt(time.October, 14, 16, 2)},
@@ -92,10 +92,10 @@ func TestAgentPageHostChipsHostFilterAndContextColumn(t *testing.T) {
 	}
 
 	turns := []convTurn{
-		{trace: []keelclient.TraceStep{{Host: "prod-db-01", Status: "read", Lines: 120}, {Host: "prod-db-02", Status: "read", Lines: 64, Redactions: map[string]int{"secret": 1}},
-			{Host: "secret-box", Status: "skipped", Reason: "not-readable"}}, proposals: []keelclient.Proposal{{ID: "p1", Host: "prod-db-01", Command: "psql"}}},
-		{trace: []keelclient.TraceStep{{Host: "prod-db-01", Status: "read", Lines: 1}}},
-		{again: true, proposals: []keelclient.Proposal{{ID: "p2", Host: "web-1", Command: "psql"}}},
+		{trace: []slimeclient.TraceStep{{Host: "prod-db-01", Status: "read", Lines: 120}, {Host: "prod-db-02", Status: "read", Lines: 64, Redactions: map[string]int{"secret": 1}},
+			{Host: "secret-box", Status: "skipped", Reason: "not-readable"}}, proposals: []slimeclient.Proposal{{ID: "p1", Host: "prod-db-01", Command: "psql"}}},
+		{trace: []slimeclient.TraceStep{{Host: "prod-db-01", Status: "read", Lines: 1}}},
+		{again: true, proposals: []slimeclient.Proposal{{ID: "p2", Host: "web-1", Command: "psql"}}},
 	}
 	if got := conversationHosts(turns); !reflect.DeepEqual(got, []string{"prod-db-01", "prod-db-02", "web-1"}) {
 		t.Errorf("hosts %v", got)
@@ -113,14 +113,14 @@ func TestAgentPageHostChipsHostFilterAndContextColumn(t *testing.T) {
 
 	at := time.Now()
 	for _, c := range []struct {
-		p           keelclient.Proposal
+		p           slimeclient.Proposal
 		typed       bool
 		label, kind string
 	}{
-		{keelclient.Proposal{Expired: true}, false, "Expired", ""},
-		{keelclient.Proposal{Expired: true, TypedAt: &at}, false, "Typed", "accent"},
-		{keelclient.Proposal{Edited: true}, true, "Edited, typed", "accent"},
-		{keelclient.Proposal{}, false, "Not typed", "outline"},
+		{slimeclient.Proposal{Expired: true}, false, "Expired", ""},
+		{slimeclient.Proposal{Expired: true, TypedAt: &at}, false, "Typed", "accent"},
+		{slimeclient.Proposal{Edited: true}, true, "Edited, typed", "accent"},
+		{slimeclient.Proposal{}, false, "Not typed", "outline"},
 	} {
 		if l, k := proposalState(c.p, c.typed); l != c.label || k != c.kind {
 			t.Errorf("%+v: %q %q, want %q %q", c.p, l, k, c.label, c.kind)
@@ -145,7 +145,7 @@ func TestAgentPageHostChipsHostFilterAndContextColumn(t *testing.T) {
 
 func TestAListWithNoRowsSaysWhy(t *testing.T) {
 	zero, thirty := 0, 30
-	one := []keelclient.ConversationSummary{{ID: "a"}}
+	one := []slimeclient.ConversationSummary{{ID: "a"}}
 	for _, c := range []struct {
 		name   string
 		s      convListState

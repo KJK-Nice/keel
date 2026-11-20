@@ -39,7 +39,7 @@ func TestCopyFlashShowsAndFades(t *testing.T) {
 	r.w.openHost(testHosts[1])
 	r.tt.Frame()
 	p := r.w.focusedPane()
-	snap := "\x1b[Hguest@keel $ echo flash\r\nflash me\r\n$ \x1b[3;3H\x1b[0m"
+	snap := "\x1b[Hguest@slime $ echo flash\r\nflash me\r\n$ \x1b[3;3H\x1b[0m"
 	p.onCopy = func(text string) { p.copied(snap, 3, text) }
 	p.onCopy("flash me")
 	r.tt.Frame()

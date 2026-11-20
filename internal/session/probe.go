@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"keel/internal/store"
-	"keel/internal/wire"
+	"slime/internal/store"
+	"slime/internal/wire"
 )
 
 // ProbeTimeout bounds a Test connection run.

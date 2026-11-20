@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Cases for placeholders, diffLines, history rows and autosave.
@@ -47,20 +47,20 @@ func TestDiffLinesAlignsTheLinesThatStayedAndMarksTheRest(t *testing.T) {
 
 func TestHistoryRowsSayWhoAndWhat(t *testing.T) {
 	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
-	l := versionLabel(keelclient.NotebookVersion{By: "user", Event: "before-agent-edit", Summary: "Adds a step", At: now.Add(-2 * time.Minute)}, now)
+	l := versionLabel(slimeclient.NotebookVersion{By: "user", Event: "before-agent-edit", Summary: "Adds a step", At: now.Add(-2 * time.Minute)}, now)
 	if got := []string{l.Who, l.What, l.When, l.Summary}; !slices.Equal(got, []string{"You", "Before the agent's edit", "2 min ago", "Then: Adds a step"}) {
 		t.Fatalf("%q", got)
 	}
-	if versionLabel(keelclient.NotebookVersion{By: "agent", Event: "agent-version"}, now).Who != "Agent" {
+	if versionLabel(slimeclient.NotebookVersion{By: "agent", Event: "agent-version"}, now).Who != "Agent" {
 		t.Fatal("agent version is not Agent's")
 	}
-	if got := versionLabel(keelclient.NotebookVersion{Event: "x"}, now).What; got != "Earlier version" {
+	if got := versionLabel(slimeclient.NotebookVersion{Event: "x"}, now).What; got != "Earlier version" {
 		t.Fatal(got)
 	}
-	if got := versionText(keelclient.NotebookVersion{Cells: []keelclient.NotebookCell{{Body: "a"}, {Body: "b"}}}); got != "a\n\nb" {
+	if got := versionText(slimeclient.NotebookVersion{Cells: []slimeclient.NotebookCell{{Body: "a"}, {Body: "b"}}}); got != "a\n\nb" {
 		t.Fatal(got)
 	}
-	if privateLabel(keelclient.Notebook{Private: true}) != "Private" || privateLabel(keelclient.Notebook{}) != "Agent can read" {
+	if privateLabel(slimeclient.Notebook{Private: true}) != "Private" || privateLabel(slimeclient.Notebook{}) != "Agent can read" {
 		t.Fatal("privateLabel")
 	}
 	if got := whenText(now.Add(-10*time.Second), now); got != "just now" {
@@ -73,7 +73,7 @@ func TestHistoryRowsSayWhoAndWhat(t *testing.T) {
 
 func TestNotebooksSortPinnedThenNewestThenNameAndPreviewTheFirstLine(t *testing.T) {
 	t0 := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-	nbs := []keelclient.Notebook{
+	nbs := []slimeclient.Notebook{
 		{ID: "old", Name: "Old", UpdatedAt: t0},
 		{ID: "b", Name: "beta", UpdatedAt: t0.Add(time.Hour)},
 		{ID: "a", Name: "Alpha", UpdatedAt: t0.Add(time.Hour)},
@@ -89,14 +89,14 @@ func TestNotebooksSortPinnedThenNewestThenNameAndPreviewTheFirstLine(t *testing.
 	if nbs[0].ID != "old" {
 		t.Fatal("the sort changed its input")
 	}
-	nb := keelclient.Notebook{Cells: []keelclient.NotebookCell{{Body: "  \n"}, {Body: "\n  first line  \nsecond"}}}
+	nb := slimeclient.Notebook{Cells: []slimeclient.NotebookCell{{Body: "  \n"}, {Body: "\n  first line  \nsecond"}}}
 	if got := notebookPreview(nb); got != "first line" {
 		t.Fatal(got)
 	}
-	if got := notebookPreview(keelclient.Notebook{}); got != "Empty notebook" {
+	if got := notebookPreview(slimeclient.Notebook{}); got != "Empty notebook" {
 		t.Fatal(got)
 	}
-	if notebookName(keelclient.Notebook{}) != "Notebook" || notebookName(keelclient.Notebook{Name: "X"}) != "X" {
+	if notebookName(slimeclient.Notebook{}) != "Notebook" || notebookName(slimeclient.Notebook{Name: "X"}) != "X" {
 		t.Fatal("notebookName")
 	}
 }

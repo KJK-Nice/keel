@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"keel/internal/store"
+	"slime/internal/store"
 )
 
 func (f *askFixture) call(t *testing.T, method, path string, body any) (int, []byte) {

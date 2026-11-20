@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
+	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
 )
 
 // A confirm opens with the keyboard on Cancel, so ↵ on open asks nothing of the destructive action,
@@ -45,7 +45,7 @@ func TestEveryConfirmStartsOnCancelAndEnterDoesNotDestroy(t *testing.T) {
 
 // The same, closing by a button, by a click outside, and by choosing a menu entry that opens nothing.
 func TestClosingByButtonClickOrMenuGivesTheKeyboardBackToThePane(t *testing.T) {
-	local := keelclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}
+	local := slimeclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}
 	for _, c := range []struct {
 		name  string
 		open  func(w *workspace)
@@ -156,7 +156,7 @@ func TestDraggingASashGivesTheKeyboardBackToThePane(t *testing.T) {
 // Whatever opens over a terminal pane (a dialog, a popover, a menu, the palette, a confirm), closing it
 // by Escape gives the keyboard back to the pane that had it. Typing then reaches the terminal, not the page behind it.
 func TestEscapeGivesTheKeyboardBackToThePane(t *testing.T) {
-	local := keelclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}
+	local := slimeclient.Host{ID: "h-api", Name: "api-1", Address: "10.0.0.1", AuthType: "key"}
 	for _, c := range []struct {
 		name string
 		open func(w *workspace)

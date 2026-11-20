@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The Settings page. Each section is data (groups of rows), so the search can read every row's text as filterSettings does.
@@ -100,7 +100,7 @@ func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 		searchField(c, &p.search, "Search settings", &p.searchH).FillWidth()
 		ui.Box(c).Height(space2).Shrink(0)
 		// The sections are MyGo's ui.Sidebar: its item look, the accent while it has the keyboard, grey otherwise, and
-		// ↑ ↓ Home End and typing a name to choose. About Keel is a second one under the first, so ↑ ↓ stop at the seam.
+		// ↑ ↓ Home End and typing a name to choose. About Slime is a second one under the first, so ↑ ↓ stop at the seam.
 		chosen := p.section
 		side := func(items func()) ui.Element {
 			return ui.Sidebar(c, &chosen, items).Padding(0).Background(ui.Transparent)
@@ -115,7 +115,7 @@ func (w *workspace) settingsRail(c *ui.Context, p *settingsPage) {
 			version = versionOf(p.rt.Build)
 		}
 		b := side(func() {
-			ui.SidebarItem(c, "about", nil, "About Keel").Label("settings nav About Keel").Children(func() {
+			ui.SidebarItem(c, "about", nil, "About Slime").Label("settings nav About Slime").Children(func() {
 				caption(c, version, inkFaint).Shrink(0)
 			})
 		})
@@ -250,7 +250,7 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 	opacity := prefRow{title: "Window opacity", desc: "How much of the desktop the window covers. 30–100; 100 is opaque.",
 		ctl: func(c *ui.Context) { w.prefSlider(c, p, keyOpacity, "Window opacity") }}
 	if !w.translucentWin && w.prefs.Opacity < opacityMax {
-		opacity.desc += " The window turns see-through the next time Keel starts."
+		opacity.desc += " The window turns see-through the next time Slime starts."
 	}
 	if !w.themeNative { // where the window takes the theme as its appearance there is no system theme to differ from
 		opacity.desc += " When the theme differs from the system's, the window stays opaque."
@@ -273,7 +273,7 @@ func (w *workspace) appearanceSection(p *settingsPage) settingsSection {
 
 func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 	session := []prefGroup{{title: "Typography", rows: []prefRow{
-		{title: "Font", desc: "Monospace face used in every pane: Keel's own, or any installed on this machine.", ctl: func(c *ui.Context) {
+		{title: "Font", desc: "Monospace face used in every pane: Slime's own, or any installed on this machine.", ctl: func(c *ui.Context) {
 			cur := validTermFont(w.prefs.TermFont)
 			entries := fontEntries(installedFonts())
 			if !slices.ContainsFunc(entries, func(e pickEntry) bool { return e.value == cur }) { // a family since removed
@@ -404,7 +404,7 @@ func (w *workspace) terminalSection(p *settingsPage) settingsSection {
 
 func (w *workspace) keyboardSection() settingsSection {
 	s := settingsSection{id: "keyboard", title: "Keyboard",
-		lead: "The keys Keel handles. They are fixed; the command palette shows the same keys beside each action."}
+		lead: "The keys Slime handles. They are fixed; the command palette shows the same keys beside each action."}
 	for _, g := range shortcutGroups() {
 		grp := prefGroup{title: g.name}
 		for _, it := range g.items {
@@ -500,7 +500,7 @@ func (w *workspace) vaultSection(p *settingsPage) settingsSection {
 	}}
 	safety := prefGroup{title: "Safety", rows: []prefRow{
 		{title: "The agent never sees vault contents", desc: "Passwords, keys and passphrases are never sent to a model. Every agent read and insert is in Logs.", ctl: alwaysOn},
-		{title: "A lost passphrase cannot be recovered", desc: "Keel never re-keys or overwrites an existing vault from the unlock screen."},
+		{title: "A lost passphrase cannot be recovered", desc: "Slime never re-keys or overwrites an existing vault from the unlock screen."},
 	}}
 	return settingsSection{id: "vault", title: "Vault & security",
 		lead: "Passwords, key passphrases and the agent key are encrypted in the vault file. Nothing here shows a secret.", groups: []prefGroup{vault, safety}}
@@ -520,17 +520,17 @@ func (w *workspace) runtimeSection(p *settingsPage) settingsSection {
 		stat("Running sessions", fmt.Sprint(rt.Sessions)), stat("Uptime", uptimeText(rt.UptimeSec)),
 	}}
 	window := prefGroup{title: "Window", rows: []prefRow{{title: "Sessions keep running after the window closes",
-		desc: "Closing the window detaches; reopen Keel to attach. Closing a session tab ends that session.", ctl: alwaysOn}}}
-	canStop := p.rt == nil || rt.CanStop // enabled until keel serve says it cannot stop
-	stop := prefGroup{title: "Stop", rows: []prefRow{{title: "Stop the Keel runtime",
-		desc: "Ends every running session and port forward, then closes keel serve. Reopen Keel to start it again.",
+		desc: "Closing the window detaches; reopen Slime to attach. Closing a session tab ends that session.", ctl: alwaysOn}}}
+	canStop := p.rt == nil || rt.CanStop // enabled until slime serve says it cannot stop
+	stop := prefGroup{title: "Stop", rows: []prefRow{{title: "Stop the Slime runtime",
+		desc: "Ends every running session and port forward, then closes slime serve. Reopen Slime to start it again.",
 		ctl: func(c *ui.Context) {
 			if textBtnOffAs(c, "Stop runtime…", "Stop runtime…", btnDanger, !canStop) {
 				w.act(w.askStopRuntime)
 			}
 		}}}}
 	return settingsSection{id: "runtime", title: "Runtime",
-		lead: "keel serve owns your sessions and serves this window. It keeps running when the window closes.", groups: []prefGroup{status, window, stop}}
+		lead: "slime serve owns your sessions and serves this window. It keeps running when the window closes.", groups: []prefGroup{status, window, stop}}
 }
 
 func (w *workspace) aboutSection(p *settingsPage) settingsSection {
@@ -539,7 +539,7 @@ func (w *workspace) aboutSection(p *settingsPage) settingsSection {
 		return prefRow{title: title, extra: value, ctl: func(c *ui.Context) { statValue(c, value) }}
 	}
 	version, build := "unknown", "unknown"
-	// The release of the packaged app (its Info.plist); bin/keel has none and shows the commit instead.
+	// The release of the packaged app (its Info.plist); bin/slime has none and shows the commit instead.
 	if v := mygo.App.Version(); v != "" {
 		version = v
 	} else if v := versionOf(rt.Build); v != "" {
@@ -551,13 +551,13 @@ func (w *workspace) aboutSection(p *settingsPage) settingsSection {
 	link := func(title, url, name string) prefRow {
 		return prefRow{title: title, desc: url, ctl: func(c *ui.Context) { w.copyBtn(c, name, url) }}
 	}
-	return settingsSection{id: "about", title: "About Keel",
-		lead: "A local SSH workspace. Go owns SSH and the terminals; this window is a native client of keel serve.",
+	return settingsSection{id: "about", title: "About Slime",
+		lead: "A local SSH workspace. Go owns SSH and the terminals; this window is a native client of slime serve.",
 		groups: []prefGroup{
 			{title: "Version", rows: []prefRow{stat("Version", version), stat("Build", build)}},
 			{title: "Links", rows: []prefRow{
-				link("Source", "https://github.com/KJK-Nice/keel", "Copy link"),
-				link("README", "https://github.com/KJK-Nice/keel#readme", "Copy link"),
+				link("Source", "https://github.com/KJK-Nice/slime", "Copy link"),
+				link("README", "https://github.com/KJK-Nice/slime#readme", "Copy link"),
 			}},
 		}}
 }
@@ -570,9 +570,9 @@ func pidText(p *settingsPage) string {
 }
 
 // keelRuntime is what GET /api/runtime said, or nothing yet.
-func keelRuntime(p *settingsPage) keelclient.Runtime {
+func keelRuntime(p *settingsPage) slimeclient.Runtime {
 	if p.rt == nil {
-		return keelclient.Runtime{}
+		return slimeclient.Runtime{}
 	}
 	return *p.rt
 }
@@ -595,9 +595,9 @@ func (w *workspace) termPreview(c *ui.Context) {
 		ui.Text(c, s).TextColor(col).FontSize(size).FontWeight(weight).Font(tf.Family).FontFeatures(features...).Height(row).SingleLine()
 	}
 	ui.Column(c).FillWidth().Padding(space3).Radius(radiusMd).Background(stage).Border(1, line).Label("terminal preview").Children(func() {
-		ln("guest@keel:~ $ make test && make lint", ink, wt)
+		ln("guest@slime:~ $ make test && make lint", ink, wt)
 		ui.Row(c).Height(row).AlignItems(ui.Center).Children(func() { // a prompt and the cursor of new panes
-			ui.Text(c, "guest@keel:~ $ ").TextColor(ink).FontSize(size).FontWeight(wt).Font(tf.Family).SingleLine()
+			ui.Text(c, "guest@slime:~ $ ").TextColor(ink).FontSize(size).FontWeight(wt).Font(tf.Family).SingleLine()
 			tf.Size = size
 			cw := gridFor(tf, 1).cw // the terminal's cell
 			cur := ui.Box(c).Background(ink).Label("cursor preview " + w.prefs.CursorStyle)
@@ -612,6 +612,6 @@ func (w *workspace) termPreview(c *ui.Context) {
 		})
 		ln("view.go:272: warning: label shrinks", ansi[3], wt)
 		ln("if err != nil && n >= 0 { return x => y } // ligatures", inkMuted, wt)
-		ln("ok  keel/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it
+		ln("ok  slime/internal/native  17.6s", ink, min(max(wt+300, 700), 900)) // bold as the terminal draws it
 	})
 }

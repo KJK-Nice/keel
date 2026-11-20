@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/shellmark"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/shellmark"
+	"slime/internal/store"
 )
 
 // Groups, part 2 (docs/ui-redesign.md §17): captured values and group
@@ -160,7 +160,7 @@ func (v *varFixture) logText(t *testing.T) string {
 	return b.String()
 }
 
-// The whole path: capture on cp-1 (by keel serve, from the output between
+// The whole path: capture on cp-1 (by slime serve, from the output between
 // the marks), the stored proposal keeps {{join_token}}, the fill for the
 // approve dialog has the value, and Type is authorized only with exactly
 // the filled bytes. Neither the view, the logs nor the provider see the
@@ -479,7 +479,7 @@ func liveCaptures(s *Service) int {
 
 // A captured value stays in the scrollback after its run: finished,
 // stopped or expired, it is still withheld from every read for the life of
-// keel serve, though no longer filled in.
+// slime serve, though no longer filled in.
 func TestCapturedValueWithheldAfterRunEnds(t *testing.T) {
 	for _, end := range []string{"stop", "finish", "expire"} {
 		v := varRunFixture(t)
@@ -565,7 +565,7 @@ func TestPerHostCaptureNotFilledElsewhere(t *testing.T) {
 
 // A value under 3 bytes could never be withheld from the model, so it is
 // not kept; when the redact-only set is full a new value is not kept
-// either, and the user is told to restart Keel.
+// either, and the user is told to restart Slime.
 func TestCaptureTooShortOrSetFull(t *testing.T) {
 	v := varRunFixture(t)
 	run := v.startToStep2(t, v.joinRunbook(t, "echo {{join_token}}"), "kubeadm join x --token ab\n")

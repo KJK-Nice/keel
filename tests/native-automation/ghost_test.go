@@ -28,7 +28,7 @@ func (r *rig) ghostCfg(opacity, blur int, theme string) {
 }
 
 // backdrop puts a solid window of this test's own just below the app's window, so the screen captures show a known
-// backdrop and never another window that happens to lie behind (a person's Keel, a terminal). It ends with the test.
+// backdrop and never another window that happens to lie behind (a person's Slime, a terminal). It ends with the test.
 func (r *rig) backdrop(margin ...int) {
 	r.t.Helper()
 	args := []string{strconv.Itoa(r.app.Process.Pid)}

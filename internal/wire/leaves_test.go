@@ -9,15 +9,16 @@ import (
 	"testing"
 )
 
-// The leaf packages are imported by the window and by keel serve, so each may import only the keel packages listed here.
+// The leaf packages are imported by the window and by slime serve, so each may import only the slime packages listed here.
 func TestLeavesImportOnlyTheirListedKeelPackages(t *testing.T) {
 	for dir, allowed := range map[string][]string{
 		"wire":      nil,
-		"cmdrule":   {"keel/internal/wire"},
+		"cmdrule":   {"slime/internal/wire"},
 		"limits":    nil,
 		"sharelink": nil,
-		"paths":     nil,
-		"authtoken": {"keel/internal/paths"},
+		"paths":     {"slime/internal/env"},
+		"env":       nil,
+		"authtoken": {"slime/internal/paths"},
 		"randid":    nil,
 	} {
 		t.Run(dir, func(t *testing.T) {
@@ -36,7 +37,7 @@ func TestLeavesImportOnlyTheirListedKeelPackages(t *testing.T) {
 				}
 				for _, imp := range f.Imports {
 					p := strings.Trim(imp.Path.Value, `"`)
-					if !strings.HasPrefix(p, "keel/") || p == "keel/internal/"+dir {
+					if !strings.HasPrefix(p, "slime/") || p == "slime/internal/"+dir {
 						continue
 					}
 					ok := false

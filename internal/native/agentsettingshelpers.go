@@ -7,18 +7,18 @@ import (
 	"strconv"
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/slimeclient"
 )
 
 // The pure helpers of Settings · Agent (docs/ui-redesign.md §5.9): the words and small decisions
 // (agentsettingshelpers_test.go pins them).
-// A key never comes back from keel serve, so nothing here can show one: a provider is only ever configured or not.
+// A key never comes back from slime serve, so nothing here can show one: a provider is only ever configured or not.
 
-// providerPurpose is what each provider is for, in one line: Keel's own wording (the descriptor carries the name,
+// providerPurpose is what each provider is for, in one line: Slime's own wording (the descriptor carries the name,
 // models, warning and links).
 func providerPurpose(id string) string {
-	const model = "Answers questions about the panes you pick and writes command suggestions. Keel sends your message and their redacted scrollback, nothing else."
+	const model = "Answers questions about the panes you pick and writes command suggestions. Slime sends your message and their redacted scrollback, nothing else."
 	switch id {
 	case "gemini", "anthropic":
 		return model
@@ -50,7 +50,7 @@ func detectionNote(suggestions, detection string, jevConfigured bool) string {
 	case detection == detectionHashOnly:
 		return "Nothing you type is sent until you start a line with # or press " + suggestKeyHere() + ". Pressing ↵ by mistake is harmless: the shell treats a line that starts with # as a comment."
 	case !jevConfigured:
-		return "Jev is not connected, so Keel notices only lines that start with # for now. Connect Jev above to notice plain language automatically."
+		return "Jev is not connected, so Slime notices only lines that start with # for now. Connect Jev above to notice plain language automatically."
 	}
 	return "After a pause in typing, the line is sent, redacted, to Jev to check for plain language. A notice shows and ⇥ stays the shell's: press " + suggestKeyHere() + " to ask."
 }
@@ -79,7 +79,7 @@ const (
 	linesStep                        = 10
 )
 
-// clampLines is the scrollback lines per pane the control shows, as keel serve keeps them.
+// clampLines is the scrollback lines per pane the control shows, as slime serve keeps them.
 func clampLines(n int) int { return limits.ClampScrollbackLines(n) }
 
 // modelItem is one choice of the Model select: picking it sets the model, and the provider when it is another one's.
@@ -88,15 +88,15 @@ type modelItem struct{ value, label, provider string }
 // modelItems is the Model select of Settings · Agent: the models of every model provider, each labelled with its provider
 // when there is more than one, and the saved model first when no provider lists it (a custom value set through the API,
 // kept under the saved provider).
-func modelItems(providers []keelclient.AgentProvider, provider, model string) []modelItem {
-	var models []keelclient.AgentProvider
+func modelItems(providers []slimeclient.AgentProvider, provider, model string) []modelItem {
+	var models []slimeclient.AgentProvider
 	for _, d := range providers {
 		if d.Kind == "model" {
 			models = append(models, d)
 		}
 	}
 	many := len(models) > 1
-	short := func(d keelclient.AgentProvider) string { return orElse(d.ShortName, d.Name) }
+	short := func(d slimeclient.AgentProvider) string { return orElse(d.ShortName, d.Name) }
 	var out []modelItem
 	for _, d := range models {
 		for _, m := range d.Models {
@@ -128,7 +128,7 @@ func modelItems(providers []keelclient.AgentProvider, provider, model string) []
 
 // keyError turns a failed key save into a line for the card. It never carries the request, so it never carries the key.
 func keyError(err error) string {
-	var se *keelclient.StatusError
+	var se *slimeclient.StatusError
 	if errors.As(err, &se) {
 		if se.Code == 423 {
 			return "The vault is locked. Unlock it, then try again."
@@ -143,7 +143,7 @@ func keyError(err error) string {
 // disconnectMessage is the confirm's text for removing a provider's key.
 func disconnectMessage(id, name string) string {
 	if id == "jev" {
-		return fmt.Sprintf("Keel will stop noticing plain language on its own and only notice lines that start with #. The %s key is removed from the vault.", name)
+		return fmt.Sprintf("Slime will stop noticing plain language on its own and only notice lines that start with #. The %s key is removed from the vault.", name)
 	}
 	return fmt.Sprintf("The agent panel and suggestions will stop working until you connect a key again. The %s key is removed from the vault.", name)
 }

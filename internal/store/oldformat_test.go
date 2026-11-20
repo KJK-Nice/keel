@@ -49,7 +49,7 @@ func TestOldKeelJSONBesideAVaultKeepsTheVault(t *testing.T) {
 	}
 	addOldFormatHost(t, st.path, "old1", "old-secret")
 
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "")
 	locked, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestOldKeelJSONBesideAVaultKeepsTheVault(t *testing.T) {
 	if strings.Contains(string(js), "old-secret") {
 		t.Fatal("keel.json still holds the old secret in the clear")
 	}
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	reopened, err := New(st.path, TestVault())
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestOldKeelJSONBesideAVaultKeepsTheVault(t *testing.T) {
 // On an unlocked start, the first save bootstrap makes already carries an
 // old keel.json's secrets: a crash before New's own save loses none.
 func TestBootstrapSavesOldSecretsIntoTheVault(t *testing.T) {
-	t.Setenv("KEEL_VAULT_PASSPHRASE", "test-vault-pass")
+	t.Setenv("SLIME_VAULT_PASSPHRASE", "test-vault-pass")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "keel.json")
 	if err := os.WriteFile(path, []byte(`{"version":2,"hosts":[],"knownHosts":{}}`), 0o600); err != nil {

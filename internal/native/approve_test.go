@@ -8,13 +8,13 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Approve before type on the fake backend: what the dialog shows is what is sent, nothing is sent before Type, and
 // a follower or a session that is not ready cannot type.
 
-var drivingState = keelclient.State{Status: "ready", Role: "driver", Subtitle: "deploy@10.0.0.1", YouID: 2, DriverID: 2}
+var drivingState = slimeclient.State{Status: "ready", Role: "driver", Subtitle: "deploy@10.0.0.1", YouID: 2, DriverID: 2}
 
 // approveRig is a window with one session this client drives.
 func approveRig(t *testing.T) *rig {
@@ -143,13 +143,13 @@ func TestEscapeCancelAndClickingOutsideSendNothing(t *testing.T) {
 func TestAFollowerOrASessionNotReadyCannotType(t *testing.T) {
 	for _, c := range []struct {
 		name string
-		st   keelclient.State
+		st   slimeclient.State
 		msg  string
 	}{
-		{"following", keelclient.State{Status: "ready", Role: "follower"}, msgFollowing},
-		{"owner not driving", keelclient.State{Status: "ready", Role: "owner"}, msgFollowing},
-		{"connecting", keelclient.State{Status: "connecting", Role: "driver"}, msgNotConnected},
-		{"error", keelclient.State{Status: "error", Role: "driver"}, msgNotConnected},
+		{"following", slimeclient.State{Status: "ready", Role: "follower"}, msgFollowing},
+		{"owner not driving", slimeclient.State{Status: "ready", Role: "owner"}, msgFollowing},
+		{"connecting", slimeclient.State{Status: "connecting", Role: "driver"}, msgNotConnected},
+		{"error", slimeclient.State{Status: "error", Role: "driver"}, msgNotConnected},
 	} {
 		r := approveRig(t)
 		st := c.st
@@ -176,7 +176,7 @@ func TestAFollowerOrASessionNotReadyCannotType(t *testing.T) {
 
 func TestAServerRefusalShowsItsMessageAndStaysOpenWithoutRetry(t *testing.T) {
 	r := approveRig(t)
-	r.fb.conns[0].injectErr = keelclient.ErrNoTicket
+	r.fb.conns[0].injectErr = slimeclient.ErrNoTicket
 	r.w.askType(fixed("ls"))
 	r.tt.Frame()
 	r.click(t, "Type")
@@ -187,7 +187,7 @@ func TestAServerRefusalShowsItsMessageAndStaysOpenWithoutRetry(t *testing.T) {
 		t.Error("the refusal is not shown")
 	}
 	if len(r.typed()) != 1 {
-		t.Fatalf("typed %v: Keel retried on its own", r.typed())
+		t.Fatalf("typed %v: Slime retried on its own", r.typed())
 	}
 	// Another press is another request, made by the user.
 	r.fb.conns[0].injectErr = errors.New("x")

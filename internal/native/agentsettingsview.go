@@ -6,7 +6,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // Settings · Agent drawn as prefRows.
@@ -18,7 +18,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 	s := w.agentVal()
 	v := s.Settings
 	str := func(x string) *string { return &x }
-	save := func(patch keelclient.AgentSettingsPatch) { w.act(func() { w.putAgent(patch, nil) }) }
+	save := func(patch slimeclient.AgentSettingsPatch) { w.act(func() { w.putAgent(patch, nil) }) }
 	jevOn := s.Keys["jev"].Configured
 	suggestOff := v.Suggestions == "off"
 
@@ -35,7 +35,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 					if m == v.Model {
 						return
 					}
-					patch := keelclient.AgentSettingsPatch{Model: str(m)} // a model names its provider: picking one switches to it
+					patch := slimeclient.AgentSettingsPatch{Model: str(m)} // a model names its provider: picking one switches to it
 					for _, it := range items {
 						if it.value == m && it.provider != "" && it.provider != v.Provider {
 							patch.Provider = str(it.provider)
@@ -49,12 +49,12 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 
 	suggest := prefGroup{title: "Suggestions in panes", rows: []prefRow{
 		{title: "Suggest commands in panes", desc: "Start a line with # and press ⇥, or press " + suggestKeyHere() + " on any line. Nothing is inserted until you accept, and nothing runs until you press ↵.",
-			ctl: w.switchCtl("Suggest commands", v.Suggestions != "off", func(on bool) { save(keelclient.AgentSettingsPatch{Suggestions: str(onOff(on))}) })},
+			ctl: w.switchCtl("Suggest commands", v.Suggestions != "off", func(on bool) { save(slimeclient.AgentSettingsPatch{Suggestions: str(onOff(on))}) })},
 		{title: "Suggest from this pane's scrollback", desc: "Offers a command already shown at the pane's prompt. Up to 40 recent commands from the pane are sent to TypeSafe Jev, redacted, each time you press ⇥.",
-			ctl: w.switchCtl("Suggest from this pane's scrollback", v.HistorySuggestions != "off", func(on bool) { save(keelclient.AgentSettingsPatch{HistorySuggestions: str(onOff(on))}) })},
+			ctl: w.switchCtl("Suggest from this pane's scrollback", v.HistorySuggestions != "off", func(on bool) { save(slimeclient.AgentSettingsPatch{HistorySuggestions: str(onOff(on))}) })},
 		{title: "How to notice plain language", stack: true, ctl: func(c *ui.Context) {
 			radioGroup(c, "How to notice plain language", [][2]string{{detectionAuto, "Notice automatically"}, {detectionHashOnly, "Only lines starting with #"}},
-				v.Detection, suggestOff, map[string]string{detectionAuto: "Needs a Jev key"}, func(d string) { save(keelclient.AgentSettingsPatch{Detection: str(d)}) })
+				v.Detection, suggestOff, map[string]string{detectionAuto: "Needs a Jev key"}, func(d string) { save(slimeclient.AgentSettingsPatch{Detection: str(d)}) })
 			if n := detectionNote(v.Suggestions, v.Detection, jevOn); n != "" {
 				ui.Text(c, n).TextColor(inkMuted).FontSize(captionSize)
 			}
@@ -63,7 +63,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 
 	panel := prefGroup{title: "Agent panel", rows: []prefRow{
 		{title: "Default panes per conversation", desc: "Which panes the agent may read when you start a conversation.", stack: true, ctl: func(c *ui.Context) {
-			radioGroup(c, "Default panes per conversation", agentScopes, v.DefaultScope, false, nil, func(sc string) { save(keelclient.AgentSettingsPatch{DefaultScope: str(sc)}) })
+			radioGroup(c, "Default panes per conversation", agentScopes, v.DefaultScope, false, nil, func(sc string) { save(slimeclient.AgentSettingsPatch{DefaultScope: str(sc)}) })
 		}},
 		{title: "Scrollback lines per pane", desc: fmt.Sprintf("%d–%d. How much of each pane the agent reads. Default %d.", linesMin, linesMax, linesDefault), ctl: func(c *ui.Context) {
 			sliderCtlStep(c, "Scrollback lines", &p.linesV, linesMin, linesMax, linesStep, clampLines(int(p.linesV+0.5)))
@@ -71,9 +71,9 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 	}}
 
 	claude := prefGroup{title: "Claude Code", rows: []prefRow{
-		{title: "Allow Claude Code (keel mcp)",
+		{title: "Allow Claude Code (slime mcp)",
 			desc: "Lets Claude Code list and read panes on hosts with Agent can read, each read logged, and propose commands that wait in the agent panel. It never types.",
-			ctl:  w.switchCtl("Allow Claude Code (keel mcp)", v.ClaudeCode, func(on bool) { save(keelclient.AgentSettingsPatch{ClaudeCode: &on}) })},
+			ctl:  w.switchCtl("Allow Claude Code (slime mcp)", v.ClaudeCode, func(on bool) { save(slimeclient.AgentSettingsPatch{ClaudeCode: &on}) })},
 	}}
 
 	notes := prefGroup{title: "Notes for the agent", rows: []prefRow{
@@ -89,8 +89,8 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 		}},
 	}}
 
-	redact := func(ips, hosts bool) keelclient.AgentSettingsPatch {
-		return keelclient.AgentSettingsPatch{Redact: &keelclient.AgentRedact{Secrets: true, IPs: ips, Hostnames: hosts}}
+	redact := func(ips, hosts bool) slimeclient.AgentSettingsPatch {
+		return slimeclient.AgentSettingsPatch{Redact: &slimeclient.AgentRedact{Secrets: true, IPs: ips, Hostnames: hosts}}
 	}
 	safety := prefGroup{title: "Safety", rows: []prefRow{
 		{title: "The agent never types into a pane", desc: "Only you do, with Type, ⇥ or ⇧⇥. Nothing runs until you press ↵.", ctl: alwaysOn},
@@ -112,7 +112,7 @@ func (w *workspace) agentSection(p *settingsPage) settingsSection {
 				ui.Row(c).Width(sizeRail).Shrink(0).Children(func() {
 					picker(c, "Keep conversations", historyValue(v.HistoryDays), entries, func(d string) {
 						if n, err := strconv.Atoi(d); err == nil && d != historyValue(v.HistoryDays) {
-							save(keelclient.AgentSettingsPatch{HistoryDays: &n})
+							save(slimeclient.AgentSettingsPatch{HistoryDays: &n})
 						}
 					})
 				})
@@ -178,7 +178,7 @@ func radioGroup(c *ui.Context, name string, opts [][2]string, current string, of
 
 // ---- the provider cards ----
 
-func (w *workspace) providerCards(c *ui.Context, p *settingsPage, s keelclient.AgentSettings) {
+func (w *workspace) providerCards(c *ui.Context, p *settingsPage, s slimeclient.AgentSettings) {
 	ui.Column(c).FillWidth().Gap(space3).Label("agent providers").Children(func() {
 		if len(w.agent.provs) == 0 {
 			waitHelp(c, "Reading the providers…")
@@ -191,7 +191,7 @@ func (w *workspace) providerCards(c *ui.Context, p *settingsPage, s keelclient.A
 
 // providerCard is one provider as a card: its name and role, what it is for, whether
 // it is connected, Change key and Disconnect when it is, and the masked key field when it is not (or when Change key opens it).
-func (w *workspace) providerCard(c *ui.Context, p *settingsPage, d keelclient.AgentProvider, configured bool) {
+func (w *workspace) providerCard(c *ui.Context, p *settingsPage, d slimeclient.AgentProvider, configured bool) {
 	card := p.card(d.ID)
 	role, glyph := "Model", "ai-magic"
 	if d.Kind == "detector" {
@@ -235,7 +235,7 @@ func (w *workspace) providerCard(c *ui.Context, p *settingsPage, d keelclient.Ag
 
 // keyForm is the key field of a provider card: shown when the provider is not connected, and when Change key opens it. The
 // field is masked, its key goes out once and the field is emptied (saveCardKey).
-func (w *workspace) keyForm(c *ui.Context, p *settingsPage, d keelclient.AgentProvider, card *keyCard, changing bool) {
+func (w *workspace) keyForm(c *ui.Context, p *settingsPage, d slimeclient.AgentProvider, card *keyCard, changing bool) {
 	name := orElse(d.KeyLabel, "API key")
 	ui.Column(c).FillWidth().Gap(space2).Label("agent key form " + d.Name).Children(func() {
 		if d.Warning != "" {

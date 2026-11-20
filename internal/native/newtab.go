@@ -8,10 +8,10 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
-	"keel/internal/native/layout"
-	"keel/internal/native/sshparse"
+	"slime/internal/limits"
+	"slime/internal/native/layout"
+	"slime/internal/native/slimeclient"
+	"slime/internal/native/sshparse"
 )
 
 // The New tab page (docs/ui-redesign.md §5.3): one input, the recent host cards, the Start actions and the
@@ -40,7 +40,7 @@ type startPage struct {
 // altPress is the page as ⌥1 to ⌥6 found it: on a Mac the key's character ("™" for ⌥2) reaches the input before the
 // shortcut runs, and would filter the cards the number stands for.
 type altPress struct {
-	cards []keelclient.Host
+	cards []slimeclient.Host
 	query string
 	at    time.Time
 	done  bool // a card was opened for this press
@@ -78,18 +78,18 @@ func (w *workspace) newTabKey() {
 	w.addStartTab()
 }
 
-func (w *workspace) localHost() (keelclient.Host, bool) {
+func (w *workspace) localHost() (slimeclient.Host, bool) {
 	for _, h := range w.hosts {
 		if h.IsLocal() {
 			return h, true
 		}
 	}
-	return keelclient.Host{}, false
+	return slimeclient.Host{}, false
 }
 
 // hostMatches: the query is one needle, looked for in the host's name, group, the names of every
 // folder above it, address, user and tags.
-func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
+func hostMatches(groups []slimeclient.Group, h slimeclient.Host, q string) bool {
 	needle := strings.ToLower(strings.TrimSpace(q))
 	if needle == "" {
 		return true
@@ -99,14 +99,14 @@ func hostMatches(groups []keelclient.Group, h keelclient.Host, q string) bool {
 
 // pickCards is up to six hosts. With no query they are the recent hosts and the
 // local shell first; with a query, every host that matches, recent ones first.
-func pickCards(groups []keelclient.Group, hosts []keelclient.Host, recent []string, query string, local *keelclient.Host) []keelclient.Host {
-	byID := map[string]keelclient.Host{}
+func pickCards(groups []slimeclient.Group, hosts []slimeclient.Host, recent []string, query string, local *slimeclient.Host) []slimeclient.Host {
+	byID := map[string]slimeclient.Host{}
 	for _, h := range hosts {
 		byID[h.ID] = h
 	}
-	var out []keelclient.Host
+	var out []slimeclient.Host
 	seen := map[string]bool{}
-	add := func(h keelclient.Host, ok bool) {
+	add := func(h slimeclient.Host, ok bool) {
 		if ok && !seen[h.ID] {
 			seen[h.ID] = true
 			out = append(out, h)
@@ -119,7 +119,7 @@ func pickCards(groups []keelclient.Group, hosts []keelclient.Host, recent []stri
 			add(h, ok)
 		}
 		if local != nil && !seen[local.ID] {
-			out = append([]keelclient.Host{*local}, out...)
+			out = append([]slimeclient.Host{*local}, out...)
 		}
 		return out[:min(len(out), recentCards)]
 	}
@@ -137,8 +137,8 @@ func pickCards(groups []keelclient.Group, hosts []keelclient.Host, recent []stri
 }
 
 // cards are the cards the page shows for its query.
-func (w *workspace) cards(p *startPage) []keelclient.Host {
-	var local *keelclient.Host
+func (w *workspace) cards(p *startPage) []slimeclient.Host {
+	var local *slimeclient.Host
 	if h, ok := w.localHost(); ok {
 		local = &h
 	}
@@ -169,7 +169,7 @@ func ageLabel(at, now time.Time) string {
 func (w *workspace) closedList() []closedEntry {
 	var out []closedEntry
 	for _, e := range w.prefs.ClosedTabs {
-		if slices.ContainsFunc(w.hosts, func(h keelclient.Host) bool { return h.ID == e.hostID }) {
+		if slices.ContainsFunc(w.hosts, func(h slimeclient.Host) bool { return h.ID == e.hostID }) {
 			out = append(out, e)
 		}
 	}
@@ -196,7 +196,7 @@ func (w *workspace) closedRow(e closedEntry) string {
 
 // targetText is "deploy@10.0.4.21:2222" (IPv6 gets brackets).
 func targetText(r *sshparse.Result) string {
-	host := keelclient.BracketIPv6(r.Host)
+	host := slimeclient.BracketIPv6(r.Host)
 	port := ""
 	if r.Port != 0 && r.Port != limits.DefaultPort {
 		port = fmt.Sprintf(":%d", r.Port)
@@ -224,11 +224,11 @@ func (p *startPage) offer() (r *sshparse.Result, errText string) {
 }
 
 // sync resets the pick and the error when the typing changes.
-func (p *startPage) sync(cards []keelclient.Host) {
+func (p *startPage) sync(cards []slimeclient.Host) {
 	if p.query != p.seen {
 		p.seen, p.pick, p.showError = p.query, "", false
 	}
-	if !slices.ContainsFunc(cards, func(h keelclient.Host) bool { return h.ID == p.pick }) {
+	if !slices.ContainsFunc(cards, func(h slimeclient.Host) bool { return h.ID == p.pick }) {
 		p.pick = ""
 		if len(cards) > 0 {
 			p.pick = cards[0].ID
@@ -239,7 +239,7 @@ func (p *startPage) sync(cards []keelclient.Host) {
 // ---- opening ----
 
 // openHost starts a session on h in a new tab, or in the New tab that is showing.
-func (w *workspace) openHost(h keelclient.Host) {
+func (w *workspace) openHost(h slimeclient.Host) {
 	fill := w.tab()
 	if fill != nil && !fill.isNew() {
 		fill = nil
@@ -248,7 +248,7 @@ func (w *workspace) openHost(h keelclient.Host) {
 }
 
 // openHostIn starts a session on h. It fills the New tab fill when that is still one, else it adds a tab.
-func (w *workspace) openHostIn(h keelclient.Host, fill *tab) {
+func (w *workspace) openHostIn(h slimeclient.Host, fill *tab) {
 	w.rememberRecent(h.ID)
 	if fill != nil {
 		if fill.start.connecting != "" {
@@ -331,7 +331,7 @@ func (w *workspace) submitStart(t *tab) {
 // movePick moves the highlighted card by delta (↑ ↓ in the input), stopping at the ends.
 func (w *workspace) movePick(t *tab, delta int) {
 	cards := w.cards(t.start)
-	i := slices.IndexFunc(cards, func(h keelclient.Host) bool { return h.ID == t.start.pick })
+	i := slices.IndexFunc(cards, func(h slimeclient.Host) bool { return h.ID == t.start.pick })
 	if len(cards) == 0 {
 		return
 	}

@@ -3,8 +3,8 @@ package hostimport
 import (
 	"testing"
 
-	"keel/internal/sshconfig"
-	"keel/internal/store"
+	"slime/internal/sshconfig"
+	"slime/internal/store"
 )
 
 func TestPlanJumpPicksOnlyAnExactSavedHost(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"keel/internal/randid"
+	"slime/internal/randid"
 )
 
 // KnownHosts holds one SHA256 fingerprint (ssh.FingerprintSHA256, the
@@ -21,7 +21,7 @@ type KnownHostKey struct {
 	Hostname    string `json:"hostname"`
 	Fingerprint string `json:"fingerprint,omitempty"`
 	// KeyType is ssh-ed25519, ecdsa-sha2-nistp256, …; empty when the key
-	// was trusted before Keel kept types.
+	// was trusted before Slime kept types.
 	KeyType string `json:"keyType,omitempty"`
 	Known   bool   `json:"known"`
 }
@@ -71,7 +71,7 @@ func (s *Store) ForgetHostKey(hostname string) (bool, error) {
 // Trust offers. A dialer's refusal of an unknown or changed key records
 // what it saw (address:port, fingerprint, key type) under a random token
 // for OfferTTL. TrustOffered saves exactly that key and nothing else, so
-// the API cannot trust a key no Keel connect has seen, or a key for
+// the API cannot trust a key no Slime connect has seen, or a key for
 // another address than the one the connect went to.
 
 // OfferTTL is how long a refused key can still be trusted.

@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The host row menu: right-click on a row, or its "…" control: Connect, Open in split, Edit, Duplicate (not the local
@@ -12,7 +12,7 @@ import (
 // A menu never types into a session.
 
 // hostMenu fills the menu of a host row.
-func (w *workspace) hostMenu(h keelclient.Host) func(m *ui.Menu) {
+func (w *workspace) hostMenu(h slimeclient.Host) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
 		local := h.IsLocal()
 		if menuItem(m, "Connect").Chosen() {

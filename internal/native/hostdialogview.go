@@ -3,7 +3,7 @@ package native
 import (
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
 // The host dialog (760px, two columns: General and Connection; Authentication, Session and Agent; the footer).
@@ -18,7 +18,7 @@ func (w *workspace) hostDialogView(c *ui.Context) {
 	if d.id != "" {
 		title = "Edit host"
 	}
-	local := d.f.auth == keelclient.AuthLocal
+	local := d.f.auth == slimeclient.AuthLocal
 	open := true
 	ui.DialogBase(c, &open, func(backdrop, panel ui.Element) {
 		modalChrome(c, backdrop, panel)
@@ -108,7 +108,7 @@ func (w *workspace) hostRight(c *ui.Context, d *hostDialog, local bool) {
 		segControl(c, "Authentication", f.auth, opts, d.setAuth)
 	})
 	switch f.auth {
-	case keelclient.AuthIdentity:
+	case slimeclient.AuthIdentity:
 		labeled(c, "Identity", nil, func() {
 			entries := identityEntries(d.idents, f.identityID)
 			if len(entries) == 0 {
@@ -119,11 +119,11 @@ func (w *workspace) hostRight(c *ui.Context, d *hostDialog, local bool) {
 			}
 			picker(c, "Identity", f.identityID, entries, func(v string) { f.identityID = v })
 		})
-	case keelclient.AuthPassword:
+	case slimeclient.AuthPassword:
 		labeled(c, "Password", &d.passH, func() {
 			inputBox(c, "Host password", &f.password, "Leave blank to keep saved password", &d.passH, false, true, 0, nil)
 		})
-	case keelclient.AuthKey:
+	case slimeclient.AuthKey:
 		// A text area has no mask (Password is ignored on it) and shows the key: it is cleared
 		// when the dialog closes or the request is sent.
 		labeled(c, "Private key", &d.keyH, func() {
@@ -188,9 +188,9 @@ func (w *workspace) hostKeyBlock(c *ui.Context, d *hostDialog) {
 		})
 		if known {
 			ui.Text(c, d.key.Fingerprint).Font(monoStack).TextColor(inkMuted).FontSize(captionSize) // wraps: it is long
-			help(c, "Saved for "+d.key.Hostname+". Keel refuses a different key until you replace it.")
+			help(c, "Saved for "+d.key.Hostname+". Slime refuses a different key until you replace it.")
 		} else {
-			help(c, "Trusted on first connect; Keel asks again if it changes.")
+			help(c, "Trusted on first connect; Slime asks again if it changes.")
 		}
 	})
 }
@@ -223,7 +223,7 @@ func (w *workspace) hostTestView(c *ui.Context, d *hostDialog) {
 		}
 		if _, ok := t.res.HostKeyOffer(); ok {
 			name := "Trust and save"
-			if t.res.Kind == keelclient.HostKeyMismatch {
+			if t.res.Kind == slimeclient.HostKeyMismatch {
 				name = "Replace saved key"
 			}
 			ui.Row(c).Children(func() {

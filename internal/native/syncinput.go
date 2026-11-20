@@ -64,7 +64,7 @@ func fanOut(to []session, b []byte) {
 	}
 }
 
-// canSync is a tab sync input can be turned on in: a session tab of this machine's keel serve with a terminal pane.
+// canSync is a tab sync input can be turned on in: a session tab of this machine's slime serve with a terminal pane.
 func (t *tab) canSync() bool {
 	return t != nil && t.root != nil && t.mode() == modeSession && t.firstTerm() != nil
 }

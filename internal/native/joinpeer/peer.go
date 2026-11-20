@@ -12,9 +12,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/sharelink"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/sharelink"
+	"slime/internal/wire"
 )
 
 // STUN is the one ICE server a joiner uses. A peer dials the signal server named in the link and
@@ -53,7 +53,7 @@ const maxQueued = 64 << 20
 // Write sends the window's keystrokes (nothing while following), and Snapshot says who drives. It reads nothing of
 // the host's machine but its terminal.
 type Peer struct {
-	frames *keelclient.Conn // the state the host's control frames describe; it has no socket
+	frames *slimeclient.Conn // the state the host's control frames describe; it has no socket
 	ws     *websocket.Conn
 	wmu    sync.Mutex // one writer on ws
 	pc     *webrtc.PeerConnection
@@ -95,7 +95,7 @@ func Open(link Link, name string, opts ...Option) (*Peer, error) {
 		ws.Close()
 		return nil, err
 	}
-	p := &Peer{frames: keelclient.NewFrameConn(), ws: ws, pc: pc, ice: o.ice, sigURL: sig}
+	p := &Peer{frames: slimeclient.NewFrameConn(), ws: ws, pc: pc, ice: o.ice, sigURL: sig}
 	p.cond = sync.NewCond(&p.mu)
 	p.mu.Lock()
 	p.offerTimer = time.AfterFunc(offerWait, func() { p.fail(msgLost, false) })
@@ -110,7 +110,7 @@ func (p *Peer) ICEServers() []webrtc.ICEServer { return p.ice }
 // SignalURL is the signal server's socket this peer dialled. It holds the room and the name, never the key.
 func (p *Peer) SignalURL() string { return p.sigURL }
 
-// send sends the host a message through keel-signal (wire.Signal).
+// send sends the host a message through slime-signal (wire.Signal).
 func (p *Peer) send(m wire.Signal) {
 	m.Type = wire.SignalMessage
 	p.wmu.Lock()
@@ -152,7 +152,7 @@ func (p *Peer) run(key string) {
 		switch m.Type {
 		case wire.SignalLeave:
 			_ = p.pc.Close()
-			p.notice(keelclient.EventNotice, msgHostLeft)
+			p.notice(slimeclient.EventNotice, msgHostLeft)
 		case wire.SignalMessage:
 			p.onSignal(m, key, ice)
 		}
@@ -285,7 +285,7 @@ func (p *Peer) enqueue(b []byte) {
 	p.mu.Unlock()
 }
 
-func (p *Peer) notice(kind, msg string) { p.frames.Notify(keelclient.Event{Kind: kind, Message: msg}) }
+func (p *Peer) notice(kind, msg string) { p.frames.Notify(slimeclient.Event{Kind: kind, Message: msg}) }
 
 // fail ends the join: the state is an error with msg (shown as a banner and a toast, never as terminal output), the
 // peer is closed, and nothing the host sent after this is kept.
@@ -302,7 +302,7 @@ func (p *Peer) fail(msg string, toast bool) {
 	p.mu.Unlock()
 	p.frames.Mark(wire.StatusError, msg)
 	if toast {
-		p.notice(keelclient.EventNoticeError, msg)
+		p.notice(slimeclient.EventNoticeError, msg)
 	}
 	_ = p.pc.Close()
 	_ = p.ws.Close()
@@ -327,7 +327,7 @@ func (p *Peer) Read(b []byte) (int, error) {
 	return n, nil
 }
 
-// Write sends the window's keystrokes to the host, by the rule a local pane has (keelclient.Conn.KeysGo): only while the
+// Write sends the window's keystrokes to the host, by the rule a local pane has (slimeclient.Conn.KeysGo): only while the
 // host says this client drives, as the host writes only the driver's keys; a follower's are counted (State.Blocked, for
 // the notice "Typing is off while you follow").
 func (p *Peer) Write(b []byte) (int, error) {
@@ -383,15 +383,15 @@ func (p *Peer) Close() error {
 	return p.ws.Close()
 }
 
-// SessionID is "": a joined share is not a session of this machine's keel serve, so nothing that kills, reconnects or
+// SessionID is "": a joined share is not a session of this machine's slime serve, so nothing that kills, reconnects or
 // saves a session may be pointed at it by way of an id.
 func (p *Peer) SessionID() string { return "" }
 
 // Snapshot is what the host said about the session.
-func (p *Peer) Snapshot() keelclient.State { return p.frames.Snapshot() }
+func (p *Peer) Snapshot() slimeclient.State { return p.frames.Snapshot() }
 
 // Events hands over what was announced since the last call.
-func (p *Peer) Events() []keelclient.Event { return p.frames.Events() }
+func (p *Peer) Events() []slimeclient.Event { return p.frames.Events() }
 
 // OnChange sets fn, called when the state changes or something is announced.
 func (p *Peer) OnChange(fn func()) { p.frames.OnChange(fn) }
@@ -408,21 +408,21 @@ func (p *Peer) GrantControl(id uint64) error {
 var ErrNoApprovedInject = errors.New("Session is not connected")
 
 // ApprovedInject types nothing into a joined pane. The window never asks; this is the refusal if it did.
-func (p *Peer) ApprovedInject(context.Context, string, *keelclient.AgentRef, ...keelclient.InjectOption) error {
+func (p *Peer) ApprovedInject(context.Context, string, *slimeclient.AgentRef, ...slimeclient.InjectOption) error {
 	return ErrNoApprovedInject
 }
 
-// DirectType types nothing into a joined pane either (keel serve refuses a pane a share peer drives). The window never
+// DirectType types nothing into a joined pane either (slime serve refuses a pane a share peer drives). The window never
 // asks; this is the refusal if it did, and no frame goes out.
-func (p *Peer) DirectType(context.Context, string, keelclient.DirectRef, *keelclient.AgentRef) (keelclient.DirectResult, error) {
-	return keelclient.DirectResult{}, ErrNoApprovedInject
+func (p *Peer) DirectType(context.Context, string, slimeclient.DirectRef, *slimeclient.AgentRef) (slimeclient.DirectResult, error) {
+	return slimeclient.DirectResult{}, ErrNoApprovedInject
 }
 
 // A joined pane has no in-pane suggestions (§5.7): these send nothing, and the window never asks.
-func (p *Peer) SuggestDetect(int, string) error          { return ErrNoApprovedInject }
-func (p *Peer) SuggestAsk(int, string) error             { return ErrNoApprovedInject }
-func (p *Peer) SuggestEvents() []keelclient.SuggestEvent { return nil }
-func (p *Peer) SuggestInsert(context.Context, keelclient.SuggestionRef) error {
+func (p *Peer) SuggestDetect(int, string) error           { return ErrNoApprovedInject }
+func (p *Peer) SuggestAsk(int, string) error              { return ErrNoApprovedInject }
+func (p *Peer) SuggestEvents() []slimeclient.SuggestEvent { return nil }
+func (p *Peer) SuggestInsert(context.Context, slimeclient.SuggestionRef) error {
 	return ErrNoApprovedInject
 }
 func (p *Peer) RestoreWords(string) error { return ErrNoApprovedInject }

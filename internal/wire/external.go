@@ -2,7 +2,7 @@ package wire
 
 import "time"
 
-// What `keel mcp` and keel serve's /api/mcp routes say to each other. The agent service fills these in, keel serve sends
+// What `slime mcp` and slime serve's /api/mcp routes say to each other. The agent service fills these in, slime serve sends
 // them and the MCP server reads them, so a field is named here once.
 
 // ExternalTitle is the agent panel conversation that holds what an outside agent proposed.
@@ -40,7 +40,7 @@ type ExternalExcerpt struct {
 	Text        string         `json:"text"`
 }
 
-// ExternalProposed is keel serve's answer to a proposal from an outside agent.
+// ExternalProposed is slime serve's answer to a proposal from an outside agent.
 type ExternalProposed struct {
 	ProposalID     string `json:"proposalId"`
 	ConversationID string `json:"conversationId"`

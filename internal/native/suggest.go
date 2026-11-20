@@ -6,12 +6,12 @@ import (
 	"time"
 	"unicode"
 
-	"keel/internal/native/keelclient"
-	"keel/internal/wire"
+	"slime/internal/native/slimeclient"
+	"slime/internal/wire"
 )
 
 // Plain language → command in a pane (docs/ui-redesign.md §5.5): the state machine and the pure rules, held by suggest_test.go.
-// Nothing here writes to a pane or sends a frame: the pane's code (suggestpane.go) does the I/O the deps name, and keel
+// Nothing here writes to a pane or sends a frame: the pane's code (suggestpane.go) does the I/O the deps name, and slime
 // serve decides whether a line is noticed, writes a suggestion only after the user's ⇥ / ⇧⇥, and checks the ⇧ rule again.
 
 const (
@@ -20,8 +20,8 @@ const (
 	offBackoff    = 15 * time.Second
 	suggestMaxLen = 300
 	insertedSeen  = 3 * time.Second // how long an inserted command may stay unseen on the line
-	// suggestWait is how long a request may stay loading: keel serve's history pick (1.5 s) and model call (30 s, agent
-	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; keel serve answers every
+	// suggestWait is how long a request may stay loading: slime serve's history pick (1.5 s) and model call (30 s, agent
+	// service suggestTimeout) plus a margin. Past it the card shows "No suggestion came back."; slime serve answers every
 	// request it accepted, so this is for an answer that was lost.
 	suggestWait = 37 * time.Second
 )
@@ -81,7 +81,7 @@ func askable(input string) bool {
 }
 
 // sugMode is what the settings let the pane do on its own: nothing (suggestions off), notice only lines the user starts
-// with # (Only lines starting with #), or also have keel serve check each line after a typing pause (Notice
+// with # (Only lines starting with #), or also have slime serve check each line after a typing pause (Notice
 // automatically). The suggest key asks in the last two; off says so.
 type sugMode int
 
@@ -93,11 +93,11 @@ const (
 
 // applyRisk merges a later, stricter rating into a suggestion. It returns a new suggestion,
 // or sug itself when the update is for another one. It never loosens what is shown: it can only add ⇧.
-func applyRisk(sug *keelclient.Suggestion, id string, upd []keelclient.SuggestOption) *keelclient.Suggestion {
+func applyRisk(sug *slimeclient.Suggestion, id string, upd []slimeclient.SuggestOption) *slimeclient.Suggestion {
 	if sug == nil || id != sug.ID || upd == nil {
 		return sug
 	}
-	out := &keelclient.Suggestion{ID: sug.ID, Options: make([]keelclient.SuggestOption, len(sug.Options))}
+	out := &slimeclient.Suggestion{ID: sug.ID, Options: make([]slimeclient.SuggestOption, len(sug.Options))}
 	for i, o := range sug.Options {
 		if i < len(upd) {
 			u := upd[i]
@@ -115,7 +115,7 @@ func applyRisk(sug *keelclient.Suggestion, id string, upd []keelclient.SuggestOp
 // insertGate decides what a ⇥ / ⇧⇥ press does on an option: ok inserts; reason needsShiftReason shows "press ⇧⇥".
 const needsShiftReason = "needs ⇧"
 
-func insertGate(o *keelclient.SuggestOption, shift bool) (ok bool, reason string) {
+func insertGate(o *slimeclient.SuggestOption, shift bool) (ok bool, reason string) {
 	switch {
 	case o == nil:
 		return false, "none"
@@ -196,8 +196,8 @@ func shiftTab(k keyLabelSet) string {
 // riskWords is the badge text; destructive says what it does when the command makes it plain.
 var deletesRe = regexp.MustCompile(`(^|[\s;&|(])(sudo\s+(-\S+\s+)*)?(rm|rmdir|unlink|shred|find\b.*-delete|pg_archivecleanup)\b`)
 
-func riskWords(o keelclient.SuggestOption) string {
-	if o.Risk == keelclient.RiskDestructive {
+func riskWords(o slimeclient.SuggestOption) string {
+	if o.Risk == slimeclient.RiskDestructive {
 		if deletesRe.MatchString(o.Command) {
 			return "Deletes files"
 		}
@@ -217,7 +217,7 @@ func sourceLabel(source string) string {
 	return "Suggested from your words"
 }
 
-// insertResult is what an insert came to: ok, a refusal in keel serve's words, or dropped (the line changed under the
+// insertResult is what an insert came to: ok, a refusal in slime serve's words, or dropped (the line changed under the
 // card, so nothing was written).
 type insertResult struct {
 	OK, Dropped bool
@@ -227,7 +227,7 @@ type insertResult struct {
 type sugView struct {
 	State    sugState
 	Words    string
-	Sug      *keelclient.Suggestion
+	Sug      *slimeclient.Suggestion
 	Selected int
 	Note     string
 	Message  string
@@ -245,7 +245,7 @@ type sugDeps struct {
 	mode        func() sugMode // nil: sugAuto
 	sendDetect  func(seq int, line string)
 	sendSuggest func(seq int, line string)
-	insert      func(sug *keelclient.Suggestion, index int, shift bool, words string, done func(insertResult))
+	insert      func(sug *slimeclient.Suggestion, index int, shift bool, words string, done func(insertResult))
 	restore     func(words string)
 	render      func(sugView)
 	now         func() time.Time
@@ -313,7 +313,7 @@ const offMessage = "Suggestions in panes are off. Turn them on in Settings · Ag
 
 // ModeChanged follows a change of the settings: nothing asked before counts any more. The cache of plain lines, a
 // detection in flight, the typing pause and the backoff go; a notice goes (it was for the old rule); with suggestions
-// off a loading request or a card goes too, since keel serve would refuse it.
+// off a loading request or a card goes too, since slime serve would refuse it.
 func (m *sugMachine) ModeChanged() {
 	m.cache, m.cacheKeys = map[string]detectHit{}, nil
 	m.dueAt, m.pendSeq, m.offUntil = time.Time{}, 0, time.Time{}
@@ -643,7 +643,7 @@ func (m *sugMachine) OnDetect(seq int, plain bool, source string) {
 	}
 }
 
-func (m *sugMachine) OnSuggest(seq int, ok bool, sug *keelclient.Suggestion, message, reason string) {
+func (m *sugMachine) OnSuggest(seq int, ok bool, sug *slimeclient.Suggestion, message, reason string) {
 	if m.st.State != sugLoading || seq != m.st.Seq {
 		return
 	}
@@ -652,7 +652,7 @@ func (m *sugMachine) OnSuggest(seq int, ok bool, sug *keelclient.Suggestion, mes
 		return
 	}
 	switch reason {
-	case keelclient.ReasonOff, keelclient.ReasonNoKey, keelclient.ReasonNotReadable, keelclient.ReasonFollowing:
+	case slimeclient.ReasonOff, slimeclient.ReasonNoKey, slimeclient.ReasonNotReadable, slimeclient.ReasonFollowing:
 		m.offUntil = m.d.now().Add(offBackoff)
 	}
 	if message == "" {
@@ -662,7 +662,7 @@ func (m *sugMachine) OnSuggest(seq int, ok bool, sug *keelclient.Suggestion, mes
 }
 
 // OnRisk: Jev rated the shown suggestion stricter after the card appeared.
-func (m *sugMachine) OnRisk(id string, opts []keelclient.SuggestOption) {
+func (m *sugMachine) OnRisk(id string, opts []slimeclient.SuggestOption) {
 	if (m.st.State != sugCard && m.st.State != sugInserting) || m.st.Sug == nil {
 		return
 	}

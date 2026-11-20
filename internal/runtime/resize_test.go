@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/session"
-	"keel/internal/store"
+	"slime/internal/session"
+	"slime/internal/store"
 )
 
 // A driver that resizes while the bridge is still connecting (an SSH

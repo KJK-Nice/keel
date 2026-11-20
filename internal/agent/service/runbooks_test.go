@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/provider"
-	"keel/internal/shellmark"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/provider"
+	"slime/internal/shellmark"
+	"slime/internal/store"
 )
 
 // fakeBooks is an in-memory RunbookStore that cleans like the store.
@@ -233,7 +233,7 @@ func TestRunbookSaveRedactsAndLogs(t *testing.T) {
 }
 
 // The user picks a runbook: from that ask on its steps go with every
-// question (framed as user-curated, through the Auditor), and Keel
+// question (framed as user-curated, through the Auditor), and Slime
 // proposes the current step, one, from the saved command.
 func TestUserPickedRunbookProposesOneStep(t *testing.T) {
 	reply := "Look.\n```keel-proposal\n{\"pane\": 1, \"command\": \"uptime\", \"why\": \"load\", \"risk\": \"readonly\"}\n```"
@@ -316,8 +316,8 @@ func TestRunbookNeedsAReadablePane(t *testing.T) {
 	}
 }
 
-// The agent picks only from what Keel offered: runbooks with Agent may
-// pick on whose hosts match a pane read; the pick starts the run and Keel
+// The agent picks only from what Slime offered: runbooks with Agent may
+// pick on whose hosts match a pane read; the pick starts the run and Slime
 // proposes step 1 for the pane on a matching host.
 func TestAgentPicksOfferedRunbook(t *testing.T) {
 	reply := "This fits.\n```keel-runbook-use\n{\"runbook\": 1, \"why\": \"matched the 502s on " + vaultPass + "\"}\n```"
@@ -374,7 +374,7 @@ func TestAgentPicksOfferedRunbook(t *testing.T) {
 	}
 }
 
-// A pick that names a runbook Keel did not offer is ignored.
+// A pick that names a runbook Slime did not offer is ignored.
 func TestAgentPickOutOfRangeIgnored(t *testing.T) {
 	f, _, _ := booksFixture(t, "```keel-runbook-use\n{\"runbook\": 7}\n```")
 	_, _ = f.svc.AddRunbook(threeSteps("WEB-BOOK", true))
@@ -772,7 +772,7 @@ func TestEditedStepKeepsSavedCommand(t *testing.T) {
 	}
 }
 
-// L4: a save takes its source from keel serve's own draft record, not
+// L4: a save takes its source from slime serve's own draft record, not
 // from the client, and starts off.
 func TestDraftSourceIsServerSide(t *testing.T) {
 	f, books, _ := booksFixture(t, "```keel-proposal\n{\"pane\": 1, \"command\": \"df -h\", \"why\": \"Free space\", \"risk\": \"readonly\"}\n```")

@@ -15,14 +15,14 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"keel/internal/native/keelclient"
+	"slime/internal/native/slimeclient"
 )
 
-// Saved conversations, the Agent page and Settings · Agent against a real keel serve that answers from its in-process fake
-// (KEEL_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider, no test calls keel
+// Saved conversations, the Agent page and Settings · Agent against a real slime serve that answers from its in-process fake
+// (SLIME_AGENT_PROVIDER=fake, set for every daemon by startServeAt): nothing here reaches a model provider, no test calls slime
 // mcp's routes, and the only key ever stored is made up.
 
-func (e *win) convList() keelclient.ConversationList {
+func (e *win) convList() slimeclient.ConversationList {
 	e.t.Helper()
 	c, cancel := ctx()
 	defer cancel()
@@ -81,7 +81,7 @@ func (e *win) openRecent() {
 	e.pump(func() bool { return e.hasLabel("dialog Recent conversations") }, "Recent conversations")
 }
 
-func (e *win) titleOf(l keelclient.ConversationList, part string) keelclient.ConversationSummary {
+func (e *win) titleOf(l slimeclient.ConversationList, part string) slimeclient.ConversationSummary {
 	e.t.Helper()
 	for _, s := range l.Sessions {
 		if strings.Contains(s.Title, part) {
@@ -89,7 +89,7 @@ func (e *win) titleOf(l keelclient.ConversationList, part string) keelclient.Con
 		}
 	}
 	e.t.Fatalf("no saved conversation titled with %q: %+v", part, l.Sessions)
-	return keelclient.ConversationSummary{}
+	return slimeclient.ConversationSummary{}
 }
 
 func TestE2EAgentConversationsSavedAndResumed(t *testing.T) {
@@ -121,7 +121,7 @@ func TestE2EAgentConversationsSavedAndResumed(t *testing.T) {
 	}
 	e.shot("TestE2EAgentConversationsSavedAndResumed-recent")
 
-	// Rename the first: ↵ saves, and keel serve keeps the new title.
+	// Rename the first: ↵ saves, and slime serve keeps the new title.
 	e.click("Rename " + alpha.Title)
 	e.key(ui.Cmd, ui.KeyA)
 	e.tt.Type("Renamed alpha")
@@ -159,13 +159,13 @@ func TestE2EAgentConversationsSavedAndResumed(t *testing.T) {
 	}
 	e2.shot("TestE2EAgentConversationsSavedAndResumed-resumed")
 	e2.settledAsk("tell me more, no command")
-	e2.pump(func() bool { return e2.titleOf(e2.convList(), "Renamed alpha").Turns == 3 }, "the conversation's turn count on keel serve to grow by one")
+	e2.pump(func() bool { return e2.titleOf(e2.convList(), "Renamed alpha").Turns == 3 }, "the conversation's turn count on slime serve to grow by one")
 	if !e2.tt.HasText("tell me more, no command") {
 		t.Error("the new question is not on the thread")
 	}
 }
 
-// ageOut starts n conversations so keel serve, which keeps 16 in memory, drops the oldest: its proposals are then not held.
+// ageOut starts n conversations so slime serve, which keeps 16 in memory, drops the oldest: its proposals are then not held.
 func (e *win) fillConversations(n int) {
 	e.t.Helper()
 	for i := 1; i <= n; i++ {
@@ -222,7 +222,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		}
 	})
 	t.Run("evicted", func(t *testing.T) {
-		// keel serve keeps 16 conversations in memory: with a 17th the first is dropped and its saved proposal is Expired
+		// slime serve keeps 16 conversations in memory: with a 17th the first is dropped and its saved proposal is Expired
 		// while its pane is still open, so Propose again gives a proposal that can be typed, through the dialog.
 		addr, dataDir := startServe(t, true)
 		e := newWin(t, addr, dataDir, nil)
@@ -234,7 +234,7 @@ func TestE2EAgentExpiredProposal(t *testing.T) {
 		e.openRecent()
 		e.click("Search conversations")
 		e.tt.Type("#01")
-		e.pump(func() bool { return e.hasLabel("conversation " + first.Title) }, "the filtered list") // it loads from keel serve
+		e.pump(func() bool { return e.hasLabel("conversation " + first.Title) }, "the filtered list") // it loads from slime serve
 		e.click("conversation " + first.Title)
 		e.pump(func() bool { return e.w.agentState().conv == first.ID && e.hasLabel("Proposal expired") }, "the expired card")
 		if e.hasLabel("Type into pane…") || e.hasLabel("Edit command") {
@@ -328,7 +328,7 @@ func TestE2EAgentPage(t *testing.T) {
 	e.key(0, ui.KeyEnter)
 	e.pump(func() bool { return count("and then, no command from the page") >= 2 && e.w.agentState().busy == nil }, "both threads to show the page's ask")
 
-	// Rename on the page: keel serve and the panel follow.
+	// Rename on the page: slime serve and the panel follow.
 	e.click("Rename this conversation")
 	e.key(ui.Cmd, ui.KeyA)
 	e.tt.Type("Page renamed")
@@ -341,12 +341,12 @@ func TestE2EAgentPage(t *testing.T) {
 			}
 		}
 		return false
-	}, "keel serve to hold the new title")
+	}, "slime serve to hold the new title")
 	e.pump(func() bool { return e.w.agentState().title == "Page renamed" && e.hasLabel("Recent conversations") }, "the panel to follow")
 
-	// Delete on the page acts at once; keel serve and the panel follow.
+	// Delete on the page acts at once; slime serve and the panel follow.
 	e.click("Delete this conversation")
-	e.pump(func() bool { return len(e.convList().Sessions) == 1 && len(e.w.agentState().turns) == 0 }, "the conversation to be gone on keel serve and in the panel")
+	e.pump(func() bool { return len(e.convList().Sessions) == 1 && len(e.w.agentState().turns) == 0 }, "the conversation to be gone on slime serve and in the panel")
 	if e.w.agentState().title != "" || e.w.agentState().conv == one.ID {
 		t.Error("the panel still has the deleted conversation")
 	}
@@ -379,39 +379,39 @@ func TestE2EAgentDeleteAll(t *testing.T) {
 	e.click("Delete all")
 	e.pump(func() bool { return e.w.confirmOpen() }, "the confirm again")
 	e.click("Delete all")
-	e.pump(func() bool { return len(e.convList().Sessions) == 0 }, "keel serve to hold no conversation")
+	e.pump(func() bool { return len(e.convList().Sessions) == 0 }, "slime serve to hold no conversation")
 	e.pump(func() bool { return e.tt.HasText("Agent history deleted") && len(e.w.agentState().turns) == 0 }, "the window to start over")
 	e.openRecent()
 	e.pump(func() bool { return e.tt.HasText("No saved conversations.") }, "the app's empty text")
 }
 
-// recBackend records what a window sent to keel serve for the agent's settings: the patches, which name every field they
-// change. The window has no method that calls keel mcp's routes, and a test that logged one would fail here.
+// recBackend records what a window sent to slime serve for the agent's settings: the patches, which name every field they
+// change. The window has no method that calls slime mcp's routes, and a test that logged one would fail here.
 type recBackend struct {
 	backend
 	mu      sync.Mutex
-	patches []keelclient.AgentSettingsPatch
+	patches []slimeclient.AgentSettingsPatch
 	calls   []string
 }
 
-func (r *recBackend) SaveAgentSettings(ctx context.Context, p keelclient.AgentSettingsPatch) (keelclient.AgentSettings, error) {
+func (r *recBackend) SaveAgentSettings(ctx context.Context, p slimeclient.AgentSettingsPatch) (slimeclient.AgentSettings, error) {
 	r.mu.Lock()
 	r.patches, r.calls = append(r.patches, p), append(r.calls, "PUT /api/agent/settings")
 	r.mu.Unlock()
 	return r.backend.SaveAgentSettings(ctx, p)
 }
 
-func (r *recBackend) SetAgentKey(ctx context.Context, in keelclient.AgentKeyInput) error {
+func (r *recBackend) SetAgentKey(ctx context.Context, in slimeclient.AgentKeyInput) error {
 	r.mu.Lock()
 	r.calls = append(r.calls, "PUT /api/agent/keys/"+in.Provider)
 	r.mu.Unlock()
 	return r.backend.SetAgentKey(ctx, in)
 }
 
-func (r *recBackend) saved() []keelclient.AgentSettingsPatch {
+func (r *recBackend) saved() []slimeclient.AgentSettingsPatch {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]keelclient.AgentSettingsPatch(nil), r.patches...)
+	return append([]slimeclient.AgentSettingsPatch(nil), r.patches...)
 }
 
 func TestE2EAgentSettings(t *testing.T) {
@@ -443,11 +443,11 @@ func TestE2EAgentSettings(t *testing.T) {
 	// Scrollback lines and the default scope.
 	p := e.w.settingsPage()
 	p.linesV = 400
-	e.pump(func() bool { return e.serverSettings().Settings.ScrollbackLines == 400 }, "Scrollback lines on keel serve")
+	e.pump(func() bool { return e.serverSettings().Settings.ScrollbackLines == 400 }, "Scrollback lines on slime serve")
 	e.click("Default panes per conversation Every pane in the tab")
-	e.pump(func() bool { return e.serverSettings().Settings.DefaultScope == "tab" }, "the default scope on keel serve")
+	e.pump(func() bool { return e.serverSettings().Settings.DefaultScope == "tab" }, "the default scope on slime serve")
 
-	// Keep conversations: a saved conversation, then "only while open" removes it on keel serve, and the panel says so.
+	// Keep conversations: a saved conversation, then "only while open" removes it on slime serve, and the panel says so.
 	e.openAgent()
 	e.settledAsk("what should I run? settings")
 	if n := len(e.convList().Sessions); n != 1 {
@@ -457,7 +457,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	if err := e.tt.ChooseMenuItem("Only while the panel is open"); err != nil {
 		t.Fatal(err)
 	}
-	e.pump(func() bool { return e.serverSettings().Settings.HistoryDays == 0 }, "Keep conversations on keel serve")
+	e.pump(func() bool { return e.serverSettings().Settings.HistoryDays == 0 }, "Keep conversations on slime serve")
 	e.pump(func() bool { return e.tt.HasText("Not saved · kept while open") }, "the panel to say Not saved · kept while open")
 	e.click("Keep conversations picker")
 	if err := e.tt.ChooseMenuItem("30 days"); err != nil {
@@ -465,16 +465,16 @@ func TestE2EAgentSettings(t *testing.T) {
 	}
 	e.pump(func() bool { return e.serverSettings().Settings.HistoryDays == 30 }, "Keep conversations back on")
 	if n := len(e.convList().Sessions); n != 0 {
-		t.Fatalf("the saved conversation is still on keel serve (%d)", n)
+		t.Fatalf("the saved conversation is still on slime serve (%d)", n)
 	}
 
-	// Claude Code: off, on, off; only claudeCode is sent, and the window has no call that reaches keel mcp.
-	e.click("Allow Claude Code (keel mcp) switch")
-	// The switch draws keel serve's answer: the second click waits for the window to have it, or it would send "on" again.
+	// Claude Code: off, on, off; only claudeCode is sent, and the window has no call that reaches slime mcp.
+	e.click("Allow Claude Code (slime mcp) switch")
+	// The switch draws slime serve's answer: the second click waits for the window to have it, or it would send "on" again.
 	e.pump(func() bool { return e.serverSettings().Settings.ClaudeCode && e.w.agentVal().Settings.ClaudeCode }, "Claude Code on")
-	e.click("Allow Claude Code (keel mcp) switch")
+	e.click("Allow Claude Code (slime mcp) switch")
 	e.pump(func() bool { return !e.serverSettings().Settings.ClaudeCode }, "Claude Code off")
-	var claude []keelclient.AgentSettingsPatch
+	var claude []slimeclient.AgentSettingsPatch
 	for _, p := range rec.saved() {
 		if p.ClaudeCode != nil {
 			claude = append(claude, p)
@@ -494,7 +494,7 @@ func TestE2EAgentSettings(t *testing.T) {
 	}
 
 	// A fake key through the Anthropic card: masked, sent once, then Connected, and in no log, pref, shot text or screen.
-	var d keelclient.AgentProvider
+	var d slimeclient.AgentProvider
 	for _, x := range e.w.agentState().provs {
 		if x.ID == "anthropic" {
 			d = x

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"keel/internal/agent"
-	"keel/internal/agent/service"
-	"keel/internal/runtime"
-	"keel/internal/store"
+	"slime/internal/agent"
+	"slime/internal/agent/service"
+	"slime/internal/runtime"
+	"slime/internal/store"
 )
 
 // The gate of a direct type (§6 rule 13): the strict allowlist
@@ -135,7 +135,7 @@ func TestDirectTypeGatePromptState(t *testing.T) {
 	}
 	got := readPTY(bridge)
 
-	// An echo-off password prompt, seen by keel serve.
+	// An echo-off password prompt, seen by slime serve.
 	for _, prompt := range []string{"[sudo] password for me: ", "deploy@web-1's password: ", "Enter passphrase for key '/home/me/.ssh/id_ed25519': ", "Are you sure you want to continue connecting (yes/no/[fingerprint])? ", "Proceed? [y/N] ", "mysql> ", "> "} {
 		emit(t, f, f.webID, web.ID, "\r\n"+prompt, lastLineIs(strings.TrimRight(prompt, " ")))
 		wantDialog(t, prompt, directOverSocket(t, driver, "uptime", dir(nil), nil), "asking for input")

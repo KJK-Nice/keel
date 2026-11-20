@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"keel/internal/limits"
-	"keel/internal/native/keelclient"
+	"slime/internal/limits"
+	"slime/internal/native/slimeclient"
 )
 
 // The host import's rules (docs/ui-redesign.md §5.15): which hosts start ticked, what the table says about each,
-// what the request carries and the words around it (onboard_test.go pins them). Nothing here reads a file or a key: keel
+// what the request carries and the words around it (onboard_test.go pins them). Nothing here reads a file or a key: slime
 // serve parses the ssh config and copies a key into the vault only when the request names it.
 
 // keyState is one key's copy switch and the passphrase typed for it. String leaves the passphrase out.
@@ -46,7 +46,7 @@ func (s *importSel) clearSecrets() {
 
 // defaultSelection: every host that is not saved yet and needs no proxy is on; saved hosts and proxy hosts are
 // off (the user may still turn them on). Every key copy is off: copying a private key is always opt-in.
-func defaultSelection(p keelclient.SSHPreview) *importSel {
+func defaultSelection(p slimeclient.SSHPreview) *importSel {
 	s := &importSel{hosts: map[string]bool{}, keys: map[string]*keyState{}, noJump: map[string]bool{}}
 	for _, h := range p.Hosts {
 		if !h.Saved && h.Proxy == "" {
@@ -69,7 +69,7 @@ func (s *importSel) keyOf(path string) *keyState {
 	return k
 }
 
-func hostAddress(h keelclient.ConfigHost) string {
+func hostAddress(h slimeclient.ConfigHost) string {
 	addr := h.HostName
 	if addr == "" {
 		addr = h.Alias
@@ -80,22 +80,22 @@ func hostAddress(h keelclient.ConfigHost) string {
 	return addr
 }
 
-// copyable is false for a key keel serve cannot read (missing, too large, not a private key): its switch is
+// copyable is false for a key slime serve cannot read (missing, too large, not a private key): its switch is
 // disabled.
-func copyable(k keelclient.ConfigKey) bool { return k.Exists && k.Problem == "" }
+func copyable(k slimeclient.ConfigKey) bool { return k.Exists && k.Problem == "" }
 
-func leadText(p keelclient.SSHPreview) string {
+func leadText(p slimeclient.SSHPreview) string {
 	path := p.Path
 	if path == "" {
 		path = "~/.ssh/config"
 	}
 	if !p.Found {
-		return "Keel found no " + path + ". Add hosts later with New host."
+		return "Slime found no " + path + ". Add hosts later with New host."
 	}
-	return fmt.Sprintf("Keel found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
+	return fmt.Sprintf("Slime found %s with %s. Pick the ones to add. Your config file is not changed.", path, countWord(len(p.Hosts), "host", "hosts"))
 }
 
-func selectedCount(p keelclient.SSHPreview, s *importSel) (n int) {
+func selectedCount(p slimeclient.SSHPreview, s *importSel) (n int) {
 	for _, h := range p.Hosts {
 		if s.hosts[h.Alias] {
 			n++
@@ -114,7 +114,7 @@ func addLabel(n int) string {
 	return fmt.Sprintf("Add %d hosts", n)
 }
 
-func summaryText(p keelclient.SSHPreview, s *importSel) string {
+func summaryText(p slimeclient.SSHPreview, s *importSel) string {
 	return fmt.Sprintf("%d of %d selected", selectedCount(p, s), len(p.Hosts))
 }
 
@@ -127,7 +127,7 @@ const (
 	checkMixed
 )
 
-func allState(p keelclient.SSHPreview, s *importSel) checkState {
+func allState(p slimeclient.SSHPreview, s *importSel) checkState {
 	switch n := selectedCount(p, s); {
 	case n == 0:
 		return checkOff
@@ -137,9 +137,9 @@ func allState(p keelclient.SSHPreview, s *importSel) checkState {
 	return checkMixed
 }
 
-// jumpKept: the host's one-hop ProxyJump becomes its Keel jump host with this selection (a saved jump host, or its
+// jumpKept: the host's one-hop ProxyJump becomes its Slime jump host with this selection (a saved jump host, or its
 // config jump host being added).
-func jumpKept(h keelclient.ConfigHost, s *importSel) bool {
+func jumpKept(h slimeclient.ConfigHost, s *importSel) bool {
 	return h.Proxy == "ProxyJump" && (h.JumpSaved != "" || (h.JumpAlias != "" && s.hosts[h.JumpAlias]))
 }
 
@@ -152,7 +152,7 @@ type via struct {
 	command bool   // ProxyCommand: no checkbox, only the flag
 }
 
-func viaOf(h keelclient.ConfigHost) via {
+func viaOf(h slimeclient.ConfigHost) via {
 	if h.Proxy == "" {
 		return via{}
 	}
@@ -172,9 +172,9 @@ func viaOf(h keelclient.ConfigHost) via {
 		if h.Proxy == "ProxyJump" && h.ProxyJump != "" {
 			what = "ProxyJump " + h.ProxyJump
 		}
-		why := "Keel does not support it"
+		why := "Slime does not support it"
 		if h.JumpProblem != "" {
-			why = "Keel cannot keep it: " + h.JumpProblem
+			why = "Slime cannot keep it: " + h.JumpProblem
 		}
 		v = via{kind: "unused", text: what + ", not used", tip: what + ": " + why}
 	}
@@ -185,7 +185,7 @@ func viaOf(h keelclient.ConfigHost) via {
 }
 
 // keyNames is the Key cell: the base names of the host's identity files.
-func keyNames(h keelclient.ConfigHost) string {
+func keyNames(h slimeclient.ConfigHost) string {
 	var names []string
 	for _, f := range h.IdentityFiles {
 		names = append(names, baseName(f))
@@ -206,7 +206,7 @@ type noteLine struct{ source, text string }
 
 // notesList merges the config's notes with the hosts' own (bad Port, unexpanded tokens), proxy notes aside: the
 // Via column shows those.
-func notesList(p keelclient.SSHPreview) []noteLine {
+func notesList(p slimeclient.SSHPreview) []noteLine {
 	var out []noteLine
 	for _, n := range p.Notes {
 		out = append(out, noteLine{n.Source, n.Text})
@@ -224,8 +224,8 @@ func notesList(p keelclient.SSHPreview) []noteLine {
 
 // importRequest is the body of POST /api/ssh-config/import: host aliases and the keys to copy. Only keys that are
 // on and copyable are sent, and a passphrase only for a key that has one.
-func importRequest(p keelclient.SSHPreview, s *importSel) keelclient.ImportRequest {
-	req := keelclient.ImportRequest{Hosts: []string{}, Keys: []keelclient.ImportKey{}}
+func importRequest(p slimeclient.SSHPreview, s *importSel) slimeclient.ImportRequest {
+	req := slimeclient.ImportRequest{Hosts: []string{}, Keys: []slimeclient.ImportKey{}}
 	for _, h := range p.Hosts {
 		if s.hosts[h.Alias] {
 			req.Hosts = append(req.Hosts, h.Alias)
@@ -236,7 +236,7 @@ func importRequest(p keelclient.SSHPreview, s *importSel) keelclient.ImportReque
 		if st == nil || !st.on || !copyable(k) {
 			continue
 		}
-		ik := keelclient.ImportKey{Path: k.Path}
+		ik := slimeclient.ImportKey{Path: k.Path}
 		if k.Encrypted {
 			ik.Passphrase = st.pass
 		}
@@ -251,7 +251,7 @@ func importRequest(p keelclient.SSHPreview, s *importSel) keelclient.ImportReque
 }
 
 // missingJump is the first chosen ProxyJump host whose jump host is neither kept nor waived with Without the jump.
-func missingJump(p keelclient.SSHPreview, s *importSel) *keelclient.ConfigHost {
+func missingJump(p slimeclient.SSHPreview, s *importSel) *slimeclient.ConfigHost {
 	for i, h := range p.Hosts {
 		if s.hosts[h.Alias] && h.Proxy == "ProxyJump" && !jumpKept(h, s) && !s.noJump[h.Alias] {
 			return &p.Hosts[i]
@@ -261,7 +261,7 @@ func missingJump(p keelclient.SSHPreview, s *importSel) *keelclient.ConfigHost {
 }
 
 // missingPassphrase is the index of the first key turned on whose passphrase is still empty, or -1.
-func missingPassphrase(p keelclient.SSHPreview, s *importSel) int {
+func missingPassphrase(p slimeclient.SSHPreview, s *importSel) int {
 	for i, k := range p.Keys {
 		if st := s.keys[k.Path]; st != nil && st.on && copyable(k) && k.Encrypted && st.pass == "" {
 			return i
@@ -270,7 +270,7 @@ func missingPassphrase(p keelclient.SSHPreview, s *importSel) int {
 	return -1
 }
 
-func importedText(r keelclient.ImportResult) string {
+func importedText(r slimeclient.ImportResult) string {
 	hosts := countWord(len(r.Hosts), "host", "hosts")
 	notAdded := ""
 	if len(r.Failed) > 0 {
