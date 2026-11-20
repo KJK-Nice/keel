@@ -42,7 +42,7 @@ What each release holds (file names, platforms, signing) is in [docs/release.md]
 
 ```bash
 # Debian, Ubuntu: installs /opt/slime, the `slime` command and a menu entry
-sudo apt install ./keel_*_amd64.deb                # or the arm64 one
+sudo apt install ./slime_*_amd64.deb                # or the arm64 one
 # any distribution: unpack the .tar.gz into a folder of its own and run slime there
 mkdir slime && tar -xzf slime-*-linux-amd64.tar.gz -C slime && ./slime/slime   # or the arm64 one
 ```
