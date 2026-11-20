@@ -538,6 +538,32 @@ func (s *Session) ReadScrollback() []byte {
 	return scrollback.Read(s.buf.Bytes())
 }
 
+// MaxFileCopy caps a file ReadFile copies from a remote host.
+const MaxFileCopy = 64 << 20
+
+// ErrNoRemoteFile is ReadFile on a session whose files are not on a remote host (a local shell) or that is not
+// connected now.
+var ErrNoRemoteFile = errors.New("this pane has no remote host to copy from")
+
+// ReadFile copies a file the user ⌘-clicked in a remote pane: name as printed, made absolute against the folder
+// the shell last reported (OSC 7). It reads over a new channel of the session's SSH connection and never writes
+// to the PTY. It returns the file and the path it read.
+func (s *Session) ReadFile(name string) ([]byte, string, error) {
+	s.mu.Lock()
+	fr, ok := s.br.(session.FileReader)
+	dir := s.marks.Cwd()
+	s.mu.Unlock()
+	if !ok || s.host.IsLocal() {
+		return nil, "", ErrNoRemoteFile
+	}
+	p, err := session.RemotePath(name, dir)
+	if err != nil {
+		return nil, "", err
+	}
+	data, err := fr.ReadFile(p, MaxFileCopy)
+	return data, p, err
+}
+
 // maxCommandText caps the command line read for a block: the typed text
 // between the B and C marks (a huge paste is cut, not read whole).
 const maxCommandText = 4096

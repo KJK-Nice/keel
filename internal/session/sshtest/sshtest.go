@@ -38,6 +38,7 @@ type Server struct {
 	shellIn   []byte
 	conns     []net.Conn
 	closeOnce sync.Once
+	exec      func(cmd string) ([]byte, string, int)
 }
 
 // Options configure New. Empty User and Password default to "u" and "pw".
@@ -48,6 +49,9 @@ type Options struct {
 	NoForward bool
 	// Port is the loopback port; 0 picks a free one.
 	Port int
+	// Exec answers an exec request (a command, not a shell): what it prints, its error output and its exit status.
+	// Nil refuses exec.
+	Exec func(cmd string) (stdout []byte, stderr string, status int)
 }
 
 // New starts a server and stops it when the test ends.
@@ -77,7 +81,7 @@ func Start(opts Options) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{User: opts.User, Password: opts.Password, Key: signer.PublicKey()}
+	s := &Server{User: opts.User, Password: opts.Password, Key: signer.PublicKey(), exec: opts.Exec}
 	s.cfg = &ssh.ServerConfig{
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			if c.User() == s.User && string(pass) == s.Password {
@@ -227,14 +231,21 @@ func pipe(ch ssh.Channel, out net.Conn) {
 // it, until the channel closes.
 func (s *Server) session(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	defer ch.Close()
+	if r, ok := <-reqs; ok && r.Type == "exec" && s.exec != nil {
+		cmd, _, _ := sshString(r.Payload)
+		_ = r.Reply(true, nil)
+		go ssh.DiscardRequests(reqs)
+		out, errOut, status := s.exec(cmd)
+		_, _ = ch.Write(out)
+		_, _ = ch.Stderr().Write([]byte(errOut))
+		_, _ = ch.SendRequest("exit-status", false, binary.BigEndian.AppendUint32(nil, uint32(status)))
+		return
+	} else if ok {
+		s.reply(r)
+	}
 	go func() {
 		for r := range reqs {
-			switch r.Type {
-			case "pty-req", "shell", "window-change", "env":
-				_ = r.Reply(true, nil)
-			default:
-				_ = r.Reply(false, nil)
-			}
+			s.reply(r)
 		}
 	}()
 	buf := make([]byte, 4096)
@@ -249,6 +260,15 @@ func (s *Server) session(ch ssh.Channel, reqs <-chan *ssh.Request) {
 		if err != nil {
 			return
 		}
+	}
+}
+
+func (s *Server) reply(r *ssh.Request) {
+	switch r.Type {
+	case "pty-req", "shell", "window-change", "env":
+		_ = r.Reply(true, nil)
+	default:
+		_ = r.Reply(false, nil)
 	}
 }
 

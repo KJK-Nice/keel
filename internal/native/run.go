@@ -73,7 +73,9 @@ func liveBodyT(p *pane, transparent bool) {
 		},
 		// A noticed line or a card takes ⇥, ⇧⇥, esc, the option keys and ⌘Z first; every other key goes on at once (suggestKey).
 		OnKey: func(mods ui.Modifiers, key ui.Key) bool { return p.keyHook != nil && p.keyHook(mods, key) },
-		Font:  p.termFont(p.fontSize), Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
+		// ⌘-click on a printed file path opens it (openfile.go); MyGo opens web links itself.
+		OpenLink: func(link string) bool { return p.openLink != nil && p.openLink(link) },
+		Font:     p.termFont(p.fontSize), Padding: terminal.Padding{X: termPadX, Y: termPadY}, // the plugin's own default, written out: suggestgeom.go places marks by it
 		// Text size is the workspace's, for every pane (⌘+ ⌘- ⌘0): the wheel's zoom asks it too.
 		OnZoom: func(z terminal.Zoom) bool {
 			if p.zoom != nil {
@@ -92,6 +94,7 @@ func liveBodyT(p *pane, transparent bool) {
 	}
 	p.view = func(c *ui.Context) ui.Element { return terminal.View(c, term).Fill() }
 	p.size = term.Size
+	p.dir = term.Dir
 	p.sg.cursor = func() (int, string, bool) {
 		_, rows := term.Size()
 		return cursorRow(string(term.Snapshot()), rows)

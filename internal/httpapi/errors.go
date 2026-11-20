@@ -10,6 +10,7 @@ import (
 	"slime/internal/agent/service"
 	"slime/internal/hostimport"
 	"slime/internal/runtime"
+	"slime/internal/session"
 	"slime/internal/share"
 	"slime/internal/store"
 	"slime/internal/wire"
@@ -89,6 +90,8 @@ var rules = []rule{
 
 	// Sessions and sharing.
 	{err: runtime.ErrNotFound, status: http.StatusNotFound},
+	{err: runtime.ErrNoRemoteFile, status: http.StatusConflict},
+	{err: session.ErrTooLarge, status: http.StatusRequestEntityTooLarge},
 	{err: share.ErrNotShared, status: http.StatusNotFound},
 	{err: share.ErrNotResponding, status: http.StatusServiceUnavailable},
 	{err: share.ErrNoRequest, status: http.StatusConflict},
