@@ -26,7 +26,7 @@ The `slime` command (`slime serve`, `slime mcp`, `slime version`) is `/Applicati
 
 ```bash
 # Debian, Ubuntu: /opt/slime, the `slime` command and a menu entry
-sudo apt install ./keel_*_amd64.deb      # or _arm64.deb
+sudo apt install ./slime_*_amd64.deb      # or _arm64.deb
 # any distribution
 mkdir slime && tar -xzf slime-*-linux-amd64.tar.gz -C slime && ./slime/slime   # or -arm64
 ```

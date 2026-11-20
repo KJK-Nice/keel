@@ -5,7 +5,7 @@
 #   sh scripts/release.sh vX.Y.Z macos  Slime for macOS, universal (arm64 + x86_64), packaged by mygo build:
 #                                        slime-<mygo.json version>.dmg (Slime.app inside)
 #   sh scripts/release.sh vX.Y.Z linux  Slime for Linux, x86_64 and arm64 (mygo build builds both on any machine):
-#                                        slime-<v>-linux-<amd64|arm64>.tar.gz and keel_<v>_<amd64|arm64>.deb
+#                                        slime-<v>-linux-<amd64|arm64>.tar.gz and slime_<v>_<amd64|arm64>.deb
 #   sh scripts/release.sh vX.Y.Z signal slime-signal for every OS (plain go build, not a MyGo app)
 #
 # The version of the packages is "version" in mygo.json and must equal the tag (a v0.0.0-pr<N> dry run of the
@@ -123,9 +123,9 @@ linux)
 			[ "$("$dir/slime" version)" = "slime $tag" ] || fail "slime version is not 'slime $tag'"
 		fi
 		if command -v dpkg-deb >/dev/null 2>&1; then
-			dpkg-deb -c "$dir/keel_${cv}_$arch.deb" | grep -q 'opt/slime/libghostty-vt.so' || fail "libghostty-vt.so is not in the $arch .deb"
+			dpkg-deb -c "$dir/slime_${cv}_$arch.deb" | grep -q 'opt/slime/libghostty-vt.so' || fail "libghostty-vt.so is not in the $arch .deb"
 		fi
-		cp "$dir/slime-$cv-linux-$arch.tar.gz" "$dir/keel_${cv}_$arch.deb" dist/
+		cp "$dir/slime-$cv-linux-$arch.tar.gz" "$dir/slime_${cv}_$arch.deb" dist/
 		updates "$dir"
 	done
 	;;

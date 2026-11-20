@@ -15,7 +15,7 @@ The workflow runs `scripts/release.sh` for each target; the script is the source
 | Target | Files |
 |---|---|
 | macOS, universal (arm64 and x86_64) | `slime-<version>.dmg`, with `Slime.app` inside; for updates, `slime-<version>-darwin-universal.tar.gz`, `update-darwin-universal.json` and deltas |
-| Linux, `amd64` and `arm64` (one Ubuntu runner builds both) | `slime-<version>-linux-<arch>.tar.gz` and `keel_<version>_<arch>.deb`; for updates, `update-linux-<arch>.json` and deltas |
+| Linux, `amd64` and `arm64` (one Ubuntu runner builds both) | `slime-<version>-linux-<arch>.tar.gz` and `slime_<version>_<arch>.deb`; for updates, `update-linux-<arch>.json` and deltas |
 | slime-signal, a plain `go build`, for macOS, Linux and Windows | `slime-signal-<version>-<os>-<cpu>` archives |
 
 `LICENSE` and `THIRD_PARTY_NOTICES` (`scripts/notices.sh`) are in each, and `SHA256SUMS` lists every file. The packages keep MyGo's file names. Windows has no Slime app, only slime-signal.
