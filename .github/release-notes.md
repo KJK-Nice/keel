@@ -1,14 +1,10 @@
-## What's new in v0.2.5
+## What's new in v0.3.0
 
-**Settings → Terminal** grows from four rows to five groups:
+**Keel is now Slime**, with a new logo: a blue slime on a pink-to-blue ground, in the Dock, the menu bar and the window. The repository moved to `KJK-Nice/slime` (the old links redirect), and the command is now `slime`; `keel` still works. If you linked the `keel` command, use Claude Code's `keel mcp`, or installed the Linux package, see "Keel is now Slime" under Install below. Your hosts, vault and settings are untouched.
 
-- **Typography.** Pick any monospaced font installed on your machine, after Slime's own five. **Text size** and **Weight** are number fields; **Line height** goes from 100 to 200%. The preview draws in that font.
-- **Advanced font.** **Ligatures** on or off, **Font features** (OpenType tags such as `ss01, cv02, -calt`), **Cell width** (80–150%) and, on macOS, **Thicken**.
-- **Colors.** **Improve text contrast** (Off, Some, High) lightens or darkens text a program draws too faint. **Selection background** and **Selection text** take the system accent or a colour of the terminal palette.
-- **Cursor.** **Cursor style** (Block, Bar, Underline) and **Blink**. On macOS, **Option key** in Input sends Alt (Meta) to programs, or types special characters as before. These three apply to panes opened afterwards.
-- **Play animation on copy.** Copied text flashes in the selection's colour. Turn it off in Input; with reduced motion it never plays.
-
-Everything except the Cursor rows and the Option key applies to every open pane at once.
+- **⌘-click a file path to open it** (Control-click on Linux). Click a path printed in a terminal (absolute, `~/`, relative, or `file:line:col`) or a `file://` link. In a local pane the file opens where it is. In a remote pane Slime copies it over the session's own SSH connection into **Downloads › Slime › <host>**, opens the copy and offers **Show in Finder**. Files up to 64 MB; a relative path needs the shell to report its folder (OSC 7). Web links open in the browser, as before.
+- **Toasts look new.** They are pills now: a green check on a result, a red alert and red title on a failure with the reason on a second line, and a title too long for one line scrolls sideways (with Reduce Motion it wraps instead).
+- **Relaunch Now after an update.** When an update has installed in the background, a toast offers to relaunch. Only the window restarts: `slime serve` keeps every session running.
 
 ## Install
 
