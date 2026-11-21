@@ -163,6 +163,14 @@ func (s *shell) start() {
 	mygo.App.SetMenu(s.menu())
 	s.menuBar = isMac() // Slime lives in the menu bar on macOS
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) { s.quitting.Store(true) })
+	// An update installed in the background waits for the next launch. Sessions live in slime serve, so relaunching
+	// the window loses none of them: offer it now, until the toast is closed.
+	updater.OnInstalled(func() {
+		s.run(func(w *workspace) {
+			w.sayDetail(updateInstalledTitle(updater.AvailableVersion()), updateInstalledDetail, updateRelaunch,
+				func() { mygo.App.Relaunch() }, -1)
+		})
+	})
 	if !s.menuBar {
 		return
 	}
@@ -291,4 +299,17 @@ func (s *shell) syncTray() {
 	}
 	s.claude.SetChecked(known && claude)
 	s.claude.SetEnabled(known)
+}
+
+const (
+	updateInstalledDetail = "Your sessions keep running"
+	updateRelaunch        = "Relaunch Now"
+)
+
+// updateInstalledTitle is the update toast's title, with the new version when the updater knows it.
+func updateInstalledTitle(version string) string {
+	if version == "" {
+		return "Update installed"
+	}
+	return "Slime " + version + " installed"
 }

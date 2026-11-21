@@ -255,6 +255,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/known-hosts", s.trustHostKey)
 	mux.HandleFunc("GET /api/sessions", s.listSessions)
 	mux.HandleFunc("GET /api/sessions/{id}/scrollback", s.readScrollback)
+	mux.HandleFunc("GET /api/sessions/{id}/file", s.readSessionFile)
 	mux.HandleFunc("POST /api/sessions/{id}/reconnect", s.reconnectSession)
 	mux.HandleFunc("DELETE /api/sessions/{id}", s.killSession)
 	mux.HandleFunc("GET /ws/session", s.sessionWS)
@@ -782,6 +783,28 @@ func (s *Server) readScrollback(w http.ResponseWriter, r *http.Request) {
 		"redacted": true,
 		"text":     string(text),
 	})
+}
+
+// readSessionFile copies a file the user ⌘-clicked in a remote pane (?path= as printed) from the session's host.
+// The body is the file; X-Slime-Path is the path read. The UI's token opens it, slime mcp's does not, and nothing
+// on the agent's side calls it.
+func (s *Server) readSessionFile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	sess, err := s.rt.Get(id)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	data, p, err := sess.ReadFile(r.URL.Query().Get("path"))
+	if err != nil {
+		writeErr(w, otherwise(err, http.StatusBadGateway))
+		return
+	}
+	info := sess.Info()
+	s.note(wire.LogSession, "file copied: "+p, info.HostID, info.ID, "")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("X-Slime-Path", p)
+	w.Write(data)
 }
 
 func (s *Server) reconnectSession(w http.ResponseWriter, r *http.Request) {

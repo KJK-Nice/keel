@@ -471,6 +471,29 @@ func TestE2EToasts(t *testing.T) {
 	e.tt.Advance(toastTimeout + time.Second)
 	e.step()
 	e.pump(func() bool { return !e.errToastShown() }, "the error toast to expire")
+	// A failure with its reason on a second line, as Rex's "Couldn't connect" (the action in flare-soft).
+	e.w.queued = append(e.w.queued, ui.Toast{ID: "err-detail", Title: "Couldn’t copy report.png", Description: "cat: /srv/app/report.png: Permission denied, and a reason long enough to be cut with an ellipsis", Type: toastError, Timeout: toastTimeout, Action: "Retry", OnAction: func() {}})
+	e.pump(func() bool { return e.hasLabel("toast Couldn’t copy report.png") }, "the failure with a reason")
+	e.shot("TestE2EToasts-error-detail")
+	e.tt.Advance(toastTimeout + time.Second)
+	e.step()
+	e.pump(func() bool { return !e.hasLabel("toast Couldn’t copy report.png") }, "the failure with a reason to expire")
+	// A result too long for one line scrolls sideways (marquee): still at first, then moved left.
+	long := "Opened a copy of “a-very-long-generated-report-name-from-the-nightly-build.png”"
+	e.w.sayDetail(long, "In Downloads › Slime › toast-host", "Show in Finder", func() {}, toastTimeout)
+	e.pump(func() bool { return e.hasLabel("toast " + long) }, "the long toast")
+	e.step()
+	e.shot("TestE2EToasts-marquee-start")
+	e.tt.Advance(marqueeWait + time.Second)
+	e.step()
+	e.step()
+	if m := e.w.marquees[toastActionID(long)]; m == nil || marqueeOffset(m.elapsed, 1) == 0 {
+		t.Fatalf("the long title did not scroll: %+v", m)
+	}
+	e.shot("TestE2EToasts-marquee-moved")
+	e.tt.Advance(toastTimeout + time.Second)
+	e.step()
+	e.pump(func() bool { return !e.hasLabel("toast " + long) }, "the long toast to expire")
 	if got, ok := e.hostNamed("toast-host"); !ok || got.Name == "" {
 		t.Error("the host went")
 	}

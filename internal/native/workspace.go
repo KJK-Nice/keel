@@ -194,6 +194,9 @@ type backend interface {
 	Share(ctx context.Context, sessionID string) (string, error)
 	AdmitShare(ctx context.Context, sessionID, peerID string, allow bool) error
 	StopShare(ctx context.Context, sessionID string) error
+
+	// A file ⌘-clicked in a remote pane (openfile.go): slime serve copies it from the session's host.
+	ReadSessionFile(ctx context.Context, sessionID, name string) ([]byte, string, error)
 }
 
 // clientBackend adapts *slimeclient.Client, whose Spawn and Attach return *Conn.
@@ -237,6 +240,8 @@ type pane struct {
 	sg      paneSuggest // in-pane suggestions (suggestpane.go)
 	keyHook func(mods ui.Modifiers, key ui.Key) bool
 
+	dir         func() string // the folder the shell last reported (OSC 7), for a relative path ⌘-clicked (openfile.go)
+	openLink    func(link string) bool
 	remote      bool   // a joined share (join.go): its connection is a WebRTC peer, not a slime serve session
 	joinKey     string // which join it is (the origin and the room, never the key)
 	blockedSeen uint64 // State.Blocked as the window last showed the notice for
@@ -416,9 +421,10 @@ type workspace struct {
 	filter         string
 	sidebar        bool
 	sideSash       sashState
-	sideListH      ui.Handle  // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
-	queued         []ui.Toast // toasts asked for, handed to MyGo by the next frame (toast.go)
-	blocked        string     // a message that replaces the workspace (locked vault, no slime serve)
+	sideListH      ui.Handle           // the sidebar's list: whether it has the keyboard decides how the chosen row is drawn
+	queued         []ui.Toast          // toasts asked for, handed to MyGo by the next frame (toast.go)
+	marquees       map[string]*marquee // the scrolling titles of the toasts showing, by toast ID (toast.go)
+	blocked        string              // a message that replaces the workspace (locked vault, no slime serve)
 	gate           *unlockGate
 	first          *firstRun // the First run screens (or the palette's host import), over the whole window
 	closed         bool
@@ -666,6 +672,7 @@ func (w *workspace) newPane(h slimeclient.Host, conn session) *pane {
 		}
 	}
 	p.keyHook = func(mods ui.Modifiers, key ui.Key) bool { return w.suggestKey(p, mods, key) }
+	p.openLink = func(link string) bool { return w.openLink(p, link) }
 	conn.OnChange(func() { w.post(func() {}) }) // redraw the dot and the bar
 	w.mkBody(p)
 	return p
