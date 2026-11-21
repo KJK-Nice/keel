@@ -2,7 +2,7 @@
   "name": "Slime",
   "slug": "slime",
   "identifier": "app.keel.desktop",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "main": "./cmd/slime",
   "out": "build",
   "icon": "packaging/macos/icon.png",
