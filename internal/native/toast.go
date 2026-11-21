@@ -11,8 +11,8 @@ import (
 
 // Toasts sit at the bottom right, show the newest three and keep each for 5 s. MyGo keeps the queue, the timers (they
 // stop while the pointer rests on a toast) and the limit of three; this draws them with the Slime tokens, as Rex's: a
-// pill with a status icon (a tide check for a result, a flare alert for a failure), the title, an optional muted
-// second line, an optional action button that runs and closes the toast, and a round close button. A result's
+// pill with a status icon (a tide check for a result, a flare alert for a failure), the title in tide or flare, an
+// optional muted second line cut to one line, an optional action button that runs and closes the toast, and a round close button. A result's
 // title that does not fit scrolls sideways on one line, as Rex's does (marquee); with reduced motion, and on a
 // failure, it wraps instead, so it can be read at a glance.
 
@@ -73,15 +73,35 @@ func (w *workspace) sayDetail(title, detail, action string, run func(), timeout 
 		Timeout: timeout, Action: action, OnAction: run})
 }
 
+// warnDetail shows a failure as Rex does: a short title of what failed and, on a second line, why.
+func (w *workspace) warnDetail(title, detail string) {
+	w.queued = append(w.queued, ui.Toast{ID: toastError + title, Title: title, Description: detail, Type: toastError, Timeout: toastTimeout})
+}
+
 func toastActionID(title string) string { return "action " + title }
 
 // errText is what a toast says for a failed call: the server's own reason, else what failed and why.
 func errText(what string, err error) string {
-	var se *slimeclient.StatusError
-	if errors.As(err, &se) && se.Msg != "" {
-		return se.Msg
+	if msg, ok := serverReason(err); ok {
+		return msg
 	}
 	return what + ": " + err.Error()
+}
+
+// errReason is why a call failed, for a toast's second line: the server's own reason, else the error.
+func errReason(err error) string {
+	if msg, ok := serverReason(err); ok {
+		return msg
+	}
+	return err.Error()
+}
+
+func serverReason(err error) (string, bool) {
+	var se *slimeclient.StatusError
+	if errors.As(err, &se) && se.Msg != "" {
+		return se.Msg, true
+	}
+	return "", false
 }
 
 // toastsView hands the queued toasts to MyGo and draws the viewport, once per frame.
@@ -103,9 +123,9 @@ func (w *workspace) toastsView(c *ui.Context) {
 		}
 		for _, t := range toasts {
 			ok := t.Type == toastSuccess
-			titleCol := ink
+			titleCol, soft := flare, flareSoft // a failure's colours, as Rex's: its title and action in flare
 			if ok {
-				titleCol = tide
+				titleCol, soft = tide, tideSoft
 			}
 			p := ui.ToastBase(c, t)
 			p.Root.Row().MaxWidth(toastWidth).Padding(space2, space2, space2, space3).Gap(space2).AlignItems(ui.Center).
@@ -124,17 +144,13 @@ func (w *workspace) toastsView(c *ui.Context) {
 					} else {
 						ui.Text(c, t.Title).TextColor(titleCol).FontSize(uiFontSize).FontWeight(weightSemibold)
 					}
-					if t.Description != "" {
-						caption(c, t.Description, inkMuted)
+					if t.Description != "" { // one line, cut with an ellipsis: screen readers read it whole
+						caption(c, t.Description, inkMuted).SingleLine()
 					}
 				})
 				if t.Action != "" {
 					b := p.ActionButton().Label(t.Action).Shrink(0).Height(sizeControlSm).Padding(0, space3).Radius(radiusFull)
-					if ok {
-						b.Background(tideSoft).Children(func() { label(c, t.Action, tide) })
-					} else {
-						b.Background(raised).Border(1, lineStrong).Children(func() { label(c, t.Action, ink) })
-					}
+					b.Background(soft).Children(func() { label(c, t.Action, titleCol) })
 				}
 				p.CloseButton().Label("Close notification").Size(sizeControlSm, sizeControlSm).Radius(radiusFull).Justify(ui.Center).
 					AlignItems(ui.Center).Shrink(0).Children(func() { icon(c, "cancel-01", inkMuted) })

@@ -63,7 +63,7 @@ func (w *workspace) openLink(p *pane, link string) bool {
 				return
 			}
 			if err != nil {
-				w.warn(errText("Could not copy "+name, err))
+				w.warnDetail("Couldn’t copy "+path.Base(name), errReason(err))
 				return
 			}
 			if err := openPath(saved); err != nil {

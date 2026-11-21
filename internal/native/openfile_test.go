@@ -53,7 +53,8 @@ func TestOpenLinkCopiesARemoteFile(t *testing.T) {
 
 	w.queued = nil
 	w.openLink(p, "missing.txt")
-	if len(w.queued) != 1 || w.queued[0].Type != toastError || len(*opened) != 1 {
+	if len(w.queued) != 1 || w.queued[0].Type != toastError || w.queued[0].Title != "Couldn’t copy missing.txt" ||
+		w.queued[0].Description != "missing.txt: No such file or directory" || len(*opened) != 1 {
 		t.Fatalf("a failed copy: %+v, opened %v", w.queued, *opened)
 	}
 }
