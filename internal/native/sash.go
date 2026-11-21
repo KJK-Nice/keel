@@ -105,14 +105,13 @@ func (w *workspace) widthSash(c *ui.Context, s *sashState, sp sashSpec) {
 		s.drag = false
 		moved := s.moved
 		s.moved = false
-		w.act(func() {
-			sp.keep(sp.cur)
-			// A drag took the keyboard and typing would reach nothing: the pane has it again. A plain click, or Tab, leaves it
-			// on the sash for its arrow keys.
-			if t := w.tab(); moved && t != nil {
-				w.wantFocus = t.focused
-			}
-		})
+		w.act(func() { sp.keep(sp.cur) })
+		// A drag took the keyboard and typing would reach nothing: the pane has it again, in this frame (view.go gives it
+		// after the layout), not one frame later through act, when keys typed meanwhile would still reach the sash. A
+		// plain click, or Tab, leaves it on the sash for its arrow keys.
+		if t := w.tab(); moved && t != nil {
+			w.wantFocus = t.focused
+		}
 	}
 	if b.DoubleClicked() {
 		w.act(func() { sp.keep(0) })
