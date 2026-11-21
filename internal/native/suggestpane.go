@@ -99,6 +99,9 @@ func (w *workspace) suggestMachine(p *pane) *sugMachine {
 		render:  func(v sugView) { p.sg.v = v; w.redraw() },
 		now:     w.sugClock,
 	})
+	// The machine starts idle without rendering; the pane's copy must say so too, or the overlay reads the zero view (State
+	// "", not idle) as a card and shows "Suggesting a command…" once the prompt line is first read.
+	p.sg.v = sugView{State: sugIdle}
 	return p.sg.m
 }
 
