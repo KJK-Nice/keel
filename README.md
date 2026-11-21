@@ -10,6 +10,7 @@
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Linux-555)
 ![Go](https://img.shields.io/github/go-mod/go-version/KJK-Nice/slime)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/kjk.nice)
 
 <img src="docs/images/hero-light.png" alt="Slime: the Vault sidebar with hosts beside a terminal tab" width="80%">
 
