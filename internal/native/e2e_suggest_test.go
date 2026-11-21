@@ -424,3 +424,29 @@ func TestE2ETypingKeepsItsOrderWhileSuggestionsAreOn(t *testing.T) {
 	want := strings.Join(strings.Fields(typed), " ")
 	e.pump(func() bool { return e.ranOutput(sid, want) }, "the output of the echo")
 }
+
+// The first key after a pane connects makes its machine; with a line no rule notices ("d"), no card may show, and nothing
+// is asked. The pane's view once started as the zero view, which the overlay drew as "Suggesting a command…".
+func TestE2ESuggestNoCardOnTheFirstKey(t *testing.T) {
+	for _, mode := range [][2]string{{"on", "hash-only"}, {"on", "auto"}, {"off", "hash-only"}} {
+		t.Run(mode[0]+"-"+mode[1], func(t *testing.T) {
+			addr, dir := startServe(t, true)
+			e := newWin(t, addr, dir, nil)
+			e.suggestSetup(mode[1])
+			e.suggestSettings(mode[0], mode[1])
+			sid := e.openLocal()
+			e.clickBody("1")
+			e.typeKeys("d")
+			e.settleClock(1500 * time.Millisecond)
+			for _, l := range []string{"suggestion card", "suggestion card pending", "suggestion words", "suggestion notice"} {
+				if e.hasLabel(l) {
+					t.Fatalf("one key shows %q: %v", l, e.tt.Texts())
+				}
+			}
+			if n := e.logCount("agent.suggest", sid); n != 0 {
+				t.Fatalf("one key asked for a suggestion %d times", n)
+			}
+			e.key(ui.Ctrl, ui.KeyU)
+		})
+	}
+}
